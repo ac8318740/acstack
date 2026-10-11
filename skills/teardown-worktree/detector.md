@@ -4,7 +4,7 @@ What `detect-orchestrator.sh` prints, and what to do when it does not run.
 
 ## Why the path goes through the CLI symlink
 
-The path goes through `~/.claude/spechub/bin/spechub`, the invariant symlink the SessionStart hook maintains. The plugin re-creates that symlink every time Claude Code starts. It is the only reliable way to find the plugin's own root.
+The path goes through `~/.claude/spechub/bin/spechub`, the invariant symlink the SessionStart hook maintains. The plugin re-creates that symlink every time an agent session starts. It is the only reliable way to find the plugin's own root.
 
 Do not invent a shorter path, and do not reach for `$CLAUDE_PLUGIN_ROOT` – the plugin deliberately does not depend on that variable reaching a fresh subshell.
 

@@ -66,10 +66,10 @@ session.
 
 `workflow.grilling.questions` in `spechub/project.yaml` picks the mode:
 
-| Value            | Behaviour                                                  |
-| ---------------- | ---------------------------------------------------------- |
-| `tool` (default) | the host's question tool (AskUserQuestion), one call per round |
-| `inline`         | questions as prose in the reply                             |
+| Value            | Behaviour                                                                            |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| `tool` (default) | the host's question tool (AskUserQuestion on Claude Code), one call per round        |
+| `inline`         | questions as prose in the reply – also what `tool` means on a host with no such tool |
 
 **`tool` falls back to inline** for any round it cannot hold: more than 4
 questions, or any question with no discrete options. Never split one round

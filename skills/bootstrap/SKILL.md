@@ -41,7 +41,7 @@ Your job is to:
 
 ## Phase 1: independent exploration (passes 1-3)
 
-Launch **3 parallel subagents** (`subagent_type=Explore`) in a single message. Each gets a different exploration strategy:
+Launch **3 parallel `Explore` subagents** at once. Each gets a different exploration strategy:
 
 ### Pass 1 – entry points strategy
 

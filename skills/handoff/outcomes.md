@@ -30,10 +30,10 @@ or `engaged`, and `nudged` is `false`.
 Send one message to the target saying it has not acknowledged, and that it must
 run the ack command now. Quote the command with the handoff file path in it.
 
-| The target is        | Nudge it with                                            |
-| -------------------- | -------------------------------------------------------- |
-| in a fresh pane      | `herdr agent prompt <name> "<nudge text>"`               |
-| already running      | `SendMessage`                                            |
+| The target is        | Nudge it with                                                  |
+| -------------------- | -------------------------------------------------------------- |
+| in a fresh pane      | `herdr agent prompt <name> "<nudge text>"`                     |
+| already running      | the host's agent-messaging tool (`SendMessage` on Claude Code) |
 
 Then restart the watcher. Keep every argument, add `--nudged`, and re-anchor.
 
@@ -105,7 +105,7 @@ Report the reply verbatim and stop. Never treat it as ownership.
 
 This outcome only appears when the watch ran without `--file`. With `--file` the
 watcher never reports a null decision. The sidecar records one word or the
-other, and a keyword-free SendMessage is not an acknowledgement.
+other, and a keyword-free message is not an acknowledgement.
 
 **`ack.via: text`** – report it as an acknowledgement, and say the target typed
 the decision rather than recording it. The sidecar does not exist, so nothing on

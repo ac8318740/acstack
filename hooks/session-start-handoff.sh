@@ -149,8 +149,8 @@ preamble = (
     "Resume now: when the user's next message is \"continue\" (or any short "
     "nudge), pick up the work immediately from the Next action below - do not "
     "wait for further instruction. If anything in this handoff or the "
-    "compaction summary is ambiguous or underspecified, use the AskUserQuestion "
-    "tool to resolve it before acting rather than guessing. Ask liberally: a "
+    "compaction summary is ambiguous or underspecified, ask the user "
+    "to resolve it before acting rather than guessing. Ask liberally: a "
     "wrong assumption taken after compaction is expensive to unwind.\n\n"
 )
 

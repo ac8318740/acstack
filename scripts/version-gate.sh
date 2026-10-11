@@ -7,6 +7,9 @@
 # changes, so a merge that leaves the version alone is invisible to every
 # installed copy. This gate makes that failure loud at pull request time.
 #
+# It also refuses a root package.json, the pi package manifest, whose version
+# differs from the plugin's.
+#
 # Usage:  scripts/version-gate.sh <base-ref> <head-ref>
 # Env:    NO_BUMP=1  the pull request carries the `no-bump` label.
 #
@@ -35,6 +38,10 @@ INERT_PATHS=(
 
 MANIFEST=".claude-plugin/plugin.json"
 
+# The pi package manifest. pi installs the same tree from a git tag, so its
+# version has to match the plugin's whenever the file exists.
+PI_MANIFEST="package.json"
+
 usage() {
   echo "usage: $(basename "$0") <base-ref> <head-ref>" >&2
 }
@@ -56,11 +63,11 @@ is_inert() {
   return 1
 }
 
-# Print the `version` field of the manifest as it stands at ref $1. Prints
-# nothing when the file or the field is absent.
+# Print the `version` field of manifest $2 (default: the plugin manifest) as it
+# stands at ref $1. Prints nothing when the file or the field is absent.
 read_version() {
-  local ref="$1" json
-  json="$(git show "${ref}:${MANIFEST}" 2>/dev/null)" || return 0
+  local ref="$1" file="${2:-$MANIFEST}" json
+  json="$(git show "${ref}:${file}" 2>/dev/null)" || return 0
   if command -v jq >/dev/null 2>&1; then
     printf '%s' "$json" | jq -r '.version // empty' 2>/dev/null || true
   else
@@ -119,6 +126,24 @@ fi
 BASE_REF="$1"
 HEAD_REF="$2"
 NO_BUMP="${NO_BUMP:-}"
+
+# The pi manifest must carry the plugin's version, whatever else changed. A
+# mismatch would tag one release under two numbers.
+if git cat-file -e "${HEAD_REF}:${PI_MANIFEST}" 2>/dev/null; then
+  plugin_version="$(read_version "$HEAD_REF")"
+  pi_version="$(read_version "$HEAD_REF" "$PI_MANIFEST")"
+  if [ "$pi_version" != "$plugin_version" ]; then
+    {
+      echo "version-gate: ${PI_MANIFEST} and ${MANIFEST} disagree."
+      echo ""
+      echo "  ${MANIFEST}: ${plugin_version:-<missing>}"
+      echo "  ${PI_MANIFEST}: ${pi_version:-<missing>}"
+      echo ""
+      echo "Set ${PI_MANIFEST} to ${plugin_version:-the plugin version}. The no-bump label does not cover this."
+    } >&2
+    exit 1
+  fi
+fi
 
 # --no-renames keeps a rename listed as both the removed source path and the
 # added destination. Without it git collapses the pair to the destination
@@ -192,6 +217,8 @@ fi
   echo "  patch  $(next_version "$base_version" patch)  a fix"
   echo "  minor  $(next_version "$base_version" minor)  a feature"
   echo "  major  $(next_version "$base_version" major)  a breaking change"
+  echo ""
+  echo "Set ${PI_MANIFEST} to the same version."
   echo ""
   echo "The author picks the level. If these changes genuinely should not roll"
   echo "out to installed copies, add the no-bump label to the pull request and"

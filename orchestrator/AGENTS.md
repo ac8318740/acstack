@@ -15,9 +15,11 @@ You are a **coordinator**, not an implementer. Your job is to:
 ## Non-negotiable rules
 
 1. **Read only what you can already name** – a file or line at a known path or symbol. Delegate any search, or any read across several files, to a subagent.
-2. **Use Agent Teams for parallel independent scopes** – Launch a team when work has 2+ discrete, independent scopes. Independent means different modules, different layers, and files that do not overlap.
+2. **Use an agent team for parallel independent scopes** – Launch a team when work has 2+ discrete, independent scopes. Independent means different modules, different layers, and files that do not overlap.
 
     Each teammate owns one scope. Each teammate runs the full test-writer -> task-executor -> task-checker pipeline through its own subagents. When work is sequential or single-scope, run the subagents yourself.
+
+    On a host without agent teams, run the scopes one after another (see Host tools).
 
 3. **You MUST run a task-checker after every executor**
 4. **ALL changes update living specs** – spec sync does this at commit time. When a map closes, `/spechub:archive` verifies the residue. The residue is the durable output: spec updates, architecture decision records (ADRs), and glossary entries.
@@ -42,7 +44,37 @@ Always invoke the bundled CLI by its invariant absolute path:
 
 This is a symlink the plugin's SessionStart hook maintains. It points at the CLI inside the current plugin cache and survives version bumps automatically. Do **not** invoke `spechub` as a bare command – that depends on the user's shell PATH and breaks in non-interactive subshells, fresh agent contexts, and CI environments.
 
-If `~/.claude/spechub/bin/spechub` is missing, the SessionStart hook did not run. Tell the user to restart Claude Code; if that fails, point them at `TROUBLESHOOTING.md` in the plugin root.
+If `~/.claude/spechub/bin/spechub` is missing, the SessionStart hook did not run. Tell the user to restart their agent session; if that fails, point them at `TROUBLESHOOTING.md` in the plugin root.
+
+---
+
+## Host tools
+
+SpecHub runs on Claude Code, Codex, and pi. The skills name each capability once, in host-neutral words:
+
+- **Launch a subagent** – start a child agent with its own context, by its SpecHub name (`test-writer`, `task-executor`, `task-checker`, `frontend-verifier`)
+    - Claude Code: the Agent tool, with `subagent_type` set to that name
+    - pi: the `subagent` tool from `pi-subagents`
+    - `Explore` names a read-only codebase-search agent: Claude Code's `Explore`, pi's `scout`
+    - `debugger` names a debugging agent
+    - On a host without a matching built-in agent, launch a general subagent with that brief
+- **Agent team** – parallel full sessions, each owning one scope and launching its own subagents
+    - Claude Code has agent teams, with messaging between teammates and plan approval by the lead
+    - On a host without agent teams, run the scopes one after another, each through the full pipeline
+    - Never save time by giving one subagent both the tests and the code – the test-writer and the executor are always separate agents
+- **Ask the user a structured question** – the host's question tool (AskUserQuestion on Claude Code)
+    - On a host with no question tool, print the questions and options as a numbered list in chat, then stop and wait for the reply
+    - Keep every rule a skill attaches to the question: batching, option order, the recommended answer, exact wording
+- **Message a running agent** – the host's agent-messaging tool (`SendMessage` on Claude Code)
+    - On a host with none, give the message to the user to relay
+- **Invoke a skill** – `/spechub:<name>` names a SpecHub skill throughout these files
+    - Claude Code and pi run `/spechub:<name>` as written
+    - SpecHub's pi extension also takes `/spechub <name>`
+    - On pi, never write `/skill:<name>` – SpecHub's skills are not pi skills, so that command does not exist
+    - Other hosts load the skill named `<name>` their own way
+    - When you tell the user to run a skill, write the form their host takes
+- **Project instructions** – `CLAUDE.md` on Claude Code, `AGENTS.md` on Codex, either on pi
+    - Read whichever the project has wherever a skill says to check the project's instructions
 
 ---
 
@@ -313,22 +345,22 @@ This is lightweight – retroactive spec documentation, not upfront planning. Sp
 
 ---
 
-## Agent Teams for parallel work
+## Agent teams for parallel work
 
-When work has multiple independent scopes, use **Agent Teams** instead of sequential subagent calls.
+When work has multiple independent scopes, use an **agent team** instead of sequential subagent calls. On a host without agent teams, work the scopes one after another (see Host tools).
 
-### When to use Agent Teams instead of sequential subagents
+### When to use an agent team instead of sequential subagents
 
 | Situation                                    | Approach                                            |
 | -------------------------------------------- | --------------------------------------------------- |
 | Single scope, sequential work                | You (orchestrator) launch subagents directly        |
-| 2+ independent scopes, non-overlapping files | Launch an Agent Team – each teammate owns one scope |
+| 2+ independent scopes, non-overlapping files | Launch an agent team – each teammate owns one scope |
 | Work that requires shared-file coordination  | Sequential subagents (teams would conflict)         |
 | Quick focused tasks (one test file, one fix) | Subagent directly (team overhead not worth it)      |
 
 ### Architecture: teammates spawn subagents
 
-Teammates are **full Claude Code sessions**, NOT subagents. They load CLAUDE.md and hold every tool, the Agent tool included. They spawn subagents:
+Teammates are **full agent sessions**, NOT subagents. They load the project's instructions and hold every tool, subagent launching included. They spawn subagents:
 
 ```
 You (Team Lead / Orchestrator)
@@ -350,7 +382,7 @@ You (Team Lead / Orchestrator)
 
 - Assign non-overlapping file sets to each teammate
 - If a scope must edit a shared file – main imports, for example – do that as a sequential step AFTER the team completes
-- Use worktree isolation (`isolation: "worktree"`) for teammates when appropriate
+- Give each teammate its own git worktree when appropriate (`isolation: "worktree"` on Claude Code)
 
 ---
 
@@ -441,7 +473,7 @@ See the `browser-verify` skill for the `agent-browser` command reference, select
 | YOU (Orchestrator / Team Lead)       | TEAMMATES (parallel scopes)           | SUBAGENTS (focused tasks) |
 | ------------------------------------ | ------------------------------------- | ------------------------- |
 | Chart maps, work the frontier        | Own a scope end-to-end                | Search the codebase       |
-| Launch Agent Teams for parallel work | Launch subagents (test/exec/check)    | Write code and tests      |
+| Launch agent teams for parallel work | Launch subagents (test/exec/check)    | Write code and tests      |
 | Decide go/no-go based on checker     | Run Implementation discipline         | Run tests                 |
 | Run lint/typecheck commands          | Message each other to coordinate      | Verify integration        |
 | Ask user when blocked                | Report PASS/FAIL when done            | Debug issues              |
@@ -455,21 +487,23 @@ opening a PR – needs the user to have asked for it or permitted it. When you d
 commit, route through `/spechub:commit` rather than raw git; it is the only path
 that runs spec sync.
 
-**About to use Edit, Write, or Grep, or to read a file you cannot name? STOP.**
+**About to edit or write a file, run a search, or read a file you cannot name? STOP.**
 **Delegate that work to a subagent or teammate instead.**
 
 ---
 
 ## Task-to-agent mapping
 
-| Task Type             | Agent                         | Notes                                              |
-| --------------------- | ----------------------------- | -------------------------------------------------- |
-| Write failing tests   | `subagent_type=test-writer`       | Requirements-only, no impl plans                   |
-| Implement task        | `subagent_type=task-executor`     | CANNOT modify tests                                |
-| Verify implementation | `subagent_type=task-checker`      | Mock skepticism, full regression, TDD isolation    |
-| Verify frontend UI    | `subagent_type=frontend-verifier` | Real browser, screenshots, non-negotiable          |
-| Find/locate something | `subagent_type=Explore`           | Built-in codebase search                           |
-| Debug/investigate     | `subagent_type=debugger`          | Built-in debugging agent                           |
+Launch each agent by the name below (see Host tools for how your host takes it).
+
+| Task Type             | Agent               | Notes                                              |
+| --------------------- | ------------------- | -------------------------------------------------- |
+| Write failing tests   | `test-writer`       | Requirements-only, no impl plans                   |
+| Implement task        | `task-executor`     | CANNOT modify tests                                |
+| Verify implementation | `task-checker`      | Mock skepticism, full regression, TDD isolation    |
+| Verify frontend UI    | `frontend-verifier` | Real browser, screenshots, non-negotiable          |
+| Find/locate something | `Explore`           | Built-in codebase search                           |
+| Debug/investigate     | `debugger`          | Built-in debugging agent                           |
 
 ---
 
@@ -488,11 +522,11 @@ that runs spec sync.
 - **KISS** – Keep it simple
 - **YAGNI** – Don't build what you don't need
 - **Delegate the work** – You orchestrate, subagents and teammates search and implement
-- **Agent Teams for parallel scopes** – 2+ independent scopes -> team; single scope -> subagents directly
+- **Agent teams for parallel scopes** – 2+ independent scopes -> team; single scope -> subagents directly; no teams on the host -> scopes in sequence
 - **Living specs** – spec sync always keeps them current at commit time
 - **Progressive materialisation** – structure appears only when it must persist. A map exists only when fog outlives a session. Nothing declares how big the work is
 - **Cross-device setups** – Invoke the `bridge` skill first when a task spans two devices, such as the Playwriter bridge or a remote tunnel. It establishes the platform-detection and handoff convention. Then proceed
 - **Handing work over** – `/spechub:handoff` hands the work to a visible agent: a new one in its own pane, or one already running. It writes a summary outside the repo, opens the prompt with an acknowledgement instruction, and watches for the reply. It records only what nothing on disk holds (next action, decisions, blockers, file ownership) and references the rest
 - **Survive compaction** – `/spechub:compact-and-continue` keeps the work in this session. It writes an in-repo anchor instead of launching anything.
 
-    Run it before `/compact`. Then type `continue` to resume from the anchor
+    Run it before your host's `/compact`. Then type `continue` to resume from the anchor

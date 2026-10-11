@@ -163,8 +163,9 @@ Read `decision-log.md` before the first row. It holds how to find the main
 checkout, the columns, and the `.gitignore` the directory needs.
 
 **Parallelism**: afk nodes run unlimited and in parallel. When 2+ frontier
-nodes touch non-overlapping files, launch an Agent Team where each teammate
-owns one node and its file set. Otherwise work them sequentially.
+nodes touch non-overlapping files, launch an agent team where each teammate
+owns one node and its file set. Otherwise, or on a host without agent teams,
+work them sequentially.
 
 ### 6. Resolve
 

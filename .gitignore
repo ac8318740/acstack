@@ -1,4 +1,4 @@
-# The CLI test run writes a vitest cache here, and no package.json lives at the root.
+# The CLI test run writes a vitest cache here, and `pi install` runs npm install at the root.
 node_modules/
 
 # `spechub config set` writes its replacement beside the file and renames over

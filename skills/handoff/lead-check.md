@@ -38,6 +38,20 @@ names a way the command has already been got wrong:
     running as its own top-level session lands here, and rightly: it owns its
     own marker.
 
+- **pi answers from the session file path.** pi exports the session file as
+    `PI_SESSION_FILE`, and a `pi-subagents` child keeps it in one of two layouts:
+
+    - `<parent session>/<run id>/run-<n>/session.jsonl` for a fresh child
+    - `<parent session>/forks/<file>.jsonl` for a child with forked context
+
+    A matching path means `child` at once. Any other path, with
+    `CLAUDE_CODE_SESSION_ID` unset, means `lead` at once, with no wait.
+
+    A child's `PI_SESSION_ID` is its own id, never the parent's, so the id
+    alone cannot tell the two apart. The path layout comes from `pi-subagents`,
+    checked by hand on 2026-10-11. Recheck it when `pi-subagents` changes how it
+    stores child sessions.
+
 ## When the quiet marker clears
 
 The hook clears the marker when the session compacts, because it resets its

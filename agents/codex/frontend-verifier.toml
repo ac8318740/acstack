@@ -61,7 +61,7 @@ If the server is NOT running, start it:
 <frontend.commands.dev>
 ```
 
-Run with `run_in_background: true` so it doesn't block. Then poll until the server responds:
+Run it in the background so it doesn't block (`run_in_background: true` on Claude Code, or append `&` and redirect its output to a log). Then poll until the server responds:
 
 ```bash
 for i in $(seq 1 20); do

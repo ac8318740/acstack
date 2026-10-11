@@ -2,7 +2,7 @@
 
 Step 6 of `SKILL.md` in interactive mode, the default.
 
-Present findings in **waves of up to 4** using AskUserQuestion. Group related findings together.
+Present findings in **waves of up to 4** using the question tool (AskUserQuestion on Claude Code). On a host without one, use a numbered list in chat. Group related findings together.
 
 Format each wave like:
 

@@ -64,7 +64,7 @@ say that Orca is missing, and offer to install it.
 The installer is `install-orca.sh`, beside this file. Resolve its path the way
 Step 1 in `SKILL.md` resolves `detect-host.sh`, through `plugin_root`.
 
-Ask two things before you plan anything, in one AskUserQuestion call:
+Ask two things before you plan anything, in one call to the question tool (AskUserQuestion on Claude Code):
 
 1. The port the server listens on. Default it to 6768.
 2. The address a client pairs to. Pre-fill it from `tailscale ip -4` when Step 1
@@ -98,7 +98,7 @@ Orca's first start rewrites `~/.claude/settings.json` and keeps the original at
 `~/.claude/settings.json.bak`. Use the wording in the "State the Claude settings
 rewrite" block above, rather than a second version of it.
 
-Now put the whole step list in front of the user with AskUserQuestion, and let
+Now put the whole step list in front of the user with the question tool, and let
 them decline. Declining is a real answer. Nothing runs, and this skill carries
 on to the report in Step 6 of `SKILL.md`.
 

@@ -60,7 +60,9 @@ MARK="spechub-whoami-9d3b7a1f"
 # extracted command byte-identical to what ships.
 STUB="$WORK/bin"
 mkdir -p "$STUB"
-printf '#!/bin/sh\nexit 0\n' > "$STUB/sleep"
+SLEEPS="$WORK/sleeps"
+: > "$SLEEPS"
+printf '#!/bin/sh\necho >> "%s"\nexit 0\n' "$SLEEPS" > "$STUB/sleep"
 chmod +x "$STUB/sleep"
 
 # Pull the fenced bash block that follows the <!-- lead-check --> marker, with
@@ -119,12 +121,15 @@ record() {
 }
 
 # Run an extracted check with HOME and CLAUDE_CODE_SESSION_ID pointed at a
-# fixture, CLAUDE_CONFIG_DIR set to $CFG_DIR (empty unless a case sets it), and with the sleep stub ahead of the real one. Sets OUT to its
+# fixture, CLAUDE_CONFIG_DIR set to $CFG_DIR and PI_SESSION_FILE to $PI_FILE
+# (each empty unless a case sets it), and with the sleep stub ahead of the
+# real one. Sets OUT to its
 # stdout, with trailing newlines stripped by the command substitution, and RC
 # to its exit status.
 run_check() {
   local script="$1" home="$2" session="$3"
-  OUT="$(PATH="$STUB:$PATH" HOME="$home" CLAUDE_CONFIG_DIR="${CFG_DIR:-}" CLAUDE_CODE_SESSION_ID="$session" bash "$script" 2>/dev/null)"
+  OUT="$(PATH="$STUB:$PATH" HOME="$home" CLAUDE_CONFIG_DIR="${CFG_DIR:-}" CLAUDE_CODE_SESSION_ID="$session" \
+    PI_SESSION_FILE="${PI_FILE:-}" bash "$script" 2>/dev/null)"
   RC="$?"
 }
 
@@ -345,7 +350,7 @@ check "an unset session id reports lead, not a stray match"  '[ "$OUT" = "lead" 
 echo "Case 10: both skills still write the context-pressure quiet marker"
 for pair in "handoff:$HANDOFF" "compact:$COMPACT"; do
   label="${pair%%:*}"; f="${pair#*:}"
-  check "$label keys the marker on the session id"     'grep -q "CLAUDE_CODE_SESSION_ID}.quiet" "$f"'
+  check "$label keys the marker on the session id"     'grep -qF "sid=\"\${CLAUDE_CODE_SESSION_ID:-\${PI_SESSION_ID:-}}\"" "$f" && grep -qF "\$sid.quiet" "$f"'
   check "$label reads SPECHUB_CONTEXT_PRESSURE_DIR"    'grep -q SPECHUB_CONTEXT_PRESSURE_DIR "$f"'
 done
 
@@ -366,6 +371,32 @@ for pair in $(every_check); do
   check "$label finds the child under CLAUDE_CONFIG_DIR"  'case "$OUT" in child:*) true ;; *) false ;; esac'
 done
 CFG_DIR=""
+
+# ---------------------------------------------------------------------------
+# Case 12: pi answers from PI_SESSION_FILE
+# ---------------------------------------------------------------------------
+# pi writes no Claude transcript, so the loop could only time out into "lead".
+# A pi-subagents child is told apart by where its session file lives, in one
+# of two layouts, and any other pi session is the lead with no wait at all.
+echo "Case 12: pi sessions answer from the session file path"
+mkdir -p "$WORK/h-pi"
+for pair in $(every_check); do
+  label="${pair%%:*}"; script="${pair#*:}"
+  PI_FILE="/home/u/.pi/agent/sessions/--repo--/2026_parent/a1b2c3/run-0/session.jsonl"
+  run_check "$script" "$WORK/h-pi" ""
+  check "$label reports child for a fresh pi-subagents child"   '[ "$OUT" = "child: $PI_FILE" ]'
+
+  PI_FILE="/home/u/.pi/agent/sessions/--repo--/2026_parent/forks/2026_fork.jsonl"
+  run_check "$script" "$WORK/h-pi" ""
+  check "$label reports child for a forked pi-subagents child"  '[ "$OUT" = "child: $PI_FILE" ]'
+
+  PI_FILE="/home/u/.pi/agent/sessions/--repo--/2026_parent.jsonl"
+  : > "$SLEEPS"
+  run_check "$script" "$WORK/h-pi" ""
+  check "$label reports lead for a pi lead session"             '[ "$OUT" = "lead" ]'
+  check "$label answers a pi lead without waiting"              '[ ! -s "$SLEEPS" ]'
+done
+PI_FILE=""
 
 printf '\nResult: %d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

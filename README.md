@@ -57,6 +57,44 @@ Then, in your project:
 - Your CLAUDE.md stays clean for project-specific content
 - Upgrading from a version before 0.8.0 means deleting one stale `@import` line (see [docs/migrate-0.8.md](docs/migrate-0.8.md))
 
+### 1.1. Install on pi
+
+*The same repository installs as a [pi](https://pi.dev) package. Subagents come from the `pi-subagents` package.*
+
+```
+pi install npm:pi-subagents
+pi install git:github.com/ac8318740/spechub@v0.42.0
+```
+
+Then, in your project, run `/spechub:setup`.
+
+- Every skill runs under the same name as on Claude Code, e.g. `/spechub:map`
+    - `/spechub map` does the same
+    - Both always run the SpecHub skill, even when another pi package has a skill called `map`
+- SpecHub's skills deliberately don't appear as `/skill:<name>` commands
+    - The package gives pi no skills, so `/skill:map` never runs SpecHub's map
+    - The extension lists the skills in the system prompt instead, so the model still reads one when the task matches
+- `pi/extension.ts` does what the Claude Code hooks do
+    - It links the CLI at `~/.claude/spechub/bin/spechub`
+    - It adds the orchestrator instructions to the system prompt in a spechub project
+    - It lists SpecHub's skills in the system prompt in every session
+    - It re-injects a handoff after a compaction
+    - It nudges towards a handoff as the context fills
+        - With no thresholds set, the first nudge comes at 200k tokens or half the context window, whichever is lower (500k or 80% for the urgent one)
+- `pi-subagents` finds the four agents through the `pi.subagents` field in `package.json`
+    - The agents use your `pi-subagents` default model
+    - SpecHub warns at session start when `pi-subagents` is missing
+- Allow delegation in `~/.pi/agent/AGENTS.md` – `pi-subagents` only delegates when your request or your instructions allow it:
+
+    ```
+    When a SpecHub skill or the SpecHub orchestrator says to launch a subagent, you may delegate to it.
+    ```
+
+    - Set `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json` to offer the `subagent` tool from the first turn (restart pi after)
+- pi has no output styles, so the writing style is a toggle
+    - Run `/spechub-writing-style on` to add it to every pi session
+    - Run `/spechub-writing-style off` to remove it
+
 ## 2. The three commands, and which one to use
 
 *Pick by what is in your way: nothing, a bug, or an unanswered question.*

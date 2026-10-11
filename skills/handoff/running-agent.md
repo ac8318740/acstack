@@ -15,10 +15,10 @@ already running*, below, gives the way to propose the work to such a session.
 **Agent already running** – one reached by cross-session message. It runs the
 same command.
 
-A `SendMessage` reply is no longer required. A reply that begins ACCEPT or
+A reply through the agent-messaging tool is no longer required. A reply that begins ACCEPT or
 DECLINE is the recognised fallback:
 
-> Before any other tool call, acknowledge this handoff by running ~/.claude/spechub/bin/spechub handoff ack accept --file <handoff-file> "<one-line reason>", or ack decline --file <handoff-file> "<one-line reason>". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. A SendMessage reply beginning ACCEPT or DECLINE is a recognised fallback, but the command is what this handoff expects. Then continue that work.
+> Before any other tool call, acknowledge this handoff by running ~/.claude/spechub/bin/spechub handoff ack accept --file <handoff-file> "<one-line reason>", or ack decline --file <handoff-file> "<one-line reason>". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. A reply through the agent-messaging tool beginning ACCEPT or DECLINE is a recognised fallback, but the command is what this handoff expects. Then continue that work.
 
 ## Routing to an agent already running
 

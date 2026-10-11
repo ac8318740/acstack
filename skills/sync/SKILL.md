@@ -75,7 +75,7 @@ domain.
     The playbook finds `DESIGN.md` and stops. It asks whether to refresh,
     overwrite, or merge. Answer refresh every time.
 
-    Do not call AskUserQuestion. Do not ask the user. The code is the only
+    Do not call the question tool. Do not ask the user. The code is the only
     source of truth for design tokens.
 
 5. Stage what `document` wrote

@@ -24,7 +24,7 @@ Two options change the defaults. `--config PATH` points at a config file
 elsewhere, and `--worktree-dir PATH` changes the directory. The defaults are
 `~/.config/herdr/config.toml` and `~/.herdr/worktrees`.
 
-Show the printed step list verbatim, then ask with AskUserQuestion. Declining is
+Show the printed step list verbatim, then ask with the question tool (AskUserQuestion on Claude Code). Declining is
 a real answer, and nothing runs. On approval, run the same command with
 `--apply`.
 

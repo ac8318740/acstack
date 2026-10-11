@@ -27,7 +27,7 @@ Trigger on "create a worktree", "new worktree", "spin up a worktree", "make me a
 - **Branch**: `<type>/<slug>` where type is `feat`, `fix`, `chore`, or `docs` to match the work. A bare slug is acceptable if the user gives one. Confirm with the user only if the type is genuinely ambiguous.
 - **Base**: default `origin/dev`. Local `dev` is often behind. Fetch first, then branch off the remote ref.
 
-    Use `origin/main` for a hotfix, a dev to main promotion, when the user says so, or when the repo has no `origin/dev`. Branch off whichever integration branch the repo actually has. If unsure which, check the repo's CLAUDE.md / recent PRs before asking.
+    Use `origin/main` for a hotfix, a dev to main promotion, when the user says so, or when the repo has no `origin/dev`. Branch off whichever integration branch the repo actually has. If unsure which, check the repo's CLAUDE.md or AGENTS.md / recent PRs before asking.
 
 ## Create it
 
@@ -42,7 +42,7 @@ SPECHUB_ROOT=$(cd -- "$(dirname -- "$(readlink -f "$HOME/.claude/spechub/bin/spe
 "$SPECHUB_ROOT/skills/new-worktree/detect-orchestrator.sh"
 ```
 
-That invariant CLI symlink is the only way to reach the plugin's own root. The SessionStart hook maintains it, and re-creates it every time Claude Code starts. Do not shorten the path and do not reach for `$CLAUDE_PLUGIN_ROOT`; the plugin deliberately does not depend on env vars propagating into subshells.
+That invariant CLI symlink is the only way to reach the plugin's own root. The SessionStart hook maintains it, and re-creates it every time an agent session starts. Do not shorten the path and do not reach for `$CLAUDE_PLUGIN_ROOT`; the plugin deliberately does not depend on env vars propagating into subshells.
 
 The script always exits 0 and prints six lines:
 
@@ -119,10 +119,10 @@ Confirm out loud which worktree, branch, and base commit you are now on.
 
 Continue with whatever followed the worktree request:
 
-- "...then enter plan mode" -> enter plan mode now, from inside the worktree.
+- "...then enter plan mode" -> enter plan mode now, from inside the worktree. On a host without plan mode, write the plan and wait for approval before you edit anything.
 - "...then give me a command to start the dev server" -> hand back a copy-paste one-liner. Do not start it yourself unless the user asks.
 
-    Use the project's own dev script. Do not hand-set env vars. Confirm the right launch command from the repo's CLAUDE.md, package scripts, or `scripts/` rather than guessing.
+    Use the project's own dev script. Do not hand-set env vars. Confirm the right launch command from the repo's CLAUDE.md or AGENTS.md, package scripts, or `scripts/` rather than guessing.
 
 - Otherwise just proceed with the task in the new worktree.
 

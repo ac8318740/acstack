@@ -49,6 +49,31 @@ jobs:
             exit 1
           fi
 
+      # Same arrangement for pi: pi/agents/*.md is generated from agents/*.md
+      # and committed, because pi-subagents reads it straight from the package.
+      - name: pi agent definitions are current
+        run: |
+          node scripts/gen-pi-agents.mjs
+          if ! git diff --exit-code -- pi/agents || [ -n "$(git status --porcelain -- pi/agents)" ]; then
+            echo "::error::pi/agents is stale. Run 'node scripts/gen-pi-agents.mjs' and commit the result."
+            exit 1
+          fi
+
+  pi:
+    name: pi extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The suite loads pi/extension.ts by stripping its types, which Node 20
+      # cannot do. On Node 20 the tests job skips it, so it runs here instead.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: pi extension suite
+        run: bash tests/test-pi-extension.sh
+
   shell:
     name: Shell suites
     runs-on: ubuntu-latest

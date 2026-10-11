@@ -30,7 +30,7 @@ to Step 14:
 
 ```
 The spechub CLI on this machine predates workflow.design_review, so I cannot
-record an answer. Restart Claude Code to relink the CLI, then run
+record an answer. Restart your agent session to relink the CLI, then run
 /spechub:setup again.
 ```
 

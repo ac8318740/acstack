@@ -59,7 +59,7 @@ agent context and a continuous integration run each start without that PATH.
 ## Consequences
 
 A skill that runs before the hook finds no symlink. An absent symlink means
-the hook has not run. The fix is to restart Claude Code.
+the hook has not run. The fix is to restart the agent session.
 ```
 
 ### You generate the index
