@@ -46,17 +46,15 @@ echo "lead"
 `lead` means carry on. `child: <path>` means stop, and tell whoever launched
 you that this skill runs only in the lead session. Report your state upward
 instead – in your final message, or through your host's agent-messaging tool
-(`SendMessage` on Claude Code). The lead then hands off
-or compacts.
+(`SendMessage` on Claude Code). The lead then hands off or compacts.
 
 Read [`lead-check.md`](lead-check.md) before you change that command, or when
 its answer looks wrong. It says why a child must stop, and what it checks.
 
 ## First: is this yours to invoke?
 
-If the user asked for a handoff, proceed. If you are invoking it on your own
-initiative, read `workflow.handoff.self_invoke` from `spechub/project.yaml`
-first.
+If the user asked for a handoff, proceed. If you invoke it on your own
+initiative, first read `workflow.handoff.self_invoke` from `spechub/project.yaml`.
 
 If it is `false`, stop. Tell the user a handoff looks warranted and why. Ask
 permission.
@@ -138,8 +136,7 @@ Prose follows the `writing` skill.
 *The handoff leaves the conversation and becomes another agent's prompt.*
 
 Strip credentials, tokens, API keys, connection strings and personal data before
-writing. Reference where a secret lives rather than its value. This is not
-optional.
+writing. Reference where a secret lives, not its value. This is not optional.
 
 ## Write the handoff file
 
@@ -173,9 +170,8 @@ text itself. `herdr agent start` rejects newlines and tabs in its arguments.
 
 Every handoff prompt asks for the command.
 
-There are two prompts, because the two destinations differ in what else they
-must say. Use the matching one verbatim, and substitute only the handoff file
-path.
+There are two prompts, because the two destinations must say different things.
+Use the matching one verbatim, and substitute only the handoff file path.
 
 Each one is a single line. `herdr agent start` rejects newlines and tabs in its
 arguments. So the instruction and the pointer at the handoff file share that one
@@ -231,9 +227,8 @@ d="${SPECHUB_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/spechub-context-pressure}"
 sid="${CLAUDE_CODE_SESSION_ID:-${PI_SESSION_ID:-}}"; [ -n "$sid" ] && mkdir -p "$d" && : > "$d/$sid.quiet" || true
 ```
 
-`CLAUDE_CODE_SESSION_ID` (`PI_SESSION_ID` on pi) is this session's own id. The lead check at the top
-ruled out the child sessions, where it names the lead instead. So the marker lands
-exactly where the hook looks for it.
+`CLAUDE_CODE_SESSION_ID` (`PI_SESSION_ID` on pi) is this session's own id. The
+lead check at the top ruled out child sessions, so the marker lands where the hook looks.
 
 If the variable holds nothing, skip this step and say so in the report. The hook
 then keeps nudging, which is noisy but harmless.
