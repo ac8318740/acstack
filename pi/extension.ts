@@ -7,7 +7,8 @@
  *   session_start        symlink the CLI, warn once if pi-subagents is
  *                        missing, and print the setup reminder outside a
  *                        spechub project            (hooks/session-start.sh)
- *   before_agent_start   add orchestrator/AGENTS.md to the system prompt in a
+ *   before_agent_start   list SpecHub's skills in the system prompt in every
+ *                        session, and add orchestrator/AGENTS.md in a
  *                        spechub project            (hooks/session-start.sh)
  *                        add the writing style and its per-turn reminder when
  *                        the user turned it on      (hooks/ac-writing-style-reminder.sh)
@@ -18,7 +19,9 @@
  *                                                    hooks/context-pressure.sh)
  *
  * It also registers /spechub <skill>, a /spechub:<skill> command per skill,
- * and /spechub-writing-style on|off.
+ * and /spechub-writing-style on|off. Those two forms are the only way a user
+ * runs a SpecHub skill on pi: package.json lists no skills, so pi adds no
+ * /skill:<name> commands for them.
  *
  * Only type imports come from pi, so Node can strip the types and load this
  * file in tests/test-pi-extension.sh with a stub API.
@@ -463,9 +466,32 @@ export function consumeHandoff(cwd: string, now: Date = new Date()): string | un
 // Skill commands
 // --------------------------------------------------------------------------
 
+interface SkillInfo {
+	file: string;
+	description: string;
+	/** disable-model-invocation: true – runs only when the user asks for it. */
+	userOnly: boolean;
+}
+
+/** One frontmatter value: every SKILL.md keeps its fields on one line. */
+function frontmatterField(text: string, key: string): string | undefined {
+	const frontmatter = /^---\n([\s\S]*?)\n---\n/.exec(text)?.[1] ?? "";
+	const raw = new RegExp(`^${key}:[ \t]*(.*)$`, "m").exec(frontmatter)?.[1].trim();
+	if (raw === undefined) return undefined;
+	if (raw.startsWith('"') && raw.endsWith('"')) {
+		try {
+			return JSON.parse(raw);
+		} catch {
+			return raw.slice(1, -1);
+		}
+	}
+	if (raw.startsWith("'") && raw.endsWith("'")) return raw.slice(1, -1).replace(/''/g, "'");
+	return raw;
+}
+
 /** This package's skills, by name, from skills/<dir>/SKILL.md. */
-export function listSkills(root: string = packageRoot): Map<string, string> {
-	const skills = new Map<string, string>();
+export function listSkills(root: string = packageRoot): Map<string, SkillInfo> {
+	const skills = new Map<string, SkillInfo>();
 	const dir = path.join(root, "skills");
 	let entries: fs.Dirent[] = [];
 	try {
@@ -475,10 +501,55 @@ export function listSkills(root: string = packageRoot): Map<string, string> {
 	}
 	for (const entry of entries.filter((e) => e.isDirectory()).sort((a, b) => a.name.localeCompare(b.name))) {
 		const file = path.join(dir, entry.name, "SKILL.md");
-		const name = /^---\n[\s\S]*?^name:\s*(\S+)\s*$/m.exec(readText(file) ?? "")?.[1];
-		if (name) skills.set(name, file);
+		const text = readText(file) ?? "";
+		const name = frontmatterField(text, "name");
+		if (!name) continue;
+		skills.set(name, {
+			file,
+			description: frontmatterField(text, "description") ?? "",
+			userOnly: frontmatterField(text, "disable-model-invocation") === "true",
+		});
 	}
 	return skills;
+}
+
+function escapeXml(text: string): string {
+	return text
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&apos;");
+}
+
+/**
+ * The skills section of the system prompt. SpecHub's skills are not pi skills,
+ * because pi would turn each one into a /skill:<name> command, so this lists
+ * them the way pi's formatSkillsForPrompt lists its own. Like pi, it leaves
+ * out a skill only the user may run.
+ */
+export function skillsSection(skills: Map<string, SkillInfo>): string | undefined {
+	const visible = [...skills].filter(([, skill]) => !skill.userOnly);
+	if (visible.length === 0) return undefined;
+	const lines = [
+		"The following SpecHub skills provide specialized instructions for specific tasks.",
+		"Use the read tool to load a skill's file when the task matches its description.",
+		"When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.",
+		"When you tell the user to run a SpecHub skill, write /spechub:<name>, never /skill:<name>.",
+		"",
+		"<available_skills>",
+	];
+	for (const [name, skill] of visible) {
+		lines.push(
+			"  <skill>",
+			`    <name>${escapeXml(name)}</name>`,
+			`    <description>${escapeXml(skill.description)}</description>`,
+			`    <location>${escapeXml(skill.file)}</location>`,
+			"  </skill>",
+		);
+	}
+	lines.push("</available_skills>");
+	return lines.join("\n");
 }
 
 /**
@@ -525,8 +596,16 @@ export default function spechub(pi: ExtensionAPI): void {
 		}
 	});
 
+	// /spechub map <args> and /spechub:map <args> both run SpecHub's own map
+	// skill, matching the /spechub:map names Claude Code shows.
+	const skills = listSkills();
+	const skillsPrompt = skillsSection(skills);
+
 	pi.on("before_agent_start", async (event, ctx) => {
 		const sections = event.systemPromptOptions.sections;
+
+		// Every session, like the plugin's skills on Claude Code.
+		if (skillsPrompt) sections["spechub-skills"] = skillsPrompt;
 
 		if (isProject(ctx.cwd)) {
 			const orchestrator = readText(orchestratorFile);
@@ -593,11 +672,8 @@ export default function spechub(pi: ExtensionAPI): void {
 		}
 	});
 
-	// /spechub map <args> and /spechub:map <args> both run SpecHub's own map
-	// skill, matching the /spechub:map names Claude Code shows.
-	const skills = listSkills();
 	const runSkill = (name: string, args: string, ctx: ExtensionContext): void => {
-		const file = skills.get(name);
+		const file = skills.get(name)?.file;
 		const message = file && skillInvocation(name, file, args);
 		if (!message) {
 			report(ctx, `spechub: no skill named "${name}". Skills: ${[...skills.keys()].join(", ")}`, "warning");

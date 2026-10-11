@@ -301,6 +301,12 @@ node scripts/gen-pi-agents.mjs
 - They live under `pi/`, outside `agents/`
     - Claude Code would load a second copy under `agents/` as four more agents
 - `pi-subagents` reads them through `pi.subagents.agents` in `package.json`
+- The root `package.json` gives pi no skills
+    - pi would turn each skill into a `/skill:<name>` command, beside `/spechub:<name>`
+    - `pi/extension.ts` lists the skills in the system prompt and registers `/spechub:<name>` and `/spechub <name>`
+- The generator gives an agent the SpecHub skills it reads through `skills` and `skillPath`
+    - `SKILLS` in the script lists them per agent
+    - `pi-subagents` resolves `skillPath` from the agent file and never adds it to the parent's skills
 - The generator omits `model` and `color`
     - `model: opus` means nothing to pi, so the user's `pi-subagents` default applies
 - The generator lists pi's builtin file and shell tools in `tools`

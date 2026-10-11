@@ -6,6 +6,8 @@ description: Behavioral UI verification agent. Uses agent-browser CLI over Chrom
 systemPromptMode: append
 inheritProjectContext: true
 inheritSkills: true
+skills: browser-verify, bridge
+skillPath: ../../skills
 tools: read, grep, find, ls, bash, edit, write
 ---
 

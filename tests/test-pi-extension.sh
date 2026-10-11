@@ -3,7 +3,7 @@
 #
 # tests/pi-extension-harness.mjs loads the extension with a stub pi API and
 # drives each handler: the CLI symlinks, the pi-subagents warning, the
-# orchestrator injection, the writing style toggle, the context-pressure
+# orchestrator injection, the skills listing, the writing style toggle, the context-pressure
 # ladder, the handoff reload, and the subagent-child guard. The writing-style
 # reminder, the nudges and the handoff message are each checked against the
 # Claude hook's own output.
@@ -19,7 +19,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARNESS="${SCRIPT_DIR}/pi-extension-harness.mjs"
-CHECKS=44
+CHECKS=50
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

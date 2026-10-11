@@ -18,9 +18,6 @@
     "extensions": [
       "./pi/extension.ts"
     ],
-    "skills": [
-      "./skills"
-    ],
     "subagents": {
       "agents": [
         "./pi/agents"

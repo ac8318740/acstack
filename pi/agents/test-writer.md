@@ -6,6 +6,8 @@ description: Writes tests from requirements ONLY. Cannot see implementation plan
 systemPromptMode: append
 inheritProjectContext: true
 inheritSkills: true
+skills: test-conventions
+skillPath: ../../skills
 tools: read, grep, find, ls, bash, edit, write
 ---
 

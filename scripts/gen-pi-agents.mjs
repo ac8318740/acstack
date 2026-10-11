@@ -22,8 +22,15 @@
 //                          add the agent's own, the way a Claude Code
 //                          subagent keeps its harness prompt
 //   inheritProjectContext  true - the agents follow the repo's AGENTS.md
-//   inheritSkills          true - the agents read skills such as
-//                          test-conventions
+//   inheritSkills          true - the agents keep the user's own pi skills
+//   skills, skillPath      the SpecHub skills each agent reads, from SKILLS
+//                          below. SpecHub's skills are not pi skills (they
+//                          would each show up as a /skill:<name> command), so
+//                          an agent resolves its own from the skills/
+//                          directory. skillPath is relative to the agent
+//                          file, and pi-subagents never adds it to the
+//                          parent's skill catalog. Agents absent from SKILLS
+//                          get neither field
 //   tools                  pi's builtin file and shell tools, listed so the
 //                          set is fixed. A foreground child loads none of
 //                          the parent's extensions, so an agent reaches the
@@ -40,7 +47,7 @@
 // lines that are not key: value, so the generated marker sits in the
 // frontmatter as a YAML comment and never reaches the agent's prompt.
 
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -48,6 +55,14 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = join(root, 'agents');
 const outDir = join(root, 'pi', 'agents');
 const tools = 'read, grep, find, ls, bash, edit, write';
+
+// The SpecHub skills each agent reads. test-conventions names the test-writer
+// in its description, browser-verify covers the agent-browser commands the
+// frontend-verifier runs, and the frontend-verifier's prompt points at bridge.
+const SKILLS = {
+  'test-writer': ['test-conventions'],
+  'frontend-verifier': ['browser-verify', 'bridge'],
+};
 
 /**
  * Read YAML frontmatter as flat key/value pairs.
@@ -101,6 +116,7 @@ for (const file of readdirSync(srcDir).filter((f) => f.endsWith('.md')).sort()) 
     'systemPromptMode: append',
     'inheritProjectContext: true',
     'inheritSkills: true',
+    ...(SKILLS[fields.name] ? [`skills: ${SKILLS[fields.name].join(', ')}`, 'skillPath: ../../skills'] : []),
     `tools: ${tools}`,
     '---',
     '',
@@ -108,6 +124,9 @@ for (const file of readdirSync(srcDir).filter((f) => f.endsWith('.md')).sort()) 
     '',
   ].join('\n');
 
+  for (const skill of SKILLS[fields.name] ?? []) {
+    if (!existsSync(join(root, 'skills', skill, 'SKILL.md'))) throw new Error(`${file}: no skill named ${skill}`);
+  }
   writeFileSync(join(outDir, file), md, 'utf-8');
   written.push(file);
 }

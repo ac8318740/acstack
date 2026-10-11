@@ -129,9 +129,31 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
 
   const plain = promptEvent();
   await fire(reg, 'before_agent_start', plain, makeCtx(newProject('orch-plain', { spechub: false })));
-  check('injects nothing outside a spechub project', Object.keys(plain.systemPromptOptions.sections).length === 0);
+  check('no orchestrator outside a spechub project', !('spechub-orchestrator' in plain.systemPromptOptions.sections));
   check('section names are valid pi section names',
     Object.keys(event.systemPromptOptions.sections).every((n) => /^[a-z][a-z0-9_-]*$/.test(n)));
+}
+
+// --- before_agent_start: the skills listing ------------------------------------
+
+{
+  // SpecHub's skills are not pi skills, so pi registers no /skill:<name>
+  // command for them. The extension lists them in the prompt instead.
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8'));
+  check('package.json gives pi no skills', !('skills' in manifest.pi));
+
+  const reg = load();
+  const event = promptEvent();
+  await fire(reg, 'before_agent_start', event, makeCtx(newProject('skills-plain', { spechub: false })));
+  const listing = event.systemPromptOptions.sections['spechub-skills'] ?? '';
+  const mapFile = path.join(root, 'skills', 'map', 'SKILL.md');
+  check('lists the skills in every session, with name and absolute path',
+    listing.includes(`    <name>map</name>`) && listing.includes(`    <location>${mapFile}</location>`));
+  check('lists a skill with its description',
+    /<name>test-conventions<\/name>\n    <description>Test placement rules[^<]*<\/description>/.test(listing));
+  check('leaves out a skill only the user may run', listing.includes('<name>implement</name>') && !listing.includes('<name>setup</name>'));
+  check('tells the model to name skills as /spechub:<name>', listing.includes('write /spechub:<name>, never /skill:<name>'));
+  check('still registers /spechub:setup', reg.commands['spechub:setup'] !== undefined);
 }
 
 // --- writing style --------------------------------------------------------------

@@ -71,9 +71,13 @@ Then, in your project, run `/spechub:setup`.
 - Every skill runs under the same name as on Claude Code, e.g. `/spechub:map`
     - `/spechub map` does the same
     - Both always run the SpecHub skill, even when another pi package has a skill called `map`
+- SpecHub's skills deliberately don't appear as `/skill:<name>` commands
+    - The package gives pi no skills, so `/skill:map` never runs SpecHub's map
+    - The extension lists the skills in the system prompt instead, so the model still reads one when the task matches
 - `pi/extension.ts` does what the Claude Code hooks do
     - It links the CLI at `~/.claude/spechub/bin/spechub`
     - It adds the orchestrator instructions to the system prompt in a spechub project
+    - It lists SpecHub's skills in the system prompt in every session
     - It re-injects a handoff after a compaction
     - It nudges towards a handoff as the context fills
         - With no thresholds set, the first nudge comes at 200k tokens or half the context window, whichever is lower (500k or 80% for the urgent one)

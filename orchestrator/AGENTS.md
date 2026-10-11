@@ -70,6 +70,7 @@ SpecHub runs on Claude Code, Codex, and pi. The skills name each capability once
 - **Invoke a skill** – `/spechub:<name>` names a SpecHub skill throughout these files
     - Claude Code and pi run `/spechub:<name>` as written
     - SpecHub's pi extension also takes `/spechub <name>`
+    - On pi, never write `/skill:<name>` – SpecHub's skills are not pi skills, so that command does not exist
     - Other hosts load the skill named `<name>` their own way
     - When you tell the user to run a skill, write the form their host takes
 - **Project instructions** – `CLAUDE.md` on Claude Code, `AGENTS.md` on Codex, either on pi
