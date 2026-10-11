@@ -1,21 +1,21 @@
 # Contributing to SpecHub
 
-*Two sets of generated files and one version check decide whether your pull request goes green.*
+*Three sets of generated files and one version check decide whether your pull request goes green.*
 
-SpecHub ships as a Claude Code plugin, so an installed copy runs files straight out of a plugin cache.
+SpecHub ships as a Claude Code plugin and as a pi package, so an installed copy runs files straight out of a cache.
 
-- **Two build steps write files this repository commits**: `cli/dist` and `agents/codex`
+- **Three build steps write files this repository commits**: `cli/dist`, `agents/codex`, and `pi/agents`
 - **Regenerate whichever your change invalidates**, or CI fails on the stale copy
-- **Bump the version in `.claude-plugin/plugin.json`**
+- **Bump the version in `.claude-plugin/plugin.json`**, and set the root `package.json` to match
     - The cache only re-pulls when the version changes
 - **CI checks both**
     - A red run tells you which one you missed
 
 ```mermaid
 flowchart TD
-    S["Edit source<br/>(cli/src, agents/*.md, skills/)"] --> G["Regenerate<br/>(cli/dist, agents/codex)"]
+    S["Edit source<br/>(cli/src, agents/*.md, skills/)"] --> G["Regenerate<br/>(cli/dist, agents/codex, pi/agents)"]
     G --> H["Pre-commit hook<br/>(optional, .git/hooks/pre-commit)"]
-    H --> B["Bump the version<br/>(.claude-plugin/plugin.json)"]
+    H --> B["Bump the version<br/>(.claude-plugin/plugin.json, package.json)"]
     B --> P["Open the pull request"]
     P --> CI["CI enforces both<br/>(version-gate, regeneration check)"]
     CI -->|"a generated copy differs,<br/>or the version did not rise"| S
@@ -30,6 +30,7 @@ flowchart TD
 | Editing `assets/` and its helper scripts | section 2 |
 | Regenerating `cli/dist` | section 3 |
 | Regenerating `agents/codex` | section 4 |
+| Regenerating `pi/agents`, and the pi package | section 4.1 |
 | Running the tests | section 5 |
 | Bumping, opening the pull request, promoting, and the tag | section 6 |
 | Writing standards | section 7 |
@@ -45,6 +46,8 @@ hooks/                       – SessionStart, Stop and UserPromptSubmit hooks
 skills/                      – slash-command skills
 output-styles/               – output styles (ac-writing-style)
 cli/                         – Node.js CLI (TypeScript source + built dist/)
+pi/                          – the pi port: extension.ts and the generated agents/
+package.json                 – pi package manifest, never used by Claude Code or Codex
 assets/                      – files a skill installs on a user's machine, and the model never reads them
 docs/                        – long-form docs a skill links to instead of inlining
 TROUBLESHOOTING.md           – downstream install diagnostics for Claude Code
@@ -209,9 +212,10 @@ if grep -q '^cli/src/' <<<"$staged"; then
 fi
 
 if grep -qE '^agents/[^/]+\.md$' <<<"$staged"; then
-  echo "pre-commit: agents/*.md changed – regenerating agents/codex/"
+  echo "pre-commit: agents/*.md changed – regenerating agents/codex/ and pi/agents/"
   node scripts/gen-codex-agents.mjs
-  git add agents/codex
+  node scripts/gen-pi-agents.mjs
+  git add agents/codex pi/agents
 fi
 ```
 
@@ -284,6 +288,31 @@ Keep the markdown harness-neutral.
 - Prefer "search the codebase"
 - Fixing it in the markdown keeps the generator free of a translation layer
 
+### 4.1. pi agent definitions and the pi package
+
+*`scripts/gen-pi-agents.mjs` writes `pi/agents/*.md` from the same markdown. The root `package.json` tells pi what to load.*
+
+```sh
+node scripts/gen-pi-agents.mjs
+```
+
+- Commit the generated files, and never hand-edit them
+    - CI regenerates them and fails on a stale copy
+- They live under `pi/`, outside `agents/`
+    - Claude Code would load a second copy under `agents/` as four more agents
+- `pi-subagents` reads them through `pi.subagents.agents` in `package.json`
+- The generator omits `model` and `color`
+    - `model: opus` means nothing to pi, so the user's `pi-subagents` default applies
+- The generator lists pi's builtin file and shell tools in `tools`
+    - A foreground subagent loads none of the parent's extensions
+    - The agents reach the CLI through `bash`, at `~/.claude/spechub/bin/spechub`
+- The root `package.json` version must equal `.claude-plugin/plugin.json`
+    - `scripts/version-gate.sh` fails the pull request on a mismatch
+    - `pi install git:...@vX.Y.Z` installs from the same tag
+- `pi/extension.ts` ports the hooks
+- `tests/test-pi-extension.sh` drives it with a stub pi API
+    - The suite needs Node 22.18 or later, and skips on older Node
+
 ## 5. Testing
 
 *Two layers, two commands.*
@@ -346,7 +375,7 @@ spechub/**
 
 ### 6.4. Before you open the pull request
 
-1. Bump `.claude-plugin/plugin.json`.
+1. Bump `.claude-plugin/plugin.json`, and set `package.json` to the same version.
 2. Confirm `cli/dist/` is up to date. The pre-commit hook handles this if installed.
 3. Commit via `/commit` from the marketplace repo. It handles the submodule and parent ordering.
 

@@ -249,6 +249,44 @@ CODE=$?
 check "exits 1"                                     '[ "$CODE" -eq 1 ]'
 check "stderr mentions the output style file"       'grep -q "output-styles/ac-writing-style.md" "$ERR"'
 
+# --- Case 14: pi package.json version matches the bumped plugin version -------
+echo "Case 14: package.json and plugin.json both bumped to 0.15.4"
+REPO="$WORK/case14"
+make_base_repo "$REPO"
+(cd "$REPO" && printf '{\n  "name": "spechub",\n  "version": "0.15.3"\n}\n' > package.json && git add package.json && git commit -q -m "pi manifest")
+new_branch "$REPO" feature
+(cd "$REPO" && echo "skill v2" > skills/foo/SKILL.md && git add skills/foo/SKILL.md && git commit -q -m "skill update")
+set_version "$REPO" "0.15.4"
+(cd "$REPO" && printf '{\n  "name": "spechub",\n  "version": "0.15.4"\n}\n' > package.json && git add -A && git commit -q -m "bump version")
+run_gate "$REPO" main feature
+CODE=$?
+check "exits 0"                                     '[ "$CODE" -eq 0 ]'
+
+# --- Case 15: plugin.json bumped, package.json left behind -> exit 1 ----------
+echo "Case 15: plugin.json bumped to 0.15.4, package.json still 0.15.3"
+REPO="$WORK/case15"
+make_base_repo "$REPO"
+(cd "$REPO" && printf '{\n  "name": "spechub",\n  "version": "0.15.3"\n}\n' > package.json && git add package.json && git commit -q -m "pi manifest")
+new_branch "$REPO" feature
+(cd "$REPO" && echo "skill v2" > skills/foo/SKILL.md && git add skills/foo/SKILL.md && git commit -q -m "skill update")
+set_version "$REPO" "0.15.4"
+(cd "$REPO" && git add .claude-plugin/plugin.json && git commit -q -m "bump plugin only")
+run_gate "$REPO" main feature
+CODE=$?
+check "exits 1"                                     '[ "$CODE" -eq 1 ]'
+check "stderr names both manifests"                 'grep -q "package.json and .claude-plugin/plugin.json disagree" "$ERR"'
+
+# --- Case 16: a mismatch fails even under the no-bump label -------------------
+echo "Case 16: package.json added at 9.9.9 against plugin 0.15.3, NO_BUMP=1"
+REPO="$WORK/case16"
+make_base_repo "$REPO"
+new_branch "$REPO" feature
+(cd "$REPO" && printf '{\n  "version": "9.9.9"\n}\n' > package.json && git add package.json && git commit -q -m "bad pi manifest")
+NO_BUMP=1 run_gate "$REPO" main feature
+CODE=$?
+check "exits 1"                                     '[ "$CODE" -eq 1 ]'
+check "stderr reports the mismatched version"       'grep -q "9.9.9" "$ERR"'
+
 echo ""
 echo "----------------------------------------"
 printf 'Result: %d passed, %d failed\n' "$pass" "$fail"

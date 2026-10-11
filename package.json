@@ -1,0 +1,33 @@
+{
+  "name": "spechub",
+  "version": "0.42.0",
+  "private": true,
+  "description": "Spec-driven TDD workflow for pi: skills, the orchestrator prompt, and the test-writer, task-executor, task-checker and frontend-verifier subagents.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ac8318740/spechub.git"
+  },
+  "keywords": [
+    "pi-package",
+    "spechub",
+    "tdd",
+    "spec-driven"
+  ],
+  "pi": {
+    "extensions": [
+      "./pi/extension.ts"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "subagents": {
+      "agents": [
+        "./pi/agents"
+      ]
+    }
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

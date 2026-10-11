@@ -30,6 +30,10 @@ fresh, and never with a value already used in this session:
 n=spechub-whoami-<nonce>
 s="${CLAUDE_CODE_SESSION_ID:-none}"
 p="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
+case "${PI_SESSION_FILE:-}" in
+  */run-[0-9]*/session.jsonl|*/forks/*.jsonl) echo "child: $PI_SESSION_FILE"; exit 0;;
+  ?*) [ -z "${CLAUDE_CODE_SESSION_ID:-}" ] && { echo "lead"; exit 0; };;
+esac
 for _ in $(seq 1 20); do
   m=$(grep -lF "$n" "$p"/*/"$s"/subagents/agent-*.jsonl 2>/dev/null </dev/null | head -1)
   [ -n "$m" ] && { echo "child: $m"; exit 0; }
@@ -41,7 +45,8 @@ echo "lead"
 
 `lead` means carry on. `child: <path>` means stop, and tell whoever launched
 you that this skill runs only in the lead session. Report your state upward
-instead – in your final message, or by `SendMessage`. The lead then hands off
+instead – in your final message, or through your host's agent-messaging tool
+(`SendMessage` on Claude Code). The lead then hands off
 or compacts.
 
 Read [`lead-check.md`](lead-check.md) before you change that command, or when
@@ -223,10 +228,10 @@ already moved on, so there is nothing left to nudge about:
 
 ```bash
 d="${SPECHUB_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/spechub-context-pressure}"
-[ -n "${CLAUDE_CODE_SESSION_ID:-}" ] && mkdir -p "$d" && : > "$d/${CLAUDE_CODE_SESSION_ID}.quiet" || true
+sid="${CLAUDE_CODE_SESSION_ID:-${PI_SESSION_ID:-}}"; [ -n "$sid" ] && mkdir -p "$d" && : > "$d/$sid.quiet" || true
 ```
 
-`CLAUDE_CODE_SESSION_ID` is this session's own id. The lead check at the top
+`CLAUDE_CODE_SESSION_ID` (`PI_SESSION_ID` on pi) is this session's own id. The lead check at the top
 ruled out the child sessions, where it names the lead instead. So the marker lands
 exactly where the hook looks for it.
 
