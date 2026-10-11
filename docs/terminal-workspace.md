@@ -150,17 +150,21 @@ What `uninstall` removes:
 - It deletes the helper scripts
 - It removes the keybindings it wrote into gh-dash
 - It deletes `~/.config/nvim/lua/plugins/spechub.lua`, a file it wrote whole
+- It takes back what the `pi` component added to pi (section 3.6)
 - Your own settings in those files survive, and so does every tool binary
     - harlequin is the exception, because uv owns its whole environment rather than one file in `~/.local/bin`
+    - pi stays, because it holds your logins and sessions
 
 What the config holds:
 
 - The script reads `~/.config/spechub/terminal-workspace.yaml`, which the skill copies from `assets/terminal-workspace/config.example.yaml`
-- The config holds eleven components, each with its own `enabled` key
+- The config holds twelve components, each with its own `enabled` key
     - You turn a part off there and run `apply` again
 - Eight components name a tool this setup installs: `herdr`, `gh_dash`, `diffnav`, `delta`, `tuicr`, `lazygit`, `yazi`, and `harlequin`
 - `neovim` names an editor you installed yourself, and writes one file into its config
-    - It is the only component that starts off, and section 3.5 says why
+    - It starts off, and section 3.5 says why
+- `pi` names a coding agent, which npm installs, and SpecHub then installs into
+    - It starts off too, and section 3.6 says why
 - The other two name a feature
     - `markdown` covers `spechub-md` with mermaid-ascii and glow
     - `remote` covers the clipboard and browser helpers
@@ -339,6 +343,40 @@ Copy over SSH:
 - `apply` leaves the clipboard out when a file of yours already sets `vim.g.clipboard`, and names that file
 - `neovim.osc52_clipboard: false` turns it off
 - `setup.sh status` prints a `neovim clipboard:` line naming which provider neovim uses
+
+### 3.6. pi: SpecHub in a second coding agent
+
+*Set `pi.enabled: true` to install pi, the coding agent, with SpecHub and your pi settings. It starts off, because it writes into pi's own config.*
+
+What `apply` does:
+
+- It installs pi with `npm install -g @earendil-works/pi-coding-agent` when pi is missing
+- It installs SpecHub into pi, pinned to the version of this plugin
+    - Re-running `apply` after a plugin update moves the pin forward, and never back
+- It installs `pi-subagents`, which SpecHub on pi needs to launch a subagent
+- It installs `pi-compact-tools` and runs `agentic-retro install-pi`, each behind its own toggle
+    - The agentic-retro step needs the agentic-retro plugin installed first, and `apply` says so when it is not
+- It writes the delegation line into pi's context file in `~/.pi/agent`, between HTML comment markers
+    - That is `AGENTS.md` by default, or the first of `AGENTS.override.md`, `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md` and `CLAUDE.MD` that exists, which is the one pi reads
+    - `pi-subagents` delegates only when your request or your instructions allow it
+- It sets `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json`
+- It writes the four keys under `pi.settings` into `~/.pi/agent/settings.json`
+
+How it treats pi's files:
+
+- pi's config is JSON, which has no comments to mark a managed region with
+- `apply` claims only the keys it writes, and every other key stays
+- `apply` installs and removes packages through `pi install` and `pi remove`, and never edits `packages` itself
+- `apply` touches nothing in a file that does not parse, and names it
+    - A broken `settings.json` stops the whole component, because `pi install` rewrites that file
+- `~/.config/spechub/terminal-workspace.pi.json` records what `apply` added
+    - `disable pi` and `uninstall` undo only what that file names
+    - A package or a key you had before `apply` stays yours
+    - A value of yours that `apply` replaced goes back, and so does a SpecHub pin it moved forward
+    - A value you changed after `apply` stays as you set it
+- `apply` never touches `auth.json`
+    - Run `pi`, then `/login`, yourself
+- `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether you are logged in
 
 ## 4. How you attach
 

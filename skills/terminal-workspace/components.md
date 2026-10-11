@@ -2,7 +2,7 @@
 
 Read this file when the user asks what a component does, which key turns it on, or why a key sits where it does.
 
-## 1. Eleven components, installed for a user account and not for a project
+## 1. Twelve components, installed for a user account and not for a project
 
 | Component | What it gives the user | Config key |
 |---|---|---|
@@ -13,6 +13,7 @@ Read this file when the user asks what a component does, which key turns it on, 
 | tuicr | Reviews a pull request inside the terminal. | `tuicr.enabled` |
 | lazygit | Stages, commits, amends and pushes, on one key. | `lazygit.enabled` |
 | harlequin | A SQL editor in the terminal, on one key. Installed by uv, and launched by spechub-db. | `harlequin.enabled` |
+| pi | A coding agent in the terminal, with SpecHub, pi-subagents and the user's own pi settings installed into it. Installed by npm, and starts off. | `pi.enabled` |
 | neovim | A dot in the LazyVim statusline for a buffer with unsaved changes, and copy over SSH through OSC 52. Installs nothing, writes one file, and starts off. | `neovim.enabled` |
 | yazi | A file manager, with markdown drawn live by spechub-md. One key sends the hovered file to the machine the user sits at. | `yazi.enabled` |
 | markdown | Markdown with its mermaid diagrams drawn as text, or served to a browser. Installs spechub-md, mermaid-ascii and glow. | `markdown.enabled` |
@@ -21,6 +22,9 @@ Read this file when the user asks what a component does, which key turns it on, 
 A config key never carries a hyphen, so gh-dash is `gh_dash`. The last two rows
 name a feature rather than a binary, so each of those cells names its tools.
 The `neovim` row names an editor this setup never installs, and only configures.
+
+The `pi` row and the `neovim` row both start off, because each writes into a
+config the user built.
 
 ### 1.1. `g` belongs to git, and `e` means edit
 

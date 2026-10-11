@@ -1,6 +1,6 @@
 ---
 name: terminal-workspace
-description: "Install and configure the optional terminal workspace, which runs several coding agents side by side in one terminal. It installs five tools the user drives – herdr, gh-dash, diffnav, lazygit and harlequin – plus five that support them and two helpers of SpecHub's own. One YAML file holds every config. Use when the user asks to set up parallel agents in the terminal, or mentions herdr, gh-dash, diffnav, yazi or harlequin. Use it too when the user wants agents that keep running after they close the terminal, or asks to turn any of these on or off. Every component toggles on its own, and every change is reversible."
+description: "Install and configure the optional terminal workspace, which runs several coding agents side by side in one terminal. It installs five tools the user drives – herdr, gh-dash, diffnav, lazygit and harlequin – plus five that support them, two helpers of SpecHub's own, and the pi coding agent with SpecHub installed into it. One YAML file holds every config. Use when the user asks to set up parallel agents in the terminal, or mentions herdr, gh-dash, diffnav, yazi, harlequin or pi. Use it too when the user wants agents that keep running after they close the terminal, or asks to turn any of these on or off. Every component toggles on its own, and every change is reversible."
 argument-hint: "[status | apply | outdated | upgrade [tool...] | disable <component> | uninstall]"
 disable-model-invocation: true
 ---
@@ -26,7 +26,7 @@ SpecHub does not need any of this. Offer it, do not assume it.
 
 ```mermaid
 flowchart TD
-    IN["Eleven components, one YAML file<br/>(machine-level, not per-project)"] --> ST["See what this machine has<br/>(setup.sh status)"]
+    IN["Twelve components, one YAML file<br/>(machine-level, not per-project)"] --> ST["See what this machine has<br/>(setup.sh status)"]
     ST --> CF["Copy the config, walk the choices<br/>(~/.config/spechub/terminal-workspace.yaml)"]
     CF --> AP["Install binaries, write the keys<br/>(setup.sh apply)"]
     AP --> Q{"How does the user reach<br/>this machine?"}
@@ -41,7 +41,7 @@ flowchart TD
 
 | Step in the diagram                   | Detail    |
 | ------------------------------------- | --------- |
-| Eleven components, one YAML file      | section 1 |
+| Twelve components, one YAML file      | section 1 |
 | See what this machine has             | section 2 |
 | Copy the config, walk the choices     | section 3 |
 | Install binaries, write the keys      | section 4 |
@@ -52,26 +52,27 @@ flowchart TD
 | Turn one component off                | section 8 |
 | Fetch what has moved on               | section 9 |
 
-## 1. Eleven components, installed for a user account and not for a project
+## 1. Twelve components, installed for a user account and not for a project
 
-*Eleven config components install twelve tools. herdr holds the terminals, and the rest read diffs, pull requests, files and databases, and commit the result.*
+*Twelve config components install thirteen tools. herdr holds the terminals and pi is a coding agent. The rest read diffs, pull requests, files and databases, and commit the result.*
 
 This is **machine-level, not per-project**. It installs binaries and writes
 keybindings for the user account, so it does not belong in
 `spechub/project.yaml`.
 
 Count components when you mean config keys, and tools when you mean binaries.
-The config holds eleven component sections, plus an `enabled` master switch
-above them. Ten of those sections install twelve tools between them:
+The config holds twelve component sections, plus an `enabled` master switch
+above them. Eleven of those sections install thirteen tools between them:
 
 - Five tools the user drives day to day: herdr, gh-dash, diffnav, lazygit and harlequin. tuicr joins them once a review starts
 - Five tools that support them: delta, tuicr, yazi, mermaid-ascii and glow
 - Two helpers of SpecHub's own: spechub-md, and the spechub-clip and spechub-open pair
+- The pi coding agent, with SpecHub and pi-subagents installed into it
 
-The eleventh, `neovim`, installs nothing. It writes one file into a neovim config
-the user already has, and it is the only component that starts off.
+The twelfth, `neovim`, installs nothing. It writes one file into a neovim config
+the user already has. `neovim` and `pi` both start off, because each writes into a config the user built.
 
-Read [`components.md`](components.md) when the user asks what a component does, which key turns it on, or why a key sits where it does. It holds the table of all eleven and the two letters the setup reserves.
+Read [`components.md`](components.md) when the user asks what a component does, which key turns it on, or why a key sits where it does. It holds the table of all twelve and the two letters the setup reserves.
 
 The two files this skill works with:
 
@@ -118,7 +119,7 @@ Its last lines say where a copy and an open will land on this machine. Section
 
 ## 3. Copy the config, then walk the user through the choices
 
-*The config exposes far more keys than this. Thirteen of them are worth raising with the user, and the two that need no new vocabulary come first.*
+*The config exposes far more keys than this. Fourteen of them are worth raising with the user, and the two that need no new vocabulary come first.*
 
 Copy the example config before the first `apply`:
 

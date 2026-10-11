@@ -41,7 +41,7 @@ Then ask about these settings, in this order:
     - Ask for the name `tailscale status` prints on **this** machine, not the name the user calls their laptop
     - Taildrop sends only between devices one Tailscale account owns on one tailnet, so confirm both ends match before setting it
     - Tell them to run `sudo tailscale set --operator=$USER` once on this machine, because `tailscale file cp` refuses a non-root caller without it
-- **`neovim.enabled`**: off by default, and the only component that is. Turn it on for a user who edits in LazyVim, and always on a machine they reach over SSH
+- **`neovim.enabled`**: off by default, like `pi.enabled`. Turn it on for a user who edits in LazyVim, and always on a machine they reach over SSH
     - Over SSH, LazyVim turns clipboard sync off and `:%y+` fails with `clipboard: No provider`
     - `neovim.osc52_clipboard`, on by default, sends each copy to the user's own clipboard over OSC 52
         - `p` pastes what neovim copied last, because Windows Terminal refuses OSC 52 reads
@@ -52,6 +52,15 @@ Then ask about these settings, in this order:
     - `apply` leaves the dot out when a lualine override the user wrote already marks a modified buffer, and names that file
         - The statusline would otherwise carry two dots side by side
     - Tell such a user to delete their own file to hand the dot to this component
+- **`pi.enabled`**: off by default. Turn it on for a user who runs pi, the coding agent, or wants SpecHub inside it
+    - `apply` installs pi with npm when it is missing, then installs SpecHub into it, pinned to this plugin's version
+    - `apply` always installs `pi-subagents` too, because SpecHub on pi cannot launch a subagent without it
+    - `apply` adds one line to pi's context file in `~/.pi/agent` (`AGENTS.md` by default) that lets pi delegate when a SpecHub skill says to
+    - `pi.compact_tools` and `pi.agentic_retro` add pi-compact-tools and agentic-retro's pi extension, both on by default
+        - agentic-retro's extension needs the agentic-retro plugin first, and `apply` says so when it is missing
+    - `pi.settings` writes four keys into `~/.pi/agent/settings.json`, and an empty value leaves pi's own
+    - Tell the user to run `pi`, then `/login`, themselves, because `apply` never handles a credential
+    - Tell them to restart any pi session that was running during `apply`
 - **`remote.clipboard_shim`**: leave it `true` on any machine reached over SSH. It puts an `xclip` on `$PATH`, backed by `spechub-clip`. That stand-in is the only reason gh-dash's `y` and `Y` work there. `apply` skips it when the machine has a real `xclip` or a display
 
 One setting sits outside the config. `spechub-md --serve` takes its port from

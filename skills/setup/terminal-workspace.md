@@ -57,7 +57,7 @@ On a `missing` row:
   "question": "You said yes but the workspace was never installed here. Install it?",
   "header": "Workspace",
   "options": [
-    {"label": "Yes", "description": "You then run /spechub:terminal-workspace, which installs herdr and the tools around it: several agents side by side in one terminal, sessions that survive a disconnect, and diffs, pull requests and files on one key each. Eleven components, every one reversible."},
+    {"label": "Yes", "description": "You then run /spechub:terminal-workspace, which installs herdr and the tools around it: several agents side by side in one terminal, sessions that survive a disconnect, and diffs, pull requests and files on one key each. Twelve components, every one reversible."},
     {"label": "No", "description": "Leave this machine as it is. Nothing in SpecHub needs the workspace, and the offer comes back next time you run setup."}
   ]
 }
@@ -117,7 +117,7 @@ On exit 2 nobody has answered yet. Ask once:
   "question": "Set up the terminal workspace on this machine?",
   "header": "Workspace",
   "options": [
-    {"label": "Yes", "description": "You then run /spechub:terminal-workspace, which installs herdr and the tools around it: several agents side by side in one terminal, sessions that survive a disconnect, and diffs, pull requests and files on one key each. Eleven components, every one reversible."},
+    {"label": "Yes", "description": "You then run /spechub:terminal-workspace, which installs herdr and the tools around it: several agents side by side in one terminal, sessions that survive a disconnect, and diffs, pull requests and files on one key each. Twelve components, every one reversible."},
     {"label": "No", "description": "Leave this machine as it is. Nothing in SpecHub needs the workspace, and /spechub:terminal-workspace installs it any time later."}
   ]
 }
