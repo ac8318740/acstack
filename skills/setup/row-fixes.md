@@ -69,7 +69,7 @@ Guidance for the subagent:
 If `spechub/specs/` already holds domain directories, propose those names first
 and map the paths onto them. Renaming a domain here orphans its `spec.md`.
 
-Print the proposal and confirm it with AskUserQuestion. Ask "Use this domain map,
+Print the proposal and confirm it with the question tool (AskUserQuestion on Claude Code). Ask "Use this domain map,
 or adjust it?" and offer "Use it" against "Adjust (I'll give feedback)".
 
 Then write the file:

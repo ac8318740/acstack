@@ -66,7 +66,7 @@ Read [`notes.md`](notes.md) when the user asks why the path resolution
 above derives the plugin root from a symlink.
 
 If that symlink is missing, the SessionStart hook did not run. Tell the user to
-restart Claude Code. If a restart does not fix it, point them at
+restart their agent session. If a restart does not fix it, point them at
 `TROUBLESHOOTING.md` in the plugin root.
 
 The script is read-only. It prints one JSON object to standard output and exits
@@ -106,8 +106,9 @@ There are two orchestrators, and they are two separate questions rather than one
 choice between them. A machine can have both installed, one, or neither, so an
 answer about one says nothing about the other.
 
-Ask both in a single AskUserQuestion call, one question per orchestrator. There
-is no skip: every machine has an answer to each.
+Ask both in one call to the question tool (AskUserQuestion on Claude Code),
+one question per orchestrator. There is no skip: every machine has an answer
+to each.
 
 Answering no to both is a real answer. It declares that this machine has no
 orchestrator. The worktree skills then fall back to plain git worktrees under
@@ -137,7 +138,7 @@ must ask it.
 
 ## Step 3: The optional axes – with skip
 
-Ask these in one AskUserQuestion call. It carries a third question only when you
+Ask these in one question-tool call. It carries a third question only when you
 answered yes to Orca in Step 2. Otherwise omit that question rather than asking
 it and discarding the answer.
 

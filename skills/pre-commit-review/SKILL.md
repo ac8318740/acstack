@@ -30,7 +30,7 @@ Parse `$ARGUMENTS` and invocation context to determine mode:
 - **Interactive mode** (default): Use when ANY of these are true:
     - No `--auto-fix` argument, and the user invoked the skill manually via `/pre-commit-review`
     - The user typed `/commit`, which auto-invokes the skill. The user is clearly present,
-    so consult them via AskUserQuestion waves.
+    so consult them in question-tool waves (AskUserQuestion on Claude Code).
     - When in doubt, use interactive – it's always safe to ask.
 
 **Rule of thumb**: Who initiated the commit? User typed `/commit` -> interactive.
@@ -90,10 +90,10 @@ Report: list of project conventions and patterns relevant to these changes.
 **Subagent B – Codebase Patterns via Search:**
 
 ```
-Use Grep and Glob to find established patterns related to the changes.
+Search the codebase for established patterns related to the changes.
 For each changed function/component, search for similar implementations:
-  Grep for function signatures, class names, and patterns from the diff
-  Glob for files with similar naming conventions
+  Search for function signatures, class names, and patterns from the diff
+  Find files with similar naming conventions
 Identify: how does the rest of the codebase handle similar things?
 Report: established patterns, common approaches, naming conventions observed.
 ```

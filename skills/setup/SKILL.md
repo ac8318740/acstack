@@ -135,7 +135,8 @@ months ago deserves to hear what fails first.
 
 ## Step 8: Offer the rows that need a fix
 
-Build one AskUserQuestion with `multiSelect` set to true. Put one option in it
+Build one multi-select question in the question tool (AskUserQuestion with
+`multiSelect: true` on Claude Code). Put one option in it
 per row you are going to offer, and say in each description what the row
 reported. This is the pre-selection the user sees: only real gaps reach the menu.
 

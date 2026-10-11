@@ -50,8 +50,8 @@ the second place the requirement lands. The launch prompt is the first.
 The watcher reads two sources. The sidecar `<handoff-file>.ack` holds the
 acknowledgement the ack command writes, and the watcher reports it as
 `ack.via: 'cli'`. The transcript is the fallback, reported as `ack.via: 'text'`
-– a SendMessage beginning ACCEPT or DECLINE, or, for a fresh agent, a reply
-beginning with it.
+– a message through the agent-messaging tool (`SendMessage` on Claude Code)
+beginning ACCEPT or DECLINE, or, for a fresh agent, a reply beginning with it.
 
 The word has to lead there. The watcher does not match a decision buried
 mid-sentence.

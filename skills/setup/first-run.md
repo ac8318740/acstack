@@ -23,7 +23,9 @@ Workflow:     strict TDD, strict orchestrator, spec sync on, grilling via questi
 
 ## Step 4: Ask what to customise
 
-Call AskUserQuestion with EXACTLY this JSON. It holds two questions in one call:
+Ask through the question tool (AskUserQuestion on Claude Code) with EXACTLY this
+JSON. On a host without one, print the same questions and options as a
+numbered list. It holds two questions in one call:
 
 ```json
 {
@@ -58,7 +60,7 @@ selections. An empty selection means the defaults stand.
 
 ## Step 5: Customise the selected sections
 
-Ask one follow-up question at a time through AskUserQuestion. Skip every item the
+Ask one follow-up question at a time through the question tool. Skip every item the
 user did not select.
 
 - **Profile & paths** – ask the language or framework, then the source and test

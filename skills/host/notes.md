@@ -35,7 +35,7 @@ hardcode it.
 
 The one invariant path is `~/.claude/spechub/bin/spechub`, a symlink to the CLI
 inside the current cache. The SessionStart hook re-points that symlink at the
-start of every session, and Claude Code runs that hook.
+start of every agent session.
 
 The command in Step 1 of `SKILL.md` therefore derives the plugin root from the
 symlink rather than from a written-down path.
@@ -54,7 +54,7 @@ symlink rather than from a written-down path.
 
 - **Recovering from version skew.** Do not re-ask – the answer is not the
     problem, and re-asking a boolean axis only loops. Tell the user to restart
-    Claude Code, so the SessionStart hook re-points
+    their agent session, so the SessionStart hook re-points
     `~/.claude/spechub/bin/spechub` at the current cache.
 
     Skip the axis and carry on. Do not report it to the user as their mistake.

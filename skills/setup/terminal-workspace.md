@@ -102,7 +102,7 @@ to Step 13:
 
 ```
 The spechub CLI on this machine predates host.terminal_workspace, so I cannot
-record an answer. Restart Claude Code to relink the CLI, then run
+record an answer. Restart your agent session to relink the CLI, then run
 /spechub:setup again.
 ```
 
@@ -134,7 +134,7 @@ they never get round to running must not bring the question back on the next
 project.
 
 On **Yes**, hand the install to the user. The `terminal-workspace` skill sets
-`disable-model-invocation: true`, so the Skill tool refuses every attempt to
+`disable-model-invocation: true`, so the host refuses every attempt to
 call it from here. Print this line, then go to Step 13:
 
 ```
