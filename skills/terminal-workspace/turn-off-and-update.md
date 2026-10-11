@@ -7,20 +7,32 @@
 *`disable` undoes one component. `uninstall` undoes the managed config. harlequin is the one binary either of them removes.*
 
 ```bash
-bash "$SETUP" disable herdr     # or delta, diffnav, gh_dash, harlequin, lazygit, neovim, tuicr
+bash "$SETUP" disable herdr     # or delta, diffnav, gh_dash, harlequin, lazygit, neovim, pi, tuicr
 ```
 
-`disable` takes those eight components and no others. For `diffnav`, `gh_dash`,
+`disable` takes those nine components and no others. For `diffnav`, `gh_dash`,
 `harlequin`, `lazygit` and `tuicr` it writes `<component>.enabled: false` into
 the config itself, then rebuilds the herdr keymap so the rest of it survives.
 
-For `herdr`, `delta` and `neovim` it does not. Set `<component>.enabled: false`
-yourself after those three, or the next `apply` restores them.
+For `herdr`, `delta`, `neovim` and `pi` it does not. Set `<component>.enabled: false`
+yourself after those four, or the next `apply` restores them.
 
 `neovim` is the one whose undo is a deletion. The component writes a whole file
 of SpecHub's own, so `disable` removes `~/.config/nvim/lua/plugins/spechub.lua`
 and leaves the rest of the user's neovim config alone. Neither `disable` nor
 `uninstall` touches a `spechub.lua` the user wrote by hand.
+
+`pi` undoes only what `apply` added, because pi's config is the user's:
+
+- It removes the pi packages `apply` installed, and keeps any the user installed first
+- It releases the four settings and `toolActivation`, unless the user has changed one since
+    - A value `apply` replaced goes back to what the user had, and a key `apply` added goes
+- It puts back a SpecHub pin `apply` moved forward, unless the user has moved it since
+- It removes the delegation block from pi's context file, and the user's text stays byte for byte
+- It removes agentic-retro's extension only when `apply` was the one to write it
+- It keeps the pi binary, its logins and its sessions
+- It touches nothing in a `settings.json` that does not parse, and says so
+- It records what it added in `~/.config/spechub/terminal-workspace.pi.json`
 
 `yazi`, `markdown` and `remote` have no `disable` path. `disable` refuses for
 those three and names the edit that turns one off. Set the component's
@@ -34,9 +46,12 @@ bash "$SETUP" uninstall
 the herdr, tuicr and yazi configs. It unsets delta as the git pager.
 
 It deletes the helper scripts, the `xclip` stand-in, the neovim plugin file, and
-the keybindings it wrote into gh-dash. The user's own settings around them
-survive, and every binary stays except harlequin, which uv owns whole rather
-than as one file in `$BIN`.
+the keybindings it wrote into gh-dash. It runs `disable pi`. The user's own
+settings around them survive, and every binary stays except harlequin, which uv
+owns whole rather than as one file in `$BIN`.
+
+pi stays too. It holds the user's logins and sessions, and the user may run it
+without SpecHub. `uninstall` prints the npm command that removes it.
 
 ## 9. Keeping it current
 
@@ -66,6 +81,15 @@ Four kinds of finding:
 bash "$SETUP" upgrade              # everything reported stale
 bash "$SETUP" upgrade yazi delta   # only these
 ```
+
+pi adds four rows of its own:
+
+- `pi`, `pi-subagents` and `pi-compact-tools` compare against npm, and `upgrade` runs `pi update` for each
+    - A package the user pinned, such as `npm:pi-subagents@1.0.0`, reports `unknown`, because `pi update` never moves it
+- `pi-spechub` compares SpecHub's pin in pi against this plugin's version, with no network at all
+    - `upgrade pi-spechub` moves the pin forward, and so does `apply`
+    - Neither moves a pin newer than this plugin, because the user chose it
+    - Neither installs SpecHub where it is absent or unpinned
 
 `upgrade` reinstalls each stale binary and appends any new component's config
 block to the user's file, comments intact. The three tools that update

@@ -191,6 +191,39 @@ harlequin:
   # of this file.
   config_path: "~/.config/spechub/harlequin.toml"
 
+pi:
+  # Off by default, because it writes into pi's own config in ~/.pi/agent.
+  # pi is a coding agent in the terminal. Turning this on installs it with npm
+  # if it is missing, then installs SpecHub into it, pinned to this plugin's
+  # version, with pi-subagents, which SpecHub needs to launch a subagent.
+  #
+  # It also writes one line into pi's context file in ~/.pi/agent (AGENTS.md
+  # by default) that lets pi delegate when a SpecHub skill says to, and sets "toolActivation": "eager" in
+  # ~/.pi/agent/extensions/subagent/config.json. Both sit beside your own
+  # settings, which stay.
+  #
+  # Logging in is yours: run pi, then /login.
+  enabled: false
+  # pi-compact-tools, which shortens how pi draws each tool call.
+  compact_tools: true
+  # agentic-retro's pi extension, which queues each finished pi session for a
+  # retro. Needs the agentic-retro plugin installed first, and apply says so
+  # when it is not.
+  agentic_retro: true
+  # Written into ~/.pi/agent/settings.json. Empty leaves pi's own value alone.
+  # Every other key in that file stays as you set it, and disable puts back
+  # any value of yours that apply replaced.
+  settings:
+    # Hide the model's thinking in the transcript.
+    hide_thinking_block: true
+    # How pi draws a mermaid diagram: "off", "final", or "streaming".
+    # Quote it, because YAML reads a bare off as false.
+    mermaid: streaming
+    # pi's anonymous install and update reporting.
+    install_telemetry: false
+    # A pi theme name. "system" takes its colours from the terminal.
+    theme: system
+
 neovim:
   # The one component that is off by default, because it writes into a neovim
   # config you built yourself. Every other one owns its files outright.

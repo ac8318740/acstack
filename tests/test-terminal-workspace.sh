@@ -3700,26 +3700,26 @@ done
 # A name that is not a component at all takes the same silent path today.
 out=$(tw disable bogus); rc=$?
 missing=""
-for c in herdr delta diffnav gh_dash harlequin lazygit neovim tuicr; do
+for c in herdr delta diffnav gh_dash harlequin lazygit neovim pi tuicr; do
   printf '%s' "$out" | grep -qF "$c" || missing="$missing $c"
 done
 if [ "$rc" != "0" ] && [ -z "$missing" ]; then
-  ok "disable rejects an unknown component and lists the eight it supports"
+  ok "disable rejects an unknown component and lists the nine it supports"
 else
-  no "disable rejects an unknown component and lists the eight it supports (rc=$rc, unlisted:${missing:- none}; said: $(flat "$out"))"
+  no "disable rejects an unknown component and lists the nine it supports (rc=$rc, unlisted:${missing:- none}; said: $(flat "$out"))"
 fi
 
 # tuicr gained a disable branch without reaching the usage line, so the one
 # place a user goes to find out what they may type still omits it.
 out=$(tw disable); rc=$?
 missing=""
-for c in herdr delta diffnav gh_dash harlequin lazygit neovim tuicr; do
+for c in herdr delta diffnav gh_dash harlequin lazygit neovim pi tuicr; do
   printf '%s' "$out" | grep -qF "$c" || missing="$missing $c"
 done
 if [ "$rc" != "0" ] && [ -z "$missing" ]; then
-  ok "the usage line for disable lists all eight supported components"
+  ok "the usage line for disable lists all nine supported components"
 else
-  no "the usage line for disable lists all eight supported components (rc=$rc, unlisted:${missing:- none}; said: $(flat "$out"))"
+  no "the usage line for disable lists all nine supported components (rc=$rc, unlisted:${missing:- none}; said: $(flat "$out"))"
 fi
 
 
@@ -4314,6 +4314,465 @@ else
   skip "every herdr popup runs as argv with PATH=/usr/bin:/bin, and its target finds tools in \$BIN"
   skip "every herdr popup runs through sh -c with PATH=/usr/bin:/bin, and its target finds tools in \$BIN"
   skip "the herdr popups reach every target they name, arguments intact"
+fi
+
+
+echo "the pi component sets pi up and undoes only what it added"
+# Every call to pi, npm and agentic-retro lands on a stub, so nothing here
+# reaches the network or the real ~/.pi. The pi stub keeps settings.json the
+# way pi does: one entry per package, a new pin replacing the old one.
+IWORK="$WORK/pi-run"
+IHOME="$IWORK/home"
+ISTUB="$IWORK/stub"
+INPM="$IWORK/npm-global"
+IAGENT="$IHOME/.pi/agent"
+ISET="$IAGENT/settings.json"
+ISUB="$IAGENT/extensions/subagent/config.json"
+IMD="$IAGENT/AGENTS.md"
+IRETRO="$IAGENT/extensions/agentic-retro.ts"
+ICFG="$IHOME/.config/spechub/terminal-workspace.yaml"
+IVER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
+  "$ROOT/.claude-plugin/plugin.json")
+mkdir -p "$ISTUB" "$INPM/bin" "$IHOME/.config/spechub" "$IAGENT"
+
+cat > "$ISTUB/pi.installed" <<'PISTUB'
+#!/usr/bin/env bash
+echo "pi $*" >> "$HOME/pi.log"
+S="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/settings.json"
+case "$1" in
+  --version) echo 1.1.0 ;;
+  install|remove) python3 - "$S" "$1" "$2" <<'PY'
+import json, os, sys
+p, op, src = sys.argv[1:]
+d = json.load(open(p)) if os.path.exists(p) else {}
+def ident(s):
+    at, slash = s.rfind("@"), s.rfind("/")
+    return s[:at] if at > max(slash, 4) else s
+pk = list(d.get("packages", []))
+i = next((n for n, x in enumerate(pk) if ident(x) == ident(src)), None)
+if op == "install":
+    if i is None: pk.append(src)
+    else: pk[i] = src
+elif i is not None:
+    del pk[i]
+d["packages"] = pk
+os.makedirs(os.path.dirname(p), exist_ok=True)
+json.dump(d, open(p, "w"), indent=2)
+PY
+  ;;
+esac
+PISTUB
+# npm installs pi into a global bin that is not on PATH, which is where a
+# fresh shell finds it on a real machine too.
+cat > "$ISTUB/npm" <<NPMSTUB
+#!/usr/bin/env bash
+echo "npm \$*" >> "\$HOME/npm.log"
+case "\$1" in
+  install) cp "$ISTUB/pi.installed" "$INPM/bin/pi"; chmod +x "$INPM/bin/pi" ;;
+  prefix)  echo "$INPM" ;;
+esac
+NPMSTUB
+IRETROBIN="$IWORK/retro"; mkdir -p "$IRETROBIN"
+cat > "$IRETROBIN/agentic-retro" <<'RSTUB'
+#!/usr/bin/env bash
+[ "$1" = "install-pi" ] || exit 1
+mkdir -p "$HOME/.pi/agent/extensions"
+echo "// agentic-retro" > "$HOME/.pi/agent/extensions/agentic-retro.ts"
+RSTUB
+chmod +x "$ISTUB"/* "$IRETROBIN"/*
+
+pi_cfg() {  # pi_cfg <extra yaml for the pi block>
+  cat > "$ICFG" <<ICFGEOF
+enabled: true
+herdr: {enabled: false}
+gh_dash: {enabled: false}
+diffnav: {enabled: false}
+delta: {enabled: false}
+tuicr: {enabled: false}
+lazygit: {enabled: false}
+harlequin: {enabled: false}
+yazi: {enabled: false}
+markdown: {enabled: false}
+remote: {enabled: false}
+neovim: {enabled: false}
+pi:
+  enabled: true
+$1
+ICFGEOF
+}
+# retro=1 puts agentic-retro on PATH, which is the default here.
+iw() {
+  local path="$ISTUB:/usr/bin:/bin"
+  [ "${retro:-1}" = "1" ] && path="$IRETROBIN:$path"
+  env HOME="$IHOME" PATH="$path" \
+      SPECHUB_TW_BIN="$IHOME/.local/bin" \
+      SPECHUB_TW_CONFIG="$ICFG" \
+      GIT_CONFIG_GLOBAL="$IWORK/gitconfig" \
+      SPECHUB_TW_OFFLINE=1 \
+      bash "$SETUP" "$@" 2>&1
+}
+jget() {  # jget <file> <dotted.path> -> the value as JSON, or MISSING
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    print("MISSING"); raise SystemExit
+for k in sys.argv[2].split("."):
+    if not isinstance(d, dict) or k not in d:
+        print("MISSING"); raise SystemExit
+    d = d[k]
+print(json.dumps(d))
+PY
+}
+
+PI_APPLY=1
+case "$(uname -m)" in x86_64|amd64) ;; *) PI_APPLY=0 ;; esac
+python3 -c 'import yaml' 2>/dev/null || PI_APPLY=0
+if [ "$PI_APPLY" = "1" ]; then
+  # A user who already runs pi: a device id and a theme of their own, a
+  # subagent config with a key of its own, and instructions in AGENTS.md.
+  printf '{\n  "deviceId": "dev-1",\n  "theme": "dark",\n  "note": "caf\xc3\xa9"\n}\n' > "$ISET"
+  mkdir -p "$(dirname "$ISUB")"
+  printf '{\n  "maxDepth": 2\n}\n' > "$ISUB"
+  printf '# Mine\n\nAlways run the tests.\n' > "$IMD"
+  USER_MD=$(cat "$IMD")
+  pi_cfg ""
+  out=$(iw apply)
+
+  if grep -q '^npm install -g @earendil-works/pi-coding-agent' "$IHOME/npm.log" 2>/dev/null \
+     && [ -x "$INPM/bin/pi" ]; then
+    ok "apply installs pi with npm when it is missing"
+  else
+    no "apply installs pi with npm when it is missing (said: $(flat "$out"))"
+  fi
+  pkgs=$(jget "$ISET" packages)
+  if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
+     && printf '%s' "$pkgs" | grep -qF "\"git:github.com/ac8318740/spechub@v$IVER\"" \
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-compact-tools"'; then
+    ok "apply installs pi-subagents, SpecHub pinned to v$IVER, and pi-compact-tools"
+  else
+    no "apply installs pi-subagents, SpecHub pinned to v$IVER, and pi-compact-tools (packages: $pkgs)"
+  fi
+  if [ "$(jget "$ISET" hideThinkingBlock)" = "true" ] \
+     && [ "$(jget "$ISET" markdown.mermaid)" = '"streaming"' ] \
+     && [ "$(jget "$ISET" enableInstallTelemetry)" = "false" ] \
+     && [ "$(jget "$ISET" theme)" = '"system"' ]; then
+    ok "apply writes the four personal settings into settings.json"
+  else
+    no "apply writes the four personal settings into settings.json ($(flat "$(cat "$ISET")"))"
+  fi
+  if [ "$(jget "$ISET" deviceId)" = '"dev-1"' ] && grep -qF '"note": "café"' "$ISET" \
+     && [ "$(jget "$ISUB" maxDepth)" = "2" ] && [ "$(jget "$ISUB" toolActivation)" = '"eager"' ]; then
+    ok "the JSON merge keeps every key it does not claim, unescaped"
+  else
+    no "the JSON merge keeps every key it does not claim ($(flat "$(cat "$ISET" "$ISUB")"))"
+  fi
+  if [ "$(grep -c 'spechub terminal-workspace >>>' "$IMD")" = "1" ] \
+     && grep -qF 'you may delegate to it' "$IMD" \
+     && [ "$(head -3 "$IMD")" = "$USER_MD" ]; then
+    ok "apply adds the delegation line to AGENTS.md below the user's own text"
+  else
+    no "apply adds the delegation line to AGENTS.md below the user's own text ($(flat "$(cat "$IMD")"))"
+  fi
+  if [ -f "$IRETRO" ] && printf '%s' "$out" | grep -q 'Run pi, then /login'; then
+    ok "apply writes the agentic-retro extension and tells the user to log in"
+  else
+    no "apply writes the agentic-retro extension and tells the user to log in (said: $(flat "$out"))"
+  fi
+
+  # Re-applying changes nothing: no install call, and every file byte for byte.
+  before=$(cat "$ISET" "$ISUB" "$IMD")
+  : > "$IHOME/pi.log"; : > "$IHOME/npm.log"
+  out=$(iw apply)
+  if [ "$before" = "$(cat "$ISET" "$ISUB" "$IMD")" ] \
+     && ! grep -q '^pi install' "$IHOME/pi.log" && ! grep -q '^npm install' "$IHOME/npm.log"; then
+    ok "apply run twice installs nothing and changes no pi file"
+  else
+    no "apply run twice installs nothing and changes no pi file (pi: $(flat "$(cat "$IHOME/pi.log")"); said: $(flat "$out"))"
+  fi
+
+  out=$(iw status)
+  if printf '%s' "$out" | grep -q 'pi: 1.1.0' \
+     && printf '%s' "$out" | grep -qF "pi package: git:github.com/ac8318740/spechub@v$IVER" \
+     && printf '%s' "$out" | grep -q 'pi delegation line: present' \
+     && printf '%s' "$out" | grep -q 'pi toolActivation: eager' \
+     && printf '%s' "$out" | grep -q 'pi login: not logged in'; then
+    ok "status reports pi's version, packages, delegation line, toolActivation and login"
+  else
+    no "status reports pi's version, packages, delegation line, toolActivation and login (said: $(flat "$out"))"
+  fi
+  : > "$IAGENT/auth.json"
+  out=$(iw status)
+  if printf '%s' "$out" | grep -q 'pi login: logged in'; then
+    ok "status reports a login once auth.json exists"
+  else
+    no "status reports a login once auth.json exists (said: $(flat "$out"))"
+  fi
+  rm -f "$IAGENT/auth.json"
+
+  # A setting set to empty is released, which puts back the user's own theme,
+  # and a sub-toggle turned off removes the
+  # package it had installed.
+  pi_cfg "  compact_tools: false
+  settings: {theme: \"\"}"
+  out=$(iw apply)
+  if [ "$(jget "$ISET" theme)" = '"dark"' ] \
+     && ! jget "$ISET" packages | grep -qF 'pi-compact-tools' \
+     && grep -q '^pi remove npm:pi-compact-tools' "$IHOME/pi.log"; then
+    ok "turning a setting or compact_tools off releases what apply had added"
+  else
+    no "turning a setting or compact_tools off releases what apply had added (said: $(flat "$out"))"
+  fi
+  pi_cfg ""
+  iw apply >/dev/null
+
+  # disable takes back what apply added and nothing else.
+  out=$(iw disable pi)
+  if [ "$(jget "$ISET" deviceId)" = '"dev-1"' ] && grep -qF '"note": "café"' "$ISET" \
+     && [ "$(jget "$ISET" hideThinkingBlock)" = "MISSING" ] \
+     && [ "$(jget "$ISET" markdown)" = "MISSING" ] \
+     && [ "$(jget "$ISET" theme)" = '"dark"' ] \
+     && [ "$(jget "$ISUB" toolActivation)" = "MISSING" ] && [ "$(jget "$ISUB" maxDepth)" = "2" ] \
+     && [ "$(cat "$IMD")" = "$USER_MD" ] && [ ! -e "$IRETRO" ] \
+     && [ "$(jget "$ISET" packages)" = "[]" ] \
+     && [ -x "$INPM/bin/pi" ] \
+     && printf '%s' "$out" | grep -qF 'pi.enabled: false'; then
+    ok "disable pi removes its packages, keys, block and extension, and keeps the user's own"
+  else
+    no "disable pi removes its packages, keys, block and extension, and keeps the user's own (said: $(flat "$out"); settings: $(flat "$(cat "$ISET")"); md: $(flat "$(cat "$IMD")"))"
+  fi
+
+  # What the user had before apply stays theirs: their pi-subagents, their
+  # older SpecHub pin (moved forward, then put back), and their extension.
+  printf '{\n  "packages": ["npm:pi-subagents", "git:github.com/ac8318740/spechub@v0.1.0"]\n}\n' > "$ISET"
+  echo "// mine" > "$IRETRO"
+  out=$(iw apply)
+  if jget "$ISET" packages | grep -qF "spechub@v$IVER" && ! jget "$ISET" packages | grep -qF 'v0.1.0'; then
+    ok "apply moves an older SpecHub pin forward to v$IVER"
+  else
+    no "apply moves an older SpecHub pin forward to v$IVER (packages: $(jget "$ISET" packages))"
+  fi
+  iw uninstall >/dev/null
+  pkgs=$(jget "$ISET" packages)
+  if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
+     && printf '%s' "$pkgs" | grep -qF '"git:github.com/ac8318740/spechub@v0.1.0"' \
+     && ! printf '%s' "$pkgs" | grep -qF 'pi-compact-tools' \
+     && [ -f "$IRETRO" ] && [ -x "$INPM/bin/pi" ] \
+     && [ ! -e "$IHOME/.config/spechub/terminal-workspace.pi.json" ]; then
+    ok "uninstall leaves pi, and every package and file the user had before apply"
+  else
+    no "uninstall leaves pi, and every package and file the user had before apply (packages: $pkgs)"
+  fi
+
+  # A newer pin than this plugin is one the user chose, and stays.
+  printf '{\n  "packages": ["git:github.com/ac8318740/spechub@v999.0.0"]\n}\n' > "$ISET"
+  iw apply >/dev/null
+  if jget "$ISET" packages | grep -qF 'v999.0.0'; then
+    ok "apply never moves a newer SpecHub pin back"
+  else
+    no "apply never moves a newer SpecHub pin back (packages: $(jget "$ISET" packages))"
+  fi
+  iw disable pi >/dev/null
+
+  # A settings.json pi cannot parse concedes the whole component: pi rewrites
+  # that file on install, so even one install call puts the user's file at risk.
+  printf '{ "theme": "dark", oops }\n' > "$ISET"
+  : > "$IHOME/pi.log"
+  out=$(iw apply)
+  if [ "$(cat "$ISET")" = '{ "theme": "dark", oops }' ] \
+     && ! grep -q '^pi install' "$IHOME/pi.log" \
+     && printf '%s' "$out" | grep -qF "$ISET does not parse"; then
+    ok "apply leaves an unparseable settings.json alone, installs nothing, and names the file"
+  else
+    no "apply leaves an unparseable settings.json alone, installs nothing, and names the file (said: $(flat "$out"))"
+  fi
+  out=$(iw disable pi); rc=$?
+  if [ "$(cat "$ISET")" = '{ "theme": "dark", oops }' ] && printf '%s' "$out" | grep -qF 'does not parse'; then
+    ok "disable pi leaves an unparseable settings.json alone and says so"
+  else
+    no "disable pi leaves an unparseable settings.json alone and says so (rc=$rc, said: $(flat "$out"))"
+  fi
+
+  # A broken subagent config concedes that one key. Everything else applies.
+  rm -f "$ISET"
+  printf 'not json\n' > "$ISUB"
+  out=$(iw apply)
+  if [ "$(cat "$ISUB")" = "not json" ] \
+     && printf '%s' "$out" | grep -qF "$ISUB does not parse" \
+     && [ "$(jget "$ISET" hideThinkingBlock)" = "true" ]; then
+    ok "an unparseable subagent config is left alone while the rest of pi applies"
+  else
+    no "an unparseable subagent config is left alone while the rest of pi applies (said: $(flat "$out"))"
+  fi
+  iw disable pi >/dev/null
+  rm -f "$ISUB"
+
+  # Without agentic-retro on PATH, the extension is skipped and the user told
+  # what to install. SpecHub itself does not need it.
+  rm -f "$IRETRO"
+  out=$(retro=0 iw apply)
+  if [ ! -e "$IRETRO" ] && printf '%s' "$out" | grep -q 'install the agentic-retro plugin first' \
+     && jget "$ISET" packages | grep -qF "spechub@v$IVER"; then
+    ok "apply skips the agentic-retro extension when agentic-retro is not on PATH, and says why"
+  else
+    no "apply skips the agentic-retro extension when agentic-retro is not on PATH, and says why (said: $(flat "$out"))"
+  fi
+
+  # outdated reports a SpecHub pin behind this plugin with no network at all,
+  # and upgrade moves it.
+  printf '{\n  "packages": ["git:github.com/ac8318740/spechub@v0.1.0"]\n}\n' > "$ISET"
+  iw apply >/dev/null   # writes the stamp; leaves the pin, which is now owned by nobody
+  printf '{\n  "packages": ["git:github.com/ac8318740/spechub@v0.1.0"]\n}\n' > "$ISET"
+  out=$(iw outdated); rc=$?
+  if [ "$rc" = "1" ] && printf '%s' "$out" | grep -qF "stale	pi-spechub	0.1.0 -> $IVER"; then
+    ok "outdated reports a SpecHub pin on pi that is behind this plugin"
+  else
+    no "outdated reports a SpecHub pin on pi that is behind this plugin (rc=$rc, said: $(flat "$out"))"
+  fi
+  iw upgrade >/dev/null
+  if jget "$ISET" packages | grep -qF "spechub@v$IVER"; then
+    ok "upgrade moves a stale SpecHub pin on pi forward"
+  else
+    no "upgrade moves a stale SpecHub pin on pi forward (packages: $(jget "$ISET" packages))"
+  fi
+
+  # A value the user had before apply goes back on disable, not away. Their
+  # own toolActivation is the case the subagent config adds.
+  iw disable pi >/dev/null
+  printf '{\n  "theme": "dark",\n  "markdown": {"mermaid": "final"}\n}\n' > "$ISET"
+  printf '{\n  "toolActivation": "dynamic"\n}\n' > "$ISUB"
+  iw apply >/dev/null
+  mid="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation)"
+  iw disable pi >/dev/null
+  after="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation)"
+  if [ "$mid" = '"system" "streaming" "eager"' ] && [ "$after" = '"dark" "final" "dynamic"' ]; then
+    ok "disable puts back the values apply replaced in settings.json and the subagent config"
+  else
+    no "disable puts back the values apply replaced (after apply: $mid; after disable: $after)"
+  fi
+
+  # A value the user changed after apply is theirs, and disable leaves it.
+  iw apply >/dev/null
+  python3 - "$ISET" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d["theme"] = "light"; json.dump(d, open(sys.argv[1], "w"))
+PY
+  iw disable pi >/dev/null
+  if [ "$(jget "$ISET" theme)" = '"light"' ]; then
+    ok "disable leaves a value the user changed after apply"
+  else
+    no "disable leaves a value the user changed after apply (theme: $(jget "$ISET" theme))"
+  fi
+
+  # The user deleting a whole object apply wrote into leaves nothing to
+  # release, and the record of it must not outlive disable.
+  printf '{}\n' > "$ISET"; rm -f "$ISUB"
+  iw apply >/dev/null
+  python3 - "$ISET" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1])); d.pop("markdown"); json.dump(d, open(sys.argv[1], "w"))
+PY
+  iw disable pi >/dev/null
+  if [ ! -e "$IHOME/.config/spechub/terminal-workspace.pi.json" ]; then
+    ok "disable forgets a key whose parent object the user deleted"
+  else
+    no "disable forgets a key whose parent object the user deleted ($(flat "$(cat "$IHOME/.config/spechub/terminal-workspace.pi.json")"))"
+  fi
+
+  # YAML reads a bare off as false. pi wants the string, and a value pi does
+  # not accept is left out rather than written.
+  printf '{}\n' > "$ISET"
+  pi_cfg "  settings: {mermaid: off, hide_thinking_block: \"yes\"}"
+  out=$(iw apply)
+  if [ "$(jget "$ISET" markdown.mermaid)" = '"off"' ] \
+     && [ "$(jget "$ISET" hideThinkingBlock)" = "MISSING" ] \
+     && printf '%s' "$out" | grep -q 'settings.hide_thinking_block cannot be'; then
+    ok "a bare off writes the string pi expects, and a wrong type is left alone and named"
+  else
+    no "a bare off writes the string pi expects, and a wrong type is left alone and named ($(flat "$(cat "$ISET")"); said: $(flat "$out"))"
+  fi
+  pi_cfg "  settings: {mermaid: true}"
+  out=$(iw apply)
+  if [ "$(jget "$ISET" markdown.mermaid)" = '"off"' ] && printf '%s' "$out" | grep -q 'settings.mermaid cannot be'; then
+    ok "a mermaid value pi does not accept is left alone and named"
+  else
+    no "a mermaid value pi does not accept is left alone and named ($(flat "$(cat "$ISET")"); said: $(flat "$out"))"
+  fi
+  pi_cfg ""
+  iw disable pi >/dev/null
+
+  # An AGENTS.md with no final newline comes back exactly as it was.
+  printf '# Mine\nno newline at the end' > "$IMD"
+  iw apply >/dev/null
+  iw disable pi >/dev/null
+  if [ "$(od -c "$IMD")" = "$(printf '# Mine\nno newline at the end' | od -c)" ]; then
+    ok "disable hands back an AGENTS.md with no final newline byte for byte"
+  else
+    no "disable hands back an AGENTS.md with no final newline byte for byte (got: $(flat "$(od -c "$IMD")"))"
+  fi
+  printf '%s\n' "$USER_MD" > "$IMD"
+
+  # A pinned npm package never moves under pi update, so it is no finding and
+  # upgrade leaves it.
+  printf '{\n  "packages": ["npm:pi-subagents@1.0.0"]\n}\n' > "$ISET"
+  mkdir -p "$IAGENT/npm/node_modules/pi-subagents"
+  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-subagents/package.json"
+  out=$(iw outdated)
+  : > "$IHOME/pi.log"
+  up=$(iw upgrade pi-subagents)
+  if printf '%s' "$out" | grep -qF "unknown	pi-subagents	pinned to npm:pi-subagents@1.0.0" \
+     && ! printf '%s' "$out" | grep -q '^stale	pi-subagents' \
+     && ! grep -q '^pi update' "$IHOME/pi.log" && printf '%s' "$up" | grep -q 'pinned'; then
+    ok "a pinned npm package reads as pinned in outdated, and upgrade leaves it"
+  else
+    no "a pinned npm package reads as pinned in outdated, and upgrade leaves it (outdated: $(flat "$out"); upgrade: $(flat "$up"))"
+  fi
+  rm -rf "$IAGENT/npm"
+
+  # Naming pi-spechub moves only a pin behind this plugin. A newer pin, an
+  # unpinned SpecHub and no SpecHub at all are each left as they are.
+  bad=""
+  for pk in '"git:github.com/ac8318740/spechub@v999.0.0"' '"git:github.com/ac8318740/spechub"' ''; do
+    printf '{\n  "packages": [%s]\n}\n' "$pk" > "$ISET"
+    before=$(cat "$ISET")
+    : > "$IHOME/pi.log"
+    iw upgrade pi-spechub >/dev/null
+    { [ "$before" = "$(cat "$ISET")" ] && ! grep -q '^pi install' "$IHOME/pi.log"; } || bad="$bad [${pk:-none}]"
+  done
+  if [ -z "$bad" ]; then
+    ok "upgrade pi-spechub leaves a newer, an unpinned and an absent SpecHub alone"
+  else
+    no "upgrade pi-spechub leaves a newer, an unpinned and an absent SpecHub alone (moved:$bad)"
+  fi
+
+  # agentic-retro writes under $PI_HOME, never pi's own override. apply and
+  # disable have to look where it wrote.
+  printf '{}\n' > "$ISET"
+  rm -f "$IRETRO"
+  ALT="$IWORK/alt-agent"; mkdir -p "$ALT"
+  PI_CODING_AGENT_DIR="$ALT" iw apply >/dev/null
+  owned=$(jget "$IHOME/.config/spechub/terminal-workspace.pi.json" files)
+  PI_CODING_AGENT_DIR="$ALT" iw disable pi >/dev/null
+  if printf '%s' "$owned" | grep -qF "$IRETRO" && [ ! -e "$IRETRO" ]; then
+    ok "the agentic-retro extension is found where agentic-retro writes it, whatever pi's override"
+  else
+    no "the agentic-retro extension is found where agentic-retro writes it (owned: $owned)"
+  fi
+else
+  printf '  note: apply installs x86_64 binaries only and reads its config with\n'
+  printf '        PyYAML, so the pi checks are skipped\n'
+  skip "the pi component checks"
+fi
+
+# Off unless asked for, like neovim: an apply that never mentions pi must not
+# install it. Runs everywhere, because a config with pi off never reaches it.
+if [ "$(python3 -c 'import yaml,sys; print((yaml.safe_load(open(sys.argv[1]))["pi"] or {}).get("enabled"))' \
+       "$ROOT/assets/terminal-workspace/config.example.yaml" 2>/dev/null)" = "False" ] \
+   && grep -q 'neovim|pi) echo false' "$SETUP"; then
+  ok "pi starts off, in the example config and in the script's own default"
+else
+  no "pi starts off, in the example config and in the script's own default"
 fi
 
 

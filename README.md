@@ -63,7 +63,7 @@ Then, in your project:
 
 ```
 pi install npm:pi-subagents
-pi install git:github.com/ac8318740/spechub@v0.42.0
+pi install git:github.com/ac8318740/spechub@v0.43.0
 ```
 
 Then, in your project, run `/spechub:setup`.

@@ -4,7 +4,7 @@
 #   setup.sh apply      install and configure everything enabled in the config
 #   setup.sh outdated   what has a newer version, and what components are new
 #   setup.sh upgrade    reinstall whatever outdated reported
-#   setup.sh disable <herdr|delta|diffnav|gh_dash|harlequin|lazygit|neovim|tuicr>
+#   setup.sh disable <herdr|delta|diffnav|gh_dash|harlequin|lazygit|neovim|pi|tuicr>
 #   setup.sh uninstall  remove every managed block, keep the binaries
 #
 # Idempotent. Only ever edits between managed markers, so hand-written config
@@ -27,6 +27,20 @@ NVIM_PLUGIN="$HOME/.config/nvim/lua/plugins/spechub.lua"
 NVIM_MARK="Written by spechub terminal-workspace"
 BEGIN="# >>> spechub terminal-workspace >>>"
 END="# <<< spechub terminal-workspace <<<"
+# pi keeps every config file under one agent directory, and honours an
+# override for it.
+PI_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
+PI_SETTINGS="$PI_DIR/settings.json"
+PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
+# agentic-retro install-pi picks its own directory, from $PI_HOME rather than
+# pi's override, so look where it writes.
+PI_RETRO_EXT="${PI_HOME:-$HOME/.pi}/agent/extensions/agentic-retro.ts"
+PI_SPECHUB="git:github.com/ac8318740/spechub"
+# A line starting with # is a heading in markdown, and the model reads it. An
+# HTML comment carries the same marker and renders as nothing.
+PI_MD_BEGIN="<!-- >>> spechub terminal-workspace >>> -->"
+PI_MD_END="<!-- <<< spechub terminal-workspace <<< -->"
+PI_DELEGATION="When a SpecHub skill or the SpecHub orchestrator says to launch a subagent, you may delegate to it."
 ACTION="${1:-status}"
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -70,10 +84,19 @@ print(d if d is not None else sys.argv[2])
 PY
 }
 
+# neovim and pi write into a config the user built, so they start off. Every
+# other component owns its files outright and starts on.
+enabled_default() {  # enabled_default <component>
+  case "$1" in neovim|pi) echo false ;; *) echo true ;; esac
+}
+
 # The example config that shipped beside this script. Both `outdated` and the
 # stamp read it, so resolve it once.
 EXAMPLE="$(dirname "$0")/config.example.yaml"
 STAMP="$(dirname "$CFG")/terminal-workspace.applied"
+# What the pi component changed, so disable undoes that and nothing else. A
+# package or a setting the user already had is theirs, and stays.
+PI_OWNED="$(dirname "$CFG")/terminal-workspace.pi.json"
 
 # Reads a yaml list into one item per line. cfg_get prints a python list repr
 # for a list value, which no caller can use.
@@ -3223,6 +3246,446 @@ print("  gh-dash config written")
 PY
 }
 
+# Every edit the pi component makes to pi's own files goes through here, and
+# so does the record of what it changed. pi's config is JSON, which has no
+# comment to mark a managed region with, so ownership lives in $PI_OWNED.
+#   pkg <identity>             the configured source pi holds for a package
+#   own|disown pkg|file <name> record or forget one thing this setup added
+#   owns pkg|file <name>       exit 0 when this setup added it
+#   parses <file>              exit 0 when the file is absent or valid JSON
+#   merge <file> <slot> <json> claim each dotted key with a value, and release
+#                              each one set to null, putting back what it held
+#   pin <identity> <prior> <ours>  record a pin apply moved, keeping the first prior
+#   pin-get <identity>         the prior and our pin, tab-separated
+#   pin-forget <identity>      drop that record
+#   md write|strip             the delegation block in pi's context file
+pi_state() {
+  SPECHUB_PI_OWNED="$PI_OWNED" SPECHUB_PI_SETTINGS="$PI_SETTINGS" \
+  SPECHUB_PI_DIR="$PI_DIR" SPECHUB_PI_MD="$PI_MD_BEGIN|$PI_MD_END|$PI_DELEGATION" \
+    py "$@" <<'PY'
+import json, os, re, sys
+
+OWNED = os.environ["SPECHUB_PI_OWNED"]
+MISSING = object()
+
+def load_owned():
+    try:
+        d = json.load(open(OWNED))
+    except (OSError, ValueError):
+        d = {}
+    return d if isinstance(d, dict) else {}
+
+def save_owned(d):
+    d = {k: v for k, v in d.items() if v}
+    if not d:
+        if os.path.exists(OWNED):
+            os.remove(OWNED)
+        return
+    os.makedirs(os.path.dirname(OWNED), exist_ok=True)
+    json.dump(d, open(OWNED, "w"), indent=2)
+
+def load_json(path):
+    if not os.path.exists(path):
+        return {}
+    d = json.load(open(path))
+    if not isinstance(d, dict):
+        raise ValueError("not an object")
+    return d
+
+def identity(src):
+    # pi names a package by its npm name or its repository without the ref, so
+    # two pins of one repository are one package.
+    if isinstance(src, dict):
+        src = src.get("source", "")
+    if src.startswith("npm:"):
+        spec = src[4:]
+        at = spec.rfind("@")
+        return "npm:" + (spec[:at] if at > 0 else spec)
+    m = re.match(r"^(?:git:|https?://|ssh://)(?:git@)?(.+?)(?:\.git)?(?:@[^/@]+)?$", src)
+    if m:
+        return "git:" + m.group(1).replace(":", "/")
+    return src
+
+cmd, args = sys.argv[1], sys.argv[2:]
+
+if cmd == "pkg":
+    try:
+        pkgs = load_json(os.environ["SPECHUB_PI_SETTINGS"]).get("packages") or []
+    except ValueError:
+        raise SystemExit(1)
+    for p in pkgs:
+        if identity(p) == args[0]:
+            print(p.get("source") if isinstance(p, dict) else p)
+            raise SystemExit
+    raise SystemExit(1)
+
+if cmd in ("own", "disown", "owns"):
+    kind, name = args
+    slot = {"pkg": "packages", "file": "files"}[kind]
+    d = load_owned()
+    have = d.get(slot, [])
+    if cmd == "owns":
+        raise SystemExit(0 if name in have else 1)
+    have = [x for x in have if x != name] + ([name] if cmd == "own" else [])
+    d[slot] = have
+    save_owned(d)
+    raise SystemExit
+
+if cmd in ("pin", "pin-get", "pin-forget"):
+    d = load_owned()
+    pins = d.setdefault("pins", {})
+    if cmd == "pin":
+        ident, was, ours = args
+        pins[ident] = {"prior": pins.get(ident, {}).get("prior", was), "ours": ours}
+    elif cmd == "pin-forget":
+        pins.pop(args[0], None)
+    else:
+        rec = pins.get(args[0])
+        if not rec:
+            raise SystemExit(1)
+        print("%s\t%s" % (rec["prior"], rec["ours"]))
+        raise SystemExit
+    save_owned(d)
+    raise SystemExit
+
+if cmd == "parses":
+    try:
+        load_json(args[0])
+    except ValueError:
+        raise SystemExit(1)
+    raise SystemExit
+
+if cmd == "merge":
+    path, slot, want = args[0], args[1], json.loads(args[2])
+    try:
+        d = load_json(path)
+    except ValueError:
+        print("  pi: %s does not parse, so it was left alone" % path)
+        raise SystemExit(3)
+    owned = load_owned()
+    mine = owned.setdefault(slot, {})
+    # What a claimed key held before apply first changed it, so release can
+    # put the user's value back rather than delete it.
+    prior = owned.setdefault(slot + "_prior", {})
+    wrote, dropped = [], []
+    for key, value in want.items():
+        *parents, leaf = key.split(".")
+        node = d
+        for p in parents:
+            if node.get(p, MISSING) is MISSING and value is not None:
+                node[p] = {}
+            node = node.get(p)
+            if not isinstance(node, dict):
+                break
+        if not isinstance(node, dict):
+            # A parent the user set to something other than an object, or
+            # deleted. Writing through it would replace their value, so
+            # concede this key. On release there is nothing left of ours.
+            if value is not None:
+                print("  pi: %s in %s is not an object, %s left alone" % (".".join(parents), path, key))
+            else:
+                mine.pop(key, None)
+                prior.pop(key, None)
+            continue
+        have = node.get(leaf, MISSING)
+        if value is None:
+            # Released. Delete only a value this setup wrote and nobody has
+            # changed since; anything else is the user's.
+            if key in mine and have == mine[key]:
+                if key in prior:
+                    node[leaf] = prior[key]
+                else:
+                    del node[leaf]
+                    cur = d
+                    for p in parents[:-1]:
+                        cur = cur[p]
+                    if parents and not node:
+                        del cur[parents[-1]]
+                dropped.append(key)
+            mine.pop(key, None)
+            prior.pop(key, None)
+        elif have != value:
+            if key not in mine and have is not MISSING:
+                prior[key] = have
+            node[leaf] = value
+            mine[key] = value
+            wrote.append(key)
+    save_owned(owned)
+    if wrote or dropped:
+        if d or not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, "w") as f:
+                # pi writes its own settings unescaped, so a value in any
+                # script round-trips as the user typed it.
+                json.dump(d, f, indent=2, ensure_ascii=False)
+                f.write("\n")
+        else:
+            # Everything in it was ours, and an empty file is no setting at all.
+            os.remove(path)
+        if wrote:
+            print("  pi: set %s in %s" % (", ".join(wrote), path))
+        if dropped:
+            print("  pi: released %s in %s" % (", ".join(dropped), path))
+    raise SystemExit
+
+if cmd == "md":
+    begin, end, line = os.environ["SPECHUB_PI_MD"].split("|")
+    agent_dir = os.environ["SPECHUB_PI_DIR"]
+    # pi reads one context file from its agent directory, the first of these
+    # that exists. A block in any other one would never reach the model.
+    names = ["AGENTS.override.md", "AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"]
+    paths = [os.path.join(agent_dir, n) for n in names]
+    target = next((p for p in paths if os.path.isfile(p)), paths[1])
+    block = re.compile(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", re.S)
+    # The blank line write puts before the block goes with it, so stripping
+    # hands back the user's text exactly as it was.
+    gap = re.compile(r"\n?" + block.pattern, re.S)
+    state = load_owned()
+    owned_md = state.get("md", {})
+    for p in paths:
+        if not os.path.isfile(p) or (args[0] == "write" and p == target):
+            continue
+        t = open(p).read()
+        # write records the exact separator it added. Removing that and no
+        # more hands back the user's file byte for byte, final newline or not.
+        sep = owned_md.get("sep")
+        cut = re.compile(re.escape(sep) + block.pattern, re.S) if sep is not None else gap
+        stripped = cut.sub("", t)
+        if stripped != t:
+            if stripped.strip():
+                open(p, "w").write(stripped)
+            else:
+                os.remove(p)
+            print("  pi: delegation line removed from %s" % p)
+    if args[0] == "strip":
+        state.pop("md", None)
+        save_owned(state)
+    if args[0] == "write":
+        t = open(target).read() if os.path.isfile(target) else ""
+        mine = "%s\n%s\n%s\n" % (begin, line, end)
+        if block.search(t):
+            new = block.sub(lambda m: mine, t, count=1)
+        else:
+            sep = ("\n" if t and not t.endswith("\n") else "") + ("\n" if t else "")
+            new = t + sep + mine
+            state["md"] = {"sep": sep}
+            save_owned(state)
+        if new != t:
+            os.makedirs(agent_dir, exist_ok=True)
+            open(target, "w").write(new)
+            print("  pi: delegation line written to %s" % target)
+    raise SystemExit
+PY
+}
+
+# The four personal settings, from the config, as the JSON merge reads them.
+# An empty value releases the key rather than writing an empty one.
+pi_settings_wanted() {
+  SPECHUB_CFG="$CFG" py <<'PY'
+import json, os, sys
+import yaml
+p = os.environ["SPECHUB_CFG"]
+c = (yaml.safe_load(open(p)) or {}) if os.path.isfile(p) else {}
+s = ((c.get("pi") or {}).get("settings") or {})
+# config key -> (pi's dotted key, the default config.example.yaml ships, the
+# values pi accepts). YAML reads a bare off as false, so mermaid maps it back.
+KEYS = {"hide_thinking_block": ("hideThinkingBlock", True, (True, False)),
+        "mermaid": ("markdown.mermaid", "streaming", ("off", "final", "streaming")),
+        "install_telemetry": ("enableInstallTelemetry", False, (True, False)),
+        "theme": ("theme", "system", None)}
+out = {}
+for k, (key, default, allowed) in KEYS.items():
+    v = s.get(k, default)
+    if v in ("", None):
+        out[key] = None
+        continue
+    if k == "mermaid" and v is False:
+        v = "off"
+    ok = (v in allowed and type(v) is type(allowed[0])) if allowed else isinstance(v, str)
+    if not ok:
+        # Left out entirely, so pi keeps whatever it holds now.
+        print("  pi: settings.%s cannot be %r, left alone" % (k, v), file=sys.stderr)
+        continue
+    out[key] = v
+print(json.dumps(out))
+PY
+}
+
+# npm installs pi into its global bin, which a fresh shell may not have on
+# PATH. Asking npm costs a process, so only when pi is not already found.
+find_pi() {
+  have pi || ! have npm || PATH="$PATH:$(npm prefix -g 2>/dev/null)/bin"
+}
+
+# The SpecHub version running this script, which is the one pi should pin.
+spechub_version() {
+  json_field "$(dirname "$0")/../../.claude-plugin/plugin.json" version
+}
+
+# Installs one pi package, or moves its pin. Ownership is taken only when the
+# package was absent: one the user installed stays theirs, pin and all.
+pi_add() {  # pi_add <source> <identity>
+  local cur
+  cur=$(pi_state pkg "$2")
+  if [ -n "$cur" ]; then
+    # Unpinned, presence is enough: a pin the user chose stays.
+    case "$1" in *@v*) ;; *) say "pi: $2 already installed"; return 0 ;; esac
+    [ "$cur" = "$1" ] && { say "pi: $1 already installed"; return 0; }
+  fi
+  if ! pi install "$1" >/dev/null 2>&1; then
+    say "pi: install of $1 failed, run: pi install $1"
+    return 1
+  fi
+  if [ -n "$cur" ]; then
+    pi_state pin "$2" "$cur" "$1"
+    say "pi: $cur moved to $1"
+  else
+    pi_state own pkg "$2"
+    say "pi: $1 installed"
+  fi
+}
+
+# Puts back a pin apply moved, while the pin is still the one apply set.
+pi_unpin() {  # pi_unpin <identity>
+  local rec prior ours cur
+  rec=$(pi_state pin-get "$1") || return 0
+  prior="${rec%%$'\t'*}" ours="${rec#*$'\t'}"
+  cur=$(pi_state pkg "$1")
+  if [ "$cur" = "$ours" ]; then
+    have pi || { say "pi: not on PATH, so $cur stays pinned"; return 0; }
+    pi install "$prior" >/dev/null 2>&1 \
+      || { say "pi: could not put back $prior, run: pi install $prior"; return 0; }
+    say "pi: $cur put back to $prior"
+  fi
+  pi_state pin-forget "$1"
+}
+
+# Removes a package this setup installed. One the user installed is left.
+pi_drop() {  # pi_drop <identity>
+  local cur
+  pi_state owns pkg "$1" || return 0
+  cur=$(pi_state pkg "$1")
+  if [ -n "$cur" ]; then
+    have pi || { say "pi: not on PATH, so $cur stays installed"; return 0; }
+    pi remove "$cur" >/dev/null 2>&1 || { say "pi: remove of $cur failed, run: pi remove $cur"; return 0; }
+    say "pi: $cur removed"
+  fi
+  pi_state disown pkg "$1"
+}
+
+# A package pi holds at a fixed version, such as npm:pi-subagents@1.0.0.
+pi_npm_pin() {  # pi_npm_pin <name>
+  local src
+  case "$1" in pi-subagents|pi-compact-tools) ;; *) return 1 ;; esac
+  src=$(pi_state pkg "npm:$1") || return 1
+  [ "$src" != "npm:$1" ]
+}
+
+# The pin apply would move to, or nothing when the installed one is current
+# or newer. A newer pin is one the user chose, so it is never moved back.
+pi_spechub_behind() {
+  local cur ver pin
+  ver=$(spechub_version); [ -n "$ver" ] || return 0
+  cur=$(pi_state pkg "$PI_SPECHUB") || return 0
+  case "$cur" in *@v*) pin="${cur##*@v}" ;; *) return 0 ;; esac
+  [ "$pin" = "$ver" ] && return 0
+  [ "$(printf '%s\n%s\n' "$pin" "$ver" | sort -V | tail -1)" = "$ver" ] || return 0
+  printf '%s\t%s' "$pin" "$ver"
+}
+
+apply_pi() {
+  find_pi
+  if ! have pi; then
+    have npm || {
+      say "npm not installed, skipping pi"
+      say "install Node.js, then run apply again"
+      return 0
+    }
+    npm install -g @earendil-works/pi-coding-agent >/dev/null 2>&1 \
+      || { say "pi install failed, run: npm install -g @earendil-works/pi-coding-agent"; return 0; }
+    have pi || { say "pi installed, but npm's global bin is not on PATH"; return 0; }
+    say "pi installed"
+  fi
+  # pi rewrites settings.json on every install. Handing it a file it cannot
+  # parse risks the user's settings, so concede the whole component instead.
+  if ! pi_state parses "$PI_SETTINGS"; then
+    say "pi: $PI_SETTINGS does not parse, so nothing was installed into pi"
+    say "fix that file, then run apply again"
+    return 0
+  fi
+
+  # SpecHub cannot launch a subagent on pi without pi-subagents.
+  pi_add npm:pi-subagents npm:pi-subagents
+  local ver cur; ver=$(spechub_version)
+  if [ -n "$ver" ]; then
+    if cur=$(pi_state pkg "$PI_SPECHUB") && [ -z "$(pi_spechub_behind)" ]; then
+      say "pi: $cur already installed"
+    else
+      pi_add "$PI_SPECHUB@v$ver" "$PI_SPECHUB"
+    fi
+  else
+    say "pi: no plugin version beside this script, so SpecHub was not installed into pi"
+  fi
+  if [ "$(cfg_get pi.compact_tools true)" = "true" ]; then
+    pi_add npm:pi-compact-tools npm:pi-compact-tools
+  else
+    pi_drop npm:pi-compact-tools
+  fi
+
+  # agentic-retro writes its own extension file. This setup only asks it to,
+  # and owns the file only when it was not there before.
+  if [ "$(cfg_get pi.agentic_retro true)" = "true" ]; then
+    if have agentic-retro; then
+      local fresh=0; [ -e "$PI_RETRO_EXT" ] || fresh=1
+      if agentic-retro install-pi >/dev/null 2>&1; then
+        [ "$fresh" = "1" ] && pi_state own file "$PI_RETRO_EXT"
+        say "pi: agentic-retro extension written"
+      else
+        say "pi: agentic-retro install-pi failed, run it yourself"
+      fi
+    else
+      say "pi: agentic-retro not on PATH, so its pi extension was skipped"
+      say "install the agentic-retro plugin first, then run apply again"
+    fi
+  elif pi_state owns file "$PI_RETRO_EXT"; then
+    rm -f "$PI_RETRO_EXT"
+    pi_state disown file "$PI_RETRO_EXT"
+    say "pi: agentic-retro extension removed"
+  fi
+
+  pi_state merge "$PI_SETTINGS" settings "$(pi_settings_wanted)"
+  pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": "eager"}'
+  pi_state md write
+
+  # Logging in is interactive and stores a credential, so it stays the user's.
+  [ -f "$PI_DIR/auth.json" ] || say "pi: not logged in yet. Run pi, then /login"
+  return 0
+}
+
+# disable pi and uninstall both come here. It undoes what apply_pi recorded
+# and leaves the pi binary, its logins and its sessions alone.
+remove_pi() {
+  find_pi
+  if pi_state parses "$PI_SETTINGS"; then
+    pi_unpin "$PI_SPECHUB"
+    pi_drop "$PI_SPECHUB"
+    pi_drop npm:pi-compact-tools
+    pi_drop npm:pi-subagents
+  else
+    say "pi: $PI_SETTINGS does not parse, so its packages were left installed"
+  fi
+  if pi_state owns file "$PI_RETRO_EXT"; then
+    rm -f "$PI_RETRO_EXT"
+    pi_state disown file "$PI_RETRO_EXT"
+    say "pi: agentic-retro extension removed"
+  fi
+  pi_state merge "$PI_SETTINGS" settings \
+    '{"hideThinkingBlock": null, "markdown.mermaid": null, "enableInstallTelemetry": null, "theme": null}'
+  pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": null}'
+  pi_state md strip
+  return 0
+}
+
 # Every tool with a version worth comparing.
 #   name | component key | source | reference | release asset match
 # mermaid-ascii is deliberately absent: it has no version flag at all, so
@@ -3241,6 +3704,9 @@ glow	markdown	github	charmbracelet/glow	Linux_x86_64
 herdr	herdr	herdr	-	-
 gh-dash	gh_dash	ghext	dlvhdr/gh-dash	-
 harlequin	harlequin	pypi	harlequin	-
+pi	pi	npm	@earendil-works/pi-coding-agent	-
+pi-subagents	pi	npm	pi-subagents	-
+pi-compact-tools	pi	npm	pi-compact-tools	-
 T
 }
 
@@ -3269,6 +3735,11 @@ installed_version() {  # installed_version <name> -> a bare version, or nothing
     gh-dash)   v=$(gh extension list 2>/dev/null | awk -F'\t' '$2=="dlvhdr/gh-dash"{print $3}') ;;
     # harlequin v2.13.0, then an indented line per command it installed
     harlequin) v=$(uv tool list 2>/dev/null | awk '$1=="harlequin"{print $2}') ;;
+    # 1.1.0
+    pi)        find_pi; v=$(pi --version 2>/dev/null | awk '{print $NF}') ;;
+    # pi installs npm packages under its own directory, not npm's global one.
+    pi-subagents|pi-compact-tools)
+               v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
   esac
   printf '%s' "${v#v}"
 }
@@ -3306,6 +3777,8 @@ latest_version() {  # latest_version <source> <reference> -> a version, or nothi
     # herdr publishes its own manifest, and `herdr update` installs from it.
     herdr) url="https://herdr.dev/latest.json"; field=version ;;
     pypi)  url="https://pypi.org/pypi/$2/json"; field=info.version ;;
+    # A scoped name keeps its @ and escapes its slash.
+    npm)   url="https://registry.npmjs.org/${2/\//%2F}/latest"; field=version ;;
     *) return 0 ;;
   esac
   tmp=$(mktemp)
@@ -3351,10 +3824,16 @@ PY
   fi
 
   while IFS=$'\t' read -r name key src ref _; do
-    [ "$(cfg_get "$key.enabled" true)" = "true" ] || continue
+    [ "$(cfg_get "$key.enabled" "$(enabled_default "$key")")" = "true" ] || continue
     # A fork build's version comes from a local checkout, so a release tag says
     # nothing about it.
     [ "$name" = "tuicr" ] && [ "$(cfg_get tuicr.build_from_fork false)" = "true" ] && continue
+    # pi update never moves a pinned npm source, so a newer release is nothing
+    # upgrade could fetch. Say so once instead of reporting it stale forever.
+    if pi_npm_pin "$name"; then
+      printf 'unknown\t%s\tpinned to %s in pi, which pi update never moves\n' "$name" "$(pi_state pkg "npm:$name")"
+      continue
+    fi
     inst=$(installed_version "$name")
     [ -n "$inst" ] || continue          # not installed is apply's business, not this one
     latest=$(latest_version "$src" "$ref")
@@ -3365,6 +3844,14 @@ PY
       printf 'stale\t%s\t%s -> %s\n' "$name" "$inst" "$latest"
     fi
   done < <(version_table)
+
+  # The SpecHub package on pi is pinned to a release, so it falls behind the
+  # moment this plugin updates. Both versions are local, so this needs no
+  # network and reports even offline.
+  if [ "$(cfg_get pi.enabled false)" = "true" ]; then
+    local behind; behind=$(pi_spechub_behind)
+    [ -n "$behind" ] && printf 'stale\tpi-spechub\t%s -> %s\n' "${behind%%$'\t'*}" "${behind#*$'\t'}"
+  fi
 }
 
 # Reinstalls over what is there, from the coordinates the table already holds.
@@ -3383,6 +3870,7 @@ upgrade_from_table() {  # upgrade_from_table <name>
 }
 
 upgrade_one() {  # upgrade_one <name>
+  case "$1" in pi*) find_pi ;; esac
   case "$1" in
     herdr)     herdr update >/dev/null 2>&1 \
                  && say "herdr updated" || say "herdr update failed" ;;
@@ -3390,6 +3878,21 @@ upgrade_one() {  # upgrade_one <name>
                  && say "gh-dash upgraded" || say "gh-dash upgrade failed" ;;
     harlequin) uv tool upgrade harlequin >/dev/null 2>&1 \
                  && say "harlequin upgraded" || say "harlequin upgrade failed" ;;
+    # With no target, pi update updates pi itself and no package.
+    pi)        pi update >/dev/null 2>&1 \
+                 && say "pi updated" || say "pi update failed" ;;
+    pi-subagents|pi-compact-tools)
+      if pi_npm_pin "$1"; then
+        say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
+        return 0
+      fi
+      pi update "npm:$1" >/dev/null 2>&1 \
+        && say "$1 updated" || say "$1 update failed" ;;
+    # Only a pin behind this plugin. A newer pin is the user's choice, and an
+    # absent or unpinned SpecHub is apply's business.
+    pi-spechub)
+      [ -n "$(pi_spechub_behind)" ] || { say "pi-spechub: nothing behind this plugin to move"; return 0; }
+      pi_add "$PI_SPECHUB@v$(spechub_version)" "$PI_SPECHUB" ;;
     # Absent from the table, because it has no version flag for outdated to
     # read. Naming it is the only way to refresh it, so the arm it needs is
     # here rather than behind a table lookup that will never find it.
@@ -3411,18 +3914,17 @@ upgrade_one() {  # upgrade_one <name>
 case "$ACTION" in
   status)
     echo "config: $CFG $([ -f "$CFG" ] && echo '(found)' || echo '(missing, using defaults)')"
-    for t in herdr delta diffnav fzf lazygit tuicr yazi glow mermaid-ascii harlequin gh nvim; do
-      d=true
+    find_pi
+    for t in herdr delta diffnav fzf lazygit tuicr yazi glow mermaid-ascii harlequin gh nvim pi; do
       case "$t" in
         gh) k=gh_dash ;; glow|mermaid-ascii) k=markdown ;; fzf) k=diffnav ;;
-        # neovim is the one component that defaults to off, so reading it with
-        # the default every other one takes would report it enabled when the
-        # config says nothing.
-        nvim) k=neovim; d=false ;;
+        nvim) k=neovim ;;
         *) k="$t" ;;
       esac
+      # neovim and pi default to off, so reading them with the default every
+      # other one takes would report them enabled when the config says nothing.
       printf '  %-13s %-14s enabled=%s\n' "$t" "$(have "$t" && echo installed || echo 'not installed')" \
-        "$(cfg_get "$k.enabled" "$d")"
+        "$(cfg_get "$k.enabled" "$(enabled_default "$k")")"
     done
     grep -q "$BEGIN" "$HERDR_CFG" 2>/dev/null && say "herdr managed block: present" || say "herdr managed block: absent"
     echo
@@ -3458,6 +3960,25 @@ case "$ACTION" in
     esac
     [ -f "$HOME/.cache/spechub/open.log" ] \
       && say "last open: $(tail -1 "$HOME/.cache/spechub/open.log")"
+    # What the pi component set up, read from pi's own files. Shown whenever
+    # pi is here or asked for, because a pi installed by hand is still one the
+    # user may want to know about.
+    if have pi || [ "$(cfg_get pi.enabled false)" = "true" ]; then
+      echo
+      have pi && say "pi: $(installed_version pi)" || say "pi: not installed"
+      for id in npm:pi-subagents "$PI_SPECHUB" npm:pi-compact-tools; do
+        src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
+      done
+      [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \
+        || say "pi agentic-retro extension: absent"
+      grep -qsF "$PI_MD_BEGIN" "$PI_DIR"/AGENTS.override.md "$PI_DIR"/AGENTS.md "$PI_DIR"/AGENTS.MD \
+        "$PI_DIR"/CLAUDE.md "$PI_DIR"/CLAUDE.MD \
+        && say "pi delegation line: present" || say "pi delegation line: absent"
+      ta=$(json_field "$PI_SUBAGENT_CFG" toolActivation)
+      say "pi toolActivation: ${ta:-not set}"
+      [ -f "$PI_DIR/auth.json" ] && say "pi login: logged in" \
+        || say "pi login: not logged in - run pi, then /login"
+    fi
     if [ "$(cfg_get tuicr.build_from_fork false)" = "true" ]; then
       echo
       say "tuicr: local fork build - this is meant to be temporary"
@@ -3503,6 +4024,7 @@ case "$ACTION" in
     [ "$(cfg_get remote.enabled true)" = "true" ] && apply_remote
     [ "$(cfg_get gh_dash.enabled true)" = "true" ] && apply_ghdash
     [ "$(cfg_get harlequin.enabled true)" = "true" ] && apply_harlequin
+    [ "$(cfg_get pi.enabled false)" = "true" ] && apply_pi
     echo "done. open a herdr session and press prefix+? to see the keymap"
     # Last, so a run that died half way leaves no stamp claiming success.
     write_stamp
@@ -3562,7 +4084,7 @@ PY
     say "run apply to install anything new"
     ;;
   disable)
-    DISABLE_USAGE="usage: setup.sh disable <herdr|delta|diffnav|gh_dash|harlequin|lazygit|neovim|tuicr>"
+    DISABLE_USAGE="usage: setup.sh disable <herdr|delta|diffnav|gh_dash|harlequin|lazygit|neovim|pi|tuicr>"
     comp="${2:?$DISABLE_USAGE}"
     case "$comp" in
       delta) for k in core.pager interactive.diffFilter delta.navigate delta.line-numbers; do
@@ -3588,6 +4110,11 @@ PY
           say "neovim plugin file removed"
         fi
         say "now set neovim.enabled: false in $CFG so apply does not restore it" ;;
+      pi)
+        # Only what apply added. The pi binary, its logins and its sessions
+        # stay, and so does anything the user installed into pi themselves.
+        remove_pi
+        say "now set pi.enabled: false in $CFG so apply does not restore it" ;;
       diffnav|gh_dash|harlequin|lazygit|tuicr)
         # Only this component's popup goes away. Rebuild the managed block so
         # the rest of the keymap survives.
@@ -3612,7 +4139,7 @@ PY
     esac
     ;;
   uninstall)
-    "$0" disable herdr; "$0" disable delta; "$0" disable neovim
+    "$0" disable herdr; "$0" disable delta; "$0" disable neovim; "$0" disable pi
     # By prefix, which is why helpers are named spechub-*: anything this
     # script ever wrote goes, including helpers retired in an older version.
     herdr plugin unlink spechub.herdr-numbers >/dev/null 2>&1 || true
@@ -3672,6 +4199,7 @@ PY
     fi
     say "managed config and helpers removed. binaries left in place, except"
     say "harlequin, which uv owns whole rather than as a file in $BIN"
+    say "pi stays too, with its logins and sessions: npm uninstall -g @earendil-works/pi-coding-agent"
     ;;
   *) echo "usage: setup.sh [status|apply|outdated|upgrade|disable <component>|uninstall]"; exit 1 ;;
 esac
