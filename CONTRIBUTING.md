@@ -148,7 +148,7 @@ Then check three things.
 - Running `apply` twice does not grow the managed block count
 - Running `uninstall` leaves nothing behind
 
-Run the guard suite too, which is offline and needs no herdr:
+Run the guard suite too, which is offline and needs no herdr. It takes a few minutes, so allow at least five:
 
 ```bash
 bash tests/test-terminal-workspace.sh

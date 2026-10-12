@@ -6,6 +6,7 @@
 # Every check here is offline. herdr is not required, so this runs in CI.
 #
 # Run it:  bash tests/test-terminal-workspace.sh
+# It takes a few minutes.
 # Exit code is 0 when every check passes, 1 otherwise.
 
 set -u
