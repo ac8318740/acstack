@@ -6,7 +6,7 @@ One file, `mapflow/project.yaml`, holds every setting that belongs to a project.
 
 - **It names what to run**: the test, build, lint, typecheck, and format commands
 - **It names where to look**: the source and test directories, and the frontend
-- **It names how strict to be**: whether tests come first, and whether Claude may write code itself
+- **It names how strict to be**: whether tests come first, and whether the agent may write code itself
 - **Every skill and every agent reads it** before it runs anything
 - **A key you leave out takes the default** this document gives it
 
@@ -206,7 +206,7 @@ Three refusals protect a file neither command can handle.
 
 ## 3. workflow: the switches
 
-*Five booleans sit in the block. Each one changes how much discipline Mapflow applies. A sixth key decides how Claude asks you a question.*
+*Five booleans sit in the block. Each one changes how much discipline Mapflow applies. A sixth key decides how the agent asks you a question.*
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
@@ -267,7 +267,7 @@ What the checker gates on moves with the key.
     - It holds the full suite to passing
     - The test count to not dropping
 
-### 3.2. How Claude asks you a question
+### 3.2. How the agent asks you a question
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |

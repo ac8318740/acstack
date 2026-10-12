@@ -1,7 +1,7 @@
 # mapflow-cli
 
 The command-line half of [Mapflow](https://github.com/ac8318740/spechub) – a
-map-based development workflow where an agent plans changes as a graph of
+map-based agentic coding workflow where an agent plans changes as a graph of
 nodes before writing code.
 
 **Mapflow does not publish this CLI to npm. You do not need to install it.**
@@ -35,7 +35,7 @@ Any other subcommand runs `mapflow-<name>` from PATH, the way git does.
 Nothing stops you. The binary is on PATH at `~/.local/bin/mapflow` on any
 machine with the plugin installed, and it has no Claude Code dependency.
 
-What it does not give you is the *method*. The plugin ships that separately,
+What it does not give you is the *method*. Mapflow ships that separately,
 as skills and agent definitions that tell an agent how to use these commands.
 
 The CLI runs the commands. The skills and agent definitions define the

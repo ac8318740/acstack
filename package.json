@@ -2,7 +2,7 @@
   "name": "mapflow",
   "version": "0.45.0",
   "private": false,
-  "description": "Map-based AI work orchestration for pi: skills, the orchestrator prompt, and the test-writer, task-executor, task-checker and frontend-verifier subagents.",
+  "description": "Map-based agentic coding plugin with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
   "license": "MIT",
   "repository": {
     "type": "git",

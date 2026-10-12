@@ -1,10 +1,13 @@
 # Mapflow
 
-Mapflow is a Claude Code plugin. It makes Claude plan before it codes, write the tests before the implementation, and keep your docs matching the code.
+Mapflow is an agentic coding plugin. It makes coding agents plan before they code, write tests before implementation, and keep docs matching the code.
 
-- **Mapflow aims to solve two common failure modes Claude introduces when coding**
-    - Claude starts building before the requirements are clear
-    - Claude writes code, then creates tests that pass against the code it just wrote
+- **Mapflow aims to solve two common failure modes coding agents introduce**
+    - The agent starts building before the requirements are clear
+    - The agent writes code, then creates tests that pass against that code
+- **Mapflow has first-class support for Claude Code and pi**
+    - Claude Code installs it as a plugin
+    - pi installs it as an npm package
 - **Mapflow introduces structure around how your agent works**
     - Every change goes through a test-writer, an implementer, and a checker
     - Every commit updates your specs from the diff
@@ -37,13 +40,17 @@ Every box above is section 2. The rest of this file is reference.
 
 ## 1. Quickstart
 
-You need the [Claude Code](https://claude.com/claude-code) CLI and Node.js 20 or later.
+Mapflow has first-class support for [Claude Code](https://claude.com/claude-code) and [pi](https://pi.dev).
+
+### 1.1. Install on Claude Code
+
+You need the Claude Code CLI and Node.js 20 or later.
 
 Install the plugin:
 
 ```
 /plugin marketplace add ac8318740/spechub
-/plugin install mapflow@mapflow
+/plugin install mapflow@spechub
 ```
 
 Then, in your project:
@@ -57,9 +64,9 @@ Then, in your project:
 - Your CLAUDE.md stays clean for project-specific content
 - Upgrading from a version before 0.8.0 means deleting one stale `@import` line (see [docs/migrate-0.8.md](docs/migrate-0.8.md))
 
-### 1.1. Install on pi
+### 1.2. Install on pi
 
-*The same repository installs as a [pi](https://pi.dev) package. Subagents come from the `pi-subagents` package.*
+*The same project installs as a [pi](https://pi.dev) package. Subagents come from the `pi-subagents` package.*
 
 ```
 pi install npm:pi-subagents
@@ -113,16 +120,16 @@ The three commands:
     - It runs the four agents of section 6 on your request
     - A one-line change stays a one-line change
 - **Something already built stopped working** – run `/mapflow:quick-fix`
-    - It makes Claude find the root cause before it edits anything
+    - It makes the agent find the root cause before it edits anything
 - **The request still has open questions** – run `/mapflow:map`
-    - Claude interviews you one round at a time
+    - The agent interviews you one round at a time
     - Each round asks every question it can answer next
-    - Each question comes with Claude's recommended answer
-    - You provide feedback on Claude's recommended answer instead of prompting from scratch
+    - Each question comes with the agent's recommended answer
+    - You provide feedback on the agent's recommended answer instead of prompting from scratch
     - Some requests only need one question
-    - Claude writes that decision down as a short note under `docs/adr/`
+    - The agent writes that decision down as a short note under `docs/adr/`
     - A big feature may need dozens of questions
-    - Claude stores those questions as a **map**
+    - The agent stores those questions as a **map**
     - You work through the map across several sessions
 
 ### 2.1. What a map holds
@@ -145,7 +152,7 @@ Each node also records six things.
     - You can read the decisions back in the order you made them
 - **Which other nodes have to finish before this one starts**
     - Mapflow uses that to tell you what is ready to start
-- **Who answers it**: you, or Claude working alone
+- **Who answers it**: you, or the agent working alone
 - **What kind it is**: a destination, a standing note, a decision, research, or work
 - **A short name**, which labels the node in a diagram
 - **Where it lives**: a GitHub issue by default, or a markdown file under `mapflow/maps/` with no GitHub remote
@@ -162,9 +169,9 @@ Two things Mapflow does with a finished map.
 - **It works through the nodes that are ready to start**, meaning the open ones with nothing unfinished blocking them
     - Mapflow calls that set the **frontier**
 - **It packs the whole map into a single brief**
-    - A fresh Claude session picks up where the last one stopped
+    - A fresh agent session picks up where the last one stopped
 
-Every rule in Mapflow exists because something went wrong without it, over months of real product development with Claude Code.
+Every rule in Mapflow exists because something went wrong without it, over months of real product development with coding agents.
 
 For the full picture of each step and how they connect, read [docs/workflows.md](docs/workflows.md).
 
@@ -186,7 +193,7 @@ For the full picture of each step and how they connect, read [docs/workflows.md]
 
 ## 4. The CLI
 
-*Four storage operations carry the whole map. One fixed path makes the CLI reachable from any Claude session.*
+*Four storage operations carry the whole map. One fixed path makes the CLI reachable from any agent session.*
 
 Mapflow ships a Node.js CLI: `mapflow config`, `mapflow list`, `mapflow node ...`, and `mapflow archive`.
 
@@ -213,7 +220,7 @@ Two symlinks reach the CLI. The SessionStart hook maintains both.
     - The hook prints a one-line reminder when it is absent
     - Nothing in the plugin breaks without it
 
-If `mapflow` does not run after install, read [TROUBLESHOOTING.md](TROUBLESHOOTING.md). A Claude Code session reads it and applies the fix directly.
+If `mapflow` does not run after a Claude Code install, read [TROUBLESHOOTING.md](TROUBLESHOOTING.md). A Claude Code session can read it and apply the fix directly.
 
 ## 5. Every skill
 
@@ -232,8 +239,8 @@ For work with open decisions, chart it with `/mapflow:map` first.
 | Skill | Description |
 |-------|-------------|
 | `/mapflow:map` | Answer the open questions first, building the to-do graph on the first run and working through it after |
-| `grilling` | The interview itself, asking every question it can answer next per round, each with a recommended answer (Claude invokes it) |
-| `record-context` | Writes a decision down when one lands: a short note, a glossary term, both, or neither (Claude invokes it) |
+| `grilling` | The interview itself, asking every question it can answer next per round, each with a recommended answer (the agent invokes it) |
+| `record-context` | Writes a decision down when one lands: a short note, a glossary term, both, or neither (the agent invokes it) |
 
 ### 5.3. Operations
 
@@ -277,7 +284,7 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 | `task-checker` | TDD phase 3, verifying everything: mock skepticism, test baseline, regressions, TDD isolation audit |
 | `frontend-verifier` | TDD phase 4, real browser verification via agent-browser CLI, when `project.yaml` configures a frontend |
 
-- The Claude session you talk to coordinates
+- The agent session you talk to coordinates
     - It hands every piece of research and code to these agents
 - A fail from the task-checker sends the work back to the task-executor with the reason
 - The frontend-verifier runs under three conditions: a configured frontend, changed frontend files, and verification switched on
@@ -351,7 +358,7 @@ The style also ships a per-turn reminder:
     - Mapflow works out which it is
 - **Planning gets more effort than coding** – three agents read the relevant code before anyone writes a line
     - Mock audits, regression suites and integration checks follow the implementation
-- **Strict defaults, easy to relax** – run `mapflow config set` to change how strict the TDD is, how much Claude does itself, or how it asks you questions
+- **Strict defaults, easy to relax** – run `mapflow config set` to change how strict the TDD is, how much the agent does itself, or how it asks you questions
 
 ## 10. Licence and credits
 

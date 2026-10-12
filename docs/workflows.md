@@ -80,7 +80,7 @@ A node carries a `kind`, a `label`, and a `mode` too. Two link types connect the
 Every node body carries a diagram, two at most. A childless `notes` node is the one exception.
 
 - A node with children draws its own subtree, rendered by `mapflow node diagram`
-- Every other node draws what its question or its change touches, drawn by Claude
+- Every other node draws what its question or its change touches, drawn by the agent
 - A second mermaid fence under each diagram is its legend, showing only the cues that diagram uses
 - On GitHub every node id in a diagram links to its issue
 - `skills/map/visuals.md` holds the rules
@@ -139,7 +139,7 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
 
 ## 3. Asking the questions, and writing the answers down
 
-*Three skills Claude reaches for itself, without you typing a command, carry the interviewing, the recording, and the writing.*
+*Three skills the agent reaches for itself, without you typing a command, carry the interviewing, the recording, and the writing.*
 
 - **`grilling`** is the interview
     - It works through your decisions one round at a time
