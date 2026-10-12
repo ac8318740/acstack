@@ -12,8 +12,8 @@
  *                        spechub project            (hooks/session-start.sh)
  *                        add the writing style and its per-turn reminder when
  *                        the user turned it on      (hooks/ac-writing-style-reminder.sh)
- *   agent_before_settle  nudge towards a handoff as context fills
- *                                                   (hooks/context-pressure.sh)
+ *   agent_before_settle  nudge with a continuity-versus-freshness checkpoint
+ *                        as context fills          (hooks/context-pressure.sh)
  *   session_compact      re-inject spechub/HANDOFF.md after a compaction, and
  *                        restart the nudge ladder   (hooks/session-start-handoff.sh,
  *                                                    hooks/context-pressure.sh)
@@ -238,22 +238,24 @@ export function extractWritingReminder(style: string): string | undefined {
 const DEFAULT_WARN = 200000;
 const DEFAULT_SEVERE = 500000;
 const DEFAULT_STEP = 100000;
+const LARGE_CONTEXT_WINDOW = 1000000;
 
 const AGENCY =
 	"The call is yours. If you have a strong view either way, act on it " +
-	"without asking. Either hand over, or say in one line what you found " +
-	"and carry on. Ask the user with the host's question tool if you don't " +
-	"know if handing off or continuing in this session would be better.";
+	"without asking. Either keep continuity in this session, or choose " +
+	"freshness with /spechub:handoff. Ask the user with the host's question " +
+	"tool if you don't know which route would make the work go better.";
 
 const STANDING_AGREEMENT =
 	"If you are partway through a long run of tasks and the user already " +
 	"agreed to a handoff earlier in this session, including in a handoff " +
-	"or compaction summary you resumed from, hand over without asking.";
+	"or compaction summary you resumed from, use /spechub:handoff without " +
+	"asking again.";
 
 const DECIDE_TAIL =
 	`${AGENCY} ${STANDING_AGREEMENT}` +
-	" If you do ask and the user would rather keep going, drop it for now" +
-	" and raise the handoff again once the current run of work wraps up.";
+	" If you do ask and the user chooses continuity, drop it for now" +
+	" and revisit freshness once the current run of work wraps up.";
 
 interface HandoffConfig {
 	nudge_warn?: number;
@@ -336,7 +338,7 @@ export function contextNudge(
 	contextWindow: number,
 	cfg: HandoffConfig,
 	lastRung: number | undefined,
-	inHerdr: boolean,
+	_inHerdr: boolean,
 ): { rung: number; reason: string } | undefined {
 	const window = cfg.context_window && cfg.context_window > 0 ? cfg.context_window : contextWindow;
 	// Unlike Claude Code, pi auto-compacts about 16k tokens short of the
@@ -370,21 +372,22 @@ export function contextNudge(
 	if (rung === undefined) return undefined;
 	if (lastRung !== undefined && rung <= lastRung) return undefined;
 
-	const route = inHerdr ? "the handoff skill" : "the compact-and-continue skill";
 	const used = tokens.toLocaleString("en-US");
 	const limit = rung.toLocaleString("en-US");
+	let continuity = "Continuity: if your working context is useful, keep going in this same session";
+	if (window >= LARGE_CONTEXT_WINDOW) continuity += " and rely on billion-context";
+	continuity += ", with ACP compression as an in-place option if the host offers it.";
+	const freshness = "Freshness: if a fresh context window or an independent read would help more, use /spechub:handoff.";
 	const head =
 		rung >= severeAt
 			? `Context check (urgent): this session has used about ${used} tokens, ` +
-				`past the ${limit} severe mark, so it is close to the wall. Handing ` +
-				`the work over with ${route} is usually right this late, and starting ` +
-				"something new rarely is. Finishing what you are already on can be " +
-				"the better call though: wrap it up and there may be nothing left " +
-				"worth handing over. If you do put it to the user, say plainly that " +
-				"context is nearly gone so they can decide quickly."
+				`past the ${limit} severe mark, so it is close to the wall. Treat high ` +
+				`context as a continuity-versus-freshness checkpoint. ${continuity} ` +
+				`${freshness} If you ask the user, say plainly that context is nearly ` +
+				"gone so they can decide quickly."
 			: `Context check: this session has used about ${used} tokens, past the ` +
-				`${limit} mark. Decide whether now is a good moment to hand the work ` +
-				`over with ${route}.`;
+				`${limit} mark. Treat high context as a continuity-versus-freshness ` +
+				`checkpoint. ${continuity} ${freshness}`;
 	return { rung, reason: `${head} ${DECIDE_TAIL}` };
 }
 
