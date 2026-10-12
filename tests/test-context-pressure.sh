@@ -6,7 +6,7 @@
 # short-circuit, transcript discovery, the "last qualifying assistant record
 # wins" scan rule (with sidechain skipping and malformed-line tolerance),
 # threshold defaults and project.yaml overrides, the required flat JSON output
-# shape, the HERDR_ENV-conditional wording, and the always-exit-0 contract.
+# shape, the continuity-versus-freshness wording, and the always-exit-0 contract.
 #
 # Only a session's own Stop is ever nudged. A SubagentStop is a silent no-op
 # whatever it carries: neither a plain subagent nor an in-process teammate can
@@ -399,7 +399,7 @@ check "silent below default warn"  'is_silent "$OUT"'
 check "exit code 0"                '[ "$RC" -eq 0 ]'
 
 # ---------------------------------------------------------------------------
-# Case 5: usage at warn level (defaults) -> block, warn text, HERDR_ENV wording
+# Case 5: usage at warn level (defaults) -> block, continuity/freshness text
 # ---------------------------------------------------------------------------
 echo "Case 5: usage at warn level (default thresholds) -> block, warn text"
 enter_case 5
@@ -413,8 +413,10 @@ check "exit code 0 (warn, no HERDR_ENV)"     '[ "$RC_WARN_NO_HERDR" -eq 0 ]'
 check "stdout is valid JSON"                 'is_valid_json "$WARN_OUT"'
 check "block shape, no forbidden keys"       'is_block_shape "$WARN_OUT"'
 WARN_REASON_NO_HERDR="$(reason_of "$WARN_OUT")"
-check "mentions compact-and-continue without HERDR_ENV"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "compact-and-continue"'
-check "does not tell the agent to hand off unilaterally, but to ask/confirm"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qiE "ask|confirm"'
+check "warn nudge frames high context as continuity versus freshness"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "continuity" && printf %s "$WARN_REASON_NO_HERDR" | grep -qi "freshness"'
+check "warn continuity route says to continue in the same session when working context is useful"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qiE "same session|this session" && printf %s "$WARN_REASON_NO_HERDR" | grep -qi "working context"'
+check "warn freshness route names /mapflow:handoff"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "/mapflow:handoff"'
+check "warn nudge outside HERDR does not default to compact-and-continue"  '! printf %s "$WARN_REASON_NO_HERDR" | grep -qi "compact-and-continue"'
 
 run_hook "$(stop_payload "$T" false)" HERDR_ENV=1
 RC_WARN_HERDR="$RC"
@@ -461,7 +463,10 @@ SEVERE_REASON="$(reason_of "$SEVERE_OUT")"
 check "severe reason text is non-empty"           '[ -n "$SEVERE_REASON" ]'
 check "severe text differs from warn text"        '[ "$SEVERE_REASON" != "$WARN_REASON_NO_HERDR" ]'
 check "severe text reads more urgent than warn"   'printf %s "$SEVERE_REASON" | grep -qiE "severe|critical|urgent|immediately"'
-check "mentions compact-and-continue without HERDR_ENV"  'printf %s "$SEVERE_REASON" | grep -qi "compact-and-continue"'
+check "severe nudge frames high context as continuity versus freshness"  'printf %s "$SEVERE_REASON" | grep -qi "continuity" && printf %s "$SEVERE_REASON" | grep -qi "freshness"'
+check "severe continuity route says to continue in the same session when working context is useful"  'printf %s "$SEVERE_REASON" | grep -qiE "same session|this session" && printf %s "$SEVERE_REASON" | grep -qi "working context"'
+check "severe freshness route names /mapflow:handoff"  'printf %s "$SEVERE_REASON" | grep -qi "/mapflow:handoff"'
+check "severe nudge outside HERDR does not default to compact-and-continue"  '! printf %s "$SEVERE_REASON" | grep -qi "compact-and-continue"'
 
 # Boundary: usage exactly equal to the default nudge_severe (500000) must
 # read as severe -- "at or above severe" is >=, not >.
@@ -1393,26 +1398,10 @@ check "and records rung 200000 again"  '[ "$(last_rung "$STATE" "$SID")" = "2000
 fresh_state_dir
 
 # ---------------------------------------------------------------------------
-# Case 32: the nudge text names the route it wants the agent to take
+# Case 32: the nudge text frames the route choice as continuity versus freshness
 # ---------------------------------------------------------------------------
-echo "Case 32: nudge text points at the question tool and the wrap-up moment"
+echo "Case 32: nudge text frames continuity versus freshness routes"
 LADDER_REASON="$(reason_of "$LADDER_OUT")"
-check "warn nudge tells the agent to use the question tool"    'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "question tool"'
-check "severe nudge tells the agent to use the question tool"  'printf %s "$SEVERE_REASON" | grep -qi "question tool"'
-check "ladder nudge tells the agent to use the question tool"  'printf %s "$LADDER_REASON" | grep -qi "question tool"'
-check "warn nudge says to wait until the current run of work wraps up"    'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "once the current run of work wraps up"'
-check "severe nudge says to wait until the current run of work wraps up"  'printf %s "$SEVERE_REASON" | grep -qi "once the current run of work wraps up"'
-
-# ---------------------------------------------------------------------------
-# Case 32b: every tier leaves the decision to the agent
-#
-# The question tool is the fallback for an agent that cannot tell, never a
-# standing order. A tier that reinstated "ask the user and let them choose"
-# would still name the question tool and still pass the checks above, so the
-# agency clause is asserted on its own: an unattended run must be able to
-# resolve a nudge without a person.
-# ---------------------------------------------------------------------------
-echo "Case 32b: every tier leaves the handoff decision to the agent"
 for tier in WARN SEVERE LADDER; do
   case "$tier" in
     WARN)   TIER_REASON="$WARN_REASON_NO_HERDR" ;;
@@ -1420,16 +1409,23 @@ for tier in WARN SEVERE LADDER; do
     LADDER) TIER_REASON="$LADDER_REASON" ;;
   esac
   export TIER_REASON
+  check "$tier nudge names continuity"  'printf %s "$TIER_REASON" | grep -qi "continuity"'
+  check "$tier nudge names freshness"   'printf %s "$TIER_REASON" | grep -qi "freshness"'
+  check "$tier nudge says useful working context favours continuing here"  'printf %s "$TIER_REASON" | grep -qi "working context" && printf %s "$TIER_REASON" | grep -qiE "same session|this session"'
+  check "$tier nudge says fresh context or an independent read favours handoff"  'printf %s "$TIER_REASON" | grep -qiE "fresh context|independent read" && printf %s "$TIER_REASON" | grep -qi "/mapflow:handoff"'
+  check "$tier nudge outside HERDR does not name compact-and-continue"  '! printf %s "$TIER_REASON" | grep -qi "compact-and-continue"'
   check "$tier nudge gives the agent the call"          'printf %s "$TIER_REASON" | grep -qi "the call is yours"'
   check "$tier nudge lets a strong view act unasked"    'printf %s "$TIER_REASON" | grep -qi "act on it without asking"'
   check "$tier nudge makes the ask conditional"         'printf %s "$TIER_REASON" | grep -qi "if you don.t know"'
   check "$tier nudge never orders an unconditional ask" '! printf %s "$TIER_REASON" | grep -qiE "ask the user first|do not decide that alone|let them choose"'
 done
 
-# Severe recommends handing over, but an agent one step from the finish line
-# has nothing worth handing over. Assert the exception survives, so a future
-# edit cannot harden the recommendation back into an order.
-check "severe nudge still allows finishing work in flight"  'printf %s "$SEVERE_REASON" | grep -qi "finishing what you are already on"'
+# A billion-context model makes the continuity route available enough to name it.
+T_BILLION="$CASE_DIR/billion-context.jsonl"
+mk_transcript "$T_BILLION" "$(user_line)" "$(usage_line_model 250000 "claude-opus-4-8[1m]")"
+run_hook "$(stop_payload "$T_BILLION" false)" -u HERDR_ENV
+BILLION_REASON="$(reason_of "$OUT")"
+check "continuity route names billion-context when the model exposes a large context window"  'printf %s "$BILLION_REASON" | grep -qi "billion-context"'
 
 # ---------------------------------------------------------------------------
 # Case 33: nothing in this suite made the hook write to stderr

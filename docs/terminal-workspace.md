@@ -354,6 +354,12 @@ What `apply` does:
 - It installs Mapflow into pi, pinned to the version of this plugin
     - Re-running `apply` after a plugin update moves the pin forward, and never back
 - It installs `pi-subagents`, which Mapflow on pi needs to launch a subagent
+- It installs `billion-context` by default for context compression in pi
+    - When the `bili` command is available, setup runs native plugin setup for pi
+    - Setup also enables the native plugin when this device has Claude Code or Codex
+    - Set `pi.billion_context: false` to leave it out, or to remove it later if this setup installed it
+- It installs `@juicesharp/rpiv-todo` and `pi-plugin-manager` by default
+    - Set `pi.todo: false` or `pi.plugin_manager: false` to leave either package out
 - It installs `@juicesharp/rpiv-ask-user-question` as pi's question tool by default
     - Mapflow uses it because decisions can include markdown, code and artifact previews
     - It accepts freeform answers and notes, and needs no full-event telemetry environment variable
@@ -387,7 +393,7 @@ How it treats pi's files:
 - `apply` never touches `auth.json`
     - Run `pi`, then `/login`, yourself
 - `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether `auth.json` exists
-- `setup.sh outdated` and `setup.sh upgrade` include `@juicesharp/rpiv-ask-user-question` and `pi-web-access` like pi's other npm packages
+- `setup.sh outdated` and `setup.sh upgrade` include `billion-context`, `@juicesharp/rpiv-todo`, `pi-plugin-manager`, `@juicesharp/rpiv-ask-user-question`, and `pi-web-access` like pi's other npm packages
 
 ## 4. How you attach
 

@@ -206,12 +206,46 @@ const humanLink = path.join(home, '.local', 'bin', 'mapflow');
 
   check('no nudge below the warn mark', (await settle(150000)) === undefined);
   const warn = await settle(250000);
+  const warnContent = warn?.entries[0]?.content ?? '';
   check('nudges past the warn mark and continues the run',
-    warn?.continue === true && warn.entries[0].content.startsWith('Context check: this session has used about 250,000'));
+    warn?.continue === true && warnContent.startsWith('Context check: this session has used about 250,000'));
+  check('warn nudge frames high context as continuity versus freshness',
+    /continuity/i.test(warnContent) && /freshness/i.test(warnContent));
+  check('warn continuity route says useful working context means continue in the same session',
+    /working context/i.test(warnContent) && /(same session|this session)/i.test(warnContent));
+  check('warn freshness route names /mapflow:handoff',
+    warnContent.includes('/mapflow:handoff'));
+  check('warn nudge outside herdr does not default to compact-and-continue',
+    !/compact-and-continue/i.test(warnContent));
+  check('warn nudge gives the agent the call', /the call is yours/i.test(warnContent));
+  check('warn nudge lets a strong view act unasked', /act on it without asking/i.test(warnContent));
+  check('warn nudge makes the ask conditional', /if you don't know/i.test(warnContent));
+  check('warn nudge never orders an unconditional ask',
+    !/ask the user first|do not decide that alone|let them choose/i.test(warnContent));
   check('does not repeat the same rung', (await settle(260000)) === undefined);
   check('no nudge between the warn and severe marks', (await settle(450000)) === undefined);
-  check('severe wording past the severe mark', (await settle(520000))?.entries[0].content.startsWith('Context check (urgent)'));
-  check('fires again one step above the last rung', (await settle(610000))?.entries[0].content.includes('past the 600,000 severe mark'));
+  const severe = await settle(520000);
+  const severeContent = severe?.entries[0]?.content ?? '';
+  check('severe wording past the severe mark', severeContent.startsWith('Context check (urgent)'));
+  check('severe nudge keeps the continuity versus freshness checkpoint',
+    /continuity/i.test(severeContent) && /freshness/i.test(severeContent));
+  check('severe freshness route names /mapflow:handoff',
+    severeContent.includes('/mapflow:handoff'));
+  check('severe nudge gives the agent the call', /the call is yours/i.test(severeContent));
+  check('severe nudge lets a strong view act unasked', /act on it without asking/i.test(severeContent));
+  check('severe nudge makes the ask conditional', /if you don't know/i.test(severeContent));
+  check('severe nudge never orders an unconditional ask',
+    !/ask the user first|do not decide that alone|let them choose/i.test(severeContent));
+  const ladder = await settle(610000);
+  const ladderContent = ladder?.entries[0]?.content ?? '';
+  check('fires again one step above the last rung', ladderContent.includes('past the 600,000 severe mark'));
+  check('ladder nudge still presents continuity and freshness routes',
+    /continuity/i.test(ladderContent) && /freshness/i.test(ladderContent) && ladderContent.includes('/mapflow:handoff'));
+  check('ladder nudge gives the agent the call', /the call is yours/i.test(ladderContent));
+  check('ladder nudge lets a strong view act unasked', /act on it without asking/i.test(ladderContent));
+  check('ladder nudge makes the ask conditional', /if you don't know/i.test(ladderContent));
+  check('ladder nudge never orders an unconditional ask',
+    !/ask the user first|do not decide that alone|let them choose/i.test(ladderContent));
 
   const stateDir = path.join(process.env.TMPDIR, 'mapflow-context-pressure');
   fs.writeFileSync(path.join(stateDir, 'press-2.quiet'), '');

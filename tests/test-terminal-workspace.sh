@@ -4372,6 +4372,30 @@ case "\$1" in
   prefix)  echo "$INPM" ;;
 esac
 NPMSTUB
+cat > "$ISTUB/claude" <<'CLAUDESTUB'
+#!/usr/bin/env bash
+echo "claude $*" >> "$HOME/claude.log"
+case "${1:-}" in --version|version) echo "Claude Code 1.0.0" ;; esac
+CLAUDESTUB
+cat > "$ISTUB/codex" <<'CODEXSTUB'
+#!/usr/bin/env bash
+echo "codex $*" >> "$HOME/codex.log"
+case "${1:-}" in --version|version) echo "codex 1.0.0" ;; esac
+CODEXSTUB
+cat > "$ISTUB/bili" <<'BILISTUB'
+#!/usr/bin/env bash
+echo "bili $*" >> "$HOME/bili.log"
+if [ "${1:-}" = "plugin" ] && [ "${2:-}" = "list" ]; then
+  printf 'agent     status\n'
+  for client in pi claude codex; do
+    if grep -qx "$client" "$HOME/bili-preinstalled" 2>/dev/null; then
+      printf '%-9s installed\n' "$client"
+    else
+      printf '%-9s not installed\n' "$client"
+    fi
+  done
+fi
+BILISTUB
 IRETROBIN="$IWORK/retro"; mkdir -p "$IRETROBIN"
 cat > "$IRETROBIN/agentic-retro" <<'RSTUB'
 #!/usr/bin/env bash
@@ -4449,10 +4473,21 @@ if [ "$PI_APPLY" = "1" ]; then
   pkgs=$(jget "$ISET" packages)
   if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
      && printf '%s' "$pkgs" | grep -qF "\"npm:mapflow@$IVER\"" \
-     && printf '%s' "$pkgs" | grep -qF '"npm:pi-compact-tools"'; then
-    ok "apply installs pi-subagents, Mapflow pinned to $IVER, and pi-compact-tools"
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-compact-tools"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:billion-context"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"'; then
+    ok "apply installs pi-subagents, Mapflow pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo and pi-plugin-manager"
   else
-    no "apply installs pi-subagents, Mapflow pinned to $IVER, and pi-compact-tools (packages: $pkgs)"
+    no "apply installs pi-subagents, Mapflow pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo and pi-plugin-manager (packages: $pkgs)"
+  fi
+  if grep -q '^pi .*billion-context' "$IHOME/pi.log" \
+     && grep -q '^bili plugin install pi' "$IHOME/bili.log" 2>/dev/null \
+     && grep -q '^bili plugin install claude' "$IHOME/bili.log" 2>/dev/null \
+     && grep -q '^bili plugin install codex' "$IHOME/bili.log" 2>/dev/null; then
+    ok "apply installs billion-context natively for pi and enables it for present Claude Code and Codex clients"
+  else
+    no "apply installs billion-context natively for pi and enables it for present Claude Code and Codex clients (pi: $(flat "$(cat "$IHOME/pi.log" 2>/dev/null)"); bili: $(flat "$(cat "$IHOME/bili.log" 2>/dev/null)"))"
   fi
   if [ "$(jget "$ISET" hideThinkingBlock)" = "true" ] \
      && [ "$(jget "$ISET" markdown.mermaid)" = '"streaming"' ] \
@@ -4483,24 +4518,29 @@ if [ "$PI_APPLY" = "1" ]; then
 
   # Re-applying changes nothing: no install call, and every file byte for byte.
   before=$(cat "$ISET" "$ISUB" "$IMD")
-  : > "$IHOME/pi.log"; : > "$IHOME/npm.log"
+  : > "$IHOME/pi.log"; : > "$IHOME/npm.log"; : > "$IHOME/bili.log"
   out=$(iw apply)
   if [ "$before" = "$(cat "$ISET" "$ISUB" "$IMD")" ] \
-     && ! grep -q '^pi install' "$IHOME/pi.log" && ! grep -q '^npm install' "$IHOME/npm.log"; then
+     && ! grep -q '^pi install' "$IHOME/pi.log" \
+     && ! grep -q '^npm install' "$IHOME/npm.log" \
+     && ! grep -q '^bili plugin install' "$IHOME/bili.log"; then
     ok "apply run twice installs nothing and changes no pi file"
   else
-    no "apply run twice installs nothing and changes no pi file (pi: $(flat "$(cat "$IHOME/pi.log")"); said: $(flat "$out"))"
+    no "apply run twice installs nothing and changes no pi file (pi: $(flat "$(cat "$IHOME/pi.log")"); bili: $(flat "$(cat "$IHOME/bili.log")"); said: $(flat "$out"))"
   fi
 
   out=$(iw status)
   if printf '%s' "$out" | grep -q 'pi: 1.1.0' \
      && printf '%s' "$out" | grep -qF "pi package: npm:mapflow@$IVER" \
+     && printf '%s' "$out" | grep -qF 'pi package: npm:billion-context' \
+     && printf '%s' "$out" | grep -qF 'pi package: npm:@juicesharp/rpiv-todo' \
+     && printf '%s' "$out" | grep -qF 'pi package: npm:pi-plugin-manager' \
      && printf '%s' "$out" | grep -q 'pi delegation line: present' \
      && printf '%s' "$out" | grep -q 'pi toolActivation: eager' \
      && printf '%s' "$out" | grep -q 'pi login: not logged in'; then
-    ok "status reports pi's version, packages, delegation line, toolActivation and login"
+    ok "status reports pi's version, packages including billion-context, rpiv-todo and pi-plugin-manager, delegation line, toolActivation and login"
   else
-    no "status reports pi's version, packages, delegation line, toolActivation and login (said: $(flat "$out"))"
+    no "status reports pi's version, packages including billion-context, rpiv-todo and pi-plugin-manager, delegation line, toolActivation and login (said: $(flat "$out"))"
   fi
   : > "$IAGENT/auth.json"
   out=$(iw status)
@@ -4528,6 +4568,7 @@ if [ "$PI_APPLY" = "1" ]; then
   iw apply >/dev/null
 
   # disable takes back what apply added and nothing else.
+  : > "$IHOME/pi.log"; : > "$IHOME/bili.log"
   out=$(iw disable pi)
   if [ "$(jget "$ISET" deviceId)" = '"dev-1"' ] && grep -qF '"note": "café"' "$ISET" \
      && [ "$(jget "$ISET" hideThinkingBlock)" = "MISSING" ] \
@@ -4537,15 +4578,22 @@ if [ "$PI_APPLY" = "1" ]; then
      && [ "$(cat "$IMD")" = "$USER_MD" ] && [ ! -e "$IRETRO" ] \
      && [ "$(jget "$ISET" packages)" = "[]" ] \
      && [ -x "$INPM/bin/pi" ] \
+     && grep -Eq '^pi (remove|uninstall|disable).*billion-context|^pi .*billion-context.*(remove|uninstall|disable)' "$IHOME/pi.log" \
+     && grep -Eq '^pi (remove|uninstall|disable).*@juicesharp/rpiv-todo|^pi .*@juicesharp/rpiv-todo.*(remove|uninstall|disable)' "$IHOME/pi.log" \
+     && grep -Eq '^pi (remove|uninstall|disable).*pi-plugin-manager|^pi .*pi-plugin-manager.*(remove|uninstall|disable)' "$IHOME/pi.log" \
+     && grep -q '^bili plugin remove pi' "$IHOME/bili.log" \
+     && grep -q '^bili plugin remove claude' "$IHOME/bili.log" \
+     && grep -q '^bili plugin remove codex' "$IHOME/bili.log" \
      && printf '%s' "$out" | grep -qF 'pi.enabled: false'; then
-    ok "disable pi removes its packages, keys, block and extension, and keeps the user's own"
+    ok "disable pi removes its packages, keys, block, extension and billion-context client installs, and keeps the user's own"
   else
-    no "disable pi removes its packages, keys, block and extension, and keeps the user's own (said: $(flat "$out"); settings: $(flat "$(cat "$ISET")"); md: $(flat "$(cat "$IMD")"))"
+    no "disable pi removes its packages, keys, block, extension and billion-context client installs, and keeps the user's own (said: $(flat "$out"); settings: $(flat "$(cat "$ISET")"); pi: $(flat "$(cat "$IHOME/pi.log" 2>/dev/null)"); bili: $(flat "$(cat "$IHOME/bili.log" 2>/dev/null)"))"
   fi
 
   # What the user had before apply stays theirs: their pi-subagents, their
-  # older Mapflow pin (moved forward, then put back), and their extension.
-  printf '{\n  "packages": ["npm:pi-subagents", "npm:mapflow@0.1.0"]\n}\n' > "$ISET"
+  # rpiv-todo, their plugin manager, their older Mapflow pin (moved forward,
+  # then put back), and their extension.
+  printf '{\n  "packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo", "npm:pi-plugin-manager", "npm:mapflow@0.1.0"]\n}\n' > "$ISET"
   echo "// mine" > "$IRETRO"
   out=$(iw apply)
   if jget "$ISET" packages | grep -qF "mapflow@$IVER" && ! jget "$ISET" packages | grep -qF '0.1.0'; then
@@ -4556,6 +4604,8 @@ if [ "$PI_APPLY" = "1" ]; then
   iw uninstall >/dev/null
   pkgs=$(jget "$ISET" packages)
   if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:mapflow@0.1.0"' \
      && ! printf '%s' "$pkgs" | grep -qF 'pi-compact-tools' \
      && [ -f "$IRETRO" ] && [ -x "$INPM/bin/pi" ] \
@@ -4564,6 +4614,20 @@ if [ "$PI_APPLY" = "1" ]; then
   else
     no "uninstall leaves pi, and every package and file the user had before apply (packages: $pkgs)"
   fi
+
+  printf 'pi\nclaude\ncodex\n' > "$IHOME/bili-preinstalled"
+  printf '{}\n' > "$ISET"
+  : > "$IHOME/bili.log"
+  iw apply >/dev/null
+  iw uninstall >/dev/null
+  if ! grep -q '^bili plugin install' "$IHOME/bili.log" \
+     && ! grep -q '^bili plugin remove' "$IHOME/bili.log" \
+     && [ ! -e "$IHOME/.config/mapflow/terminal-workspace.pi.json" ]; then
+    ok "apply and uninstall leave pre-existing billion-context client plugins alone"
+  else
+    no "apply and uninstall leave pre-existing billion-context client plugins alone (bili: $(flat "$(cat "$IHOME/bili.log")"))"
+  fi
+  rm -f "$IHOME/bili-preinstalled"
 
   # A newer pin than this plugin is one the user chose, and stays.
   printf '{\n  "packages": ["npm:mapflow@999.0.0"]\n}\n' > "$ISET"
@@ -4714,19 +4778,38 @@ PY
   printf '%s\n' "$USER_MD" > "$IMD"
 
   # A pinned npm package never moves under pi update, so it is no finding and
-  # upgrade leaves it.
-  printf '{\n  "packages": ["npm:pi-subagents@1.0.0"]\n}\n' > "$ISET"
-  mkdir -p "$IAGENT/npm/node_modules/pi-subagents"
+  # upgrade leaves it. billion-context, rpiv-todo and pi-plugin-manager are
+  # covered here too, because they are pi npm packages with the same version,
+  # outdated and upgrade behaviour.
+  printf '{\n  "packages": ["npm:pi-subagents@1.0.0", "npm:billion-context@1.0.0", "npm:@juicesharp/rpiv-todo@1.0.0", "npm:pi-plugin-manager@1.0.0"]\n}\n' > "$ISET"
+  mkdir -p "$IAGENT/npm/node_modules/pi-subagents" "$IAGENT/npm/node_modules/billion-context" \
+           "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo" "$IAGENT/npm/node_modules/pi-plugin-manager"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-subagents/package.json"
+  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/billion-context/package.json"
+  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo/package.json"
+  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-plugin-manager/package.json"
   out=$(iw outdated)
   : > "$IHOME/pi.log"
   up=$(iw upgrade pi-subagents)
+  bup=$(iw upgrade billion-context)
+  tup=$(iw upgrade @juicesharp/rpiv-todo)
+  pup=$(iw upgrade pi-plugin-manager)
   if printf '%s' "$out" | grep -qF "unknown	pi-subagents	pinned to npm:pi-subagents@1.0.0" \
+     && printf '%s' "$out" | grep -qF "unknown	billion-context	pinned to npm:billion-context@1.0.0" \
+     && printf '%s' "$out" | grep -qF "unknown	@juicesharp/rpiv-todo	pinned to npm:@juicesharp/rpiv-todo@1.0.0" \
+     && printf '%s' "$out" | grep -qF "unknown	pi-plugin-manager	pinned to npm:pi-plugin-manager@1.0.0" \
      && ! printf '%s' "$out" | grep -q '^stale	pi-subagents' \
-     && ! grep -q '^pi update' "$IHOME/pi.log" && printf '%s' "$up" | grep -q 'pinned'; then
-    ok "a pinned npm package reads as pinned in outdated, and upgrade leaves it"
+     && ! printf '%s' "$out" | grep -q '^stale	billion-context' \
+     && ! printf '%s' "$out" | grep -q '^stale	@juicesharp/rpiv-todo' \
+     && ! printf '%s' "$out" | grep -q '^stale	pi-plugin-manager' \
+     && ! grep -q '^pi update' "$IHOME/pi.log" \
+     && printf '%s' "$up" | grep -q 'pinned' \
+     && printf '%s' "$bup" | grep -q 'pinned' \
+     && printf '%s' "$tup" | grep -q 'pinned' \
+     && printf '%s' "$pup" | grep -q 'pinned'; then
+    ok "pinned npm packages including billion-context, rpiv-todo and pi-plugin-manager read as pinned in outdated, and upgrade leaves them"
   else
-    no "a pinned npm package reads as pinned in outdated, and upgrade leaves it (outdated: $(flat "$out"); upgrade: $(flat "$up"))"
+    no "pinned npm packages including billion-context, rpiv-todo and pi-plugin-manager read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); todo upgrade: $(flat "$tup"); plugin manager upgrade: $(flat "$pup"))"
   fi
   rm -rf "$IAGENT/npm"
 
@@ -4773,6 +4856,21 @@ if [ "$(python3 -c 'import yaml,sys; print((yaml.safe_load(open(sys.argv[1]))["p
   ok "pi starts off, in the example config and in the script's own default"
 else
   no "pi starts off, in the example config and in the script's own default"
+fi
+
+billion_default=$(python3 -c 'import yaml,sys; print((yaml.safe_load(open(sys.argv[1]))["pi"] or {}).get("billion_context"))' \
+  "$ROOT/assets/terminal-workspace/config.example.yaml" 2>/dev/null)
+if [ "$billion_default" = "True" ] \
+   && grep -q 'billion-context' "$ROOT/assets/terminal-workspace/config.example.yaml" \
+   && grep -q 'Claude Code' "$ROOT/assets/terminal-workspace/config.example.yaml" \
+   && grep -q 'Codex' "$ROOT/assets/terminal-workspace/config.example.yaml" \
+   && grep -q '`pi.billion_context: false`' "$DOCS" \
+   && grep -q '`billion-context`' "$DOCS" \
+   && grep -q 'Claude Code' "$DOCS" \
+   && grep -q 'Codex' "$DOCS"; then
+  ok "billion-context has a documented default toggle for pi, Claude Code and Codex"
+else
+  no "billion-context has a documented default toggle for pi, Claude Code and Codex"
 fi
 
 

@@ -14,7 +14,7 @@ Three terms first.
 
 - **A key** is one dotted path into the file, such as `workflow.tdd.strict`
 - **A default** is what Mapflow does when the file states no value
-- **A rung** is one token count at which the context-pressure hook speaks up, telling the session to consider handing over
+- **A rung** is one token count at which the context-pressure hook speaks up, asking the session to choose continuity or freshness
 
 ```mermaid
 flowchart TD
@@ -314,7 +314,7 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
 
 ## 6. workflow.handoff: the context-pressure ladder
 
-*Five keys place the rungs at which `hooks/context-pressure.sh` tells the session to consider handing over.*
+*Five keys place the rungs at which `hooks/context-pressure.sh` asks the session to choose continuity or freshness.*
 
 How the hook decides to speak:
 
@@ -342,9 +342,14 @@ Three guards protect the ladder from a value that would break it.
     - A severe mark below the warn mark could never fire
 - It treats a `nudge_step` below 1 as an instruction to stop the ladder at its top rung
 
-What the severe wording changes:
+What the nudge asks the agent to choose:
 
-- The severe wording leans harder towards handing over
+- Continuity means useful working context stays in the same session
+    - A large window can rely on billion-context
+    - ACP compression is an in-place host option, not something Mapflow calls itself
+- Freshness means a fresh context window or independent read would help more
+    - That route is `/mapflow:handoff`
+- Severe wording makes the same checkpoint urgent
 - It never halts the run
 - Both tiers close with the same clause
     - The agent decides for itself

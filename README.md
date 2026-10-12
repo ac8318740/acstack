@@ -43,7 +43,7 @@ Install the plugin:
 
 ```
 /plugin marketplace add ac8318740/spechub
-/plugin install mapflow@spechub
+/plugin install mapflow@mapflow
 ```
 
 Then, in your project:
@@ -79,8 +79,11 @@ Then, in your project, run `/mapflow:setup`.
     - It adds the orchestrator instructions to the system prompt in a mapflow project
     - It lists Mapflow's skills in the system prompt in every session
     - It re-injects a handoff after a compaction
-    - It nudges towards a handoff as the context fills
-        - With no thresholds set, the first nudge comes at 200k tokens or half the context window, whichever is lower (500k or 80% for the urgent one)
+    - It nudges with a continuity-versus-freshness checkpoint as the context fills
+        - Continuity keeps useful working context in the same session, using billion-context or host ACP compression when available
+        - Freshness uses `/mapflow:handoff` when a fresh window or independent read helps more
+        - With no thresholds set, the first nudge comes at 200k tokens or half the window, whichever is lower
+        - The urgent nudge comes at 500k tokens or 80% of the window, whichever is lower
 - `pi-subagents` finds the four agents through the `pi.subagents` field in `package.json`
     - The agents use your `pi-subagents` default model
     - Mapflow warns at session start when `pi-subagents` is missing

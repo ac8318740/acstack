@@ -2,8 +2,8 @@
 # Mapflow context-pressure nudge (Stop / SessionStart hook).
 #
 # Measures how much context the session has consumed and, past a threshold,
-# blocks the stop with a short message telling the agent to consider handing
-# the work over before context runs out.
+# blocks the stop with a short continuity-versus-freshness checkpoint before
+# context runs out.
 #
 # Contract: JSON payload on stdin, JSON (or nothing) on stdout, nothing on
 # stderr, ALWAYS exit 0. A hook that errors or writes junk to stdout breaks the
@@ -127,16 +127,15 @@ WINDOW_DEFAULT = 1000000
 SMALL_WINDOW_MODEL = re.compile(r"haiku|-4-\d|-4\b")
 
 # The agency clause is the load-bearing instruction, and it is identical
-# across tiers: handing over or carrying on is the agent's own call, and the
-# question tool is for the case where it genuinely cannot tell. Only the head
-# above it differs, and only in how hard it leans towards handing over - so a
-# severe nudge never halts an unattended run that the agent could have
-# resolved itself.
+# across tiers: continuity or freshness is the agent's own call. The question
+# tool is for the case where it genuinely cannot tell. Only the head above it
+# differs, and only in urgency, so a severe nudge never halts an unattended run
+# that the agent could have resolved itself.
 AGENCY = (
     "The call is yours. If you have a strong view either way, act on it "
-    "without asking. Either hand over, or say in one line what you found "
-    "and carry on. Ask the user with the host's question tool if you don't "
-    "know if handing off or continuing in this session would be better."
+    "without asking. Either keep continuity in this session, or choose "
+    "freshness with /mapflow:handoff. Ask the user with the host's question "
+    "tool if you don't know which route would make the work go better."
 )
 
 # The standing-agreement clause settles the one case the agent cannot read
@@ -145,7 +144,8 @@ AGENCY = (
 STANDING_AGREEMENT = (
     "If you are partway through a long run of tasks and the user already "
     "agreed to a handoff earlier in this session, including in a handoff "
-    "or compaction summary you resumed from, hand over without asking."
+    "or compaction summary you resumed from, use /mapflow:handoff without "
+    "asking again."
 )
 
 # Shared tail appended after each tier's head: the agency clause, the
@@ -155,8 +155,8 @@ STANDING_AGREEMENT = (
 DECIDE_TAIL = (
     AGENCY
     + " " + STANDING_AGREEMENT
-    + " If you do ask and the user would rather keep going, drop it for now"
-    + " and raise the handoff again once the current run of work wraps up."
+    + " If you do ask and the user chooses continuity, drop it for now"
+    + " and revisit freshness once the current run of work wraps up."
 )
 
 
@@ -545,32 +545,35 @@ except Exception:
 
 # --- the nudge -------------------------------------------------------------
 
-# Inside herdr the handoff skill can open a fresh session; outside it, staying
-# in this session across a compaction is the only option available.
-if os.environ.get("HERDR_ENV") == "1":
-    route = "the handoff skill"
-else:
-    route = "the compact-and-continue skill"
-
 used = "{:,}".format(tokens)
 limit = "{:,}".format(rung)
+large_context = context_window() >= WINDOW_1M
+continuity = (
+    "Continuity: if your working context is useful, keep going in this same "
+    "session"
+)
+if large_context:
+    continuity += " and rely on billion-context"
+continuity += ", with ACP compression as an in-place option if the host offers it."
+freshness = (
+    "Freshness: if a fresh context window or an independent read would help "
+    "more, use /mapflow:handoff."
+)
 
 if rung >= severe_at:
     head = (
         "Context check (urgent): this session has used about {used} tokens, "
-        "past the {limit} severe mark, so it is close to the wall. Handing "
-        "the work over with {route} is usually right this late, and starting "
-        "something new rarely is. Finishing what you are already on can be "
-        "the better call though: wrap it up and there may be nothing left "
-        "worth handing over. If you do put it to the user, say plainly that "
-        "context is nearly gone so they can decide quickly."
-    ).format(used=used, limit=limit, route=route)
+        "past the {limit} severe mark, so it is close to the wall. Treat high "
+        "context as a continuity-versus-freshness checkpoint. {continuity} "
+        "{freshness} If you ask the user, say plainly that context is nearly "
+        "gone so they can decide quickly."
+    ).format(used=used, limit=limit, continuity=continuity, freshness=freshness)
 else:
     head = (
         "Context check: this session has used about {used} tokens, past the "
-        "{limit} mark. Decide whether now is a good moment to hand the work "
-        "over with {route}."
-    ).format(used=used, limit=limit, route=route)
+        "{limit} mark. Treat high context as a continuity-versus-freshness "
+        "checkpoint. {continuity} {freshness}"
+    ).format(used=used, limit=limit, continuity=continuity, freshness=freshness)
 
 reason = head + " " + DECIDE_TAIL
 

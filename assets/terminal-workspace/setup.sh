@@ -36,6 +36,7 @@ PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 # pi's override, so look where it writes.
 PI_RETRO_EXT="${PI_HOME:-$HOME/.pi}/agent/extensions/agentic-retro.ts"
 PI_MAPFLOW="npm:mapflow"
+PI_BILLION="npm:billion-context"
 # A line starting with # is a heading in markdown, and the model reads it. An
 # HTML comment carries the same marker and renders as nothing.
 PI_MD_BEGIN="<!-- >>> mapflow terminal-workspace >>> -->"
@@ -3594,6 +3595,58 @@ pi_mapflow_behind() {
   printf '%s\t%s' "$pin" "$ver"
 }
 
+bili_bin() {
+  if [ -x "$PI_DIR/npm/node_modules/.bin/bili" ]; then
+    printf '%s' "$PI_DIR/npm/node_modules/.bin/bili"
+  elif have bili; then
+    command -v bili
+  else
+    return 1
+  fi
+}
+
+bili_status() {  # bili_status <bin> <client> -> installed|absent|unknown
+  local line
+  line=$("$1" plugin list 2>/dev/null | awk -v c="$2" '$1==c{print; exit}') || true
+  [ -n "$line" ] || { echo unknown; return 0; }
+  case "$line" in *"not installed"*) echo absent ;; *) echo installed ;; esac
+}
+
+bili_client() {  # bili_client install|remove <client>
+  local op="$1" client="$2" bin marker status
+  marker="bili:$client"
+  if [ "$op" = "install" ]; then
+    [ "$client" = "pi" ] || have "$client" || return 0
+    pi_state owns file "$marker" && return 0
+    if bin=$(bili_bin); then
+      status=$(bili_status "$bin" "$client")
+      if [ "$status" = "installed" ]; then
+        say "pi: billion-context already enabled for $client"
+        return 0
+      fi
+      if "$bin" plugin install "$client" >/dev/null 2>&1; then
+        pi_state own file "$marker"
+        say "pi: billion-context enabled for $client"
+      else
+        say "pi: billion-context $client setup failed, run: bili plugin install $client"
+      fi
+    else
+      say "pi: bili command not found, so billion-context $client setup was skipped"
+    fi
+  elif pi_state owns file "$marker"; then
+    if bin=$(bili_bin); then
+      if "$bin" plugin remove "$client" >/dev/null 2>&1; then
+        pi_state disown file "$marker"
+        say "pi: billion-context disabled for $client"
+      else
+        say "pi: billion-context $client removal failed, run: bili plugin remove $client"
+      fi
+    else
+      say "pi: bili command not found, so billion-context $client setup was left installed"
+    fi
+  fi
+}
+
 apply_pi() {
   find_pi
   if ! have pi; then
@@ -3617,6 +3670,27 @@ apply_pi() {
 
   # Mapflow cannot launch a subagent on pi without pi-subagents.
   pi_add npm:pi-subagents npm:pi-subagents
+  if [ "$(cfg_get pi.todo true)" = "true" ]; then
+    pi_add npm:@juicesharp/rpiv-todo npm:@juicesharp/rpiv-todo
+  else
+    pi_drop npm:@juicesharp/rpiv-todo
+  fi
+  if [ "$(cfg_get pi.plugin_manager true)" = "true" ]; then
+    pi_add npm:pi-plugin-manager npm:pi-plugin-manager
+  else
+    pi_drop npm:pi-plugin-manager
+  fi
+  if [ "$(cfg_get pi.billion_context true)" = "true" ]; then
+    pi_add "$PI_BILLION" "$PI_BILLION"
+    bili_client install pi
+    bili_client install claude
+    bili_client install codex
+  else
+    bili_client remove codex
+    bili_client remove claude
+    bili_client remove pi
+    pi_drop "$PI_BILLION"
+  fi
   if [ "$(cfg_get pi.question_tool true)" = "true" ]; then
     pi_add npm:@juicesharp/rpiv-ask-user-question npm:@juicesharp/rpiv-ask-user-question
   else
@@ -3680,6 +3754,12 @@ remove_pi() {
   if pi_state parses "$PI_SETTINGS"; then
     pi_unpin "$PI_MAPFLOW"
     pi_drop "$PI_MAPFLOW"
+    bili_client remove codex
+    bili_client remove claude
+    bili_client remove pi
+    pi_drop "$PI_BILLION"
+    pi_drop npm:pi-plugin-manager
+    pi_drop npm:@juicesharp/rpiv-todo
     pi_drop npm:pi-compact-tools
     pi_drop npm:@juicesharp/rpiv-ask-user-question
     pi_drop npm:pi-web-access
@@ -3719,6 +3799,9 @@ gh-dash	gh_dash	ghext	dlvhdr/gh-dash	-
 harlequin	harlequin	pypi	harlequin	-
 pi	pi	npm	@earendil-works/pi-coding-agent	-
 pi-subagents	pi	npm	pi-subagents	-
+billion-context	pi	npm	billion-context	-
+@juicesharp/rpiv-todo	pi	npm	@juicesharp/rpiv-todo	-
+pi-plugin-manager	pi	npm	pi-plugin-manager	-
 @juicesharp/rpiv-ask-user-question	pi	npm	@juicesharp/rpiv-ask-user-question	-
 pi-web-access	pi	npm	pi-web-access	-
 pi-compact-tools	pi	npm	pi-compact-tools	-
@@ -3753,7 +3836,7 @@ installed_version() {  # installed_version <name> -> a bare version, or nothing
     # 1.1.0
     pi)        find_pi; v=$(pi --version 2>/dev/null | awk '{print $NF}') ;;
     # pi installs npm packages under its own directory, not npm's global one.
-    pi-subagents|pi-compact-tools|pi-web-access|@juicesharp/rpiv-ask-user-question)
+    pi-subagents|pi-compact-tools|pi-web-access|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
                v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
   esac
   printf '%s' "${v#v}"
@@ -3899,7 +3982,7 @@ upgrade_one() {  # upgrade_one <name>
     # With no target, pi update updates pi itself and no package.
     pi)        pi update >/dev/null 2>&1 \
                  && say "pi updated" || say "pi update failed" ;;
-    pi-subagents|pi-compact-tools|pi-web-access|@juicesharp/rpiv-ask-user-question)
+    pi-subagents|pi-compact-tools|pi-web-access|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
       if pi_npm_pin "$1"; then
         say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
         return 0
@@ -3984,7 +4067,7 @@ case "$ACTION" in
     if have pi || [ "$(cfg_get pi.enabled false)" = "true" ]; then
       echo
       have pi && say "pi: $(installed_version pi)" || say "pi: not installed"
-      for id in npm:pi-subagents "$PI_MAPFLOW" npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access npm:pi-compact-tools; do
+      for id in npm:pi-subagents "$PI_MAPFLOW" "$PI_BILLION" npm:@juicesharp/rpiv-todo npm:pi-plugin-manager npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access npm:pi-compact-tools; do
         src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
       done
       [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \

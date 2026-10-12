@@ -30,7 +30,7 @@ flowchart LR
 Where the plugin lives, and what points at it:
 
 - The plugin lives at `${CLAUDE_PLUGIN_ROOT}` once the user installs it via the marketplace
-- On most installs that resolves to `~/.claude/plugins/cache/spechub/mapflow/<version>/`
+- On most installs that resolves to `~/.claude/plugins/cache/mapflow/mapflow/<version>/`
 - `~/.claude/mapflow/bin/mapflow` is the **agent-facing** invariant path
     - Every skill and agent in this plugin invokes the CLI through this exact path
     - It does not depend on the user's `PATH`
@@ -51,7 +51,7 @@ Where the plugin lives, and what points at it:
 
 ```bash
 ls -l ~/.claude/mapflow/bin/mapflow 2>&1
-ls -d ~/.claude/plugins/cache/spechub/mapflow/*/ 2>&1
+ls -d ~/.claude/plugins/cache/mapflow/mapflow/*/ 2>&1
 ```
 
 **Possible causes and fixes**:
@@ -62,9 +62,9 @@ ls -d ~/.claude/plugins/cache/spechub/mapflow/*/ 2>&1
     - The hook creates the symlink and prints `mapflow: linked agent CLI at ...`
     - Create it by hand if that does not work:
         ```bash
-        MAPFLOW_VERSION=$(ls ~/.claude/plugins/cache/spechub/mapflow/ | sort -V | tail -1)
+        MAPFLOW_VERSION=$(ls ~/.claude/plugins/cache/mapflow/mapflow/ | sort -V | tail -1)
         mkdir -p ~/.claude/mapflow/bin
-        ln -sfn ~/.claude/plugins/cache/spechub/mapflow/$MAPFLOW_VERSION/cli/bin/mapflow.js ~/.claude/mapflow/bin/mapflow
+        ln -sfn ~/.claude/plugins/cache/mapflow/mapflow/$MAPFLOW_VERSION/cli/bin/mapflow.js ~/.claude/mapflow/bin/mapflow
         ```
 
 - **Plugin cache missing entirely**: the second `ls` returned nothing
@@ -111,8 +111,8 @@ echo "PATH=$PATH" | tr ':' '\n' | grep -F "$HOME/.local/bin" || echo "MISSING"
 **Diagnose**:
 
 ```bash
-MAPFLOW_VERSION=$(ls ~/.claude/plugins/cache/spechub/mapflow/ | sort -V | tail -1)
-ls ~/.claude/plugins/cache/spechub/mapflow/$MAPFLOW_VERSION/cli/dist/index.js 2>&1
+MAPFLOW_VERSION=$(ls ~/.claude/plugins/cache/mapflow/mapflow/ | sort -V | tail -1)
+ls ~/.claude/plugins/cache/mapflow/mapflow/$MAPFLOW_VERSION/cli/dist/index.js 2>&1
 ```
 
 **Cause**: the plugin cache holds a version from before the CLI shipped bundled in the repo, meaning before 0.9.2. This should not happen on 0.9.2 or later.
@@ -123,17 +123,17 @@ ls ~/.claude/plugins/cache/spechub/mapflow/$MAPFLOW_VERSION/cli/dist/index.js 2>
     - Run `/plugin` in Claude Code and reinstall the plugin
     - Or delete the cache directory and let Claude Code repull:
         ```bash
-        rm -rf ~/.claude/plugins/cache/spechub/mapflow/<old-version>
+        rm -rf ~/.claude/plugins/cache/mapflow/mapflow/<old-version>
         ```
 
 - Confirm the user is on plugin version 0.9.2 or later:
     ```bash
-    cat ~/.claude/plugins/cache/spechub/mapflow/*/.claude-plugin/plugin.json | grep version
+    cat ~/.claude/plugins/cache/mapflow/mapflow/*/.claude-plugin/plugin.json | grep version
     ```
 
 - Build the CLI in place as a one-shot, if the user is offline or cannot repull:
     ```bash
-    cd ~/.claude/plugins/cache/spechub/mapflow/<version>/cli
+    cd ~/.claude/plugins/cache/mapflow/mapflow/<version>/cli
     npm install
     npm run build
     ```
@@ -148,7 +148,7 @@ ls ~/.claude/plugins/cache/spechub/mapflow/$MAPFLOW_VERSION/cli/dist/index.js 2>
 
 ```bash
 readlink ~/.claude/mapflow/bin/mapflow
-ls ~/.claude/plugins/cache/spechub/mapflow/
+ls ~/.claude/plugins/cache/mapflow/mapflow/
 ```
 
 **Cause**: an older session set the symlink target. The plugin cache now holds a newer version. The SessionStart hook has not relinked it yet.
@@ -159,9 +159,9 @@ ls ~/.claude/plugins/cache/spechub/mapflow/
     - The SessionStart hook detects a stale symlink and relinks it, printing `mapflow: updated agent CLI at ...`
 - Or relink by hand:
     ```bash
-    NEW=$(ls ~/.claude/plugins/cache/spechub/mapflow/ | sort -V | tail -1)
-    ln -sfn ~/.claude/plugins/cache/spechub/mapflow/$NEW/cli/bin/mapflow.js ~/.claude/mapflow/bin/mapflow
-    ln -sfn ~/.claude/plugins/cache/spechub/mapflow/$NEW/cli/bin/mapflow.js ~/.local/bin/mapflow
+    NEW=$(ls ~/.claude/plugins/cache/mapflow/mapflow/ | sort -V | tail -1)
+    ln -sfn ~/.claude/plugins/cache/mapflow/mapflow/$NEW/cli/bin/mapflow.js ~/.claude/mapflow/bin/mapflow
+    ln -sfn ~/.claude/plugins/cache/mapflow/mapflow/$NEW/cli/bin/mapflow.js ~/.local/bin/mapflow
     ```
 
 ---
@@ -173,7 +173,7 @@ ls ~/.claude/plugins/cache/spechub/mapflow/
 **Diagnose**:
 
 ```bash
-cat ~/.claude/plugins/cache/spechub/mapflow/*/hooks/hooks.json
+cat ~/.claude/plugins/cache/mapflow/mapflow/*/hooks/hooks.json
 ```
 
 **Cause**: the user has not enabled the plugin, or they have disabled hook execution in their Claude Code settings.
@@ -217,8 +217,8 @@ brew install python3
 The CLI is a normal Node.js ESM package. To validate the install end to end:
 
 ```bash
-MAPFLOW_VERSION=$(ls ~/.claude/plugins/cache/spechub/mapflow/ | sort -V | tail -1)
-node ~/.claude/plugins/cache/spechub/mapflow/$MAPFLOW_VERSION/cli/bin/mapflow.js --help
+MAPFLOW_VERSION=$(ls ~/.claude/plugins/cache/mapflow/mapflow/ | sort -V | tail -1)
+node ~/.claude/plugins/cache/mapflow/mapflow/$MAPFLOW_VERSION/cli/bin/mapflow.js --help
 ```
 
 - If that prints help, the CLI is fine and the issue is the symlink
