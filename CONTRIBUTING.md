@@ -324,6 +324,9 @@ node scripts/gen-pi-agents.mjs
 *Two layers, two commands.*
 
 - Run `cd cli && npm test` for the CLI tests
+    - The full run takes a few minutes, mostly `src/commands/config.test.ts`, which starts the real CLI for each test
+    - Run one file while you work: `cd cli && npm test -- src/lib/diagram.test.ts`
+    - The script pins `--pool=threads` – the default pool can fail with `Timeout calling "onTaskUpdate"` after every test passes
 - Run `bash tests/run-all.sh` for the hook suites
 
 ## 6. Releasing
