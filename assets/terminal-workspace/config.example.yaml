@@ -206,6 +206,15 @@ pi:
   enabled: false
   # pi-compact-tools, which shortens how pi draws each tool call.
   compact_tools: true
+  # Pi's question tool. rpiv-ask-user-question is used because it can show
+  # markdown, code and artifact previews beside a decision, accepts freeform
+  # answers and notes, and does not require a full-event telemetry env var.
+  question_tool: true
+  # pi-web-access, which adds web search, URL fetching, GitHub repo cloning,
+  # PDF extraction and media understanding tools to pi. This is separate from
+  # pi.settings.install_telemetry, which controls pi's anonymous install and
+  # update reporting and stays false in this example.
+  web_access: true
   # agentic-retro's pi extension, which queues each finished pi session for a
   # retro. Needs the agentic-retro plugin installed first, and apply says so
   # when it is not.
@@ -219,7 +228,7 @@ pi:
     # How pi draws a mermaid diagram: "off", "final", or "streaming".
     # Quote it, because YAML reads a bare off as false.
     mermaid: streaming
-    # pi's anonymous install and update reporting.
+    # pi's anonymous install and update reporting. Kept off by this setup.
     install_telemetry: false
     # A pi theme name. "system" takes its colours from the terminal.
     theme: system
