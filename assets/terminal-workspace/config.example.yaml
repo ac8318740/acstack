@@ -206,10 +206,18 @@ pi:
   enabled: false
   # pi-compact-tools, which shortens how pi draws each tool call.
   compact_tools: true
+  # billion-context, which adds context compression to pi. When bili is on
+  # PATH, apply also runs bili's native plugin setup for pi, Claude Code and
+  # Codex when this device has those clients.
+  billion_context: true
   # Pi's question tool. rpiv-ask-user-question is used because it can show
   # markdown, code and artifact previews beside a decision, accepts freeform
   # answers and notes, and does not require a full-event telemetry env var.
   question_tool: true
+  # rpiv-todo, which adds a todo tool to pi.
+  todo: true
+  # pi-plugin-manager, which adds pi plugin management commands.
+  plugin_manager: true
   # pi-web-access, which adds web search, URL fetching, GitHub repo cloning,
   # PDF extraction and media understanding tools to pi. This is separate from
   # pi.settings.install_telemetry, which controls pi's anonymous install and

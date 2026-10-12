@@ -1,6 +1,6 @@
 {
   "name": "spechub",
-  "version": "0.44.0",
+  "version": "0.44.1",
   "private": true,
   "description": "Spec-driven TDD workflow for pi: skills, the orchestrator prompt, and the test-writer, task-executor, task-checker and frontend-verifier subagents.",
   "license": "MIT",
