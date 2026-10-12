@@ -354,6 +354,16 @@ What `apply` does:
 - It installs SpecHub into pi, pinned to the version of this plugin
     - Re-running `apply` after a plugin update moves the pin forward, and never back
 - It installs `pi-subagents`, which SpecHub on pi needs to launch a subagent
+- It installs `@juicesharp/rpiv-ask-user-question` as pi's question tool by default
+    - SpecHub uses it because decisions can include markdown, code and artifact previews
+    - It accepts freeform answers and notes, and needs no full-event telemetry environment variable
+    - This setup still keeps pi's install telemetry disabled through `pi.settings.install_telemetry: false`
+    - Set `pi.question_tool: false` to leave it out, or to remove it later if this setup installed it
+- It installs `pi-web-access` by default for Pi web search and web access
+    - The package is `pi-web-access` from `nicobailon/pi-web-access`
+    - It adds web search, URL fetching, GitHub repo cloning, PDF extraction and media understanding tools to pi
+    - This is separate from pi's anonymous install and update reporting; `pi.settings.install_telemetry: false` still controls that telemetry setting
+    - Set `pi.web_access: false` to leave it out, or to remove it later if this setup installed it
 - It installs `pi-compact-tools` and runs `agentic-retro install-pi`, each behind its own toggle
     - The agentic-retro step needs the agentic-retro plugin installed first, and `apply` says so when it is not
 - It writes the delegation line into pi's context file in `~/.pi/agent`, between HTML comment markers
@@ -376,7 +386,8 @@ How it treats pi's files:
     - A value you changed after `apply` stays as you set it
 - `apply` never touches `auth.json`
     - Run `pi`, then `/login`, yourself
-- `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether you are logged in
+- `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether `auth.json` exists
+- `setup.sh outdated` and `setup.sh upgrade` include `@juicesharp/rpiv-ask-user-question` and `pi-web-access` like pi's other npm packages
 
 ## 4. How you attach
 

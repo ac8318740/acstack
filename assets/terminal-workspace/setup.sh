@@ -3576,7 +3576,8 @@ pi_drop() {  # pi_drop <identity>
 # A package pi holds at a fixed version, such as npm:pi-subagents@1.0.0.
 pi_npm_pin() {  # pi_npm_pin <name>
   local src
-  case "$1" in pi-subagents|pi-compact-tools) ;; *) return 1 ;; esac
+  version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}' \
+    || return 1
   src=$(pi_state pkg "npm:$1") || return 1
   [ "$src" != "npm:$1" ]
 }
@@ -3616,6 +3617,16 @@ apply_pi() {
 
   # SpecHub cannot launch a subagent on pi without pi-subagents.
   pi_add npm:pi-subagents npm:pi-subagents
+  if [ "$(cfg_get pi.question_tool true)" = "true" ]; then
+    pi_add npm:@juicesharp/rpiv-ask-user-question npm:@juicesharp/rpiv-ask-user-question
+  else
+    pi_drop npm:@juicesharp/rpiv-ask-user-question
+  fi
+  if [ "$(cfg_get pi.web_access true)" = "true" ]; then
+    pi_add npm:pi-web-access npm:pi-web-access
+  else
+    pi_drop npm:pi-web-access
+  fi
   local ver cur; ver=$(spechub_version)
   if [ -n "$ver" ]; then
     if cur=$(pi_state pkg "$PI_SPECHUB") && [ -z "$(pi_spechub_behind)" ]; then
@@ -3670,6 +3681,8 @@ remove_pi() {
     pi_unpin "$PI_SPECHUB"
     pi_drop "$PI_SPECHUB"
     pi_drop npm:pi-compact-tools
+    pi_drop npm:@juicesharp/rpiv-ask-user-question
+    pi_drop npm:pi-web-access
     pi_drop npm:pi-subagents
   else
     say "pi: $PI_SETTINGS does not parse, so its packages were left installed"
@@ -3706,6 +3719,8 @@ gh-dash	gh_dash	ghext	dlvhdr/gh-dash	-
 harlequin	harlequin	pypi	harlequin	-
 pi	pi	npm	@earendil-works/pi-coding-agent	-
 pi-subagents	pi	npm	pi-subagents	-
+@juicesharp/rpiv-ask-user-question	pi	npm	@juicesharp/rpiv-ask-user-question	-
+pi-web-access	pi	npm	pi-web-access	-
 pi-compact-tools	pi	npm	pi-compact-tools	-
 T
 }
@@ -3738,7 +3753,7 @@ installed_version() {  # installed_version <name> -> a bare version, or nothing
     # 1.1.0
     pi)        find_pi; v=$(pi --version 2>/dev/null | awk '{print $NF}') ;;
     # pi installs npm packages under its own directory, not npm's global one.
-    pi-subagents|pi-compact-tools)
+    pi-subagents|pi-compact-tools|pi-web-access|@juicesharp/rpiv-ask-user-question)
                v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
   esac
   printf '%s' "${v#v}"
@@ -3870,7 +3885,10 @@ upgrade_from_table() {  # upgrade_from_table <name>
 }
 
 upgrade_one() {  # upgrade_one <name>
-  case "$1" in pi*) find_pi ;; esac
+  if [ "$1" = "pi-spechub" ] \
+     || version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}'; then
+    find_pi
+  fi
   case "$1" in
     herdr)     herdr update >/dev/null 2>&1 \
                  && say "herdr updated" || say "herdr update failed" ;;
@@ -3881,7 +3899,7 @@ upgrade_one() {  # upgrade_one <name>
     # With no target, pi update updates pi itself and no package.
     pi)        pi update >/dev/null 2>&1 \
                  && say "pi updated" || say "pi update failed" ;;
-    pi-subagents|pi-compact-tools)
+    pi-subagents|pi-compact-tools|pi-web-access|@juicesharp/rpiv-ask-user-question)
       if pi_npm_pin "$1"; then
         say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
         return 0
@@ -3966,7 +3984,7 @@ case "$ACTION" in
     if have pi || [ "$(cfg_get pi.enabled false)" = "true" ]; then
       echo
       have pi && say "pi: $(installed_version pi)" || say "pi: not installed"
-      for id in npm:pi-subagents "$PI_SPECHUB" npm:pi-compact-tools; do
+      for id in npm:pi-subagents "$PI_SPECHUB" npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access npm:pi-compact-tools; do
         src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
       done
       [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \
