@@ -15,9 +15,9 @@ Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
 **IMPORTANT**: Explore mode is for thinking, not implementing.
 
-You may read files, search code, and investigate the codebase. You must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and map out the work with /spechub:map.
+You may read files, search code, and investigate the codebase. You must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and map out the work with /mapflow:map.
 
-You MAY create SpecHub artifacts (map nodes, specs, ADRs) if the user asks – that's capturing thinking, not implementing.
+You MAY create Mapflow artifacts (map nodes, specs, ADRs) if the user asks – that's capturing thinking, not implementing.
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
 
@@ -85,28 +85,28 @@ Depending on what the user brings, you might:
 
 ---
 
-## SpecHub awareness
+## Mapflow awareness
 
-You have full context of the SpecHub system. Use it naturally, don't force it.
+You have full context of the Mapflow system. Use it naturally, don't force it.
 
 ### Check for context
 
 At the start, quickly check what exists – maps on the configured tracker
-(`ls spechub/maps/` on the files backend) and living specs
-(`~/.claude/spechub/bin/spechub list --specs --json`).
+(`ls mapflow/maps/` on the files backend) and living specs
+(`~/.claude/mapflow/bin/mapflow list --specs --json`).
 
 ### When no map exists
 
 Think freely. When insights crystallize, you might offer:
 
-- "This feels solid enough to start. Want me to chart it with /spechub:map?"
+- "This feels solid enough to start. Want me to chart it with /mapflow:map?"
 - Or keep exploring – no pressure to formalize
 
 ### When a map exists
 
 If the user mentions a map or you detect one is relevant:
 
-1. Orient with the packaging walk (`spechub node walk --map <name>`)
+1. Orient with the packaging walk (`mapflow node walk --map <name>`)
     - On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
       map skill's `trackers/github.md`
 2. Reference them naturally in conversation

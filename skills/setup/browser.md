@@ -24,7 +24,7 @@ entry for any mode the machine declares unavailable, then ask the rest.
     {"label": "Remote browser (Playwriter bridge)", "description": "Best experience – drive Chrome on your desktop/laptop via the Playwriter extension over SSH. Choose this if you develop on a remote VM."},
     {"label": "Headless (automatic)", "description": "The frontend-verifier launches headless Chromium when needed. No setup required. Choose this for CI or if you don't need to see the browser."},
     {"label": "Local with display", "description": "Launch a visible browser on this machine. Choose this for desktop Linux, macOS, or WSL with display access."},
-    {"label": "Skip for now", "description": "I'll set this up later – /spechub:host to declare what this machine can do, /spechub:setup for the project's preference"}
+    {"label": "Skip for now", "description": "I'll set this up later – /mapflow:host to declare what this machine can do, /mapflow:setup for the project's preference"}
   ]
 }
 ```
@@ -33,8 +33,8 @@ Write the answer as `remote`, `headless` or `local`. Write the port beside it:
 `19988` for `remote`, and `9555` for the other two.
 
 ```bash
-~/.claude/spechub/bin/spechub config set frontend.browser.mode remote
-~/.claude/spechub/bin/spechub config set frontend.browser.cdp_port 19988
+~/.claude/mapflow/bin/mapflow config set frontend.browser.mode remote
+~/.claude/mapflow/bin/mapflow config set frontend.browser.cdp_port 19988
 ```
 
 Then write `agent-browser.json` with the same port, the way Step 9c in `row-fixes.md` does.
@@ -111,10 +111,10 @@ Show these gotchas after the steps:
   `playwriter serve --host 127.0.0.1 --replace` to kick the previous one.
 
 For a Windows laptop setup that opens no window, see
-`plugins/spechub/docs/playwriter-bridge-windows.md`. It covers auto-reconnecting
+`plugins/mapflow/docs/playwriter-bridge-windows.md`. It covers auto-reconnecting
 scheduled tasks, ssh-agent key persistence and one-time admin registration. It
 ships `relay.ps1`, `tunnel.ps1` and `register-tasks.ps1` under
-`plugins/spechub/assets/playwriter-bridge/`.
+`plugins/mapflow/assets/playwriter-bridge/`.
 
 Then re-run the health check from Step 7 and read the `browser-mode:remote` row.
 It passes once something answers on the port.

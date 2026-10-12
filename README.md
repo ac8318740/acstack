@@ -1,22 +1,22 @@
-# SpecHub
+# Mapflow
 
-SpecHub is a Claude Code plugin. It makes Claude plan before it codes, write the tests before the implementation, and keep your docs matching the code.
+Mapflow is a Claude Code plugin. It makes Claude plan before it codes, write the tests before the implementation, and keep your docs matching the code.
 
-- **SpecHub aims to solve two common failure modes Claude introduces when coding**
+- **Mapflow aims to solve two common failure modes Claude introduces when coding**
     - Claude starts building before the requirements are clear
     - Claude writes code, then creates tests that pass against the code it just wrote
-- **SpecHub introduces structure around how your agent works**
+- **Mapflow introduces structure around how your agent works**
     - Every change goes through a test-writer, an implementer, and a checker
     - Every commit updates your specs from the diff
 - **Downside: this structure may make your agent take longer on small tweaks than necessary**
 
 ```mermaid
 flowchart TD
-    Q{"What kind of<br/>request is this?"} -->|"clear enough to build"| IM["Build it<br/>(/spechub:implement)"]
-    Q -->|"something stopped working"| QF["Find the root cause first<br/>(/spechub:quick-fix)"]
-    Q -->|"still has open questions"| MP["Answer them first<br/>(/spechub:map)"]
+    Q{"What kind of<br/>request is this?"} -->|"clear enough to build"| IM["Build it<br/>(/mapflow:implement)"]
+    Q -->|"something stopped working"| QF["Find the root cause first<br/>(/mapflow:quick-fix)"]
+    Q -->|"still has open questions"| MP["Answer them first<br/>(/mapflow:map)"]
     MP -->|"once the questions are answered"| IM
-    IM --> C["Commit, and update the docs<br/>(/spechub:commit)"]
+    IM --> C["Commit, and update the docs<br/>(/mapflow:commit)"]
     QF --> C
 ```
 
@@ -42,18 +42,18 @@ You need the [Claude Code](https://claude.com/claude-code) CLI and Node.js 20 or
 Install the plugin:
 
 ```
-/plugin marketplace add ac8318740/ac-agentic-coding
-/plugin install spechub@ac-agentic-coding
+/plugin marketplace add ac8318740/spechub
+/plugin install mapflow@mapflow
 ```
 
 Then, in your project:
 
 ```
-/spechub:setup
+/mapflow:setup
 ```
 
-- `/spechub:setup` detects the project type, then writes `spechub/project.yaml` with workflow settings
-- The SessionStart hook loads the orchestrator instructions whenever it detects a spechub project
+- `/mapflow:setup` detects the project type, then writes `mapflow/project.yaml` with workflow settings
+- The SessionStart hook loads the orchestrator instructions whenever it detects a mapflow project
 - Your CLAUDE.md stays clean for project-specific content
 - Upgrading from a version before 0.8.0 means deleting one stale `@import` line (see [docs/migrate-0.8.md](docs/migrate-0.8.md))
 
@@ -63,40 +63,40 @@ Then, in your project:
 
 ```
 pi install npm:pi-subagents
-pi install git:github.com/ac8318740/spechub@v0.43.0
+pi install npm:mapflow
 ```
 
-Then, in your project, run `/spechub:setup`.
+Then, in your project, run `/mapflow:setup`.
 
-- Every skill runs under the same name as on Claude Code, e.g. `/spechub:map`
-    - `/spechub map` does the same
-    - Both always run the SpecHub skill, even when another pi package has a skill called `map`
-- SpecHub's skills deliberately don't appear as `/skill:<name>` commands
-    - The package gives pi no skills, so `/skill:map` never runs SpecHub's map
+- Every skill runs under the same name as on Claude Code, e.g. `/mapflow:map`
+    - `/mapflow map` does the same
+    - Both always run the Mapflow skill, even when another pi package has a skill called `map`
+- Mapflow's skills deliberately don't appear as `/skill:<name>` commands
+    - The package gives pi no skills, so `/skill:map` never runs Mapflow's map
     - The extension lists the skills in the system prompt instead, so the model still reads one when the task matches
 - `pi/extension.ts` does what the Claude Code hooks do
-    - It links the CLI at `~/.claude/spechub/bin/spechub`
-    - It adds the orchestrator instructions to the system prompt in a spechub project
-    - It lists SpecHub's skills in the system prompt in every session
+    - It links the CLI at `~/.claude/mapflow/bin/mapflow`
+    - It adds the orchestrator instructions to the system prompt in a mapflow project
+    - It lists Mapflow's skills in the system prompt in every session
     - It re-injects a handoff after a compaction
     - It nudges with a continuity-versus-freshness checkpoint as the context fills
         - Continuity keeps useful working context in the same session, using billion-context or host ACP compression when available
-        - Freshness uses `/spechub:handoff` when a fresh window or independent read helps more
+        - Freshness uses `/mapflow:handoff` when a fresh window or independent read helps more
         - With no thresholds set, the first nudge comes at 200k tokens or half the window, whichever is lower
         - The urgent nudge comes at 500k tokens or 80% of the window, whichever is lower
 - `pi-subagents` finds the four agents through the `pi.subagents` field in `package.json`
     - The agents use your `pi-subagents` default model
-    - SpecHub warns at session start when `pi-subagents` is missing
+    - Mapflow warns at session start when `pi-subagents` is missing
 - Allow delegation in `~/.pi/agent/AGENTS.md` – `pi-subagents` only delegates when your request or your instructions allow it:
 
     ```
-    When a SpecHub skill or the SpecHub orchestrator says to launch a subagent, you may delegate to it.
+    When a Mapflow skill or the Mapflow orchestrator says to launch a subagent, you may delegate to it.
     ```
 
     - Set `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json` to offer the `subagent` tool from the first turn (restart pi after)
 - pi has no output styles, so the writing style is a toggle
-    - Run `/spechub-writing-style on` to add it to every pi session
-    - Run `/spechub-writing-style off` to remove it
+    - Run `/mapflow-writing-style on` to add it to every pi session
+    - Run `/mapflow-writing-style off` to remove it
 
 ## 2. The three commands, and which one to use
 
@@ -104,17 +104,17 @@ Then, in your project, run `/spechub:setup`.
 
 Two words first, because the third command below uses them.
 
-- **A map** is a to-do graph SpecHub keeps for one piece of work
+- **A map** is a to-do graph Mapflow keeps for one piece of work
 - **A node** is one entry on that graph: one question to answer, or one piece of work to do
 
 The three commands:
 
-- **The request is clear enough to build** – run `/spechub:implement`
+- **The request is clear enough to build** – run `/mapflow:implement`
     - It runs the four agents of section 6 on your request
     - A one-line change stays a one-line change
-- **Something already built stopped working** – run `/spechub:quick-fix`
+- **Something already built stopped working** – run `/mapflow:quick-fix`
     - It makes Claude find the root cause before it edits anything
-- **The request still has open questions** – run `/spechub:map`
+- **The request still has open questions** – run `/mapflow:map`
     - Claude interviews you one round at a time
     - Each round asks every question it can answer next
     - Each question comes with Claude's recommended answer
@@ -127,7 +127,7 @@ The three commands:
 
 ### 2.1. What a map holds
 
-*`/spechub:map` builds a map only when a single conversation cannot settle every question.*
+*`/mapflow:map` builds a map only when a single conversation cannot settle every question.*
 
 Each node carries one of five statuses.
 
@@ -144,11 +144,11 @@ Each node also records six things.
 - **Which earlier answer led to this question**
     - You can read the decisions back in the order you made them
 - **Which other nodes have to finish before this one starts**
-    - SpecHub uses that to tell you what is ready to start
+    - Mapflow uses that to tell you what is ready to start
 - **Who answers it**: you, or Claude working alone
 - **What kind it is**: a destination, a standing note, a decision, research, or work
 - **A short name**, which labels the node in a diagram
-- **Where it lives**: a GitHub issue by default, or a markdown file under `spechub/maps/` with no GitHub remote
+- **Where it lives**: a GitHub issue by default, or a markdown file under `mapflow/maps/` with no GitHub remote
 
 Almost every node explains itself with a diagram.
 
@@ -157,14 +157,14 @@ Almost every node explains itself with a diagram.
 - A legend sits under each diagram, showing only the symbols that diagram uses
 - On GitHub you click a node in the diagram to open its issue
 
-Two things SpecHub does with a finished map.
+Two things Mapflow does with a finished map.
 
 - **It works through the nodes that are ready to start**, meaning the open ones with nothing unfinished blocking them
-    - SpecHub calls that set the **frontier**
+    - Mapflow calls that set the **frontier**
 - **It packs the whole map into a single brief**
     - A fresh Claude session picks up where the last one stopped
 
-Every rule in SpecHub exists because something went wrong without it, over months of real product development with Claude Code.
+Every rule in Mapflow exists because something went wrong without it, over months of real product development with Claude Code.
 
 For the full picture of each step and how they connect, read [docs/workflows.md](docs/workflows.md).
 
@@ -172,48 +172,48 @@ For the full picture of each step and how they connect, read [docs/workflows.md]
 
 *The project states what to run. The machine states what it can do.*
 
-- `spechub/project.yaml` holds every project-scoped setting
+- `mapflow/project.yaml` holds every project-scoped setting
     - [docs/config-reference.md](docs/config-reference.md) gives each key, its values, its default and what changes
-- `~/.config/spechub/config.json` holds the nine `host.*` axes
-    - `/spechub:host` writes eight of them once per machine, and `/spechub:setup` writes the ninth
+- `~/.config/mapflow/config.json` holds the nine `host.*` axes
+    - `/mapflow:host` writes eight of them once per machine, and `/mapflow:setup` writes the ninth
     - [docs/dev-setups.md](docs/dev-setups.md) gives every axis, what reads it, and how to describe a fresh machine
-- `/spechub:setup` copies the commands and directories from one of three language profiles
+- `/mapflow:setup` copies the commands and directories from one of three language profiles
     - **python** – pytest, ruff, mypy
     - **node-typescript** – npm test, eslint, tsc
     - **fullstack-python** – Python backend, plus a Node or TypeScript frontend
-- `spechub config check` audits the project and the machine
+- `mapflow config check` audits the project and the machine
     - It exits 2 when a required host axis has no value
 
 ## 4. The CLI
 
 *Four storage operations carry the whole map. One fixed path makes the CLI reachable from any Claude session.*
 
-SpecHub ships a Node.js CLI: `spechub config`, `spechub list`, `spechub node ...`, and `spechub archive`.
+Mapflow ships a Node.js CLI: `mapflow config`, `mapflow list`, `mapflow node ...`, and `mapflow archive`.
 
 - The storage behind a map provides four operations and nothing more: create, read, update, list
     - GitHub issues are the default
         - The first line of every issue body carries all of that node's edges
         - One call therefore reads the whole map
         - A sub-issue and an issue dependency mirror those edges, so GitHub's own interface draws the map
-    - Markdown files are the fallback, one per node under `spechub/maps/<name>/`
+    - Markdown files are the fallback, one per node under `mapflow/maps/<name>/`
 - The CLI builds everything else on those four operations
-    - `spechub node frontier` lists what is ready to start now, closest to the original goal first
-    - `spechub node walk` packs the whole map into one brief for a fresh session, in the order the decisions happened
+    - `mapflow node frontier` lists what is ready to start now, closest to the original goal first
+    - `mapflow node walk` packs the whole map into one brief for a fresh session, in the order the decisions happened
     - The brief always includes the original goal, plus any node you marked as worth carrying along
-    - `spechub node diagram` draws a map, or any part of one, as a mermaid diagram with a legend under it
+    - `mapflow node diagram` draws a map, or any part of one, as a mermaid diagram with a legend under it
     - The skills claim and resolve a node with `update` calls
 
 Two symlinks reach the CLI. The SessionStart hook maintains both.
 
-- `~/.claude/spechub/bin/spechub` is the fixed path every skill and agent calls
+- `~/.claude/mapflow/bin/mapflow` is the fixed path every skill and agent calls
     - Agents therefore do not depend on your shell `PATH`
     - The CLI keeps working across plugin version bumps, non-interactive subshells and fresh agent contexts
-- `~/.local/bin/spechub` is for typing `spechub` at a terminal yourself
+- `~/.local/bin/mapflow` is for typing `mapflow` at a terminal yourself
     - Add `~/.local/bin` to your `PATH` to use it
     - The hook prints a one-line reminder when it is absent
     - Nothing in the plugin breaks without it
 
-If `spechub` does not run after install, read [TROUBLESHOOTING.md](TROUBLESHOOTING.md). A Claude Code session reads it and applies the fix directly.
+If `mapflow` does not run after install, read [TROUBLESHOOTING.md](TROUBLESHOOTING.md). A Claude Code session reads it and applies the fix directly.
 
 ## 5. Every skill
 
@@ -223,15 +223,15 @@ If `spechub` does not run after install, read [TROUBLESHOOTING.md](TROUBLESHOOTI
 
 | Skill | Description |
 |-------|-------------|
-| `/spechub:implement` | Build what is ready to start, running the four agents of section 6, whether or not a map exists |
+| `/mapflow:implement` | Build what is ready to start, running the four agents of section 6, whether or not a map exists |
 
-For work with open decisions, chart it with `/spechub:map` first.
+For work with open decisions, chart it with `/mapflow:map` first.
 
 ### 5.2. Planning
 
 | Skill | Description |
 |-------|-------------|
-| `/spechub:map` | Answer the open questions first, building the to-do graph on the first run and working through it after |
+| `/mapflow:map` | Answer the open questions first, building the to-do graph on the first run and working through it after |
 | `grilling` | The interview itself, asking every question it can answer next per round, each with a recommended answer (Claude invokes it) |
 | `record-context` | Writes a decision down when one lands: a short note, a glossary term, both, or neither (Claude invokes it) |
 
@@ -239,32 +239,32 @@ For work with open decisions, chart it with `/spechub:map` first.
 
 | Skill | Description |
 |-------|-------------|
-| `/spechub:commit` | Commit, and update the specs under `spechub/specs/` from the diff first |
-| `/spechub:archive` | Close a finished map, after checking the decisions reached your specs and notes, then delete the nodes |
-| `/spechub:sync` | Update the specs from code changes, outside a commit |
-| `/spechub:handoff` | Hand work to a visible agent, a new one in its own pane or one already running, with acknowledgement |
-| `/spechub:compact-and-continue` | Anchor the session's load-bearing state to survive compaction, then continue in place |
+| `/mapflow:commit` | Commit, and update the specs under `mapflow/specs/` from the diff first |
+| `/mapflow:archive` | Close a finished map, after checking the decisions reached your specs and notes, then delete the nodes |
+| `/mapflow:sync` | Update the specs from code changes, outside a commit |
+| `/mapflow:handoff` | Hand work to a visible agent, a new one in its own pane or one already running, with acknowledgement |
+| `/mapflow:compact-and-continue` | Anchor the session's load-bearing state to survive compaction, then continue in place |
 
-What an effort leaves behind is what matters: updated specs, decision notes, and glossary entries. SpecHub throws the nodes away.
+What an effort leaves behind is what matters: updated specs, decision notes, and glossary entries. Mapflow throws the nodes away.
 
 ### 5.4. Setup and supporting
 
 | Skill | Description |
 |-------|-------------|
-| `/spechub:setup` | Set up SpecHub in a project, and change how a project already set up is configured |
-| `/spechub:host` | Declare this machine's dev setup once, as the `host.*` axes |
-| `/spechub:bootstrap` | Write the first set of specs by reading your existing code |
-| `/spechub:explore` | Thinking partner mode, read-only |
-| `/spechub:quick-fix` | Structured bug fix workflow with root cause analysis |
-| `/spechub:pre-commit-review` | Deep quality review of all changes since last commit |
-| `/spechub:test-conventions` | Test placement rules and naming conventions |
-| `/spechub:code-review` | Linus Torvalds code philosophy for reviews |
-| `/spechub:browser-verify` | agent-browser command reference, CDP troubleshooting, and selector strategy |
-| `/spechub:bridge` | Set up and operate the Playwriter cross-device browser bridge |
-| `/spechub:visual-docs` | Write docs that lead with a diagram and derive structure from it (Minto pyramid) |
-| `/spechub:new-worktree` | Create a git worktree off the remote base branch and continue the task inside it |
-| `/spechub:teardown-worktree` | Retire finished worktrees and delete their merged local and remote branches |
-| `/spechub:terminal-workspace` | Set up a keyboard-only terminal for driving agents on a dev machine |
+| `/mapflow:setup` | Set up Mapflow in a project, and change how a project already set up is configured |
+| `/mapflow:host` | Declare this machine's dev setup once, as the `host.*` axes |
+| `/mapflow:bootstrap` | Write the first set of specs by reading your existing code |
+| `/mapflow:explore` | Thinking partner mode, read-only |
+| `/mapflow:quick-fix` | Structured bug fix workflow with root cause analysis |
+| `/mapflow:pre-commit-review` | Deep quality review of all changes since last commit |
+| `/mapflow:test-conventions` | Test placement rules and naming conventions |
+| `/mapflow:code-review` | Linus Torvalds code philosophy for reviews |
+| `/mapflow:browser-verify` | agent-browser command reference, CDP troubleshooting, and selector strategy |
+| `/mapflow:bridge` | Set up and operate the Playwriter cross-device browser bridge |
+| `/mapflow:visual-docs` | Write docs that lead with a diagram and derive structure from it (Minto pyramid) |
+| `/mapflow:new-worktree` | Create a git worktree off the remote base branch and continue the task inside it |
+| `/mapflow:teardown-worktree` | Retire finished worktrees and delete their merged local and remote branches |
+| `/mapflow:terminal-workspace` | Set up a keyboard-only terminal for driving agents on a dev machine |
 
 ## 6. Every agent
 
@@ -286,7 +286,7 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 
 *The plugin ships one output style. It applies the house standard to every chat reply.*
 
-- Claude Code shows the style as `spechub:ac-writing-style`
+- Claude Code shows the style as `mapflow:ac-writing-style`
 - It applies the `writing` skill's plain-language rules and the `visual-docs` skill's Minto pyramid and bullet discipline
 - A reply leads with the answer and puts 90% or more of what follows in bullets
 - Each bullet holds one sentence and ends without a period
@@ -295,7 +295,7 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 
 How to turn it on:
 
-- `/spechub:setup` offers the style on both paths
+- `/mapflow:setup` offers the style on both paths
     - On a new project it comes late
     - It is optional there
     - On a project already set up it is a health-check row
@@ -318,9 +318,9 @@ The style also ships a per-turn reminder:
 
 ## 8. Terminal workspace for driving several agents
 
-*An optional keyboard-only setup for running several agents on a remote machine. SpecHub works fine without it.*
+*An optional keyboard-only setup for running several agents on a remote machine. Mapflow works fine without it.*
 
-- `/spechub:terminal-workspace` installs every tool and writes every config
+- `/mapflow:terminal-workspace` installs every tool and writes every config
 - [docs/terminal-workspace.md](docs/terminal-workspace.md) gives the exact config, every key, and the traps worth knowing
 - The setup builds on herdr, a terminal multiplexer that keeps each agent's terminal running after you disconnect
     - You attach from your own machine with `herdr --remote`
@@ -340,7 +340,7 @@ The style also ships a per-turn reminder:
     - Only its instructions stop it reading the code it is testing
     - The two are not equally safe
     - That is why strict is the default
-- **Your docs never drift from the code** – `/spechub:commit` reads the diff and updates the specs under `spechub/specs/` in the same commit
+- **Your docs never drift from the code** – `/mapflow:commit` reads the diff and updates the specs under `mapflow/specs/` in the same commit
     - Any agent that spots a spec contradicting the code fixes the spec there and then
     - A spec describes what the code does today
     - It never describes what someone plans to build
@@ -348,21 +348,21 @@ The style also ships a per-turn reminder:
     - A typo fix gets no machinery
     - A month-long feature gets a map
     - You type the same command either way
-    - SpecHub works out which it is
+    - Mapflow works out which it is
 - **Planning gets more effort than coding** – three agents read the relevant code before anyone writes a line
     - Mock audits, regression suites and integration checks follow the implementation
-- **Strict defaults, easy to relax** – run `spechub config set` to change how strict the TDD is, how much Claude does itself, or how it asks you questions
+- **Strict defaults, easy to relax** – run `mapflow config set` to change how strict the TDD is, how much Claude does itself, or how it asks you questions
 
 ## 10. Licence and credits
 
 *[MIT](LICENSE). Four projects shaped the design.*
 
-- **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** – SpecHub forks its CLI from OpenSpec
+- **[OpenSpec](https://github.com/Fission-AI/OpenSpec)** – Mapflow forks its CLI from OpenSpec
     - OpenSpec was the core spec engine under the original workflow
-    - The spec-driven concepts all originate there: proposals, designs, tasks, living specs, change management, and archiving
+    - The map-based concepts all originate there: proposals, designs, tasks, living specs, change management, and archiving
 - **[Taskmaster AI](https://github.com/eyaltoledano/claude-task-master)** – Taskmaster's task management model inspired the orchestrator pattern and the agent coordination approach
 - **[Skills for Real Engineers](https://github.com/mattpocock/skills)** by Matt Pocock – the Wayfinder map, the round-by-round interview, and the durability rule for agent briefs
-    - SpecHub's node graph is a direct adaptation of Wayfinder
+    - Mapflow's node graph is a direct adaptation of Wayfinder
     - MIT licensed, and recorded in [THIRD_PARTY_NOTICES](THIRD_PARTY_NOTICES)
 - Additional inspiration comes from [Superpowers](https://github.com/obra/superpowers), [GSD](https://github.com/gsd-build/get-shit-done) and [Spec Kit](https://github.com/github/spec-kit)
 

@@ -17,7 +17,7 @@ You write tests from requirements and application programming interface (API) co
 
 ## When you run
 
-`workflow.tdd.strict` in `spechub/project.yaml` decides where you sit in the pipeline. The key reads as `true` unless the file says `false`.
+`workflow.tdd.strict` in `mapflow/project.yaml` decides where you sit in the pipeline. The key reads as `true` unless the file says `false`.
 
 Under `true` you run first. No implementation exists yet, so every test you write must fail. Verify that before you report.
 
@@ -37,7 +37,7 @@ Requirements alone are a weaker guarantee than the strict order gives, where no 
 
 ## Project configuration
 
-Read `spechub/project.yaml` for project-specific settings:
+Read `mapflow/project.yaml` for project-specific settings:
 
 - `directories.tests` – where to create test files
 - `directories.source` – source code root (for mirroring structure)

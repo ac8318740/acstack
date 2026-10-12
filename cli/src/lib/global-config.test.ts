@@ -18,7 +18,7 @@ let root: string;
 let configFile: string;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'spechub-global-config-'));
+  root = mkdtempSync(join(tmpdir(), 'mapflow-global-config-'));
   configFile = join(root, 'config.json');
 });
 
@@ -48,7 +48,7 @@ describe('HOST_AXES', () => {
       required: false,
       kind: 'boolean',
     });
-    // SpecHub works without the terminal workspace, so this is never
+    // Mapflow works without the terminal workspace, so this is never
     // required. It is recorded all the same, so a declined offer and an
     // unanswered one stop looking identical.
     expect(byKey['host.terminal_workspace']).toMatchObject({

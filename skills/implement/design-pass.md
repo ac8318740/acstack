@@ -9,7 +9,7 @@ states when steps 5 to 7 run. This file holds how to run them.
     You type the command yourself. impeccable's plugin loads it into your chat
     as a markdown playbook.
 
-    Read the design gate with `~/.claude/spechub/bin/spechub design-gate`.
+    Read the design gate with `~/.claude/mapflow/bin/mapflow design-gate`.
 
     The file list is the one the checker derived in its section 5.5, from
     `git status --porcelain -- <frontend.directory>`.

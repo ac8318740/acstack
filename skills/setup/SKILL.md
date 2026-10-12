@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Set up SpecHub in a project, and change how an already configured project is set up. With no spechub/project.yaml it detects the project type, writes the config, generates the domain map and offers browser verification. With one already there it leads with the health check, then offers to fix each row that failed. Both paths end in the same check, so it is safe to run on the first day and on any day after.
+description: Set up Mapflow in a project, and change how an already configured project is set up. With no mapflow/project.yaml it detects the project type, writes the config, generates the domain map and offers browser verification. With one already there it leads with the health check, then offers to fix each row that failed. Both paths end in the same check, so it is safe to run on the first day and on any day after.
 argument-hint: "[what to set up or change]"
 disable-model-invocation: true
 ---
@@ -18,10 +18,10 @@ join at the health check, so this skill states every fix once.
 
 ```mermaid
 flowchart TD
-    HOST["Step 1<br/>declare this machine"] --> FORK{"spechub/project.yaml<br/>is here?"}
+    HOST["Step 1<br/>declare this machine"] --> FORK{"mapflow/project.yaml<br/>is here?"}
     FORK -- no --> FIRST["Steps 3 to 6<br/>detect, ask, write the config"]
     FORK -- yes --> CHECK
-    FIRST --> CHECK["Step 7<br/>spechub config check --json"]
+    FIRST --> CHECK["Step 7<br/>mapflow config check --json"]
     CHECK --> MENU["Step 8<br/>offer the rows that need a fix"]
     MENU --> FIX["Step 9<br/>fix one row at a time"]
     FIX --> BROWSER["Steps 10 and 11<br/>browser mode, Playwriter bridge"]
@@ -32,7 +32,7 @@ flowchart TD
 
 Three terms, before they get used:
 
-- A **health check** is one run of `spechub config check`. It audits the machine
+- A **health check** is one run of `mapflow config check`. It audits the machine
   and the project. It changes nothing.
 
 - A **row** is one line of that report. It carries an `id`, a `status` and a
@@ -57,7 +57,7 @@ Those answers live in the global config under the `host.*` keys.
 Read what this machine declares:
 
 ```bash
-~/.claude/spechub/bin/spechub config get host
+~/.claude/mapflow/bin/mapflow config get host
 ```
 
 On exit 0 the command prints the declared axes, and Step 2 follows. Exit code 2
@@ -76,7 +76,7 @@ answers. Come back to Step 2 when it finishes.
 ## Step 2: Choose the path
 
 ```bash
-test -f spechub/project.yaml && echo present || echo absent
+test -f mapflow/project.yaml && echo present || echo absent
 ```
 
 - **absent** – take the first-run path. Go to Step 3.
@@ -103,7 +103,7 @@ In [`first-run.md`](first-run.md). Then go to Step 7.
 Both paths arrive here. Run the check and read its JSON:
 
 ```bash
-~/.claude/spechub/bin/spechub config check --json
+~/.claude/mapflow/bin/mapflow config check --json
 ```
 
 That path is a symlink into the released plugin cache, so it carries the shipped
@@ -113,7 +113,7 @@ CLI. An agent testing this branch before the release runs
 It prints one object to standard output and nothing else:
 
 ```json
-{"checks": [{"id": "domain-map", "status": "pass", "message": "spechub/domain-map.yaml maps 4 domains"}]}
+{"checks": [{"id": "domain-map", "status": "pass", "message": "mapflow/domain-map.yaml maps 4 domains"}]}
 ```
 
 Each `status` is `pass`, `fail` or `info`. The exit codes carry the same news:
@@ -143,11 +143,11 @@ Offer a row when any of these holds:
 
 - Its `status` is `fail`.
 - Its `id` is `preferred-browser-mode`, its `status` is `info`, and
-  `spechub/project.yaml` configures a `frontend` block. The project has a
+  `mapflow/project.yaml` configures a `frontend` block. The project has a
   frontend and has named no browser mode for it.
 
 - Its `id` is `output-style` and its `status` is `info`. The row passes when the
-  settings files select `spechub:ac-writing-style`, so `info` means they select
+  settings files select `mapflow:ac-writing-style`, so `info` means they select
   some other style, or select none.
 
 - Its `id` is `frontend-verification` and its `status` is `info`. The project
@@ -170,7 +170,7 @@ Add three options at the end of the list, whatever the check reported:
   lists every key, its values and its default. Then write the key:
 
   ```bash
-  ~/.claude/spechub/bin/spechub config set workflow.tdd.strict false
+  ~/.claude/mapflow/bin/mapflow config set workflow.tdd.strict false
   ```
 
   Do not restate the reference here.
@@ -194,7 +194,7 @@ Each `id` maps to one fix. Work the selected rows in this order:
 | `agent-browser` | Step 9b in `row-fixes.md` |
 | `agent-browser-json` | Step 9c in `row-fixes.md` |
 | `verification-knowledge` | Step 9d in `row-fixes.md` |
-| `frontend-verification` | run `spechub config set workflow.frontend_verification true` |
+| `frontend-verification` | run `mapflow config set workflow.frontend_verification true` |
 | `output-style` | Step 9e in `row-fixes.md` |
 
 Read [`row-fixes.md`](row-fixes.md) when a selected row is `browser-mode:<mode>`, `frontend-verification`, `domain-map`, `agent-browser`, `agent-browser-json`, `verification-knowledge` or `output-style`. It holds the second fixes and Steps 9a to 9e.
@@ -221,21 +221,21 @@ Read [`report.md`](report.md) on every run, as the last step.
 
 ## What this skill leaves to others
 
-- `spechub config check` owns every audit rule. Do not re-probe the machine with
+- `mapflow config check` owns every audit rule. Do not re-probe the machine with
   shell commands of your own.
 
-- `spechub config show` owns printing the current setup. It reports the profile,
+- `mapflow config show` owns printing the current setup. It reports the profile,
   the commands, the directories and what the project says about its browser. This
   skill never re-prints those itself.
 
 - `docs/config-reference.md` owns the key reference. It lists each key, its
   values, its default, and what changes when you change it.
 
-- `spechub config set <key> <value>` owns the single-key change, in both files.
+- `mapflow config set <key> <value>` owns the single-key change, in both files.
   It reads the key to decide which one.
 
-    A `host.*` key goes to the global config at `~/.config/spechub/config.json`.
-    Every other key it knows goes to `spechub/project.yaml`, and the write keeps
+    A `host.*` key goes to the global config at `~/.config/mapflow/config.json`.
+    Every other key it knows goes to `mapflow/project.yaml`, and the write keeps
     the comments and the key order. It refuses a key neither schema knows, so
     never fall back to editing the file.
 

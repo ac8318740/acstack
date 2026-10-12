@@ -48,22 +48,22 @@ Then ask about these settings, in this order:
         - The file does nothing on a machine with a display or inside tmux
         - `apply` leaves it out when a file the user wrote already sets `vim.g.clipboard`, and names that file
     - LazyVim recolours the filename and shows no sign of its own, so a modified buffer is easy to miss
-    - `apply` writes `~/.config/nvim/lua/plugins/spechub.lua` and edits nothing the user wrote
+    - `apply` writes `~/.config/nvim/lua/plugins/mapflow.lua` and edits nothing the user wrote
     - `apply` leaves the dot out when a lualine override the user wrote already marks a modified buffer, and names that file
         - The statusline would otherwise carry two dots side by side
     - Tell such a user to delete their own file to hand the dot to this component
-- **`pi.enabled`**: off by default. Turn it on for a user who runs pi, the coding agent, or wants SpecHub inside it
-    - `apply` installs pi with npm when it is missing, then installs SpecHub into it, pinned to this plugin's version
-    - `apply` always installs `pi-subagents` too, because SpecHub on pi cannot launch a subagent without it
-    - `apply` adds one line to pi's context file in `~/.pi/agent` (`AGENTS.md` by default) that lets pi delegate when a SpecHub skill says to
+- **`pi.enabled`**: off by default. Turn it on for a user who runs pi, the coding agent, or wants Mapflow inside it
+    - `apply` installs pi with npm when it is missing, then installs Mapflow into it, pinned to this plugin's version
+    - `apply` always installs `pi-subagents` too, because Mapflow on pi cannot launch a subagent without it
+    - `apply` adds one line to pi's context file in `~/.pi/agent` (`AGENTS.md` by default) that lets pi delegate when a Mapflow skill says to
     - `pi.compact_tools` and `pi.agentic_retro` add pi-compact-tools and agentic-retro's pi extension, both on by default
         - agentic-retro's extension needs the agentic-retro plugin first, and `apply` says so when it is missing
     - `pi.settings` writes four keys into `~/.pi/agent/settings.json`, and an empty value leaves pi's own
     - Tell the user to run `pi`, then `/login`, themselves, because `apply` never handles a credential
     - Tell them to restart any pi session that was running during `apply`
-- **`remote.clipboard_shim`**: leave it `true` on any machine reached over SSH. It puts an `xclip` on `$PATH`, backed by `spechub-clip`. That stand-in is the only reason gh-dash's `y` and `Y` work there. `apply` skips it when the machine has a real `xclip` or a display
+- **`remote.clipboard_shim`**: leave it `true` on any machine reached over SSH. It puts an `xclip` on `$PATH`, backed by `mapflow-clip`. That stand-in is the only reason gh-dash's `y` and `Y` work there. `apply` skips it when the machine has a real `xclip` or a display
 
-One setting sits outside the config. `spechub-md --serve` takes its port from
-`$SPECHUB_MD_PORT` and falls back to 6419. Tell the user to forward whichever
+One setting sits outside the config. `mapflow-md --serve` takes its port from
+`$MAPFLOW_MD_PORT` and falls back to 6419. Tell the user to forward whichever
 port they serve on, or the link `--serve` prints is unreachable from their
 laptop.

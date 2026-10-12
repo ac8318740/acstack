@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SpecHub host detection.
+# Mapflow host detection.
 #
 # Reports what dev-setup tooling exists on this machine, as one JSON object on
 # stdout. Nothing else is printed, and the exit code is 0 whenever detection
@@ -246,8 +246,8 @@ project_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # verification, so we look for it at column zero only - `frontend:` nested under
 # some other key means something else entirely.
 has_frontend="false"
-if [ -n "$project_root" ] && [ -f "${project_root}/spechub/project.yaml" ]; then
-  if grep -q '^frontend:' "${project_root}/spechub/project.yaml" 2>/dev/null; then
+if [ -n "$project_root" ] && [ -f "${project_root}/mapflow/project.yaml" ]; then
+  if grep -q '^frontend:' "${project_root}/mapflow/project.yaml" 2>/dev/null; then
     has_frontend="true"
   fi
 fi

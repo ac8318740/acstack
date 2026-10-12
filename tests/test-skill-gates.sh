@@ -4,7 +4,7 @@
 #
 # Handoff and compact-and-continue refuse to run outside the lead session,
 # because both write state the lead alone owns: the context-pressure quiet
-# marker, keyed on CLAUDE_CODE_SESSION_ID, and the shared spechub/HANDOFF.md
+# marker, keyed on CLAUDE_CODE_SESSION_ID, and the shared mapflow/HANDOFF.md
 # anchor.
 #
 # The first version of that check read an environment variable, and the variable
@@ -52,7 +52,7 @@ check() { if eval "$2"; then ok "$1"; else no "$1"; fi; }
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-MARK="spechub-whoami-9d3b7a1f"
+MARK="mapflow-whoami-9d3b7a1f"
 
 # The real check waits up to ten seconds for its own record to appear. Stub
 # sleep away so the loop still runs its full twenty turns and the suite still
@@ -75,7 +75,7 @@ extract_check() {
     seen && /^```bash$/     { inblock = 1; next }
     inblock && /^```$/      { exit }
     inblock                 { print }
-  ' "$1" | sed "s/spechub-whoami-<nonce>/$MARK/g"
+  ' "$1" | sed "s/mapflow-whoami-<nonce>/$MARK/g"
 }
 
 # Build a fake ~/.claude/projects tree at $1 for session $2, under project
@@ -237,8 +237,8 @@ extract_check_raw() {
     inblock             { print }
   ' "$1"
 }
-check "the handoff nonce placeholder is angle-bracketed"  '[ "$(raw_block "$HANDOFF")" = "n=spechub-whoami-<nonce>" ]'
-check "the compact nonce placeholder matches"             '[ "$(raw_block "$COMPACT")" = "n=spechub-whoami-<nonce>" ]'
+check "the handoff nonce placeholder is angle-bracketed"  '[ "$(raw_block "$HANDOFF")" = "n=mapflow-whoami-<nonce>" ]'
+check "the compact nonce placeholder matches"             '[ "$(raw_block "$COMPACT")" = "n=mapflow-whoami-<nonce>" ]'
 check "an unsubstituted block is a bash syntax error"     '! bash -n <(extract_check_raw "$HANDOFF") 2>/dev/null'
 
 # ---------------------------------------------------------------------------
@@ -309,7 +309,7 @@ check "a mark in a .meta.json sidecar alone never says child"  '[ "$OUT" = "lead
 # Case 8: one session id, two project directories
 # ---------------------------------------------------------------------------
 # A session that changes working directory writes under a second project
-# directory for the same session id, and spechub ships new-worktree, so this is
+# directory for the same session id, and mapflow ships new-worktree, so this is
 # an ordinary flow here. A check that resolved one directory and searched only
 # that one would pick whichever sorts first and report "lead" for a real child.
 echo "Case 8: a session id under two project directories still resolves"
@@ -351,7 +351,7 @@ echo "Case 10: both skills still write the context-pressure quiet marker"
 for pair in "handoff:$HANDOFF" "compact:$COMPACT"; do
   label="${pair%%:*}"; f="${pair#*:}"
   check "$label keys the marker on the session id"     'grep -qF "sid=\"\${CLAUDE_CODE_SESSION_ID:-\${PI_SESSION_ID:-}}\"" "$f" && grep -qF "\$sid.quiet" "$f"'
-  check "$label reads SPECHUB_CONTEXT_PRESSURE_DIR"    'grep -q SPECHUB_CONTEXT_PRESSURE_DIR "$f"'
+  check "$label reads MAPFLOW_CONTEXT_PRESSURE_DIR"    'grep -q MAPFLOW_CONTEXT_PRESSURE_DIR "$f"'
 done
 
 # ---------------------------------------------------------------------------

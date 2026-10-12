@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CLI_BIN = join(__dirname, '..', '..', 'bin', 'spechub.js');
+const CLI_BIN = join(__dirname, '..', '..', 'bin', 'mapflow.js');
 
 /** The shape of the global config file on disk, as touched by this file's assertions. */
 interface StoredConfig {
@@ -40,7 +40,7 @@ interface StoredConfig {
 }
 
 /**
- * The `spechub/project.yaml` keys this file's project-key assertions read
+ * The `mapflow/project.yaml` keys this file's project-key assertions read
  * back. Values are `unknown` rather than their documented type on purpose:
  * half the point of the validation tests is that a boolean key holds a real
  * boolean and a numeric key a real number, and a typed field would hide the
@@ -69,8 +69,8 @@ interface StoredProjectYaml {
 }
 
 /**
- * The `spechub config show --json` output shape, as touched by this file's
- * assertions. Mirrors the contract documented above the "spechub config show"
+ * The `mapflow config show --json` output shape, as touched by this file's
+ * assertions. Mirrors the contract documented above the "mapflow config show"
  * describe block below.
  */
 interface ConfigShowAxis {
@@ -116,8 +116,8 @@ interface ConfigShowJson {
 }
 
 /**
- * The `spechub config browser-mode --json` output shape, as touched by this
- * file's assertions. Mirrors the contract documented above the "spechub
+ * The `mapflow config browser-mode --json` output shape, as touched by this
+ * file's assertions. Mirrors the contract documented above the "mapflow
  * config browser-mode" describe block further down this file.
  */
 interface ConfigBrowserModeJson {
@@ -128,7 +128,7 @@ interface ConfigBrowserModeJson {
 }
 
 /**
- * One row of `spechub config check --json`.
+ * One row of `mapflow config check --json`.
  *
  * `id` is the stable handle a caller branches on. `message` is the same
  * sentence the human output prints, and is deliberately NOT what a caller is
@@ -140,7 +140,7 @@ interface ConfigCheckJsonRow {
   message: string;
 }
 
-/** The `spechub config check --json` output shape. */
+/** The `mapflow config check --json` output shape. */
 interface ConfigCheckJson {
   checks: ConfigCheckJsonRow[];
 }
@@ -178,7 +178,7 @@ const PREFERRED_BROWSER_MODE_ROW = 'preferred-browser-mode';
 let xdgConfigHome: string;
 
 beforeEach(() => {
-  xdgConfigHome = mkdtempSync(join(tmpdir(), 'spechub-cli-config-'));
+  xdgConfigHome = mkdtempSync(join(tmpdir(), 'mapflow-cli-config-'));
 });
 
 afterEach(() => {
@@ -216,17 +216,17 @@ function runCli(args: string[], opts: { cwd?: string; path?: string[]; env?: Nod
 }
 
 function configFilePath(): string {
-  return join(xdgConfigHome, 'spechub', 'config.json');
+  return join(xdgConfigHome, 'mapflow', 'config.json');
 }
 
 /** An empty directory to use as PATH when a test wants NOTHING resolvable. */
 function emptyPathDir(): string {
-  return mkdtempSync(join(tmpdir(), 'spechub-empty-path-'));
+  return mkdtempSync(join(tmpdir(), 'mapflow-empty-path-'));
 }
 
 /** Create a directory containing one fake executable `name` that exits with `exitCode`. */
 function fakeBinDir(name: string, exitCode: number): string {
-  const dir = mkdtempSync(join(tmpdir(), 'spechub-fake-bin-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mapflow-fake-bin-'));
   const file = join(dir, name);
   writeFileSync(file, `#!/bin/sh\nexit ${exitCode}\n`);
   chmodSync(file, 0o755);
@@ -246,7 +246,7 @@ function fakeBinDirWithOutput(
   stdout: string,
   stderr = ''
 ): string {
-  const dir = mkdtempSync(join(tmpdir(), 'spechub-fake-bin-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mapflow-fake-bin-'));
   const file = join(dir, name);
   const shQuote = (s: string): string => `'${s.replace(/'/g, `'\\''`)}'`;
   const lines = ['#!/bin/sh'];
@@ -269,16 +269,16 @@ const ORCA_READY_JSON = orcaStatusJson(true, 'ready');
 /** The docs URL a failing Orca probe must point the user at. */
 const ORCA_DOCS_URL = 'https://github.com/stablyai/orca/blob/main/docs/reference/headless-linux-server.md';
 
-/** Create a temp project root containing spechub/project.yaml with `yaml` as its body. */
+/** Create a temp project root containing mapflow/project.yaml with `yaml` as its body. */
 function makeProject(yaml: string): string {
-  const root = mkdtempSync(join(tmpdir(), 'spechub-project-'));
-  mkdirSync(join(root, 'spechub'), { recursive: true });
-  writeFileSync(join(root, 'spechub', 'project.yaml'), yaml);
+  const root = mkdtempSync(join(tmpdir(), 'mapflow-project-'));
+  mkdirSync(join(root, 'mapflow'), { recursive: true });
+  writeFileSync(join(root, 'mapflow', 'project.yaml'), yaml);
   return root;
 }
 
 /**
- * A temp project root whose `spechub/project.yaml` is a SYMLINK to a file
+ * A temp project root whose `mapflow/project.yaml` is a SYMLINK to a file
  * held elsewhere, handing back the root, the link and the file behind it.
  *
  * A shared project.yaml is linked in exactly this way: one copy kept in a
@@ -287,44 +287,44 @@ function makeProject(yaml: string): string {
  * the file behind it is the one the user edits and the one git tracks.
  */
 function makeSymlinkedProject(yaml: string): { root: string; link: string; target: string } {
-  const root = mkdtempSync(join(tmpdir(), 'spechub-symlinked-project-'));
-  mkdirSync(join(root, 'spechub'), { recursive: true });
+  const root = mkdtempSync(join(tmpdir(), 'mapflow-symlinked-project-'));
+  mkdirSync(join(root, 'mapflow'), { recursive: true });
   mkdirSync(join(root, 'real'), { recursive: true });
   const target = join(root, 'real', 'project.yaml');
   writeFileSync(target, yaml);
-  const link = join(root, 'spechub', 'project.yaml');
+  const link = join(root, 'mapflow', 'project.yaml');
   symlinkSync(target, link);
   return { root, link, target };
 }
 
-/** An isolated cwd guaranteed to have no spechub/ directory anywhere above it. */
+/** An isolated cwd guaranteed to have no mapflow/ directory anywhere above it. */
 function noProjectDir(): string {
-  return mkdtempSync(join(tmpdir(), 'spechub-no-project-'));
+  return mkdtempSync(join(tmpdir(), 'mapflow-no-project-'));
 }
 
 /**
- * A project root holding `spechub/` and nothing inside it - no project.yaml
+ * A project root holding `mapflow/` and nothing inside it - no project.yaml
  * at all. Still a project, because `findProjectRoot` looks for the directory.
  */
 function projectWithoutYaml(): string {
-  const root = mkdtempSync(join(tmpdir(), 'spechub-project-'));
-  mkdirSync(join(root, 'spechub'), { recursive: true });
+  const root = mkdtempSync(join(tmpdir(), 'mapflow-project-'));
+  mkdirSync(join(root, 'mapflow'), { recursive: true });
   return root;
 }
 
 /**
- * The raw text of a project's `spechub/project.yaml`, comments and all.
+ * The raw text of a project's `mapflow/project.yaml`, comments and all.
  *
  * Read as text rather than parsed because most of what the project-key tests
  * below pin - a header comment, an inline comment, the order of the keys, the
  * quoting of a value - has no representation in the parsed object at all.
  */
 function readProjectYaml(root: string): string {
-  return readFileSync(join(root, 'spechub', 'project.yaml'), 'utf-8');
+  return readFileSync(join(root, 'mapflow', 'project.yaml'), 'utf-8');
 }
 
 /**
- * The raw bytes of a project's `spechub/project.yaml`.
+ * The raw bytes of a project's `mapflow/project.yaml`.
  *
  * `readProjectYaml` decodes as UTF-8, and a byte that is not valid UTF-8 comes
  * back through it as U+FFFD - so a decoded read cannot tell a file whose bytes
@@ -332,27 +332,27 @@ function readProjectYaml(root: string): string {
  * are the only evidence.
  */
 function readProjectYamlBytes(root: string): Buffer {
-  return readFileSync(join(root, 'spechub', 'project.yaml'));
+  return readFileSync(join(root, 'mapflow', 'project.yaml'));
 }
 
 /**
- * Overwrite an existing project's `spechub/project.yaml` with raw `bytes`.
+ * Overwrite an existing project's `mapflow/project.yaml` with raw `bytes`.
  *
  * `makeProject` takes a string, which node encodes as UTF-8 on the way out, so
  * a fixture that has to put a specific byte on disk - a latin-1 `0xE9` that no
  * UTF-8 decoder will accept - cannot be written as one.
  */
 function writeProjectYamlBytes(root: string, bytes: Buffer): void {
-  writeFileSync(join(root, 'spechub', 'project.yaml'), bytes);
+  writeFileSync(join(root, 'mapflow', 'project.yaml'), bytes);
 }
 
-/** A project's `spechub/project.yaml` parsed, for assertions about values rather than formatting. */
+/** A project's `mapflow/project.yaml` parsed, for assertions about values rather than formatting. */
 function parseProjectYaml(root: string): StoredProjectYaml {
   return parseYaml(readProjectYaml(root)) as StoredProjectYaml;
 }
 
 /**
- * A project's `spechub/project.yaml` parsed, reported with the file's own text
+ * A project's `mapflow/project.yaml` parsed, reported with the file's own text
  * when it no longer parses.
  *
  * `parseProjectYaml` throws the parser's message, which names a line and a
@@ -366,7 +366,7 @@ function parseProjectYamlShowingFile(root: string): StoredProjectYaml {
     return parseProjectYaml(root);
   } catch (err) {
     throw new Error(
-      `spechub/project.yaml no longer parses after the write: ${(err as Error).message}\n` +
+      `mapflow/project.yaml no longer parses after the write: ${(err as Error).message}\n` +
         `----- file on disk -----\n${readProjectYaml(root)}\n----- end of file -----`
     );
   }
@@ -401,10 +401,10 @@ function keysAt(parsed: unknown, key: string): string[] {
   return Object.keys(node).sort();
 }
 
-/** Write `body` to `spechub/domain-map.yaml` under an existing project root. */
+/** Write `body` to `mapflow/domain-map.yaml` under an existing project root. */
 function writeDomainMap(root: string, body: string): void {
-  mkdirSync(join(root, 'spechub'), { recursive: true });
-  writeFileSync(join(root, 'spechub', 'domain-map.yaml'), body);
+  mkdirSync(join(root, 'mapflow'), { recursive: true });
+  writeFileSync(join(root, 'mapflow', 'domain-map.yaml'), body);
 }
 
 /** A well-formed domain map holding exactly three domains. */
@@ -464,7 +464,7 @@ function frontendProjectYaml(cdpPort: number): string {
 
 /** An isolated HOME, so reads of `~/.claude/settings.json` see only what a test put there. */
 function fakeHome(): string {
-  return mkdtempSync(join(tmpdir(), 'spechub-home-'));
+  return mkdtempSync(join(tmpdir(), 'mapflow-home-'));
 }
 
 /** Write `body` verbatim to `<dir>/.claude/<name>`, creating `.claude/` as needed. */
@@ -479,16 +479,16 @@ function outputStyleSettings(style: string): string {
 }
 
 /** The output style the plugin ships, which `check` reports on but never forces on. */
-const SPECHUB_OUTPUT_STYLE = 'spechub:ac-writing-style';
+const MAPFLOW_OUTPUT_STYLE = 'mapflow:ac-writing-style';
 
 // ---------------------------------------------------------------------
 // Installed Claude Code plugins
 //
 // The helpers below build, in a temp directory, the two files Claude Code
 // writes when a plugin is installed. Both shapes are Claude Code's, not
-// SpecHub's, so they are written here as literals rather than derived from
-// anything in this repository - a fixture that asked SpecHub for the shape
-// would agree with SpecHub even when SpecHub is wrong.
+// Mapflow's, so they are written here as literals rather than derived from
+// anything in this repository - a fixture that asked Mapflow for the shape
+// would agree with Mapflow even when Mapflow is wrong.
 //
 //   <config root>/plugins/installed_plugins.json  - the registry, saying
 //      which plugins are installed and where each one lives. Keys are
@@ -547,7 +547,7 @@ function writeInstalledPlugins(root: string, installs: PluginInstall[]): void {
  * and states nothing, which is what a half-written install looks like.
  */
 function pluginInstallDir(manifest: Record<string, unknown> | null): string {
-  const dir = mkdtempSync(join(tmpdir(), 'spechub-plugin-install-'));
+  const dir = mkdtempSync(join(tmpdir(), 'mapflow-plugin-install-'));
   if (manifest !== null) {
     mkdirSync(join(dir, '.claude-plugin'), { recursive: true });
     writeFileSync(
@@ -558,11 +558,11 @@ function pluginInstallDir(manifest: Record<string, unknown> | null): string {
   return dir;
 }
 
-/** The plugin `spechub config check` reports on, spelled as its manifest spells it. */
+/** The plugin `mapflow config check` reports on, spelled as its manifest spells it. */
 const IMPECCABLE_PLUGIN = 'impeccable';
 
 /**
- * The major version SpecHub expects of an installed impeccable.
+ * The major version Mapflow expects of an installed impeccable.
  *
  * Asserted by value: what counts as new enough is the whole content of the
  * pass-or-inform decision, so a test deriving it from the implementation
@@ -637,10 +637,10 @@ const HOST_QUIET: HostDeclarations = {
 };
 
 /**
- * Run `spechub config check` against a global config written directly, an
+ * Run `mapflow config check` against a global config written directly, an
  * isolated HOME, and a PATH holding only what the test asked for.
  *
- * Writing the config file rather than driving `spechub config set` is worth a
+ * Writing the config file rather than driving `mapflow config set` is worth a
  * word: `runCli` spawns a real process, and declaring five axes through the
  * CLI costs five spawns before the run being measured even starts. The file
  * format is the one `writeGlobalConfig` produces and the `StoredConfig`
@@ -655,10 +655,10 @@ function runCheck(opts: {
   json?: boolean;
   env?: NodeJS.ProcessEnv;
 }) {
-  const xdg = mkdtempSync(join(tmpdir(), 'spechub-check-xdg-'));
-  mkdirSync(join(xdg, 'spechub'), { recursive: true });
+  const xdg = mkdtempSync(join(tmpdir(), 'mapflow-check-xdg-'));
+  mkdirSync(join(xdg, 'mapflow'), { recursive: true });
   writeFileSync(
-    join(xdg, 'spechub', 'config.json'),
+    join(xdg, 'mapflow', 'config.json'),
     JSON.stringify({ host: opts.host ?? HOST_QUIET }, null, 2) + '\n'
   );
 
@@ -843,7 +843,7 @@ function checkJsonRow(stdout: string, id: string): ConfigCheckJsonRow | undefine
 }
 
 /**
- * The body of `spechub config show`'s `Project` section, heading excluded,
+ * The body of `mapflow config show`'s `Project` section, heading excluded,
  * running up to (but not including) the `Host` heading. Empty string when no
  * `Project` heading is found at all. Headings are matched as a whole trimmed
  * line, the same way `console.log(chalk.bold('Host'))` prints when stdout is
@@ -858,7 +858,7 @@ function projectSection(output: string): string {
   return lines.slice(start + 1, end === -1 ? undefined : end).join('\n');
 }
 
-describe('spechub config set host.*', () => {
+describe('mapflow config set host.*', () => {
   it('sets host.orchestrators.herdr with exit 0 and writes the nested boolean to disk', () => {
     const result = runCli(['config', 'set', 'host.orchestrators.herdr', 'true']);
 
@@ -979,7 +979,7 @@ describe('spechub config set host.*', () => {
   });
 });
 
-describe('spechub config set host.orca.topology warns unless orca is declared', () => {
+describe('mapflow config set host.orca.topology warns unless orca is declared', () => {
   it('sets successfully and warns that it has no effect when host.orchestrators.orca is unset', () => {
     const result = runCli(['config', 'set', 'host.orca.topology', 'local']);
 
@@ -1029,9 +1029,9 @@ describe('spechub config set host.orca.topology warns unless orca is declared', 
 // ---------------------------------------------------------------------
 // Project keys
 //
-// `spechub config set` writes two files, not one. A `host.*` key describes
-// the machine and belongs in the global config; every other key SpecHub
-// knows describes the project and belongs in `spechub/project.yaml`. The
+// `mapflow config set` writes two files, not one. A `host.*` key describes
+// the machine and belongs in the global config; every other key Mapflow
+// knows describes the project and belongs in `mapflow/project.yaml`. The
 // tests above pin the machine half. These pin the project half, and the two
 // rules that make it worth having at all: a key nobody knows is refused
 // rather than stored somewhere no reader looks, and a write into a file
@@ -1042,7 +1042,7 @@ describe('spechub config set host.orca.topology warns unless orca is declared', 
 // ---------------------------------------------------------------------
 
 /**
- * Run `spechub config set` in `cwd` against a global config directory of its
+ * Run `mapflow config set` in `cwd` against a global config directory of its
  * own, handing back where that directory's config file would be.
  *
  * The per-test `xdgConfigHome` is not reused, for two reasons. A `beforeAll`
@@ -1052,16 +1052,16 @@ describe('spechub config set host.orca.topology warns unless orca is declared', 
  * assertion if the test knows which file that would have been.
  */
 function runSet(key: string, value: string, cwd: string) {
-  const xdg = mkdtempSync(join(tmpdir(), 'spechub-set-xdg-'));
+  const xdg = mkdtempSync(join(tmpdir(), 'mapflow-set-xdg-'));
   const result = runCli(['config', 'set', key, value], {
     cwd,
     env: { XDG_CONFIG_HOME: xdg },
   });
-  return { ...result, globalConfigFile: join(xdg, 'spechub', 'config.json') };
+  return { ...result, globalConfigFile: join(xdg, 'mapflow', 'config.json') };
 }
 
 /**
- * Run one `spechub config <subcommand>` in `cwd` against a global config
+ * Run one `mapflow config <subcommand>` in `cwd` against a global config
  * directory of its own, handing back where that directory's config file would
  * be.
  *
@@ -1073,17 +1073,17 @@ function runSet(key: string, value: string, cwd: string) {
  * knows which file that would have been.
  */
 function runProjectConfig(args: string[], cwd: string) {
-  const xdg = mkdtempSync(join(tmpdir(), 'spechub-project-xdg-'));
+  const xdg = mkdtempSync(join(tmpdir(), 'mapflow-project-xdg-'));
   const result = runCli(['config', ...args], { cwd, env: { XDG_CONFIG_HOME: xdg } });
-  return { ...result, globalConfigFile: join(xdg, 'spechub', 'config.json') };
+  return { ...result, globalConfigFile: join(xdg, 'mapflow', 'config.json') };
 }
 
-/** `spechub config get <key>` in `cwd`, isolated the way `runSet` is. */
+/** `mapflow config get <key>` in `cwd`, isolated the way `runSet` is. */
 function runGet(key: string, cwd: string) {
   return runProjectConfig(['get', key], cwd);
 }
 
-/** `spechub config unset <key>` in `cwd`, isolated the way `runSet` is. */
+/** `mapflow config unset <key>` in `cwd`, isolated the way `runSet` is. */
 function runUnset(key: string, cwd: string) {
   return runProjectConfig(['unset', key], cwd);
 }
@@ -1115,7 +1115,7 @@ function expectNoStackTrace(result: { stdout: string; stderr: string }): void {
  * the tests below name each separately.
  */
 const HAND_EDITED_PROJECT = [
-  '# Written by /spechub:setup, hand-edited since. Keep the comments.',
+  '# Written by /mapflow:setup, hand-edited since. Keep the comments.',
   'profile: node-typescript',
   '',
   'workflow:',
@@ -1136,9 +1136,9 @@ const HAND_EDITED_PROJECT = [
   '',
 ].join('\n');
 
-describe('spechub config set, project keys', () => {
+describe('mapflow config set, project keys', () => {
   describe('routing', () => {
-    it('writes a project key to spechub/project.yaml and creates no global config file at all', () => {
+    it('writes a project key to mapflow/project.yaml and creates no global config file at all', () => {
       const root = makeProject('name: routed-project\n');
 
       const result = runSet('workflow.tdd.strict', 'false', root);
@@ -1151,7 +1151,7 @@ describe('spechub config set, project keys', () => {
       expect(existsSync(result.globalConfigFile)).toBe(false);
     });
 
-    it('leaves spechub/project.yaml byte-identical when the key is a host axis', () => {
+    it('leaves mapflow/project.yaml byte-identical when the key is a host axis', () => {
       const root = makeProject(HAND_EDITED_PROJECT);
       const before = readProjectYaml(root);
 
@@ -1190,14 +1190,14 @@ describe('spechub config set, project keys', () => {
       expect(result.stderr).toContain(known);
     });
 
-    it('refuses a project key outside a SpecHub project, writing nothing anywhere', () => {
+    it('refuses a project key outside a Mapflow project, writing nothing anywhere', () => {
       const cwd = noProjectDir();
 
       const result = runSet('workflow.tdd.strict', 'false', cwd);
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toMatch(/no SpecHub project/i);
-      expect(existsSync(join(cwd, 'spechub'))).toBe(false);
+      expect(result.stderr).toMatch(/no Mapflow project/i);
+      expect(existsSync(join(cwd, 'mapflow'))).toBe(false);
       expect(existsSync(result.globalConfigFile)).toBe(false);
     });
   });
@@ -1231,7 +1231,7 @@ describe('spechub config set, project keys', () => {
       expectTheWriteLanded();
 
       expect(text.split('\n')[0]).toBe(
-        '# Written by /spechub:setup, hand-edited since. Keep the comments.'
+        '# Written by /mapflow:setup, hand-edited since. Keep the comments.'
       );
     });
 
@@ -1808,14 +1808,14 @@ describe('spechub config set, project keys', () => {
     });
   });
 
-  describe('a project with spechub/ but no project.yaml', () => {
-    it('creates spechub/project.yaml holding the key it was given', () => {
+  describe('a project with mapflow/ but no project.yaml', () => {
+    it('creates mapflow/project.yaml holding the key it was given', () => {
       const root = projectWithoutYaml();
 
       const result = runSet('workflow.maps.tracker', 'files', root);
 
       expect(result.status).toBe(0);
-      expect(existsSync(join(root, 'spechub', 'project.yaml'))).toBe(true);
+      expect(existsSync(join(root, 'mapflow', 'project.yaml'))).toBe(true);
       expect(atKey(parseProjectYaml(root), 'workflow.maps.tracker')).toBe('files');
     });
   });
@@ -2025,7 +2025,7 @@ describe('spechub config set, project keys', () => {
   });
 
   describe('a rejected value writes nothing at all', () => {
-    it('leaves spechub/project.yaml byte-identical after a value the schema refuses', () => {
+    it('leaves mapflow/project.yaml byte-identical after a value the schema refuses', () => {
       const root = makeProject(HAND_EDITED_PROJECT);
       const before = readProjectYaml(root);
 
@@ -2076,7 +2076,7 @@ describe('spechub config set, project keys', () => {
 // has to say and leave behind.
 // ---------------------------------------------------------------------
 
-describe('spechub config set when the path descends through a value', () => {
+describe('mapflow config set when the path descends through a value', () => {
   /**
    * A key stating a value where the path expects a block, per case: the key
    * to set, the key standing in the way, and the file that arranges it.
@@ -2146,7 +2146,7 @@ describe('spechub config set when the path descends through a value', () => {
  * is concerned: both read as the block stating nothing. A write has to treat
  * them the same way too.
  */
-describe('spechub config set into a block left empty', () => {
+describe('mapflow config set into a block left empty', () => {
   it('sets a deeper key under the block whose last key config unset removed', () => {
     const root = makeProject('profile: node-typescript\nworkflow:\n  spec_sync: true\n');
 
@@ -2211,7 +2211,7 @@ describe('spechub config set into a block left empty', () => {
  * nothing behind it: all three state no data, and the document marker is a
  * line YAML tooling and hand-editing both leave lying around.
  */
-describe('spechub config set into a document stating nothing', () => {
+describe('mapflow config set into a document stating nothing', () => {
   it.each([
     ['a document marker alone', '---\n'],
     ['a document marker over a comment', '---\n# nothing set yet\n'],
@@ -2243,7 +2243,7 @@ describe('spechub config set into a document stating nothing', () => {
  * what it could not decode, and it must not write a file it has already
  * damaged in memory. The user's own editor is where the encoding gets fixed.
  */
-describe('spechub config set on a file that is not valid UTF-8', () => {
+describe('mapflow config set on a file that is not valid UTF-8', () => {
   /**
    * A project.yaml whose comment holds `é` as the single latin-1 byte 0xE9.
    *
@@ -2274,7 +2274,7 @@ describe('spechub config set on a file that is not valid UTF-8', () => {
     expect(result.status).toBe(1);
     expectNoStackTrace(result);
     expect(result.stderr).toMatch(/UTF-?8/i);
-    expect(result.stderr).toContain(join(root, 'spechub', 'project.yaml'));
+    expect(result.stderr).toContain(join(root, 'mapflow', 'project.yaml'));
   });
 
   it('leaves the file byte-identical, the undecodable byte included', () => {
@@ -2304,14 +2304,14 @@ describe('spechub config set on a file that is not valid UTF-8', () => {
  * `writeFileSync` throwing EACCES tells them instead that node's fs module
  * has a line 2430.
  */
-describe('spechub config set on a file it may not write', () => {
+describe('mapflow config set on a file it may not write', () => {
   // Root ignores the mode bits, so there is nothing to arrange under it.
   const asRoot = typeof process.getuid === 'function' && process.getuid() === 0;
 
   it.skipIf(asRoot)('refuses with exit 1, naming the file and the reason', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
     const before = readProjectYaml(root);
-    const file = join(root, 'spechub', 'project.yaml');
+    const file = join(root, 'mapflow', 'project.yaml');
     chmodSync(file, 0o444);
 
     try {
@@ -2349,7 +2349,7 @@ describe('spechub config set on a file it may not write', () => {
  * Where no writer can produce such a file, the command refuses - exit 1, the
  * file untouched, and one line naming the key.
  */
-describe('spechub config set when no writer can produce the value asked for', () => {
+describe('mapflow config set when no writer can produce the value asked for', () => {
   /**
    * `commands` stating `test` as a block scalar of `style`, with `lint` after
    * it - the shape the corruption needs. The sibling matters: it is what keeps
@@ -2518,7 +2518,7 @@ describe('spechub config set when no writer can produce the value asked for', ()
  * `config unset` already answers both correctly, so it is pinned here beside
  * them - the fix belongs on the write path and must not reach across.
  */
-describe('spechub config set on a document that is not a mapping', () => {
+describe('mapflow config set on a document that is not a mapping', () => {
   const NOT_A_MAPPING: [string, string][] = [
     ['a scalar', 'hello\n'],
     ['a list', '- one\n- two\n'],
@@ -2545,7 +2545,7 @@ describe('spechub config set on a document that is not a mapping', () => {
 
     const lines = result.stderr.trim().split('\n');
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain(join(root, 'spechub', 'project.yaml'));
+    expect(lines[0]).toContain(join(root, 'mapflow', 'project.yaml'));
     expect(lines[0]).toMatch(/mapping|block|keys|collection|section/i);
   });
 
@@ -2591,7 +2591,7 @@ describe('spechub config set on a document that is not a mapping', () => {
  * splice carries byte 0 across untouched and keeps it for free. The re-emit
  * builds its text from the parsed document, which never held the mark at all.
  */
-describe('spechub config set and unset, a leading byte-order mark', () => {
+describe('mapflow config set and unset, a leading byte-order mark', () => {
   /** U+FEFF, the mark itself. A UTF-8 read decodes its three bytes to this. */
   const BOM = '﻿';
 
@@ -2658,24 +2658,24 @@ describe('spechub config set and unset, a leading byte-order mark', () => {
  *
  * Beside it, not elsewhere: a rename across filesystems is not a rename, it
  * is a copy and a delete, which is the truncating write again under another
- * name. So the temp file belongs in `spechub/`.
+ * name. So the temp file belongs in `mapflow/`.
  *
  * The two things a temp-and-rename breaks if it is written carelessly get
  * their own tests below - the mode of the file it replaces, and the refusal
  * to write a file the user made read-only.
  */
-describe('spechub config set replaces spechub/project.yaml atomically', () => {
+describe('mapflow config set replaces mapflow/project.yaml atomically', () => {
   // Root ignores the mode bits, so the read-only case has nothing to arrange.
   const asRoot = typeof process.getuid === 'function' && process.getuid() === 0;
 
-  /** Everything `spechub/` holds after the write, sorted. */
-  function spechubDirEntries(root: string): string[] {
-    return readdirSync(join(root, 'spechub')).sort();
+  /** Everything `mapflow/` holds after the write, sorted. */
+  function mapflowDirEntries(root: string): string[] {
+    return readdirSync(join(root, 'mapflow')).sort();
   }
 
   it('puts a different file in place, rather than rewriting the one it was given', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
-    const file = join(root, 'spechub', 'project.yaml');
+    const file = join(root, 'mapflow', 'project.yaml');
     const before = statSync(file).ino;
 
     const result = runSet('workflow.tdd.strict', 'false', root);
@@ -2688,7 +2688,7 @@ describe('spechub config set replaces spechub/project.yaml atomically', () => {
     expect(atKey(parseProjectYamlShowingFile(root), 'workflow.tdd.strict')).toBe(false);
   });
 
-  it('leaves no temp file behind in spechub/ after the write lands', () => {
+  it('leaves no temp file behind in mapflow/ after the write lands', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
 
     const result = runSet('workflow.tdd.strict', 'false', root);
@@ -2696,12 +2696,12 @@ describe('spechub config set replaces spechub/project.yaml atomically', () => {
     expect(result.status).toBe(0);
     // A half-written file the user has to find and delete themselves is its
     // own bug, and one that shows up in their next `git status`.
-    expect(spechubDirEntries(root)).toEqual(['project.yaml']);
+    expect(mapflowDirEntries(root)).toEqual(['project.yaml']);
   });
 
   it('keeps the permission mode the file already had', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
-    const file = join(root, 'spechub', 'project.yaml');
+    const file = join(root, 'mapflow', 'project.yaml');
     chmodSync(file, 0o640);
 
     const result = runSet('workflow.tdd.strict', 'false', root);
@@ -2715,7 +2715,7 @@ describe('spechub config set replaces spechub/project.yaml atomically', () => {
 
   it.skipIf(asRoot)('still refuses a read-only file, and leaves no temp file behind', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
-    const file = join(root, 'spechub', 'project.yaml');
+    const file = join(root, 'mapflow', 'project.yaml');
     const before = readProjectYaml(root);
     chmodSync(file, 0o444);
 
@@ -2731,7 +2731,7 @@ describe('spechub config set replaces spechub/project.yaml atomically', () => {
       expectNoStackTrace(result);
       expect(result.stderr).toContain(file);
       expect(readProjectYaml(root)).toBe(before);
-      expect(spechubDirEntries(root)).toEqual(['project.yaml']);
+      expect(mapflowDirEntries(root)).toEqual(['project.yaml']);
       expect(statSync(file).mode & 0o777).toBe(0o444);
     } finally {
       chmodSync(file, 0o644);
@@ -2742,7 +2742,7 @@ describe('spechub config set replaces spechub/project.yaml atomically', () => {
 /**
  * A write into a symlinked project.yaml follows the link.
  *
- * `spechub/project.yaml` is a symlink whenever one file is shared between
+ * `mapflow/project.yaml` is a symlink whenever one file is shared between
  * checkouts - kept in a dotfiles directory, or in the main clone with every
  * worktree linking to it. The link is the only path any command here is
  * handed, and the file behind it is the one that is edited and tracked.
@@ -2759,7 +2759,7 @@ describe('spechub config set replaces spechub/project.yaml atomically', () => {
  * a fix applied to one is not applied to the other. `unset` too - it writes
  * the same way, and losing a link there costs the same.
  */
-describe('spechub config set and unset through a symlinked spechub/project.yaml', () => {
+describe('mapflow config set and unset through a symlinked mapflow/project.yaml', () => {
   /** The project the link points at, parsed. Never read through the link. */
   function parseTarget(target: string): unknown {
     return parseYaml(readFileSync(target, 'utf-8'));
@@ -2828,7 +2828,7 @@ describe('spechub config set and unset through a symlinked spechub/project.yaml'
  * the reader then rejects - at which point the failure surfaces somewhere else
  * entirely, long after the command that could have named it exited 0.
  */
-describe('spechub config set, the range a numeric project key accepts', () => {
+describe('mapflow config set, the range a numeric project key accepts', () => {
   describe('frontend.browser.cdp_port takes a TCP port', () => {
     it.each(['-5', '0', '9222.75', '65536', '70000'])(
       'refuses %s, naming the key and the range, and writing nothing',
@@ -2928,7 +2928,7 @@ describe('spechub config set, the range a numeric project key accepts', () => {
  * any other unknown key is, rather than quietly accepted and written to a
  * file nothing consults.
  */
-describe('spechub config set frontend.framework, a key that no longer exists', () => {
+describe('mapflow config set frontend.framework, a key that no longer exists', () => {
   it('refuses it as an unknown key with exit 1, writing to neither file', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
     const before = readProjectYaml(root);
@@ -2971,7 +2971,7 @@ describe('spechub config set frontend.framework, a key that no longer exists', (
  * `set` that stored a null would silently make a decision the user typed a
  * word for.
  */
-describe('spechub config set <key> null does not store a null', () => {
+describe('mapflow config set <key> null does not store a null', () => {
   it('takes the word as a string, and leaves unset as the way to clear the key', () => {
     const root = makeProject('commands:\n  format: "prettier --write ."\n');
 
@@ -2999,7 +2999,7 @@ describe('spechub config set <key> null does not store a null', () => {
   });
 });
 
-describe('spechub config get host', () => {
+describe('mapflow config get host', () => {
   it('returns the whole host section as JSON', () => {
     expect(runCli(['config', 'set', 'host.orchestrators.orca', 'true']).status).toBe(0);
     expect(runCli(['config', 'set', 'host.browser.remote', 'true']).status).toBe(0);
@@ -3027,7 +3027,7 @@ describe('spechub config get host', () => {
   });
 });
 
-describe('spechub config unset host.*', () => {
+describe('mapflow config unset host.*', () => {
   it('removes a set axis with exit 0, prints Removed <key>, and the key is gone on disk', () => {
     declareOrchestrators(true, true);
 
@@ -3102,7 +3102,7 @@ describe('spechub config unset host.*', () => {
   });
 });
 
-describe('spechub config get host.<axis>', () => {
+describe('mapflow config get host.<axis>', () => {
   it.each(['host.orchestrators.herdr', 'host.orchestrators.orca'])(
     'exits 2 and reports unset + required for the unset required axis %s',
     key => {
@@ -3157,11 +3157,11 @@ describe('spechub config get host.<axis>', () => {
 });
 
 // -----------------------------------------------------------------------
-// spechub config get / unset / list, project keys
+// mapflow config get / unset / list, project keys
 //
 // `config set` already routes by key: a `host.*` key describes the machine
-// and goes to the global config, and every other key SpecHub knows describes
-// the project and goes to `spechub/project.yaml`. The three commands that
+// and goes to the global config, and every other key Mapflow knows describes
+// the project and goes to `mapflow/project.yaml`. The three commands that
 // read and remove have to route the same way, or a key `set` just wrote reads
 // back as unset and cannot be removed at all.
 //
@@ -3177,19 +3177,19 @@ describe('spechub config get host.<axis>', () => {
 //            labelled so a reader can tell which file holds which.
 //
 // All three refuse a key neither schema knows, and all three refuse a project
-// key outside a SpecHub project, exactly the way `config set` refuses one.
+// key outside a Mapflow project, exactly the way `config set` refuses one.
 // Every `host.*` assertion above keeps holding: this teaches the commands a
 // second file, it does not change what they do with the first.
 // -----------------------------------------------------------------------
 
-describe('spechub config get, project keys', () => {
+describe('mapflow config get, project keys', () => {
   describe('a key the file states', () => {
     // `HAND_EDITED_PROJECT` already states each key read here, so no value
     // has to be written through the CLI before it can be read back.
     it.each([
       ['workflow.spec_sync', 'true'],
       ['workflow.tdd.orchestrator_strict', 'true'],
-    ])('prints %s as %s, read out of spechub/project.yaml', (key, printed) => {
+    ])('prints %s as %s, read out of mapflow/project.yaml', (key, printed) => {
       const result = runGet(key, makeProject(HAND_EDITED_PROJECT));
 
       expect(result.status).toBe(0);
@@ -3252,14 +3252,14 @@ describe('spechub config get, project keys', () => {
   });
 
   describe('the two ways a key can be refused', () => {
-    it('refuses a project key outside a SpecHub project with exit 1, writing nothing', () => {
+    it('refuses a project key outside a Mapflow project with exit 1, writing nothing', () => {
       const cwd = noProjectDir();
 
       const result = runGet('workflow.tdd.strict', cwd);
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toMatch(/no SpecHub project/i);
-      expect(existsSync(join(cwd, 'spechub'))).toBe(false);
+      expect(result.stderr).toMatch(/no Mapflow project/i);
+      expect(existsSync(join(cwd, 'mapflow'))).toBe(false);
       expect(existsSync(result.globalConfigFile)).toBe(false);
     });
 
@@ -3278,7 +3278,7 @@ describe('spechub config get, project keys', () => {
   });
 });
 
-describe('spechub config unset, project keys', () => {
+describe('mapflow config unset, project keys', () => {
   describe('removing a key a hand-edited file states', () => {
     // One arrangement read six ways, the way the `config set` suite above
     // reads its own. Each `it` names one thing a removal must not cost.
@@ -3311,7 +3311,7 @@ describe('spechub config unset, project keys', () => {
     });
 
     it('keeps the header comment and the inline comment on another key', () => {
-      expect(text).toContain('# Written by /spechub:setup, hand-edited since. Keep the comments.');
+      expect(text).toContain('# Written by /mapflow:setup, hand-edited since. Keep the comments.');
       expect(text).toContain('# tool | inline');
     });
 
@@ -3389,14 +3389,14 @@ describe('spechub config unset, project keys', () => {
   });
 
   describe('the two ways a key can be refused', () => {
-    it('refuses a project key outside a SpecHub project with exit 1, writing nothing', () => {
+    it('refuses a project key outside a Mapflow project with exit 1, writing nothing', () => {
       const cwd = noProjectDir();
 
       const result = runUnset('workflow.tdd.strict', cwd);
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toMatch(/no SpecHub project/i);
-      expect(existsSync(join(cwd, 'spechub'))).toBe(false);
+      expect(result.stderr).toMatch(/no Mapflow project/i);
+      expect(existsSync(join(cwd, 'mapflow'))).toBe(false);
       expect(existsSync(result.globalConfigFile)).toBe(false);
     });
 
@@ -3430,7 +3430,7 @@ describe('spechub config unset, project keys', () => {
  * user is told. Every other refusal this command makes is one red sentence,
  * and this one has to be as well.
  */
-describe('spechub config unset when the removal would orphan a YAML alias', () => {
+describe('mapflow config unset when the removal would orphan a YAML alias', () => {
   /** The anchor name, distinctive enough that finding it in a message means something. */
   const ANCHOR = 'shared_test_command';
 
@@ -3470,7 +3470,7 @@ describe('spechub config unset when the removal would orphan a YAML alias', () =
 });
 
 /**
- * One row under `project` in `spechub config list --json`.
+ * One row under `project` in `mapflow config list --json`.
  *
  * `key` is the dotted path `config set` takes, `value` is what the file
  * states, parsed, and `known` says whether any schema knows that key - false
@@ -3484,7 +3484,7 @@ interface ConfigListProjectRow {
 }
 
 /**
- * The `spechub config list --json` output shape, as touched by this file's
+ * The `mapflow config list --json` output shape, as touched by this file's
  * assertions. `host` is the global config's own nesting, reported as it is
  * stored, and is not rows.
  *
@@ -3505,7 +3505,7 @@ function projectRows(json: ConfigListJson, key: string): ConfigListProjectRow[] 
   return (json.project ?? []).filter(row => row.key === key);
 }
 
-describe('spechub config list', () => {
+describe('mapflow config list', () => {
   /** A project stating two keys, in two different blocks. */
   const LISTED_PROJECT = [
     'workflow:',
@@ -3518,17 +3518,17 @@ describe('spechub config list', () => {
   ].join('\n');
 
   /**
-   * Run `spechub config list` in `cwd` against a global config written
+   * Run `mapflow config list` in `cwd` against a global config written
    * directly, the way `runCheck` does.
    *
-   * Writing the file rather than driving `spechub config set` keeps this to
+   * Writing the file rather than driving `mapflow config set` keeps this to
    * one spawned process per run: declaring two axes through the CLI would
    * cost two spawns before the run being asserted on even starts.
    */
   function listWithHost(cwd: string, host: HostDeclarations, flags: string[] = []) {
-    const xdg = mkdtempSync(join(tmpdir(), 'spechub-list-xdg-'));
-    mkdirSync(join(xdg, 'spechub'), { recursive: true });
-    writeFileSync(join(xdg, 'spechub', 'config.json'), JSON.stringify({ host }, null, 2) + '\n');
+    const xdg = mkdtempSync(join(tmpdir(), 'mapflow-list-xdg-'));
+    mkdirSync(join(xdg, 'mapflow'), { recursive: true });
+    writeFileSync(join(xdg, 'mapflow', 'config.json'), JSON.stringify({ host }, null, 2) + '\n');
     return runCli(['config', 'list', ...flags], { cwd, env: { XDG_CONFIG_HOME: xdg } });
   }
 
@@ -3576,7 +3576,7 @@ describe('spechub config list', () => {
     });
   });
 
-  it('still lists the host axes outside a SpecHub project, without failing', () => {
+  it('still lists the host axes outside a Mapflow project, without failing', () => {
     // `list` names no key, so there is no project key to refuse here. The
     // host axes are the machine's, and they are readable from anywhere.
     const result = listWithHost(noProjectDir(), { orchestrators: { herdr: true } });
@@ -3892,7 +3892,7 @@ describe('spechub config list', () => {
 });
 
 // -----------------------------------------------------------------------
-// spechub config show
+// mapflow config show
 //
 // Contract assumed for `--json`: an object
 //   { hasProject: boolean, hasFrontend: boolean, axes: HostAxisStatus[], project: Project | null }
@@ -3914,7 +3914,7 @@ describe('spechub config list', () => {
 // reporting the same facts.
 // -----------------------------------------------------------------------
 
-describe('spechub config show', () => {
+describe('mapflow config show', () => {
   it('exits 0 and lists all nine host axes when nothing at all is configured', () => {
     const cwd = noProjectDir();
     const result = runCli(['config', 'show'], { cwd, path: [emptyPathDir()] });
@@ -4166,15 +4166,15 @@ describe('spechub config show', () => {
 });
 
 // -----------------------------------------------------------------------
-// spechub config show — Project section (text mode)
+// mapflow config show — Project section (text mode)
 //
 // `show` reports the project before the host: a `Project` heading, then the
-// facts read from spechub/project.yaml, then the existing `Host` heading and
+// facts read from mapflow/project.yaml, then the existing `Host` heading and
 // its table. The old dim one-line project summary that used to trail the
 // Host table is gone - those facts now live only in the Project section.
 // -----------------------------------------------------------------------
 
-describe('spechub config show — Project section', () => {
+describe('mapflow config show — Project section', () => {
   it('prints the Project heading before the Host heading', () => {
     const cwd = makeProject('profile: node-typescript\n');
     const result = runCli(['config', 'show'], { cwd, path: [emptyPathDir()] });
@@ -4186,14 +4186,14 @@ describe('spechub config show — Project section', () => {
     expect(hostIndex).toBeGreaterThan(projectIndex);
   });
 
-  it('says there is no SpecHub project here as the first thing printed, with no project root, and still prints the full Host section at exit 0', () => {
+  it('says there is no Mapflow project here as the first thing printed, with no project root, and still prints the full Host section at exit 0', () => {
     const cwd = noProjectDir();
     const result = runCli(['config', 'show'], { cwd, path: [emptyPathDir()] });
 
     expect(result.status).toBe(0);
     const firstLine = result.stdout.split('\n').find(line => line.trim() !== '');
     expect(firstLine).toBeDefined();
-    expect(firstLine).toMatch(/no SpecHub project/i);
+    expect(firstLine).toMatch(/no Mapflow project/i);
 
     for (const key of [
       'host.orchestrators.herdr',
@@ -4316,10 +4316,10 @@ describe('spechub config show — Project section', () => {
 });
 
 // -----------------------------------------------------------------------
-// spechub config show --json — the `project` object
+// mapflow config show --json — the `project` object
 // -----------------------------------------------------------------------
 
-describe('spechub config show --json — project object', () => {
+describe('mapflow config show --json — project object', () => {
   it('project is null when no project root is found', () => {
     const cwd = noProjectDir();
     const result = runCli(['config', 'show', '--json'], { cwd, path: [emptyPathDir()] });
@@ -4423,10 +4423,10 @@ describe('spechub config show --json — project object', () => {
 });
 
 // -----------------------------------------------------------------------
-// spechub config check
+// mapflow config check
 // -----------------------------------------------------------------------
 
-describe('spechub config check', () => {
+describe('mapflow config check', () => {
   it('exits 2 when both orchestrator booleans are unset', () => {
     const cwd = noProjectDir();
     const result = runCli(['config', 'check'], { cwd, path: [emptyPathDir()] });
@@ -5364,7 +5364,7 @@ describe('spechub config check', () => {
       expect(row).toBeUndefined();
     });
 
-    it('carries no row outside a SpecHub project either', () => {
+    it('carries no row outside a Mapflow project either', () => {
       // No project is no frontend, so the same rule decides it. Nothing here
       // may fall through to a row about a preference nobody could have made.
       expect(preferredRow(noProjectDir(), HOST_QUIET)).toBeUndefined();
@@ -5521,7 +5521,7 @@ describe('spechub config check', () => {
       return lineContaining(output, 'domain-map.yaml');
     }
 
-    it('passes and states how many domains the map holds when spechub/domain-map.yaml is present', () => {
+    it('passes and states how many domains the map holds when mapflow/domain-map.yaml is present', () => {
       const cwd = makeProject('name: mapped-project\n');
       writeDomainMap(cwd, DOMAIN_MAP_THREE);
 
@@ -5537,7 +5537,7 @@ describe('spechub config check', () => {
       expect(line).toMatch(/\b3\b/);
     });
 
-    it('fails and says spec sync skips silently when spechub/domain-map.yaml is absent', () => {
+    it('fails and says spec sync skips silently when mapflow/domain-map.yaml is absent', () => {
       const cwd = makeProject('name: unmapped-project\n');
 
       const result = runCheck({ cwd });
@@ -5552,7 +5552,7 @@ describe('spechub config check', () => {
       expect(fails[0].toLowerCase()).toContain('living spec');
     });
 
-    it('fails on a malformed spechub/domain-map.yaml rather than crashing with a stack trace', () => {
+    it('fails on a malformed mapflow/domain-map.yaml rather than crashing with a stack trace', () => {
       const cwd = makeProject('name: broken-map-project\n');
       writeDomainMap(cwd, 'domains: {cli: [unclosed\n');
 
@@ -5997,8 +5997,8 @@ describe('spechub config check', () => {
     });
   });
 
-  describe('a directory that is not a SpecHub project (project rows)', () => {
-    it('says the directory is not a SpecHub project instead of failing every project row', () => {
+  describe('a directory that is not a Mapflow project (project rows)', () => {
+    it('says the directory is not a Mapflow project instead of failing every project row', () => {
       const cwd = noProjectDir();
 
       const result = runCheck({ cwd, path: [emptyPathDir()] });
@@ -6009,7 +6009,7 @@ describe('spechub config check', () => {
       // going to have is noise.
       expect(failLines(result.stdout)).toEqual([]);
       expect(result.status).toBe(0);
-      expect(result.stdout).toMatch(/\bno(t)?\b[^\n]{0,20}SpecHub project/i);
+      expect(result.stdout).toMatch(/\bno(t)?\b[^\n]{0,20}Mapflow project/i);
     });
   });
 
@@ -6028,14 +6028,14 @@ describe('spechub config check', () => {
 
     it('reports the style ~/.claude/settings.json selects when it is the only file that sets one', () => {
       const home = fakeHome();
-      writeClaudeSettings(home, 'settings.json', outputStyleSettings(SPECHUB_OUTPUT_STYLE));
+      writeClaudeSettings(home, 'settings.json', outputStyleSettings(MAPFLOW_OUTPUT_STYLE));
 
       const result = runCheck({ cwd: styledProject(), home });
 
       expect(result.status).toBe(0);
       const line = outputStyleLine(result.stdout);
       expect(line).toBeDefined();
-      expect(line).toContain(SPECHUB_OUTPUT_STYLE);
+      expect(line).toContain(MAPFLOW_OUTPUT_STYLE);
       // The status carries the answer, not just the prose: a caller deciding
       // whether to offer the writing style has to be able to read "already
       // selected" off the outcome alone.
@@ -6118,7 +6118,7 @@ describe('spechub config check', () => {
     });
 
     it.each([
-      ['the spechub writing style is selected', 'pass', outputStyleSettings(SPECHUB_OUTPUT_STYLE)],
+      ['the mapflow writing style is selected', 'pass', outputStyleSettings(MAPFLOW_OUTPUT_STYLE)],
       ['a different style is selected', 'info', outputStyleSettings('some-other-style')],
       ['no settings file names a style', 'info', ''],
       ['a settings file will not parse', 'fail', '{ "outputStyle": '],
@@ -6133,18 +6133,18 @@ describe('spechub config check', () => {
       expect(checkJsonRow(result.stdout, CHECK_ROW_IDS.outputStyle)?.status).toBe(status);
     });
 
-    it('passes on the spechub writing style even when it wins only by precedence over another file', () => {
+    it('passes on the mapflow writing style even when it wins only by precedence over another file', () => {
       const home = fakeHome();
       writeClaudeSettings(home, 'settings.json', outputStyleSettings('some-other-style'));
       const cwd = styledProject();
-      writeClaudeSettings(cwd, 'settings.local.json', outputStyleSettings(SPECHUB_OUTPUT_STYLE));
+      writeClaudeSettings(cwd, 'settings.local.json', outputStyleSettings(MAPFLOW_OUTPUT_STYLE));
 
       const result = runCheck({ cwd, home });
 
       const line = outputStyleLine(result.stdout);
       expect(line).toBeDefined();
       expect(line).toContain('PASS');
-      expect(line).toContain(SPECHUB_OUTPUT_STYLE);
+      expect(line).toContain(MAPFLOW_OUTPUT_STYLE);
       // Passing does not stop the row naming the file that won - which style
       // is on is only actionable alongside where to go and change it.
       expect(line).toContain('settings.local.json');
@@ -6224,7 +6224,7 @@ describe('spechub config check', () => {
           const result = runWith({ registryVersion: version });
 
           expect(rowOf(result)?.status).toBe('info');
-          // Both halves of the answer: what is installed, and what SpecHub
+          // Both halves of the answer: what is installed, and what Mapflow
           // wanted. A message naming only one of them leaves the reader to
           // go and look the other up.
           expect(messageOf(result)).toContain(version);
@@ -6368,7 +6368,7 @@ describe('spechub config check', () => {
 
     describe('where the installed plugins are read from', () => {
       it('reads CLAUDE_CONFIG_DIR when it is set, not ~/.claude', () => {
-        const configDir = mkdtempSync(join(tmpdir(), 'spechub-claude-config-'));
+        const configDir = mkdtempSync(join(tmpdir(), 'mapflow-claude-config-'));
         installImpeccable(configDir, { registryVersion: '4.2.0' });
 
         const result = runCheck({
@@ -6385,7 +6385,7 @@ describe('spechub config check', () => {
       it('reads CLAUDE_CONFIG_DIR instead of ~/.claude when both hold an install', () => {
         // Not "as well as": the variable moves the config root, so a HOME
         // install is not a second place to look.
-        const configDir = mkdtempSync(join(tmpdir(), 'spechub-claude-config-'));
+        const configDir = mkdtempSync(join(tmpdir(), 'mapflow-claude-config-'));
         installImpeccable(configDir, { registryVersion: '3.9.0' });
 
         const result = runCheck({
@@ -6522,7 +6522,7 @@ describe('spechub config check', () => {
           // The registry and the settings file are two halves of one config
           // root. Reading one from the variable and the other from HOME would
           // answer from two machines' worth of state at once.
-          const configDir = mkdtempSync(join(tmpdir(), 'spechub-claude-config-'));
+          const configDir = mkdtempSync(join(tmpdir(), 'mapflow-claude-config-'));
           installImpeccable(configDir, {
             registryVersion: INSTALLED_VERSION,
             marketplace: MARKETPLACE,
@@ -6540,7 +6540,7 @@ describe('spechub config check', () => {
         });
 
         it('ignores ~/.claude/settings.json when CLAUDE_CONFIG_DIR is set', () => {
-          const configDir = mkdtempSync(join(tmpdir(), 'spechub-claude-config-'));
+          const configDir = mkdtempSync(join(tmpdir(), 'mapflow-claude-config-'));
           installImpeccable(configDir, {
             registryVersion: INSTALLED_VERSION,
             marketplace: MARKETPLACE,
@@ -6572,8 +6572,8 @@ describe('spechub config check', () => {
       // Detection is two file reads. Running the plugin to ask it its
       // version would make `check` slow, and would make it depend on a
       // command that a broken install may not be able to start at all.
-      const marker = join(mkdtempSync(join(tmpdir(), 'spechub-impeccable-marker-')), 'ran');
-      const binDir = mkdtempSync(join(tmpdir(), 'spechub-fake-bin-'));
+      const marker = join(mkdtempSync(join(tmpdir(), 'mapflow-impeccable-marker-')), 'ran');
+      const binDir = mkdtempSync(join(tmpdir(), 'mapflow-fake-bin-'));
       const command = join(binDir, IMPECCABLE_PLUGIN);
       writeFileSync(command, `#!/bin/sh\necho ran > '${marker}'\nexit 0\n`);
       chmodSync(command, 0o755);
@@ -6618,7 +6618,7 @@ describe('spechub config check', () => {
   });
 
   // ---------------------------------------------------------------------
-  // spechub config check --json
+  // mapflow config check --json
   //
   // One JSON object on stdout and nothing else, indented by two spaces, the
   // same way `config show --json` and `config browser-mode --json` print.
@@ -6632,7 +6632,7 @@ describe('spechub config check', () => {
   // the report is written, not what it concluded.
   // ---------------------------------------------------------------------
 
-  describe('spechub config check --json', () => {
+  describe('mapflow config check --json', () => {
     /** The row with `id`, or undefined. */
     function row(json: ConfigCheckJson, id: string): ConfigCheckJsonRow | undefined {
       return json.checks.find(check => check.id === id);
@@ -6829,7 +6829,7 @@ describe('spechub config check', () => {
 });
 
 // -----------------------------------------------------------------------
-// spechub config browser-mode [--json]
+// mapflow config browser-mode [--json]
 //
 // Answers one question: which browser mode should the frontend verifier
 // actually use on this machine, and why. It resolves purely from what is
@@ -6845,12 +6845,12 @@ describe('spechub config check', () => {
 //
 // Resolution, in the order it is decided (numbered to match the rule labels
 // on the describe blocks below, not the order they are declared in):
-//   Rule 6. No SpecHub project here, or the project has no frontend
-//      configured -> exit 1, stderr names `/spechub:setup`, stdout stays
+//   Rule 6. No Mapflow project here, or the project has no frontend
+//      configured -> exit 1, stderr names `/mapflow:setup`, stdout stays
 //      empty. Outranks everything else, even a host that declares every
 //      mode available.
 //   Rule 5. No mode is enabled at all -> exit 1, stderr names
-//      `/spechub:host`, in one of two distinct messages: nothing declared at
+//      `/mapflow:host`, in one of two distinct messages: nothing declared at
 //      all, or all three declared false.
 //   Rule 1. The project states a preferred mode (`frontend.browser.mode` is
 //      one of remote/headless/local) and it is enabled -> that mode wins,
@@ -6858,7 +6858,7 @@ describe('spechub config check', () => {
 //   The project states a preferred mode that is NOT enabled:
 //     Rule 3. `frontend.browser.fallback` is the literal "none" -> exit 1,
 //        stderr names the preferred mode, names `frontend.browser.fallback`,
-//        and names `/spechub:host`.
+//        and names `/mapflow:host`.
 //     Rule 2. anything else (including a fallback value naming a mode - only
 //        "none" is special) -> the first enabled mode in priority order
 //        wins, and this IS a fallback.
@@ -6878,27 +6878,27 @@ describe('spechub config check', () => {
 // stays empty, and the message goes to stderr as plain text.
 // -----------------------------------------------------------------------
 
-describe('spechub config browser-mode', () => {
+describe('mapflow config browser-mode', () => {
   describe('no project / no frontend outranks everything (rule 6)', () => {
-    it('exits 1 naming /spechub:setup with no SpecHub project anywhere above cwd', () => {
+    it('exits 1 naming /mapflow:setup with no Mapflow project anywhere above cwd', () => {
       const cwd = noProjectDir();
       const result = runCli(['config', 'browser-mode'], { cwd, path: [emptyPathDir()] });
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain('/spechub:setup');
+      expect(result.stderr).toContain('/mapflow:setup');
       expect(result.stdout).toBe('');
     });
 
-    it('exits 1 naming /spechub:setup when the project has no frontend configured', () => {
+    it('exits 1 naming /mapflow:setup when the project has no frontend configured', () => {
       const cwd = makeProject('name: no-frontend-project\n');
       const result = runCli(['config', 'browser-mode'], { cwd, path: [emptyPathDir()] });
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain('/spechub:setup');
+      expect(result.stderr).toContain('/mapflow:setup');
       expect(result.stdout).toBe('');
     });
 
-    it('exits 1 naming /spechub:setup even when the host declares every browser mode available, for a no-frontend project', () => {
+    it('exits 1 naming /mapflow:setup even when the host declares every browser mode available, for a no-frontend project', () => {
       declareOrchestrators(false, false);
       expect(runCli(['config', 'set', 'host.browser.remote', 'true']).status).toBe(0);
       expect(runCli(['config', 'set', 'host.browser.headless', 'true']).status).toBe(0);
@@ -6908,7 +6908,7 @@ describe('spechub config browser-mode', () => {
       const result = runCli(['config', 'browser-mode'], { cwd, path: [emptyPathDir()] });
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain('/spechub:setup');
+      expect(result.stderr).toContain('/mapflow:setup');
     });
 
     it('--json prints no JSON object on the no-project failure - stdout stays empty', () => {
@@ -6917,12 +6917,12 @@ describe('spechub config browser-mode', () => {
 
       expect(result.status).toBe(1);
       expect(result.stdout).toBe('');
-      expect(result.stderr).toContain('/spechub:setup');
+      expect(result.stderr).toContain('/mapflow:setup');
     });
   });
 
   describe('no mode enabled at all (rule 5, two distinct messages)', () => {
-    it('exits 1 naming /spechub:host, with a different message when nothing is declared than when all three are declared false', () => {
+    it('exits 1 naming /mapflow:host, with a different message when nothing is declared than when all three are declared false', () => {
       const yaml = 'frontend:\n  browser:\n    mode: remote\n';
 
       // Shade A: the project has a frontend, but none of the three
@@ -6932,7 +6932,7 @@ describe('spechub config browser-mode', () => {
       const cwdA = makeProject(yaml);
       const resultA = runCli(['config', 'browser-mode'], { cwd: cwdA, path: [emptyPathDir()] });
       expect(resultA.status).toBe(1);
-      expect(resultA.stderr).toContain('/spechub:host');
+      expect(resultA.stderr).toContain('/mapflow:host');
       expect(resultA.stdout).toBe('');
       expect(resultA.stderr).toContain('has not been described yet');
       expect(resultA.stderr).not.toContain('declares no browser mode available');
@@ -6945,7 +6945,7 @@ describe('spechub config browser-mode', () => {
       const cwdB = makeProject(yaml);
       const resultB = runCli(['config', 'browser-mode'], { cwd: cwdB, path: [emptyPathDir()] });
       expect(resultB.status).toBe(1);
-      expect(resultB.stderr).toContain('/spechub:host');
+      expect(resultB.stderr).toContain('/mapflow:host');
       expect(resultB.stdout).toBe('');
       expect(resultB.stderr).toContain('declares no browser mode available');
       expect(resultB.stderr).not.toContain('has not been described yet');
@@ -6961,7 +6961,7 @@ describe('spechub config browser-mode', () => {
 
       expect(result.status).toBe(1);
       expect(result.stdout).toBe('');
-      expect(result.stderr).toContain('/spechub:host');
+      expect(result.stderr).toContain('/mapflow:host');
     });
   });
 
@@ -7069,7 +7069,7 @@ describe('spechub config browser-mode', () => {
   });
 
   describe('preferred mode not declared available, fallback forbidden (rule 3)', () => {
-    it('exits 1 naming the preferred mode, frontend.browser.fallback, and /spechub:host, even though another mode is available', () => {
+    it('exits 1 naming the preferred mode, frontend.browser.fallback, and /mapflow:host, even though another mode is available', () => {
       expect(runCli(['config', 'set', 'host.browser.remote', 'false']).status).toBe(0);
       expect(runCli(['config', 'set', 'host.browser.headless', 'true']).status).toBe(0);
       expect(runCli(['config', 'set', 'host.browser.local', 'true']).status).toBe(0);
@@ -7081,7 +7081,7 @@ describe('spechub config browser-mode', () => {
       expect(result.stdout).toBe('');
       expect(result.stderr).toContain('remote');
       expect(result.stderr).toContain('frontend.browser.fallback');
-      expect(result.stderr).toContain('/spechub:host');
+      expect(result.stderr).toContain('/mapflow:host');
     });
 
     it('--json prints no JSON object on the fallback:none failure', () => {
@@ -7146,12 +7146,12 @@ describe('spechub config browser-mode', () => {
       expect(json.fallback).toBe(false);
     });
 
-    it('exits 1 naming /spechub:host when the project states no preference and no mode is enabled at all', () => {
+    it('exits 1 naming /mapflow:host when the project states no preference and no mode is enabled at all', () => {
       const cwd = makeProject('frontend:\n  something: true\n');
       const result = runCli(['config', 'browser-mode'], { cwd, path: [emptyPathDir()] });
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain('/spechub:host');
+      expect(result.stderr).toContain('/mapflow:host');
       expect(result.stdout).toBe('');
     });
   });

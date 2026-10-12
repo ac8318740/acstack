@@ -10,7 +10,7 @@ Cross-session messaging has no accept-or-decline mechanism. A peer can read a
 message and simply ignore it, and nobody tells the sender.
 
 So the receiver acknowledges by running a command.
-`spechub handoff ack accept|decline` writes a sidecar file at
+`mapflow handoff ack accept|decline` writes a sidecar file at
 `<handoff-file>.ack`, beside the handoff file in the temp directory. The watcher
 polls for that path.
 
@@ -43,7 +43,7 @@ the second place the requirement lands. The launch prompt is the first.
 # --ack-after <epoch-ms> moves the sidecar cut-off back. Only a token-route
 # nudge restart passes it – see outcomes.md. The default is right
 # everywhere else.
-~/.claude/spechub/bin/spechub handoff watch --file <handoff-file> \
+~/.claude/mapflow/bin/mapflow handoff watch --file <handoff-file> \
   --session-id <id> --cwd <dir> --token <token> --turns <n>
 ```
 

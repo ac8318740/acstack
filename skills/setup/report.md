@@ -7,7 +7,7 @@
 Run the health check one last time, then report what stands:
 
 ```
-## SpecHub setup
+## Mapflow setup
 
 Profile:      [profile]
 Source:       [source dir]
@@ -21,18 +21,18 @@ Browser:      [project's preferred mode / not configured]
 Design:       [on / off / not asked]
 Host:         [orchestrators + browser modes declared / not declared]
 Workspace:    [yes / yes, n updates available / not installed / declined / not asked]
-Config:       spechub/project.yaml
-Domain map:   spechub/domain-map.yaml ([n] domains / starter – fill in)
-Output style: spechub:ac-writing-style (global) | (project) | not set
+Config:       mapflow/project.yaml
+Domain map:   mapflow/domain-map.yaml ([n] domains / starter – fill in)
+Output style: mapflow:ac-writing-style (global) | (project) | not set
 
 Health check: [n] pass, [n] fail, [n] info
 
-Next: describe what you want to build, or run /spechub:bootstrap for existing code.
+Next: describe what you want to build, or run /mapflow:bootstrap for existing code.
 ```
 
 Fill the `Host:` line and the `Orchestrator:` line from two different sources.
 `Orchestrator:` is this project's delegation policy, read from
-`workflow.tdd.orchestrator_strict` in `spechub/project.yaml`. It says whether
+`workflow.tdd.orchestrator_strict` in `mapflow/project.yaml`. It says whether
 the coordinator may write code itself. `Host:` is about the machine. It names
 which tool owns terminal panes and git worktrees, and which browser modes work
 here.
@@ -45,7 +45,7 @@ Fill `Workspace:` from `host.terminal_workspace`: `yes` on `true`, `declined` on
 The key records the answer, never the install. Setup writes it before anyone
 runs the installer, so `yes` never claims this machine has the workspace. When
 Step 12 asked in this run and the user said Yes, write `yes – run
-/spechub:terminal-workspace` so the owed command stays on screen.
+/mapflow:terminal-workspace` so the owed command stays on screen.
 
 Two rows come from what `outdated` found in Step 12. Write `yes, n updates
 available` when it reported stale or new components, with `n` as the number of

@@ -28,13 +28,13 @@ When step 5 runs on a node, copy its eight numbered steps the same way.
 ### 1. Find the work
 
 Check the configured tracker for maps (`workflow.maps.tracker` in
-`spechub/project.yaml`; the map skill's `trackers/` docs declare the
+`mapflow/project.yaml`; the map skill's `trackers/` docs declare the
 operations – files backend shown below).
 
 **A map exists** (or `$ARGUMENTS` names one):
 
 ```bash
-~/.claude/spechub/bin/spechub node frontier --map <name> --mode afk --json
+~/.claude/mapflow/bin/mapflow node frontier --map <name> --mode afk --json
 ```
 
 On the github backend `--map` refuses – pipe `gh issue list` into `node
@@ -45,7 +45,7 @@ Pull them regardless of depth – work can hang anywhere, including straight
 off the root.
 
 If the frontier holds only `hitl` nodes – human in the loop, meaning a
-person must answer them – stop and point the user at `/spechub:map`. Those
+person must answer them – stop and point the user at `/mapflow:map`. Those
 need a human, not a pipeline.
 
 **No map**: the request in `$ARGUMENTS` is the work item. Same discipline,
@@ -54,7 +54,7 @@ small unit of work, and nothing has to declare it small.
 
 ### 2. Read project configuration
 
-Read `spechub/project.yaml` for build/test/lint commands and directory paths.
+Read `mapflow/project.yaml` for build/test/lint commands and directory paths.
 
 ### 3. Create feature branch
 
@@ -67,7 +67,7 @@ it or start fresh.
 With a map, orient once per session before claiming:
 
 ```bash
-~/.claude/spechub/bin/spechub node walk --map <name>
+~/.claude/mapflow/bin/mapflow node walk --map <name>
 ```
 
 On the github backend, pipe `gh issue list` into `node walk --stdin` instead
@@ -93,7 +93,7 @@ user and release it (`--status open`).
 Claim each node as you start it:
 
 ```bash
-~/.claude/spechub/bin/spechub node update <id> --map <name> --status claimed
+~/.claude/mapflow/bin/mapflow node update <id> --map <name> --status claimed
 ```
 
 Nodes describe behaviour, not paths. **Resolve paths at claim time**.
@@ -125,13 +125,13 @@ completion:
    baseline. Also check the mock audit, TDD isolation, and integration
    wired.
 
-    When `spechub/project.yaml` configures `frontend` and frontend files
+    When `mapflow/project.yaml` configures `frontend` and frontend files
     changed, the checker also runs the frontend build, lint, and unit
     tests.
 
 5. **`/impeccable audit`** – report design findings on the changed frontend
    files. Steps 5 to 7 run only when three conditions hold: the design gate
-   is on, `spechub/project.yaml` configures `frontend`, and frontend files
+   is on, `mapflow/project.yaml` configures `frontend`, and frontend files
    changed.
 
 6. **`/impeccable polish`** – fix the same files, from the audit findings.
@@ -143,7 +143,7 @@ completion:
 
 8. **frontend-verifier subagent** – verify the UI in a browser. The
    verifier runs after the second checker passes, only when
-   `spechub/project.yaml` configures `frontend`, frontend files changed,
+   `mapflow/project.yaml` configures `frontend`, frontend files changed,
    and `workflow.frontend_verification` is true.
 
 `workflow.tdd.strict: false`, relaxed TDD, runs step 2 before step 1 and
@@ -156,7 +156,7 @@ If the work stalls or the session must stop mid-node, release the claim
 breadcrumb.
 
 **Decision log**: on afk nodes, append one row per decision point to
-`<main checkout>/spechub/.decisions/<name>.tsv`. A decision point is a fork chosen, a
+`<main checkout>/mapflow/.decisions/<name>.tsv`. A decision point is a fork chosen, a
 unit verified, a revert, or a blocker.
 
 Read `decision-log.md` before the first row. It holds how to find the main
@@ -172,7 +172,7 @@ work them sequentially.
 When the checker passes, resolve the node in one call:
 
 ```bash
-~/.claude/spechub/bin/spechub node update <id> --map <name> --status resolved \
+~/.claude/mapflow/bin/mapflow node update <id> --map <name> --status resolved \
   --append-body "## Answer
 
 <what was built, which files, what the tests pin down>"
@@ -192,17 +192,17 @@ decision landed. With a map, then:
 ### 7. Build verification
 
 After each node (and before ending the session), run the commands from
-`spechub/project.yaml`: build, full test suite, lint and typecheck. All must
+`mapflow/project.yaml`: build, full test suite, lint and typecheck. All must
 pass before claiming the next node.
 
 ### 8. Completion
 
 Stop when the afk frontier is empty, or when only `hitl` nodes remain (hand
-those to `/spechub:map`). With no map, stop when the checker passes and Step
+those to `/mapflow:map`). With no map, stop when the checker passes and Step
 7 verification is green.
 
 Report: nodes resolved, tests passing, lines added/removed. Remind the user:
-`/spechub:commit` to commit – spec sync extracts the durable record from the
+`/mapflow:commit` to commit – spec sync extracts the durable record from the
 diff.
 
 ## Key rules
@@ -227,4 +227,4 @@ diff.
   runs the frontier query and continues. Never re-read an effort end to end
   to find where it stopped.
 
-- **Do NOT commit or push** – the user manages git via `/spechub:commit`.
+- **Do NOT commit or push** – the user manages git via `/mapflow:commit`.

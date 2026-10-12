@@ -184,8 +184,8 @@ describe('transcriptPath', () => {
   });
 
   it('munges slashes and dots together in a nested path', () => {
-    const p = transcriptPath('/home/acoote/.herdr/worktrees/spechub/feat-x', 'abc', '/root');
-    expect(p).toBe(join('/root', '-home-acoote--herdr-worktrees-spechub-feat-x', 'abc.jsonl'));
+    const p = transcriptPath('/home/acoote/.herdr/worktrees/mapflow/feat-x', 'abc', '/root');
+    expect(p).toBe(join('/root', '-home-acoote--herdr-worktrees-mapflow-feat-x', 'abc.jsonl'));
   });
 
   it('defaults projectsDir to ~/.claude/projects when omitted', () => {
@@ -671,7 +671,7 @@ describe('watch', () => {
   let file: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-ackwatch-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-ackwatch-'));
     file = join(dir, 'session.jsonl');
   });
 
@@ -786,7 +786,7 @@ describe('watch', () => {
 // The handoff file: a second, out-of-band channel
 //
 // A target can acknowledge by writing a sidecar next to the handoff file
-// (`spechub handoff ack`) instead of speaking into its transcript. The
+// (`mapflow handoff ack`) instead of speaking into its transcript. The
 // watcher is given that handoff path as `file`, and from then on it has two
 // sources of truth: the sidecar and the transcript. The sidecar is the
 // deliberate one, so it wins.
@@ -822,7 +822,7 @@ describe('analyze — CLI ack sidecar', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-acksidecar-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-acksidecar-'));
     handoffFile = join(dir, 'handoff-2026-08-23.md');
     writeFileSync(handoffFile, '# Handoff\n');
   });
@@ -988,7 +988,7 @@ describe('analyze — ack provenance', () => {
 // ---------------------------------------------------------------------------
 
 describe('analyze — engagement instead of silence', () => {
-  const HANDOFF_FILE = '/tmp/spechub-handoffs/handoff-2026-08-23.md';
+  const HANDOFF_FILE = '/tmp/mapflow-handoffs/handoff-2026-08-23.md';
 
   function silentRun(...records: string[]): string[] {
     return [
@@ -1201,7 +1201,7 @@ describe('watch — handoff file', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-ackwatch-file-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-ackwatch-file-'));
     file = join(dir, 'session.jsonl');
     handoffFile = join(dir, 'handoff-2026-08-23.md');
     writeFileSync(handoffFile, '# Handoff\n');
@@ -1380,7 +1380,7 @@ describe('analyze — stale sidecar', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-stale-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-stale-'));
     handoffFile = join(dir, 'handoff-round-two.md');
     writeFileSync(handoffFile, '# Handoff\n');
   });
@@ -1513,7 +1513,7 @@ describe('watch — stale sidecar', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-stale-watch-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-stale-watch-'));
     file = join(dir, 'session.jsonl');
     handoffFile = join(dir, 'handoff-round-two.md');
     writeFileSync(handoffFile, '# Handoff\n');
@@ -1600,7 +1600,7 @@ describe('the ack round trip', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-roundtrip-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-roundtrip-'));
     handoffFile = join(dir, 'handoff.md');
     writeFileSync(handoffFile, '# Handoff\n');
   });
@@ -1653,7 +1653,7 @@ describe('the ack round trip', () => {
 // ===========================================================================
 
 describe('analyze — engagement matches the handoff by basename', () => {
-  const HANDOFF_FILE = '/tmp/spechub-handoff-x-1.md';
+  const HANDOFF_FILE = '/tmp/mapflow-handoff-x-1.md';
 
   function silentRunWith(record: string): string[] {
     return [
@@ -1675,7 +1675,7 @@ describe('analyze — engagement matches the handoff by basename', () => {
       silentRunWith(
         toolUseRecord({
           name: 'Read',
-          input: { file_path: '/private/var/folders/T/spechub-handoff-x-1.md' },
+          input: { file_path: '/private/var/folders/T/mapflow-handoff-x-1.md' },
         })
       ),
       { token: TOKEN, turns: 5, file: HANDOFF_FILE }
@@ -1687,7 +1687,7 @@ describe('analyze — engagement matches the handoff by basename', () => {
   it('engages when the cited path merely shares the prefix, too', () => {
     const result = analyze(
       silentRunWith(
-        toolUseRecord({ name: 'Read', input: { file_path: '/private/tmp/spechub-handoff-x-1.md' } })
+        toolUseRecord({ name: 'Read', input: { file_path: '/private/tmp/mapflow-handoff-x-1.md' } })
       ),
       { token: TOKEN, turns: 5, file: HANDOFF_FILE }
     );
@@ -1699,7 +1699,7 @@ describe('analyze — engagement matches the handoff by basename', () => {
       silentRunWith(
         toolUseRecord({
           name: 'Grep',
-          input: { pattern: 'TODO', note: 'per spechub-handoff-x-1.md' },
+          input: { pattern: 'TODO', note: 'per mapflow-handoff-x-1.md' },
         })
       ),
       { token: TOKEN, turns: 5, file: HANDOFF_FILE }
@@ -1710,7 +1710,7 @@ describe('analyze — engagement matches the handoff by basename', () => {
   it('stays silent for a different file in the same directory', () => {
     const result = analyze(
       silentRunWith(
-        toolUseRecord({ name: 'Read', input: { file_path: '/tmp/spechub-handoff-x-2.md' } })
+        toolUseRecord({ name: 'Read', input: { file_path: '/tmp/mapflow-handoff-x-2.md' } })
       ),
       { token: TOKEN, turns: 5, file: HANDOFF_FILE }
     );
@@ -1735,7 +1735,7 @@ describe('watch — startedAt', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-startedat-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-startedat-'));
     file = join(dir, 'session.jsonl');
     handoffFile = join(dir, 'handoff.md');
     writeFileSync(handoffFile, '# Handoff\n');
@@ -1892,7 +1892,7 @@ describe('analyze — fresh mode dates the round by the launch', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-launchcutoff-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-launchcutoff-'));
     handoffFile = join(dir, 'handoff-fresh.md');
     writeFileSync(handoffFile, '# Handoff\n');
   });
@@ -1980,7 +1980,7 @@ describe('watch — fresh mode honours an ack written before the watch started',
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-launchwatch-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-launchwatch-'));
     file = join(dir, 'session.jsonl');
     handoffFile = join(dir, 'handoff-fresh.md');
     writeFileSync(handoffFile, '# Handoff\n');
@@ -2080,7 +2080,7 @@ describe('analyze — staleAck', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-staleack-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-staleack-'));
     handoffFile = join(dir, 'handoff.md');
     writeFileSync(handoffFile, '# Handoff\n');
   });
@@ -2165,7 +2165,7 @@ describe('watch — staleAck rides on the negative outcomes', () => {
   let handoffFile: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-staleackwatch-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-staleackwatch-'));
     file = join(dir, 'session.jsonl');
     handoffFile = join(dir, 'handoff.md');
     writeFileSync(handoffFile, '# Handoff\n');

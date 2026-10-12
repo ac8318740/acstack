@@ -10,8 +10,8 @@ import type { DiagramNode } from './diagram.js';
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'spechub-diagram-'));
-  mkdirSync(join(root, 'spechub'));
+  root = mkdtempSync(join(tmpdir(), 'mapflow-diagram-'));
+  mkdirSync(join(root, 'mapflow'));
 });
 
 afterEach(() => {
@@ -1070,8 +1070,8 @@ describe('anchors', () => {
 describe('output', () => {
   it('wraps both fences in the replaceable marker comments', () => {
     const out = renderDiagram(richNodes());
-    const start = out.indexOf('<!-- spechub:diagram -->');
-    const end = out.indexOf('<!-- /spechub:diagram -->');
+    const start = out.indexOf('<!-- mapflow:diagram -->');
+    const end = out.indexOf('<!-- /mapflow:diagram -->');
     expect(start).toBeGreaterThanOrEqual(0);
     expect(end).toBeGreaterThan(start);
     const [main, legend] = fences(out);

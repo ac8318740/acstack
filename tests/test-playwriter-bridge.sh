@@ -174,6 +174,12 @@ else
   no "the amber remedy does not name vm-free-port.sh --port"
 fi
 
+if grep -q "X-Mapflow-Token" "$DOCTOR" && ! grep -q "X-Spechub-Token" "$DOCTOR"; then
+  ok "doctor.ps1 probes opener health with the Mapflow auth header"
+else
+  no "doctor.ps1 uses a stale opener auth header"
+fi
+
 echo "sync.ps1: task stop/restart goes through Stop-BridgeTaskTree, not a bare stop/start"
 
 # The function itself: from its declaration to the closing brace at column 0

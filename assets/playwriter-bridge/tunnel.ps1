@@ -275,7 +275,7 @@ while ($true) {
                 # the moment someone frees the port, the next attempt binds.
                 Write-Log -State 'stuck' -ExitCode $code -Message "Port $Port still bound on $TargetHost after $stuckStreak consecutive attempts. Marker written; still retrying every ${stuckWait}s."
                 Write-Marker -Reason "remote port forwarding failed – port $Port still bound on VM after $stuckStreak consecutive attempts (the VM's sshd has not reaped the orphaned forward channel)" `
-                    -Remediation "Run ~/.claude/spechub/bin/vm-free-port.sh --port $Port on $TargetHost. This task is still retrying, so it will bind on its own once the port is free – no restart needed. If this recurs, tighten the VM's sshd ClientAliveInterval per the bridge SKILL-VM runbook so orphaned forwards reap faster."
+                    -Remediation "Run ~/.claude/mapflow/bin/vm-free-port.sh --port $Port on $TargetHost. This task is still retrying, so it will bind on its own once the port is free – no restart needed. If this recurs, tighten the VM's sshd ClientAliveInterval per the bridge SKILL-VM runbook so orphaned forwards reap faster."
             }
             # The port is held by the orphaned forward channel of the dropped
             # session. Wait for the VM's sshd ClientAlive reaper to release it;

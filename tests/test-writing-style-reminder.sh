@@ -69,7 +69,7 @@ out="$(run_hook "ac-writing-style" "$ROOT")"
 check "speaks when ac-writing-style is active" \
   '[ -n "$(echo "$out" | context_of)" ]'
 
-out="$(run_hook "spechub:ac-writing-style" "$ROOT")"
+out="$(run_hook "mapflow:ac-writing-style" "$ROOT")"
 check "speaks when the style carries a plugin prefix" \
   '[ -n "$(echo "$out" | context_of)" ]'
 

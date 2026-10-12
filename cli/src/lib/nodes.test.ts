@@ -25,8 +25,8 @@ function invalid<T>(input: Record<string, unknown>): T {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'spechub-nodes-'));
-  mkdirSync(join(root, 'spechub'));
+  root = mkdtempSync(join(tmpdir(), 'mapflow-nodes-'));
+  mkdirSync(join(root, 'mapflow'));
 });
 
 afterEach(() => {

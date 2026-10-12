@@ -31,7 +31,7 @@ skip() { printf '  \033[33mSKIP\033[0m %s\n' "$1"; skipped=$((skipped + 1)); }
 # One line of a captured run, for a failure message that has to stay on one.
 flat() { printf '%s' "$1" | tr '\n' '|'; }
 
-# spechub-md builds its HTML with the python markdown package and exits 1 when
+# mapflow-md builds its HTML with the python markdown package and exits 1 when
 # it cannot import one, which is deliberate: there is nothing to render. Every
 # check that builds a document then fails for a reason that has nothing to do
 # with the code under test - --html, each --browser route, the pager's browser
@@ -58,7 +58,7 @@ nor() { if [ "$RENDERS_HTML" = "1" ]; then no "$1"; else skip "${2:-${1%% (rc=*}
 
 # Helper names setup.sh actually writes, and the retired ones it cleans up.
 installed=$(grep -oE 'cat > "\$BIN/[a-z-]+"' "$SETUP" | sed 's|.*/||; s|"||')
-retired=$(sed -n '/^  rm -f "\$BIN"\/spechub-/,/^        /p' "$SETUP" \
+retired=$(sed -n '/^  rm -f "\$BIN"\/mapflow-/,/^        /p' "$SETUP" \
           | grep -oE '\$BIN"/[a-z-]+' | sed 's|.*/||')
 
 echo "setup.sh integrity"
@@ -78,21 +78,21 @@ if [ -z "$py_broken" ]; then ok "embedded python helpers compile"
 else no "embedded python helpers compile:$py_broken"; fi
 
 echo "docs match setup.sh"
-# Any spechub-* command the docs tell a reader to run must be one setup.sh
-# writes. This is the check that would have caught spechub-files and
-# spechub-open outliving the script that wrote them.
+# Any mapflow-* command the docs tell a reader to run must be one setup.sh
+# writes. This is the check that would have caught mapflow-files and
+# mapflow-open outliving the script that wrote them.
 unknown=""
-for name in $(grep -oE '\bspechub-[a-z][a-z-]*[a-z]\b' "$DOCS" | sort -u); do
+for name in $(grep -oE '\bmapflow-[a-z][a-z-]*[a-z]\b' "$DOCS" | sort -u); do
   echo "$installed" | grep -qx "$name" && continue
   # Process names rather than binaries, named via exec -a inside a helper.
   # Either spelling counts: a fixed name, or a variable, which is how one
   # helper that renames itself by the mode it was asked for spells it.
   grep -qE "exec -a $name|NAME=$name\\b" "$SETUP" && continue
-  # A family prefix such as spechub-herdr- names a convention, not a command.
+  # A family prefix such as mapflow-herdr- names a convention, not a command.
   echo "$installed" | grep -q "^$name-" && continue
   unknown="$unknown $name"
 done
-if [ -z "$unknown" ]; then ok "every spechub-* in docs is installed"
+if [ -z "$unknown" ]; then ok "every mapflow-* in docs is installed"
 else no "docs reference helpers setup.sh never writes:$unknown"; fi
 
 stale=""
@@ -121,18 +121,18 @@ else
   no "the line-numbers view is not documented"
 fi
 
-# The retired-name check above only sees helpers named spechub-*. The names
+# The retired-name check above only sees helpers named mapflow-*. The names
 # that actually rotted were hdiff and hdash, which predate that convention, so
 # check the config example the way a reader uses it: every command it binds
 # must be something this machine will actually have.
 externals="yazi diffnav delta glow tuicr gh lazygit"
 # A command is judged by what it names, not how it spells the path: a popup
 # runs with the herdr server's PATH, so a doc may well show
-# /home/you/.local/bin/spechub-diff rather than a bare spechub-diff. The
+# /home/you/.local/bin/mapflow-diff rather than a bare mapflow-diff. The
 # basename of the first word must resolve. So must every later word that is
-# plainly a command - an absolute path, or a spechub-* name - which is what a
+# plainly a command - an absolute path, or a mapflow-* name - which is what a
 # wrapper helper followed by its real target looks like. Labels such as the
-# "diff" in "spechub-herdr-tab diff spechub-diff" are neither, so they pass.
+# "diff" in "mapflow-herdr-tab diff mapflow-diff" are neither, so they pass.
 resolves() {
   local base=${1##*/}
   echo "$installed" | grep -qx "$base" && return 0
@@ -144,7 +144,7 @@ dangling_words() {
   local first=1 w
   set -f
   for w in $1; do
-    if [ "$first" = "1" ] || [ "${w#/}" != "$w" ] || [ "${w#spechub-}" != "$w" ]; then
+    if [ "$first" = "1" ] || [ "${w#/}" != "$w" ] || [ "${w#mapflow-}" != "$w" ]; then
       resolves "$w" || printf ' %s' "$w"
     fi
     first=0
@@ -153,15 +153,15 @@ dangling_words() {
 }
 # The judge itself, on shapes the docs do not happen to use today. Without
 # these the check below could only ever prove the spellings it already sees.
-if [ -z "$(dangling_words '/home/you/.local/bin/spechub-diff pick')" ] \
-   && [ -z "$(dangling_words 'spechub-herdr-tab diff /home/you/.local/bin/spechub-diff')" ]; then
+if [ -z "$(dangling_words '/home/you/.local/bin/mapflow-diff pick')" ] \
+   && [ -z "$(dangling_words 'mapflow-herdr-tab diff /home/you/.local/bin/mapflow-diff')" ]; then
   ok "the docs command check accepts a helper named by absolute path"
 else
   no "the docs command check accepts a helper named by absolute path"
 fi
-if [ -n "$(dangling_words '/home/you/.local/bin/spechub-dif')" ] \
-   && [ -n "$(dangling_words 'spechub-herdr-tab diff /home/you/.local/bin/spechub-dif')" ] \
-   && [ -n "$(dangling_words 'spechub-herdr-tab diff spechub-dif')" ]; then
+if [ -n "$(dangling_words '/home/you/.local/bin/mapflow-dif')" ] \
+   && [ -n "$(dangling_words 'mapflow-herdr-tab diff /home/you/.local/bin/mapflow-dif')" ] \
+   && [ -n "$(dangling_words 'mapflow-herdr-tab diff mapflow-dif')" ]; then
   ok "the docs command check still rejects a typo'd helper, wherever it sits"
 else
   no "the docs command check still rejects a typo'd helper, wherever it sits"
@@ -181,10 +181,10 @@ echo "keymap merge safety"
 # Its own variable, not $KEYMAP: the yazi keymap section below claims that
 # name for its own writer, and the herdr fixtures are seeded after it runs.
 HERDR_KEYMAP="$WORK/herdr-keymap.py"
-awk "/^  SPECHUB_ARGS=.*py \"\\\$HERDR_CFG\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
+awk "/^  MAPFLOW_ARGS=.*py \"\\\$HERDR_CFG\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
   "$SETUP" > "$HERDR_KEYMAP"
-BEGIN_MARK="# >>> spechub terminal-workspace >>>"
-END_MARK="# <<< spechub terminal-workspace <<<"
+BEGIN_MARK="# >>> mapflow terminal-workspace >>>"
+END_MARK="# <<< mapflow terminal-workspace <<<"
 # args <chord-modifier> [theme] [theme-light] [toast-delivery] [labels] [panel-sort]
 # Everything after the modifier is a setting that is not a key. Each one is
 # empty here unless a check names it, which is the shape a config that says
@@ -223,7 +223,7 @@ T
 
 run_keymap() {
   local mod="$1" file="$2"; shift 2
-  SPECHUB_ARGS="$(args "$mod" "$@")" SPECHUB_BIN="$WORK/bin" \
+  MAPFLOW_ARGS="$(args "$mod" "$@")" MAPFLOW_BIN="$WORK/bin" \
     python3 "$HERDR_KEYMAP" "$file" 2>/dev/null
 }
 parses() { python3 -c "import tomllib,sys; tomllib.load(open(sys.argv[1],'rb'))" "$1" 2>/dev/null; }
@@ -243,7 +243,7 @@ else no "expected 13 [[keys.command]] blocks, found $count"; fi
 # The newest component's two keys. A key that never reaches the merged file is
 # a component the user cannot open, however well the rest of apply ran.
 if grep -q 'key = "alt+q"' "$WORK/merged.toml" \
-   && grep -q 'spechub-herdr-tab harlequin spechub-db' "$WORK/merged.toml"
+   && grep -q 'mapflow-herdr-tab harlequin mapflow-db' "$WORK/merged.toml"
 then ok "the harlequin popup and its tab variant both reach the keymap"
 else no "the harlequin popup and its tab variant both reach the keymap"; fi
 
@@ -440,11 +440,11 @@ YAZI="$WORK/yazi.py"
 awk "/^    py \"\\\$HOME\/\.config\/yazi\/yazi\.toml\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
   "$SETUP" > "$YAZI"
 args_yazi() { echo "$1|$BEGIN_MARK|$END_MARK"; }
-run_yazi() { SPECHUB_ARGS="$(args_yazi "$1")" python3 "$YAZI" "$2" 2>/dev/null; }
+run_yazi() { MAPFLOW_ARGS="$(args_yazi "$1")" python3 "$YAZI" "$2" 2>/dev/null; }
 
 # A hand-written yazi.toml with its own [mgr] tuning, its own [opener] entry
 # for something other than markdown, and a setting in an unrelated table that
-# has nothing to do with spechub at all.
+# has nothing to do with mapflow at all.
 cat > "$WORK/yazi-hand.toml" <<'YHAND'
 [mgr]
 sort_by = "alphabetical"
@@ -489,7 +489,7 @@ import sys, tomllib
 data = tomllib.load(open(sys.argv[1], "rb"))
 md = data.get("opener", {}).get("markdown")
 assert md, "no opener.markdown"
-assert "spechub-md" in md[0]["run"], md[0]["run"]
+assert "mapflow-md" in md[0]["run"], md[0]["run"]
 previewers = data.get("plugin", {}).get("prepend_previewers", [])
 assert any(p.get("url") == "*.md" for p in previewers), previewers
 # Reading comes first, editing last, and the numbered read sits between them:
@@ -620,7 +620,7 @@ else no "the user's dotted opener.markdown survives the merge"; fi
 # configuration documentation teaches for adding a custom previewer, which
 # makes it the most likely real-world collision of every case in this
 # section. Spechub must concede this namespace: the file must still parse,
-# and the user's own *.raf entry must still be there, even though spechub's
+# and the user's own *.raf entry must still be there, even though mapflow's
 # own entries are not.
 cat > "$WORK/yazi-plugin-documented.toml" <<'YPD'
 [plugin]
@@ -792,7 +792,7 @@ SHIM
 
 run_yazi_no_tomllib() {  # [no-tomllib fallback] runner: $1=hidden $2=path
   rm -f "$NOTOMLLIB_DIR/shadow-hit"
-  SPECHUB_ARGS="$(args_yazi "$1")" PYTHONPATH="$NOTOMLLIB_DIR" python3 "$YAZI" "$2" 2>/dev/null
+  MAPFLOW_ARGS="$(args_yazi "$1")" PYTHONPATH="$NOTOMLLIB_DIR" python3 "$YAZI" "$2" 2>/dev/null
   [ -f "$NOTOMLLIB_DIR/shadow-hit" ] || {
     echo "FATAL: no-tomllib shim did not shadow the stdlib import - the fallback" >&2
     echo "       branch was never exercised, which would make the checks below" >&2
@@ -842,7 +842,7 @@ echo "sidebar grouping"
 # grouping wrong and it writes a worse order than it found, so pin the two rules
 # that are not obvious from reading it.
 RENUM="$WORK/renumber"
-awk "/^  cat > \"\\\$BIN\/spechub-herdr-renumber\" <<'H'\$/{f=1; next} f && /^H\$/{exit} f" \
+awk "/^  cat > \"\\\$BIN\/mapflow-herdr-renumber\" <<'H'\$/{f=1; next} f && /^H\$/{exit} f" \
   "$SETUP" > "$RENUM"
 if python3 - "$RENUM" <<'PYCHK'
 import sys, types
@@ -858,8 +858,8 @@ def ws(wid, root, linked):
 
 # A worktree stored above its parent must not drag the parent below it, and
 # must not pull its whole group to the top either.
-scrambled = [ws("wT", "/spechub", True), ws("w1", "/plug", False),
-             ws("wQ", "/spechub", False), ws("wS", "/spechub", True)]
+scrambled = [ws("wT", "/mapflow", True), ws("w1", "/plug", False),
+             ws("wQ", "/mapflow", False), ws("wS", "/mapflow", True)]
 got = mod.grouped_order(scrambled)
 assert got.index("wQ") < got.index("wT"), got
 assert got.index("wQ") < got.index("wS"), got
@@ -891,19 +891,19 @@ extract() {  # extract <helper-name> -> path
 }
 CLIPBIN="$WORK/remote-bin"
 mkdir -p "$CLIPBIN" "$WORK/remote-home"
-cp "$(extract spechub-clip)" "$CLIPBIN/spechub-clip"
-cp "$(extract spechub-open)" "$CLIPBIN/spechub-open"
+cp "$(extract mapflow-clip)" "$CLIPBIN/mapflow-clip"
+cp "$(extract mapflow-open)" "$CLIPBIN/mapflow-open"
 cp "$(extract xclip)"        "$CLIPBIN/xclip"
 # No display, no clipboard, and only the extracted helpers on PATH: a bare VM.
 bare() { env -i PATH="$CLIPBIN:/usr/bin:/bin" HOME="$WORK/remote-home" "$@"; }
 
-osc=$(bare bash -c 'printf pr-42 | spechub-clip' 2>&1 >/dev/null)
-back=$(bare spechub-clip --out 2>/dev/null)
+osc=$(bare bash -c 'printf pr-42 | mapflow-clip' 2>&1 >/dev/null)
+back=$(bare mapflow-clip --out 2>/dev/null)
 # ESC ] 52 ; c ; <base64 of "pr-42"> BEL
 if [ "$osc" = "$(printf '\033]52;c;cHItNDI=\a')" ] && [ "$back" = "pr-42" ]; then
-  ok "spechub-clip copies over OSC 52 and replays it"
+  ok "mapflow-clip copies over OSC 52 and replays it"
 else
-  no "spechub-clip OSC 52 round trip (got '$(printf '%s' "$osc" | cat -v)' / '$back')"
+  no "mapflow-clip OSC 52 round trip (got '$(printf '%s' "$osc" | cat -v)' / '$back')"
 fi
 
 # What gh-dash's clipboard library actually runs, argument for argument.
@@ -918,12 +918,12 @@ fi
 # with its output discarded and the dashboard still drawn, so the link route
 # would have nowhere to draw. Run the real config writer and read the result.
 GHKB="$WORK/ghdash.py"
-awk "/^  SPECHUB_CFG=.*py \"\\\$GHDASH_CFG\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
+awk "/^  MAPFLOW_CFG=.*py \"\\\$GHDASH_CFG\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
   "$SETUP" > "$GHKB"
 if python3 -c 'import yaml' 2>/dev/null && [ -s "$GHKB" ]; then
   : > "$WORK/gh-tw.yaml"
   printf 'prSections:\n- {title: Mine, filters: "is:open"}\n' > "$WORK/gh-dash.yml"
-  SPECHUB_CFG="$WORK/gh-tw.yaml" python3 "$GHKB" "$WORK/gh-dash.yml" >/dev/null 2>&1
+  MAPFLOW_CFG="$WORK/gh-tw.yaml" python3 "$GHKB" "$WORK/gh-dash.yml" >/dev/null 2>&1
   if python3 - "$WORK/gh-dash.yml" <<'GHCHK'
 import sys, yaml
 kb = (yaml.safe_load(open(sys.argv[1])) or {}).get("keybindings", {})
@@ -931,18 +931,18 @@ for view, path in (("prs", "/pull/"), ("issues", "/issues/")):
     binds = [k for k in kb.get(view, []) if k.get("key") == "o"]
     assert len(binds) == 1, (view, kb.get(view))
     cmd = binds[0]["command"]
-    assert cmd.startswith("spechub-open "), cmd
+    assert cmd.startswith("mapflow-open "), cmd
     assert path in cmd, (view, cmd)
 GHCHK
-  then ok "apply_ghdash binds o to spechub-open for prs and issues"
-  else no "apply_ghdash binds o to spechub-open for prs and issues"; fi
+  then ok "apply_ghdash binds o to mapflow-open for prs and issues"
+  else no "apply_ghdash binds o to mapflow-open for prs and issues"; fi
 else
   ok "apply_ghdash keybindings skipped (no PyYAML)"
 fi
 
 # Re-applying must replace that binding, never stack a second o on top of it.
 if python3 -c 'import yaml' 2>/dev/null && [ -s "$GHKB" ]; then
-  SPECHUB_CFG="$WORK/gh-tw.yaml" python3 "$GHKB" "$WORK/gh-dash.yml" >/dev/null 2>&1
+  MAPFLOW_CFG="$WORK/gh-tw.yaml" python3 "$GHKB" "$WORK/gh-dash.yml" >/dev/null 2>&1
   if [ "$(python3 -c '
 import sys, yaml
 kb = (yaml.safe_load(open(sys.argv[1])) or {}).get("keybindings", {})
@@ -959,7 +959,7 @@ fi
 if python3 -c 'import yaml' 2>/dev/null && [ -s "$GHKB" ]; then
   printf 'gh_dash:\n  keybindings:\n    review: D\n' > "$WORK/gh-tw-review.yaml"
   printf 'prSections:\n- {title: Mine, filters: "is:open"}\n' > "$WORK/gh-dash-review.yml"
-  SPECHUB_CFG="$WORK/gh-tw-review.yaml" python3 "$GHKB" "$WORK/gh-dash-review.yml" >/dev/null 2>&1
+  MAPFLOW_CFG="$WORK/gh-tw-review.yaml" python3 "$GHKB" "$WORK/gh-dash-review.yml" >/dev/null 2>&1
   if python3 - "$WORK/gh-dash-review.yml" <<'GHCHK'
 import sys, yaml
 kb = (yaml.safe_load(open(sys.argv[1])) or {}).get("keybindings", {})
@@ -981,7 +981,7 @@ fi
 if python3 -c 'import yaml' 2>/dev/null && [ -s "$GHKB" ]; then
   printf 'keybindings:\n  prs:\n  - {key: D, name: tree diff, command: "gh pr diff {{.PrNumber}} --repo {{.RepoName}} | diffnav"}\n' \
     > "$WORK/gh-dash-review.yml"
-  SPECHUB_CFG="$WORK/gh-tw-review.yaml" python3 "$GHKB" "$WORK/gh-dash-review.yml" >/dev/null 2>&1
+  MAPFLOW_CFG="$WORK/gh-tw-review.yaml" python3 "$GHKB" "$WORK/gh-dash-review.yml" >/dev/null 2>&1
   if python3 - "$WORK/gh-dash-review.yml" <<'GHCHK'
 import sys, yaml
 kb = (yaml.safe_load(open(sys.argv[1])) or {}).get("keybindings", {})
@@ -1002,7 +1002,7 @@ fi
 # looked configured while the two review keys were dead.
 if python3 -c 'import yaml' 2>/dev/null && [ -s "$GHKB" ]; then
   printf 'prSections:\n- {title: Mine, filters: "is:open"}\n' > "$WORK/gh-dash-nocfg.yml"
-  SPECHUB_CFG="$WORK/does-not-exist.yaml" python3 "$GHKB" "$WORK/gh-dash-nocfg.yml" >/dev/null 2>&1
+  MAPFLOW_CFG="$WORK/does-not-exist.yaml" python3 "$GHKB" "$WORK/gh-dash-nocfg.yml" >/dev/null 2>&1
   if python3 - "$WORK/gh-dash-nocfg.yml" <<'GHCHK'
 import sys, yaml
 kb = (yaml.safe_load(open(sys.argv[1])) or {}).get("keybindings", {})
@@ -1021,7 +1021,7 @@ fi
 if python3 -c 'import yaml' 2>/dev/null && [ -s "$GHKB" ]; then
   printf 'gh_dash:\n  keybindings:\n    agent_review: ""\n' > "$WORK/gh-tw-noagent.yaml"
   printf 'prSections:\n- {title: Mine, filters: "is:open"}\n' > "$WORK/gh-dash-noagent.yml"
-  SPECHUB_CFG="$WORK/gh-tw-noagent.yaml" python3 "$GHKB" "$WORK/gh-dash-noagent.yml" >/dev/null 2>&1
+  MAPFLOW_CFG="$WORK/gh-tw-noagent.yaml" python3 "$GHKB" "$WORK/gh-dash-noagent.yml" >/dev/null 2>&1
   if python3 - "$WORK/gh-dash-noagent.yml" <<'GHCHK'
 import sys, yaml
 kb = (yaml.safe_load(open(sys.argv[1])) or {}).get("keybindings", {})
@@ -1041,7 +1041,7 @@ fi
 if python3 -c 'import yaml' 2>/dev/null && [ -s "$GHKB" ]; then
   printf 'gh_dash:\n' > "$WORK/gh-tw-null.yaml"
   printf 'prSections:\n- {title: Mine, filters: "is:open"}\n' > "$WORK/gh-dash-null.yml"
-  nullerr=$(SPECHUB_CFG="$WORK/gh-tw-null.yaml" python3 "$GHKB" "$WORK/gh-dash-null.yml" 2>&1 >/dev/null)
+  nullerr=$(MAPFLOW_CFG="$WORK/gh-tw-null.yaml" python3 "$GHKB" "$WORK/gh-dash-null.yml" 2>&1 >/dev/null)
   if [ -z "$nullerr" ] && python3 - "$WORK/gh-dash-null.yml" <<'GHCHK'
 import sys, yaml
 cfg = yaml.safe_load(open(sys.argv[1])) or {}
@@ -1057,9 +1057,9 @@ fi
 
 # The route that always works: a terminal, and nothing else. script gives the
 # helper a pty, which is what tells it to draw a link rather than give up.
-screen=$(printf x | bare script -qec 'SPECHUB_OPEN_BRIDGE=off spechub-open https://example.com/pr/9' /dev/null 2>/dev/null)
+screen=$(printf x | bare script -qec 'MAPFLOW_OPEN_BRIDGE=off mapflow-open https://example.com/pr/9' /dev/null 2>/dev/null)
 if printf '%s' "$screen" | grep -q $'\033]8;;https://example.com/pr/9\033' \
-   && [ "$(bare spechub-clip --out 2>/dev/null)" = "https://example.com/pr/9" ]; then
+   && [ "$(bare mapflow-clip --out 2>/dev/null)" = "https://example.com/pr/9" ]; then
   ok "with a terminal and no browser, o draws a clickable link and copies it"
 else
   no "with a terminal and no browser, o draws a clickable link and copies it"
@@ -1068,7 +1068,7 @@ fi
 # The bridge is only taken once it has proved a browser is on the other end.
 # With no relay answering at all, it must not even be asked - probing starts a
 # browser as a side effect.
-if [ "$(bare spechub-open --why 2>/dev/null)" != "bridge" ]; then
+if [ "$(bare mapflow-open --why 2>/dev/null)" != "bridge" ]; then
   ok "the bridge route is skipped when nothing has attached to it"
 else
   no "the bridge route is skipped when nothing has attached to it"
@@ -1115,7 +1115,7 @@ relay_up() {  # relay_up <json-list-body>
 }
 
 relay_up '[]' 
-if [ "$(bare env SPECHUB_BRIDGE_URL="$BURL" spechub-open --why 2>/dev/null)" != "bridge" ]; then
+if [ "$(bare env MAPFLOW_BRIDGE_URL="$BURL" mapflow-open --why 2>/dev/null)" != "bridge" ]; then
   ok "a relay with the extension armed on no tab is not treated as a browser"
 else
   no "a relay with the extension armed on no tab is not treated as a browser"
@@ -1124,7 +1124,7 @@ kill "$RELAY_PID" 2>/dev/null; wait "$RELAY_PID" 2>/dev/null
 rm -f "$WORK/relay.port"
 
 relay_up '[{"id":"1","type":"page","url":"https://example.com"}]'
-if [ "$(bare env SPECHUB_BRIDGE_URL="$BURL" spechub-open --why 2>/dev/null)" = "bridge" ]; then
+if [ "$(bare env MAPFLOW_BRIDGE_URL="$BURL" mapflow-open --why 2>/dev/null)" = "bridge" ]; then
   ok "a relay with the extension armed on a tab is taken as the bridge route"
 else
   no "a relay with the extension armed on a tab is taken as the bridge route"
@@ -1132,23 +1132,23 @@ fi
 kill "$RELAY_PID" 2>/dev/null; wait "$RELAY_PID" 2>/dev/null
 rm -f "$WORK/relay.port" "$CLIPBIN/agent-browser"
 
-if [ "$(bare env SPECHUB_OPEN_CMD=echo spechub-open https://example.com 2>/dev/null)" \
+if [ "$(bare env MAPFLOW_OPEN_CMD=echo mapflow-open https://example.com 2>/dev/null)" \
      = "https://example.com" ]; then
-  ok "spechub-open obeys \$SPECHUB_OPEN_CMD"
+  ok "mapflow-open obeys \$MAPFLOW_OPEN_CMD"
 else
-  no "spechub-open obeys \$SPECHUB_OPEN_CMD"
+  no "mapflow-open obeys \$MAPFLOW_OPEN_CMD"
 fi
 
 # Nothing reachable is not the same as nothing done: the URL lands on the
 # clipboard rather than being lost.
-bare env SPECHUB_OPEN_BRIDGE=off spechub-open https://example.com/pr/7 >/dev/null 2>&1
-if [ "$(bare spechub-clip --out 2>/dev/null)" = "https://example.com/pr/7" ]; then
-  ok "spechub-open falls back to the clipboard when no browser is reachable"
+bare env MAPFLOW_OPEN_BRIDGE=off mapflow-open https://example.com/pr/7 >/dev/null 2>&1
+if [ "$(bare mapflow-clip --out 2>/dev/null)" = "https://example.com/pr/7" ]; then
+  ok "mapflow-open falls back to the clipboard when no browser is reachable"
 else
-  no "spechub-open falls back to the clipboard when no browser is reachable"
+  no "mapflow-open falls back to the clipboard when no browser is reachable"
 fi
 
-echo "spechub-diff drops what diffnav cannot draw"
+echo "mapflow-diff drops what diffnav cannot draw"
 # delta dies on SIGABRT on a line hundreds of kilobytes long, and diffnav
 # reports its child's death as "FATA signal: aborted (core dumped)" and quits.
 # One committed source map therefore took a whole diff down. The helper drops
@@ -1156,11 +1156,11 @@ echo "spechub-diff drops what diffnav cannot draw"
 # never reaches diffnav, and the file beside it still does.
 DIFFBIN="$WORK/diff-bin"; DIFFREPO="$WORK/diff-repo"
 mkdir -p "$DIFFBIN" "$DIFFREPO"
-cp "$(extract spechub-diff)" "$DIFFBIN/spechub-diff"
+cp "$(extract mapflow-diff)" "$DIFFBIN/mapflow-diff"
 # The stub keeps what it was handed, which is the whole point of the check.
 cat > "$DIFFBIN/diffnav" <<'STUB'
 #!/bin/sh
-cat > "$SPECHUB_TEST_SEEN"
+cat > "$MAPFLOW_TEST_SEEN"
 STUB
 chmod +x "$DIFFBIN/diffnav"
 
@@ -1177,8 +1177,8 @@ if command -v git >/dev/null 2>&1; then
     awk 'BEGIN { s = ""; while (length(s) < 30000) s = s "abcdefghij"; print s }' > big.map
   ) >/dev/null 2>&1
   SEEN="$WORK/diff-seen"
-  env -i PATH="$DIFFBIN:/usr/bin:/bin" HOME="$WORK" SPECHUB_TEST_SEEN="$SEEN" \
-    sh -c "cd '$DIFFREPO' && spechub-diff auto" >/dev/null 2>&1
+  env -i PATH="$DIFFBIN:/usr/bin:/bin" HOME="$WORK" MAPFLOW_TEST_SEEN="$SEEN" \
+    sh -c "cd '$DIFFREPO' && mapflow-diff auto" >/dev/null 2>&1
   if [ -s "$SEEN" ] \
      && grep -q '^diff --git a/small.txt' "$SEEN" \
      && ! grep -q '^diff --git a/big.map' "$SEEN" \
@@ -1192,8 +1192,8 @@ if command -v git >/dev/null 2>&1; then
   # "No difference between these two", which is a claim about the repository
   # rather than about diffnav, and the file that was dropped went unmentioned.
   ( cd "$DIFFREPO" && git checkout -q -- small.txt ) >/dev/null 2>&1
-  ALL=$(env -i PATH="$DIFFBIN:/usr/bin:/bin" HOME="$WORK" SPECHUB_TEST_SEEN="$SEEN" \
-    sh -c "cd '$DIFFREPO' && printf x | spechub-diff auto" 2>&1)
+  ALL=$(env -i PATH="$DIFFBIN:/usr/bin:/bin" HOME="$WORK" MAPFLOW_TEST_SEEN="$SEEN" \
+    sh -c "cd '$DIFFREPO' && printf x | mapflow-diff auto" 2>&1)
   if printf '%s' "$ALL" | grep -q 'skipped  big.map' \
      && printf '%s' "$ALL" | grep -q 'too long for diffnav' \
      && ! printf '%s' "$ALL" | grep -q 'No difference between these two'; then
@@ -1205,9 +1205,9 @@ if command -v git >/dev/null 2>&1; then
   # awk then compares every line length against text: never true, so the guard
   # silently switches itself off and the abort it exists to prevent comes back.
   ( cd "$DIFFREPO" && printf 'three\n' > small.txt ) >/dev/null 2>&1
-  BAD=$(env -i PATH="$DIFFBIN:/usr/bin:/bin" HOME="$WORK" SPECHUB_TEST_SEEN="$SEEN" \
-    SPECHUB_DIFF_LINE_LIMIT=abc \
-    sh -c "cd '$DIFFREPO' && spechub-diff auto" 2>&1 >/dev/null)
+  BAD=$(env -i PATH="$DIFFBIN:/usr/bin:/bin" HOME="$WORK" MAPFLOW_TEST_SEEN="$SEEN" \
+    MAPFLOW_DIFF_LINE_LIMIT=abc \
+    sh -c "cd '$DIFFREPO' && mapflow-diff auto" 2>&1 >/dev/null)
   if printf '%s' "$BAD" | grep -q 'not a' \
      && ! grep -q '^diff --git a/big.map' "$SEEN"; then
     ok "a non-numeric line limit is refused out loud and the guard stays on"
@@ -1215,87 +1215,87 @@ if command -v git >/dev/null 2>&1; then
     no "a non-numeric line limit is refused out loud and the guard stays on"
   fi
 else
-  skip "spechub-diff long-line checks (git not installed)"
-  skip "spechub-diff all-skipped check (git not installed)"
-  skip "spechub-diff line limit validation (git not installed)"
+  skip "mapflow-diff long-line checks (git not installed)"
+  skip "mapflow-diff all-skipped check (git not installed)"
+  skip "mapflow-diff line limit validation (git not installed)"
 fi
 
-echo "spechub-view"
+echo "mapflow-view"
 # tuicr's <leader>v hands the focused file to this, and what comes back has to
 # be a terminal program so `q` returns to tuicr. These pin which one each file
 # type reaches, with stubs standing in for the real viewers.
 VIEWBIN="$WORK/view-bin"
 mkdir -p "$VIEWBIN" "$WORK/viewfiles"
-cp "$(extract spechub-view)" "$VIEWBIN/spechub-view"
-for stub in spechub-md yazi; do
+cp "$(extract mapflow-view)" "$VIEWBIN/mapflow-view"
+for stub in mapflow-md yazi; do
   printf '#!/bin/sh\necho "%s $*"\n' "$stub" > "$VIEWBIN/$stub"
   chmod +x "$VIEWBIN/$stub"
 done
-viewrun() { env -i PATH="$VIEWBIN:/usr/bin:/bin" "$VIEWBIN/spechub-view" "$@"; }
+viewrun() { env -i PATH="$VIEWBIN:/usr/bin:/bin" "$VIEWBIN/mapflow-view" "$@"; }
 
 : > "$WORK/viewfiles/notes.md"
 : > "$WORK/viewfiles/NOTES.markdown"
 : > "$WORK/viewfiles/main.rs"
 
 if [ "$(viewrun "$WORK/viewfiles/notes.md" 2>/dev/null)" \
-     = "spechub-md $WORK/viewfiles/notes.md" ]; then
-  ok "spechub-view sends markdown to spechub-md"
+     = "mapflow-md $WORK/viewfiles/notes.md" ]; then
+  ok "mapflow-view sends markdown to mapflow-md"
 else
-  no "spechub-view sends markdown to spechub-md"
+  no "mapflow-view sends markdown to mapflow-md"
 fi
 
 # The suffix match must not be case-exact, or a .markdown from a different
 # editor silently lands in the file manager instead of the renderer.
 if [ "$(viewrun "$WORK/viewfiles/NOTES.markdown" 2>/dev/null)" \
-     = "spechub-md $WORK/viewfiles/NOTES.markdown" ]; then
-  ok "spechub-view recognises .markdown as well as .md"
+     = "mapflow-md $WORK/viewfiles/NOTES.markdown" ]; then
+  ok "mapflow-view recognises .markdown as well as .md"
 else
-  no "spechub-view recognises .markdown as well as .md"
+  no "mapflow-view recognises .markdown as well as .md"
 fi
 
 if [ "$(viewrun "$WORK/viewfiles/main.rs" 2>/dev/null)" \
      = "yazi $WORK/viewfiles/main.rs" ]; then
-  ok "spechub-view sends everything else to yazi"
+  ok "mapflow-view sends everything else to yazi"
 else
-  no "spechub-view sends everything else to yazi"
+  no "mapflow-view sends everything else to yazi"
 fi
 
 # A path tuicr could not resolve must say so and fail, not open the file
 # manager on the current directory as if nothing were wrong.
 viewrun "$WORK/viewfiles/gone.rs" >/dev/null 2>&1
 if [ "$?" = "1" ]; then
-  ok "spechub-view fails on a path that does not exist"
+  ok "mapflow-view fails on a path that does not exist"
 else
-  no "spechub-view fails on a path that does not exist"
+  no "mapflow-view fails on a path that does not exist"
 fi
 
 viewrun >/dev/null 2>&1
 if [ "$?" = "2" ]; then
-  ok "spechub-view with no argument reports usage"
+  ok "mapflow-view with no argument reports usage"
 else
-  no "spechub-view with no argument reports usage"
+  no "mapflow-view with no argument reports usage"
 fi
 
 # Neither viewer installed is not a reason to show nothing.
-rm -f "$VIEWBIN/yazi" "$VIEWBIN/spechub-md"
+rm -f "$VIEWBIN/yazi" "$VIEWBIN/mapflow-md"
 printf 'body-line\n' > "$WORK/viewfiles/plain.txt"
 if env -i PATH="$VIEWBIN:/usr/bin:/bin" PAGER=cat \
-     "$VIEWBIN/spechub-view" "$WORK/viewfiles/plain.txt" 2>/dev/null \
+     "$VIEWBIN/mapflow-view" "$WORK/viewfiles/plain.txt" 2>/dev/null \
      | grep -q "body-line"; then
-  ok "spechub-view falls back to a pager when no viewer is installed"
+  ok "mapflow-view falls back to a pager when no viewer is installed"
 else
-  no "spechub-view falls back to a pager when no viewer is installed"
+  no "mapflow-view falls back to a pager when no viewer is installed"
 fi
 
 echo "why a gh-dash action failed"
 # gh-dash runs gh for every action it takes and throws the command's stderr
 # away, so GitHub refusing one arrives as "exit status 1" in the footer for two
 # seconds. Approving your own pull request is the everyday case: GitHub always
-# refuses it, and the dashboard looks like it did nothing at all. spechub-gh
+# refuses it, and the dashboard looks like it did nothing at all. mapflow-gh
 # goes on PATH under the name gh and carries the refusal to a notification.
 GHBIN="$WORK/gh-bin"; SHIMDIR="$WORK/gh-shim"
 mkdir -p "$GHBIN" "$SHIMDIR"
-cp "$(extract spechub-gh)" "$SHIMDIR/gh"
+cp "$(extract mapflow-gh)" "$SHIMDIR/gh"
 
 # Stands in for the real gh: reports what it was handed, fails when told to.
 cat > "$GHBIN/gh" <<'T'
@@ -1312,7 +1312,7 @@ T
 chmod +x "$GHBIN/gh" "$GHBIN/herdr"
 
 NOTES="$WORK/notes"
-# The shim first, the stand-in gh behind it: the arrangement spechub-dash makes.
+# The shim first, the stand-in gh behind it: the arrangement mapflow-dash makes.
 run_gh() {
   local code="$1"; shift
   env PATH="$SHIMDIR:$GHBIN:/usr/bin:/bin" NOTES="$NOTES" GH_EXIT="$code" gh "$@"
@@ -1354,7 +1354,7 @@ else
 fi
 
 # gh's own plumbing fails for reasons a notification cannot help with, and
-# spechub-dash calls gh repo view before the dashboard even starts.
+# mapflow-dash calls gh repo view before the dashboard even starts.
 : > "$NOTES"
 run_gh 1 repo view --json nameWithOwner >/dev/null 2>&1
 if [ ! -s "$NOTES" ]; then
@@ -1363,19 +1363,19 @@ else
   no "a failure outside pr and issue raises nothing (got '$(cat "$NOTES")')"
 fi
 
-# None of the above reaches gh-dash unless spechub-dash puts the shim first.
-if grep -q 'PATH="\$SHIM:\$PATH"' "$(extract spechub-dash)"; then
-  ok "spechub-dash puts the gh shim at the front of \$PATH"
+# None of the above reaches gh-dash unless mapflow-dash puts the shim first.
+if grep -q 'PATH="\$SHIM:\$PATH"' "$(extract mapflow-dash)"; then
+  ok "mapflow-dash puts the gh shim at the front of \$PATH"
 else
-  no "spechub-dash puts the gh shim at the front of \$PATH"
+  no "mapflow-dash puts the gh shim at the front of \$PATH"
 fi
 
-echo "spechub-md --preview"
-# yazi's previewer runs spechub-md in a pane, not a terminal: no tty on any of
+echo "mapflow-md --preview"
+# yazi's previewer runs mapflow-md in a pane, not a terminal: no tty on any of
 # the three streams, COLUMNS set by the caller instead of a tty query, and no
 # room for a pager. --preview does not exist yet, so every check below pins
 # the contract the previewer needs rather than the mechanism.
-MD="$(extract spechub-md)"
+MD="$(extract mapflow-md)"
 cat > "$WORK/preview.md" <<'MD1'
 # Preview me
 
@@ -1389,7 +1389,7 @@ preview_err="$WORK/preview.err"
 COLUMNS=100 "$MD" --preview "$WORK/preview.md" </dev/null >"$preview_out" 2>"$preview_err"
 preview_rc=$?
 if [ "$preview_rc" -eq 0 ] \
-   && ! grep -q 'usage: spechub-md' "$preview_out" "$preview_err"
+   && ! grep -q 'usage: mapflow-md' "$preview_out" "$preview_err"
 then
   ok "--preview exits 0 and never prints the usage line"
 else
@@ -1458,7 +1458,7 @@ fi
 # diagram code path, so it cannot see a diagram tempfile leak - use one that
 # actually has a diagram. mermaid-ascii's working copy is written under the
 # system temp directory as tmpXXXXXXXX.mmd, a name that does not start with
-# "spechub-md", so watch that pattern too rather than one glob, and respect
+# "mapflow-md", so watch that pattern too rather than one glob, and respect
 # $TMPDIR since that is where the code actually writes, not always /tmp.
 cat > "$WORK/residue-diagram.md" <<'MD1B'
 # Residue check
@@ -1470,15 +1470,15 @@ graph LR
 ```
 MD1B
 TMP_DIR="${TMPDIR:-/tmp}"
-tmp_before=$(find "$TMP_DIR" -maxdepth 1 \( -name 'spechub-md*' -o -name '*.mmd' \) 2>/dev/null | sort)
+tmp_before=$(find "$TMP_DIR" -maxdepth 1 \( -name 'mapflow-md*' -o -name '*.mmd' \) 2>/dev/null | sort)
 COLUMNS=40 "$MD" --preview "$WORK/residue-diagram.md" </dev/null >/dev/null 2>&1
-tmp_after=$(find "$TMP_DIR" -maxdepth 1 \( -name 'spechub-md*' -o -name '*.mmd' \) 2>/dev/null | sort)
+tmp_after=$(find "$TMP_DIR" -maxdepth 1 \( -name 'mapflow-md*' -o -name '*.mmd' \) 2>/dev/null | sort)
 # $TMP_DIR is shared with whatever else is running, so only new entries count
 # - an unrelated process tidying up its own stale debris between the two
 # snapshots is not this check's business, and must not fail it.
 new_files=$(comm -13 <(echo "$tmp_before") <(echo "$tmp_after"))
 if [ -z "$new_files" ]; then
-  ok "--preview leaves no spechub-md*/.mmd residue in $TMP_DIR"
+  ok "--preview leaves no mapflow-md*/.mmd residue in $TMP_DIR"
 else
   no "--preview leaves residue in $TMP_DIR: $(echo "$new_files" | tr '\n' ' ')"
 fi
@@ -1486,7 +1486,7 @@ fi
 # The previewer command lines in setup.sh are the actual contract: whatever
 # flag they pass, the helper must accept. Derived from setup.sh rather than
 # hardcoded, so this keeps catching the next flag that drifts.
-preview_flags=$(grep "run = 'piper" "$SETUP" | grep 'spechub-md' \
+preview_flags=$(grep "run = 'piper" "$SETUP" | grep 'mapflow-md' \
   | grep -oE -- '--[a-z][a-z-]*' | sort -u)
 if [ -z "$preview_flags" ]; then
   no "found no previewer flags to check - setup.sh's piper line may have changed shape"
@@ -1495,7 +1495,7 @@ else
   for flag in $preview_flags; do
     out=$("$MD" "$flag" "$WORK/preview.md" </dev/null 2>&1)
     rc=$?
-    if [ "$rc" -ne 0 ] || printf '%s' "$out" | grep -q 'usage: spechub-md'; then
+    if [ "$rc" -ne 0 ] || printf '%s' "$out" | grep -q 'usage: mapflow-md'; then
       agree_broken="$agree_broken $flag"
     fi
   done
@@ -1573,13 +1573,13 @@ else
   printf '  note: glow, mermaid-ascii or perl not installed - skipping wide-diagram preview check\n'
 fi
 
-echo "spechub-md line numbers"
+echo "mapflow-md line numbers"
 # The preview pane renders markdown, and a rendered heading has no line number
 # a reader can quote back in a review. A flag file carries the choice between
 # the two views, so the key binding, the helper and these checks all name one
 # place. XDG_STATE_HOME moves it, which is what keeps this off the real one.
 LNSTATE="$WORK/state"
-LNFLAG="$LNSTATE/spechub/md-line-numbers"
+LNFLAG="$LNSTATE/mapflow/md-line-numbers"
 cat > "$WORK/numbers.md" <<'MDN'
 # Heading
 
@@ -1730,7 +1730,7 @@ else
 fi
 rm -rf "$LNSTATE"
 
-echo "spechub-md --html"
+echo "mapflow-md --html"
 # Every browser route needs the same primitive: the whole document on stdout,
 # built without a server. --serve already renders exactly this document, so
 # these pin it as something a caller can capture and hand on rather than curl
@@ -1755,7 +1755,7 @@ html_rc=$?
 if [ "$html_rc" -eq 0 ] \
    && head -1 "$html_out" | grep -qi '<!doctype html' \
    && grep -qi '</html>' "$html_out" \
-   && ! grep -q 'usage: spechub-md' "$html_out" "$html_err"
+   && ! grep -q 'usage: mapflow-md' "$html_out" "$html_err"
 then
   okr "--html writes a whole document to stdout and exits 0"
 else
@@ -1815,7 +1815,7 @@ i=0
 while [ ! -s "$WORK/held.port" ] && [ "$i" -lt 50 ]; do i=$((i+1)); sleep 0.1; done
 held=$(cat "$WORK/held.port" 2>/dev/null)
 if [ -n "$held" ] \
-   && SPECHUB_MD_PORT="$held" timeout 20 "$MD" --html "$WORK/html.md" \
+   && MAPFLOW_MD_PORT="$held" timeout 20 "$MD" --html "$WORK/html.md" \
         </dev/null 2>/dev/null | grep -qi '</html>'
 then
   okr "--html renders with the serve port already taken, and returns"
@@ -1839,28 +1839,28 @@ else
   no "--html silently combines with:$excl_broken"
 fi
 
-echo "spechub-md --browser"
-# Where the browser is decides how the page reaches it, and spechub-open
+echo "mapflow-md --browser"
+# Where the browser is decides how the page reaches it, and mapflow-open
 # already answers that for URLs. These pin that --browser asks it rather than
 # working the question out a second time, and that each answer gets the
 # delivery it needs: a document handed over the CDP link when the browser is
 # on the far end of the bridge, a served page when it can reach this machine.
 BRBIN="$WORK/browser-bin"
 mkdir -p "$BRBIN"
-cat > "$BRBIN/spechub-open" <<'SO'
+cat > "$BRBIN/mapflow-open" <<'SO'
 #!/bin/sh
-if [ "$1" = "--why" ]; then echo "$SPECHUB_TEST_ROUTE"; exit 0; fi
-echo "spechub-open $*" >> "$SPECHUB_TEST_LOG"
+if [ "$1" = "--why" ]; then echo "$MAPFLOW_TEST_ROUTE"; exit 0; fi
+echo "mapflow-open $*" >> "$MAPFLOW_TEST_LOG"
 SO
 # Records what it was asked to do, and keeps whatever came down stdin so the
 # payload can be decoded and inspected rather than taken on trust. It answers
 # the way a browser does - with the title of the page it is now holding - so
-# the helper's own check has something real to read. $SPECHUB_TEST_LIE makes it
+# the helper's own check has something real to read. $MAPFLOW_TEST_LIE makes it
 # hold something else instead, which is a bridge that took the page and did not
 # keep it.
 cat > "$BRBIN/agent-browser" <<'AB'
 #!/bin/sh
-echo "agent-browser $*" >> "$SPECHUB_TEST_LOG"
+echo "agent-browser $*" >> "$MAPFLOW_TEST_LOG"
 # The real listing marks the active tab with an arrow and indents the rest.
 # Which line carries the arrow is the whole point: switching to the wrong index
 # raises somebody else's tab.
@@ -1872,9 +1872,9 @@ case "$*" in
 esac
 for a in "$@"; do
   if [ "$a" = "--stdin" ]; then
-    cat > "$SPECHUB_TEST_PUSH"
-    if [ -n "${SPECHUB_TEST_LIE:-}" ]; then printf '"%s"\n' "$SPECHUB_TEST_LIE"; exit 0; fi
-    python3 - "$SPECHUB_TEST_PUSH" <<'EOF'
+    cat > "$MAPFLOW_TEST_PUSH"
+    if [ -n "${MAPFLOW_TEST_LIE:-}" ]; then printf '"%s"\n' "$MAPFLOW_TEST_LIE"; exit 0; fi
+    python3 - "$MAPFLOW_TEST_PUSH" <<'EOF'
 import base64, pathlib, re, sys
 js = pathlib.Path(sys.argv[1]).read_text()
 m = re.search(r'"([A-Za-z0-9+/=]{200,})"', js)
@@ -1887,13 +1887,13 @@ EOF
 done
 exit 0
 AB
-chmod +x "$BRBIN/spechub-open" "$BRBIN/agent-browser"
+chmod +x "$BRBIN/mapflow-open" "$BRBIN/agent-browser"
 
 br_log="$WORK/browser.log"
 br_push="$WORK/browser.push"
 rm -f "$br_log" "$br_push"
-PATH="$BRBIN:$PATH" SPECHUB_TEST_ROUTE=bridge SPECHUB_TEST_LOG="$br_log" \
-  SPECHUB_TEST_PUSH="$br_push" timeout 30 "$MD" --browser "$WORK/html.md" \
+PATH="$BRBIN:$PATH" MAPFLOW_TEST_ROUTE=bridge MAPFLOW_TEST_LOG="$br_log" \
+  MAPFLOW_TEST_PUSH="$br_push" timeout 30 "$MD" --browser "$WORK/html.md" \
   </dev/null >/dev/null 2>&1
 br_rc=$?
 
@@ -1924,21 +1924,21 @@ fi
 
 # A document delivered over CDP needs no port here, and must not leave a
 # server running behind it - the caller got its page and is done.
-if ! grep -q 'spechub-md-serve' /proc/*/cmdline 2>/dev/null \
-   || ! pgrep -f "spechub-md-serve.*$WORK/html.md" >/dev/null 2>&1
+if ! grep -q 'mapflow-md-serve' /proc/*/cmdline 2>/dev/null \
+   || ! pgrep -f "mapflow-md-serve.*$WORK/html.md" >/dev/null 2>&1
 then
   ok "--browser on the bridge route leaves no server behind"
 else
   no "--browser on the bridge route leaves no server behind"
-  pkill -f "spechub-md-serve.*$WORK/html.md" 2>/dev/null
+  pkill -f "mapflow-md-serve.*$WORK/html.md" 2>/dev/null
 fi
 
 # Every other route has a browser that can reach this machine, so the page is
 # served rather than pushed, and agent-browser must stay out of it entirely.
 rm -f "$br_log" "$br_push"
 br_port=6717
-PATH="$BRBIN:$PATH" SPECHUB_TEST_ROUTE=link SPECHUB_TEST_LOG="$br_log" \
-  SPECHUB_TEST_PUSH="$br_push" SPECHUB_MD_PORT="$br_port" \
+PATH="$BRBIN:$PATH" MAPFLOW_TEST_ROUTE=link MAPFLOW_TEST_LOG="$br_log" \
+  MAPFLOW_TEST_PUSH="$br_push" MAPFLOW_MD_PORT="$br_port" \
   "$MD" --browser "$WORK/html.md" </dev/null >/dev/null 2>&1 &
 BR_PID=$!
 br_body=""
@@ -1947,7 +1947,7 @@ for i in $(seq 40); do
   sleep 0.25
 done
 kill "$BR_PID" 2>/dev/null; wait "$BR_PID" 2>/dev/null
-pkill -f "spechub-md-serve.*$WORK/html.md" 2>/dev/null
+pkill -f "mapflow-md-serve.*$WORK/html.md" 2>/dev/null
 
 if printf '%s' "$br_body" | grep -qi '</html>' \
    && ! grep -q 'agent-browser' "$br_log" 2>/dev/null
@@ -1964,8 +1964,8 @@ fi
 # armed again by hand. A fresh about:blank tab survives the same rewrite,
 # because the document it replaces has the same origin.
 rm -f "$br_log" "$br_push"
-PATH="$BRBIN:$PATH" SPECHUB_TEST_ROUTE=bridge SPECHUB_TEST_LOG="$br_log" \
-  SPECHUB_TEST_PUSH="$br_push" timeout 30 "$MD" --browser "$WORK/html.md" \
+PATH="$BRBIN:$PATH" MAPFLOW_TEST_ROUTE=bridge MAPFLOW_TEST_LOG="$br_log" \
+  MAPFLOW_TEST_PUSH="$br_push" timeout 30 "$MD" --browser "$WORK/html.md" \
   </dev/null >/dev/null 2>&1
 if grep -q 'tab new' "$br_log" 2>/dev/null; then
   okr "--browser writes into a tab of its own, leaving the armed tab armed"
@@ -1991,8 +1991,8 @@ fi
 # status only means the command ran; the page is confirmed by asking the far
 # end what it is now holding.
 rm -f "$br_log" "$br_push"
-PATH="$BRBIN:$PATH" SPECHUB_TEST_ROUTE=bridge SPECHUB_TEST_LOG="$br_log" \
-  SPECHUB_TEST_PUSH="$br_push" SPECHUB_TEST_LIE="something else entirely" \
+PATH="$BRBIN:$PATH" MAPFLOW_TEST_ROUTE=bridge MAPFLOW_TEST_LOG="$br_log" \
+  MAPFLOW_TEST_PUSH="$br_push" MAPFLOW_TEST_LIE="something else entirely" \
   timeout 30 "$MD" --browser "$WORK/html.md" </dev/null >/dev/null 2>&1
 if [ "$?" -ne 0 ]; then
   ok "--browser fails when the far end is not holding the page"
@@ -2007,21 +2007,21 @@ else
   no "--browser refuses to combine with --preview"
 fi
 
-echo "spechub-md browser key in the pager"
+echo "mapflow-md browser key in the pager"
 # Reading a document and wanting it in a browser is the same moment, so the
 # key belongs where the reading happens. less cannot run a command and hand it
 # the filename cleanly, but lesskey's quit action takes the first character of
 # its extra string as an exit status - so the key quits with a value less
-# never produces on its own, and spechub-md acts on that.
+# never produces on its own, and mapflow-md acts on that.
 KEYBIN="$WORK/key-bin"
 mkdir -p "$KEYBIN"
 # Records the keys file it was handed, and exits with whatever the test wants
 # less to have returned.
 cat > "$KEYBIN/less" <<'FAKELESS2'
 #!/bin/sh
-printf '%s' "${LESSKEYIN:-}" > "$SPECHUB_TEST_LESSKEYIN"
-[ -n "${LESSKEYIN:-}" ] && [ -f "$LESSKEYIN" ] && cp "$LESSKEYIN" "$SPECHUB_TEST_KEYS"
-exit "${SPECHUB_TEST_LESS_RC:-0}"
+printf '%s' "${LESSKEYIN:-}" > "$MAPFLOW_TEST_LESSKEYIN"
+[ -n "${LESSKEYIN:-}" ] && [ -f "$LESSKEYIN" ] && cp "$LESSKEYIN" "$MAPFLOW_TEST_KEYS"
+exit "${MAPFLOW_TEST_LESS_RC:-0}"
 FAKELESS2
 chmod +x "$KEYBIN/less"
 
@@ -2032,10 +2032,10 @@ key_log="$WORK/key.log"
 run_pager() {  # run_pager <less-exit-status>
   rm -f "$key_seen" "$key_file" "$key_log"
   PATH="$KEYBIN:$BRBIN:$PATH" \
-    SPECHUB_TEST_LESS_RC="$1" \
-    SPECHUB_TEST_LESSKEYIN="$key_seen" SPECHUB_TEST_KEYS="$key_file" \
-    SPECHUB_TEST_ROUTE=bridge SPECHUB_TEST_LOG="$key_log" \
-    SPECHUB_TEST_PUSH="$WORK/key.push" \
+    MAPFLOW_TEST_LESS_RC="$1" \
+    MAPFLOW_TEST_LESSKEYIN="$key_seen" MAPFLOW_TEST_KEYS="$key_file" \
+    MAPFLOW_TEST_ROUTE=bridge MAPFLOW_TEST_LOG="$key_log" \
+    MAPFLOW_TEST_PUSH="$WORK/key.push" \
     timeout 40 "$MD" "$WORK/html.md" </dev/null >/dev/null 2>&1
 }
 
@@ -2077,15 +2077,15 @@ fi
 # handing LESSKEYIN to a program that does not read it is at best noise.
 cat > "$KEYBIN/otherpager" <<'OTHERP'
 #!/bin/sh
-printf '%s' "${LESSKEYIN:-}" > "$SPECHUB_TEST_LESSKEYIN"
+printf '%s' "${LESSKEYIN:-}" > "$MAPFLOW_TEST_LESSKEYIN"
 exit 65
 OTHERP
 chmod +x "$KEYBIN/otherpager"
 rm -f "$key_seen" "$key_log"
 PATH="$KEYBIN:$BRBIN:$PATH" PAGER="otherpager" \
-  SPECHUB_TEST_LESSKEYIN="$key_seen" SPECHUB_TEST_KEYS="$key_file" \
-  SPECHUB_TEST_ROUTE=bridge SPECHUB_TEST_LOG="$key_log" \
-  SPECHUB_TEST_PUSH="$WORK/key.push" \
+  MAPFLOW_TEST_LESSKEYIN="$key_seen" MAPFLOW_TEST_KEYS="$key_file" \
+  MAPFLOW_TEST_ROUTE=bridge MAPFLOW_TEST_LOG="$key_log" \
+  MAPFLOW_TEST_PUSH="$WORK/key.push" \
   timeout 40 "$MD" "$WORK/html.md" </dev/null >/dev/null 2>&1
 if [ ! -s "$key_seen" ] && ! grep -q 'agent-browser' "$key_log" 2>/dev/null; then
   ok "a pager that is not less gets no lesskey file and no browser status"
@@ -2096,16 +2096,16 @@ fi
 # The key is a preference, not a constant - b is taken in less for back-a-page,
 # and somebody who wants that back needs a way to move this.
 rm -f "$key_file"
-PATH="$KEYBIN:$BRBIN:$PATH" SPECHUB_MD_BROWSER_KEY=w \
-  SPECHUB_TEST_LESS_RC=0 \
-  SPECHUB_TEST_LESSKEYIN="$key_seen" SPECHUB_TEST_KEYS="$key_file" \
-  SPECHUB_TEST_ROUTE=bridge SPECHUB_TEST_LOG="$key_log" \
-  SPECHUB_TEST_PUSH="$WORK/key.push" \
+PATH="$KEYBIN:$BRBIN:$PATH" MAPFLOW_MD_BROWSER_KEY=w \
+  MAPFLOW_TEST_LESS_RC=0 \
+  MAPFLOW_TEST_LESSKEYIN="$key_seen" MAPFLOW_TEST_KEYS="$key_file" \
+  MAPFLOW_TEST_ROUTE=bridge MAPFLOW_TEST_LOG="$key_log" \
+  MAPFLOW_TEST_PUSH="$WORK/key.push" \
   timeout 40 "$MD" "$WORK/html.md" </dev/null >/dev/null 2>&1
 if grep -qE '^w[[:space:]]+quit' "$key_file" 2>/dev/null; then
-  ok "\$SPECHUB_MD_BROWSER_KEY moves the key"
+  ok "\$MAPFLOW_MD_BROWSER_KEY moves the key"
 else
-  no "\$SPECHUB_MD_BROWSER_KEY moves the key"
+  no "\$MAPFLOW_MD_BROWSER_KEY moves the key"
 fi
 
 # The one that proves the mechanism rather than our half of it: a real less,
@@ -2133,7 +2133,7 @@ else
   printf '  note: script or less not installed - skipping the real-less check\n'
 fi
 
-echo "spechub-md line-numbers key in the pager"
+echo "mapflow-md line-numbers key in the pager"
 # The reader is where somebody actually wants a line number: they pressed
 # Enter to read the document, and the file list with its own # binding is no
 # longer in front of them. So the key means the same thing in both places.
@@ -2192,26 +2192,26 @@ RTBIN="$WORK/rt-bin"
 mkdir -p "$RTBIN"
 cat > "$RTBIN/less" <<'RTLESS'
 #!/bin/sh
-n=$(cat "$SPECHUB_TEST_COUNT" 2>/dev/null || echo 0)
-n=$((n + 1)); printf '%s' "$n" > "$SPECHUB_TEST_COUNT"
+n=$(cat "$MAPFLOW_TEST_COUNT" 2>/dev/null || echo 0)
+n=$((n + 1)); printf '%s' "$n" > "$MAPFLOW_TEST_COUNT"
 for a in "$@"; do
-  case "$a" in -*) ;; *) [ -f "$a" ] && cp "$a" "$SPECHUB_TEST_DIR/page.$n" ;; esac
+  case "$a" in -*) ;; *) [ -f "$a" ] && cp "$a" "$MAPFLOW_TEST_DIR/page.$n" ;; esac
 done
-[ -n "${LESSKEYIN:-}" ] && [ -f "$LESSKEYIN" ] && cp "$LESSKEYIN" "$SPECHUB_TEST_DIR/keys.$n"
-[ "$n" = "1" ] && exit "${SPECHUB_TEST_LESS_RC:-0}"
+[ -n "${LESSKEYIN:-}" ] && [ -f "$LESSKEYIN" ] && cp "$LESSKEYIN" "$MAPFLOW_TEST_DIR/keys.$n"
+[ "$n" = "1" ] && exit "${MAPFLOW_TEST_LESS_RC:-0}"
 exit 0
 RTLESS
 chmod +x "$RTBIN/less"
 
 RTDIR="$WORK/rt"
-rt_run() {  # rt_run <less-exit-status> [extra spechub-md flag]
+rt_run() {  # rt_run <less-exit-status> [extra mapflow-md flag]
   rm -rf "$RTDIR"; mkdir -p "$RTDIR"
   printf '0' > "$RTDIR/count"
   PATH="$RTBIN:$BRBIN:$PATH" \
-    SPECHUB_TEST_LESS_RC="$1" SPECHUB_TEST_COUNT="$RTDIR/count" \
-    SPECHUB_TEST_DIR="$RTDIR" \
-    SPECHUB_TEST_ROUTE=bridge SPECHUB_TEST_LOG="$RTDIR/log" \
-    SPECHUB_TEST_PUSH="$RTDIR/push" \
+    MAPFLOW_TEST_LESS_RC="$1" MAPFLOW_TEST_COUNT="$RTDIR/count" \
+    MAPFLOW_TEST_DIR="$RTDIR" \
+    MAPFLOW_TEST_ROUTE=bridge MAPFLOW_TEST_LOG="$RTDIR/log" \
+    MAPFLOW_TEST_PUSH="$RTDIR/push" \
     timeout 60 "$MD" ${2:+"$2"} "$WORK/numbers.md" </dev/null >/dev/null 2>&1
 }
 
@@ -2263,7 +2263,7 @@ KEYMAP="$WORK/keymap.py"
 awk "/^    py \"\\\$HOME\/\.config\/yazi\/keymap\.toml\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
   "$SETUP" > "$KEYMAP"
 run_keymap() {  # run_keymap <browser-key> <line-numbers-key> <path> [download-target]
-  SPECHUB_ARGS="$1|$2|D|${4-}|e|$BEGIN_MARK|$END_MARK" python3 "$KEYMAP" "$3" 2>/dev/null
+  MAPFLOW_ARGS="$1|$2|D|${4-}|e|$BEGIN_MARK|$END_MARK" python3 "$KEYMAP" "$3" 2>/dev/null
 }
 
 if [ -s "$KEYMAP" ]; then
@@ -2283,7 +2283,7 @@ hit = [b for b in binds if b.get("on") == "b"]
 if not hit:
     sys.exit("no b binding")
 run = hit[0].get("run", "")
-if "spechub-md --browser" not in run:
+if "mapflow-md --browser" not in run:
     sys.exit(f"binding does not reach the browser: {run!r}")
 # %h is the hovered file. $0 names the shell and $@ is empty, both measured -
 # a binding using them opens the browser on nothing at all.
@@ -2348,7 +2348,7 @@ KMHAND
 run_keymap b "#" "$WORK/km-hand.toml"
 if parses "$WORK/km-hand.toml" \
    && grep -q 'toggle-pane' "$WORK/km-hand.toml" \
-   && grep -q 'spechub-md --browser' "$WORK/km-hand.toml"
+   && grep -q 'mapflow-md --browser' "$WORK/km-hand.toml"
 then
   ok "a hand-written keymap survives the merge and still gains the binding"
 else
@@ -2606,13 +2606,13 @@ fi
 # What yazi actually does: substitute %h with the path, already single-quoted,
 # and hand the rest to a shell. The command must receive the bare path.
 mkdir -p "$WORK/stubs265"
-for s in spechub-md editor265 tailscale; do
+for s in mapflow-md editor265 tailscale; do
   printf '#!/bin/sh\nfor a in "$@"; do printf "%%s\\n" "$a"; done > "%s/%s.argv"\n' \
     "$WORK/stubs265" "$s" > "$WORK/stubs265/$s"
   chmod +x "$WORK/stubs265/$s"
 done
 hovered="$WORK/x y/f.md"
-for pair in b:spechub-md e:editor265 D:tailscale; do
+for pair in b:mapflow-md e:editor265 D:tailscale; do
   key=${pair%%:*}; stub=${pair#*:}
   rm -f "$WORK/stubs265/$stub.argv"
   cmd=$(python3 - "$WORK/km-bare.toml" "$key" "'$hovered'" <<'PYCMD'
@@ -2649,7 +2649,7 @@ else
 fi
 
 # run_tuicr <from-fork> <appearance> <path>
-run_tuicr() { SPECHUB_ARGS="$1|30|true|$2|$BEGIN_MARK|$END_MARK" python3 "$TUICR_CFG_PY" "$3" 2>/dev/null; }
+run_tuicr() { MAPFLOW_ARGS="$1|30|true|$2|$BEGIN_MARK|$END_MARK" python3 "$TUICR_CFG_PY" "$3" 2>/dev/null; }
 
 cat > "$WORK/tuicr-hand.toml" <<'T'
 # Local build, wired up before this script ever managed these.
@@ -2762,12 +2762,12 @@ echo "the opener route"
 # the route is decided by asking it - never by finding a token on disk - and
 # that a document handed over is only called delivered when the opener says so.
 OWORK="$WORK/opener"
-mkdir -p "$OWORK/bin" "$OWORK/home/.config/spechub"
-cp "$(extract spechub-open)" "$OWORK/bin/spechub-open"
-cp "$(extract spechub-clip)" "$OWORK/bin/spechub-clip"
-cp "$(extract spechub-md)"   "$OWORK/bin/spechub-md"
+mkdir -p "$OWORK/bin" "$OWORK/home/.config/mapflow"
+cp "$(extract mapflow-open)" "$OWORK/bin/mapflow-open"
+cp "$(extract mapflow-clip)" "$OWORK/bin/mapflow-clip"
+cp "$(extract mapflow-md)"   "$OWORK/bin/mapflow-md"
 chmod +x "$OWORK/bin"/*
-OTOKEN="$OWORK/home/.config/spechub/opener.token"
+OTOKEN="$OWORK/home/.config/mapflow/opener.token"
 
 # A stand-in for the opener that speaks the same protocol and writes down what
 # it was asked to do. $OWORK/mode steers the answer, because "opened a tab",
@@ -2795,7 +2795,7 @@ class H(http.server.BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def authed(self):
-        if self.headers.get("X-Spechub-Token") == token:
+        if self.headers.get("X-Mapflow-Token") == token:
             return True
         self.note("UNAUTHED", self.path)
         self.reply(401, {"error": "bad or missing token"})
@@ -2875,7 +2875,7 @@ obare() { env -i PATH="$OWORK/bin:/usr/bin:/bin" HOME="$OWORK/home" "$@"; }
 # A token on disk is not a service that is up. With nothing listening, the
 # route must fall through rather than be taken on the strength of a file.
 printf 'test-token-0123456789' > "$OTOKEN"
-if [ "$(obare env SPECHUB_OPENER_URL=http://127.0.0.1:1 spechub-open --why 2>/dev/null)" != "opener" ]; then
+if [ "$(obare env MAPFLOW_OPENER_URL=http://127.0.0.1:1 mapflow-open --why 2>/dev/null)" != "opener" ]; then
   ok "a token with nothing answering is not the opener route"
 else
   no "a token with nothing answering is not the opener route"
@@ -2886,7 +2886,7 @@ opener_up
 # And a service that is up is no use without the credential it will demand, so
 # the probe has to carry it. No token file at all must not take the route.
 mv "$OTOKEN" "$OTOKEN.away"
-if [ "$(obare env SPECHUB_OPENER_URL="$OURL" spechub-open --why 2>/dev/null)" != "opener" ]; then
+if [ "$(obare env MAPFLOW_OPENER_URL="$OURL" mapflow-open --why 2>/dev/null)" != "opener" ]; then
   ok "an opener that is up but has no token here is not the opener route"
 else
   no "an opener that is up but has no token here is not the opener route"
@@ -2896,23 +2896,23 @@ mv "$OTOKEN.away" "$OTOKEN"
 # A wrong token is the same as no token: the probe is answered 401 and the
 # route is not taken.
 printf 'wrong-token' > "$OTOKEN"
-if [ "$(obare env SPECHUB_OPENER_URL="$OURL" spechub-open --why 2>/dev/null)" != "opener" ]; then
+if [ "$(obare env MAPFLOW_OPENER_URL="$OURL" mapflow-open --why 2>/dev/null)" != "opener" ]; then
   ok "a token the opener rejects is not the opener route"
 else
   no "a token the opener rejects is not the opener route"
 fi
 printf 'test-token-0123456789' > "$OTOKEN"
 
-if [ "$(obare env SPECHUB_OPENER_URL="$OURL" spechub-open --why 2>/dev/null)" = "opener" ]; then
+if [ "$(obare env MAPFLOW_OPENER_URL="$OURL" mapflow-open --why 2>/dev/null)" = "opener" ]; then
   ok "a healthy opener holding the same token is the opener route"
 else
   no "a healthy opener holding the same token is the opener route"
 fi
 
-if [ "$(obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_OPEN_OPENER=off spechub-open --why 2>/dev/null)" != "opener" ]; then
-  ok "\$SPECHUB_OPEN_OPENER=off gives the opener route up"
+if [ "$(obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_OPEN_OPENER=off mapflow-open --why 2>/dev/null)" != "opener" ]; then
+  ok "\$MAPFLOW_OPEN_OPENER=off gives the opener route up"
 else
-  no "\$SPECHUB_OPEN_OPENER=off gives the opener route up"
+  no "\$MAPFLOW_OPEN_OPENER=off gives the opener route up"
 fi
 
 # Both reachable at once is the interesting case: the bridge drives a browser
@@ -2921,7 +2921,7 @@ fi
 printf '#!/bin/sh\nexit 0\n' > "$OWORK/bin/agent-browser"
 chmod +x "$OWORK/bin/agent-browser"
 relay_up '[{"id":"1","type":"page","url":"https://example.com"}]'
-if [ "$(obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL="$BURL" spechub-open --why 2>/dev/null)" = "opener" ]; then
+if [ "$(obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL="$BURL" mapflow-open --why 2>/dev/null)" = "opener" ]; then
   ok "with both reachable the opener outranks the bridge"
 else
   no "with both reachable the opener outranks the bridge"
@@ -2929,7 +2929,7 @@ fi
 kill "$RELAY_PID" 2>/dev/null; wait "$RELAY_PID" 2>/dev/null
 rm -f "$WORK/relay.port" "$OWORK/bin/agent-browser"
 
-obare env SPECHUB_OPENER_URL="$OURL" spechub-open "https://example.com/pr/7" >/dev/null 2>&1
+obare env MAPFLOW_OPENER_URL="$OURL" mapflow-open "https://example.com/pr/7" >/dev/null 2>&1
 if grep -q '^open https://example.com/pr/7$' "$OWORK/opener.log" 2>/dev/null; then
   ok "the opener route hands the URL to the opener"
 else
@@ -2940,8 +2940,8 @@ fi
 # The link screen is the fallback, and a pty is what tells the helper it has
 # somewhere to draw it.
 printf 'fail' > "$OWORK/mode"
-screen=$(printf x | obare env SPECHUB_OPENER_URL="$OURL" \
-  script -qec 'spechub-open https://example.com/pr/8' /dev/null 2>/dev/null)
+screen=$(printf x | obare env MAPFLOW_OPENER_URL="$OURL" \
+  script -qec 'mapflow-open https://example.com/pr/8' /dev/null 2>/dev/null)
 if printf '%s' "$screen" | grep -q $'\033]8;;https://example.com/pr/8\033'; then
   ok "an opener that did not open it falls back to a link you can click"
 else
@@ -2959,7 +2959,7 @@ graph LR
 ```
 MD
 
-obare env SPECHUB_OPENER_URL="$OURL" spechub-md --browser "$OWORK/doc.md" >/dev/null 2>&1
+obare env MAPFLOW_OPENER_URL="$OURL" mapflow-md --browser "$OWORK/doc.md" >/dev/null 2>&1
 pushed="$OWORK/pushed.html"
 if [ -s "$pushed" ] \
    && grep -q '<title>doc.md</title>' "$pushed" \
@@ -2989,14 +2989,14 @@ else
 fi
 
 # Serving would leave a port behind on a machine whose ports nobody can reach.
-if ! pgrep -f 'spechub-md-serve' >/dev/null 2>&1; then
+if ! pgrep -f 'mapflow-md-serve' >/dev/null 2>&1; then
   ok "--browser on the opener route leaves no server behind"
 else
   no "--browser on the opener route leaves no server behind"
 fi
 
 printf 'reuse' > "$OWORK/mode"
-out=$(obare env SPECHUB_OPENER_URL="$OURL" spechub-md --browser "$OWORK/doc.md" 2>&1 >/dev/null)
+out=$(obare env MAPFLOW_OPENER_URL="$OURL" mapflow-md --browser "$OWORK/doc.md" 2>&1 >/dev/null)
 if printf '%s' "$out" | grep -q 'updated in the tab already open'; then
   ok "a re-render the opener reused is reported as an update, not a new tab"
 else
@@ -3006,7 +3006,7 @@ fi
 # Exit status 0 is not a page that arrived. The opener answers with what it
 # did, and anything short of opening or reusing is a failure worth saying.
 printf 'fail' > "$OWORK/mode"
-if ! obare env SPECHUB_OPENER_URL="$OURL" spechub-md --browser "$OWORK/doc.md" >/dev/null 2>&1; then
+if ! obare env MAPFLOW_OPENER_URL="$OURL" mapflow-md --browser "$OWORK/doc.md" >/dev/null 2>&1; then
   ok "--browser fails when the opener does not confirm the page reached a browser"
 else
   no "--browser fails when the opener does not confirm the page reached a browser"
@@ -3014,16 +3014,16 @@ fi
 rm -f "$OWORK/mode"
 
 # Vendored mermaid goes up once, so a diagram draws without reaching a CDN.
-mkdir -p "$OWORK/home/.local/share/spechub"
-printf 'pretend-this-is-mermaid' > "$OWORK/home/.local/share/spechub/mermaid.min.js"
-obare env SPECHUB_OPENER_URL="$OURL" spechub-md --browser "$OWORK/doc.md" >/dev/null 2>&1
+mkdir -p "$OWORK/home/.local/share/mapflow"
+printf 'pretend-this-is-mermaid' > "$OWORK/home/.local/share/mapflow/mermaid.min.js"
+obare env MAPFLOW_OPENER_URL="$OURL" mapflow-md --browser "$OWORK/doc.md" >/dev/null 2>&1
 if grep -q '^mermaid ' "$OWORK/opener.log"; then
   ok "the vendored mermaid is uploaded to an opener that has none"
 else
   no "the vendored mermaid is uploaded to an opener that has none"
 fi
 before=$(grep -c '^mermaid ' "$OWORK/opener.log")
-obare env SPECHUB_OPENER_URL="$OURL" spechub-md --browser "$OWORK/doc.md" >/dev/null 2>&1
+obare env MAPFLOW_OPENER_URL="$OURL" mapflow-md --browser "$OWORK/doc.md" >/dev/null 2>&1
 if [ "$(grep -c '^mermaid ' "$OWORK/opener.log")" = "$before" ]; then
   ok "an opener that already holds mermaid is not sent it again"
 else
@@ -3031,20 +3031,20 @@ else
 fi
 
 # The token can go missing between the route being chosen and the document
-# being sent. That guard is unreachable through the real spechub-open, which
+# being sent. That guard is unreachable through the real mapflow-open, which
 # will not name the opener route without a token, so the route is stubbed to
 # reach it - and it must refuse rather than fall through to serving a port
 # nobody on the far side can reach.
 mkdir -p "$OWORK/stub"
-cat > "$OWORK/stub/spechub-open" <<'SO'
+cat > "$OWORK/stub/mapflow-open" <<'SO'
 #!/bin/sh
 [ "$1" = "--why" ] && { echo opener; exit 0; }
 exit 0
 SO
-chmod +x "$OWORK/stub/spechub-open"
+chmod +x "$OWORK/stub/mapflow-open"
 mv "$OTOKEN" "$OTOKEN.away"
 if ! env -i PATH="$OWORK/stub:$OWORK/bin:/usr/bin:/bin" HOME="$OWORK/home" \
-     SPECHUB_OPENER_URL="$OURL" timeout 20 "$OWORK/bin/spechub-md" --browser "$OWORK/doc.md" \
+     MAPFLOW_OPENER_URL="$OURL" timeout 20 "$OWORK/bin/mapflow-md" --browser "$OWORK/doc.md" \
      >/dev/null 2>&1; then
   ok "--browser refuses rather than guessing when there is no opener token"
 else
@@ -3058,62 +3058,62 @@ opener_down
 # other one - the guardrails inside it only reason correctly about sockets
 # this setup put there.
 FREEPORT="$(dirname "$SETUP")/../playwriter-bridge/vm-free-port.sh"
-# --- spechub-bridge: seeing and fixing the bridge from here ----------------
+# --- mapflow-bridge: seeing and fixing the bridge from here ----------------
 # Restarting the relay or the tunnel is a Windows scheduled task, so this
 # machine cannot do it directly. It asks the opener, which can. When the opener
 # is not reachable either, the paste-ready handoff block is the answer - and it
 # has to survive being written, because it is pasted verbatim into a shell on
 # the other machine.
-cp "$(extract spechub-bridge)" "$OWORK/bin/spechub-bridge"
-chmod +x "$OWORK/bin/spechub-bridge"
+cp "$(extract mapflow-bridge)" "$OWORK/bin/mapflow-bridge"
+chmod +x "$OWORK/bin/mapflow-bridge"
 opener_up
 
-out=$(obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL=http://127.0.0.1:1 \
-        spechub-bridge status 2>&1)
+out=$(obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL=http://127.0.0.1:1 \
+        mapflow-bridge status 2>&1)
 if printf '%s' "$out" | grep -q '^relay:   not reachable' \
    && printf '%s' "$out" | grep -q '^opener:  reachable'; then
-  ok "spechub-bridge status separates what this machine sees from what the opener sees"
+  ok "mapflow-bridge status separates what this machine sees from what the opener sees"
 else
-  no "spechub-bridge status separates what this machine sees from what the opener sees (got '$out')"
+  no "mapflow-bridge status separates what this machine sees from what the opener sees (got '$out')"
 fi
 
 # Only the opener can see the laptop's scheduled tasks from here.
 if printf '%s' "$out" | grep -q '^tasks:.*Playwriter-Relay'; then
-  ok "spechub-bridge status reads the laptop's tasks through the opener"
+  ok "mapflow-bridge status reads the laptop's tasks through the opener"
 else
-  no "spechub-bridge status reads the laptop's tasks through the opener"
+  no "mapflow-bridge status reads the laptop's tasks through the opener"
 fi
 
 mv "$OTOKEN" "$OTOKEN.away"
-out=$(obare env SPECHUB_OPENER_URL="$OURL" spechub-bridge status 2>&1)
+out=$(obare env MAPFLOW_OPENER_URL="$OURL" mapflow-bridge status 2>&1)
 if printf '%s' "$out" | grep -q 'no token at'; then
-  ok "spechub-bridge status names a missing token rather than calling it unreachable"
+  ok "mapflow-bridge status names a missing token rather than calling it unreachable"
 else
-  no "spechub-bridge status names a missing token rather than calling it unreachable"
+  no "mapflow-bridge status names a missing token rather than calling it unreachable"
 fi
 mv "$OTOKEN.away" "$OTOKEN"
 
-if ! obare env SPECHUB_OPENER_URL="$OURL" spechub-bridge fix nonsense >/dev/null 2>&1; then
-  ok "spechub-bridge fix refuses a target it does not know"
+if ! obare env MAPFLOW_OPENER_URL="$OURL" mapflow-bridge fix nonsense >/dev/null 2>&1; then
+  ok "mapflow-bridge fix refuses a target it does not know"
 else
-  no "spechub-bridge fix refuses a target it does not know"
+  no "mapflow-bridge fix refuses a target it does not know"
 fi
 
-obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL=http://127.0.0.1:1 \
-  spechub-bridge fix relay >/dev/null 2>&1
+obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL=http://127.0.0.1:1 \
+  mapflow-bridge fix relay >/dev/null 2>&1
 if grep -q '^bridge-restart relay$' "$OWORK/opener.log"; then
-  ok "spechub-bridge fix asks the opener to restart the task named"
+  ok "mapflow-bridge fix asks the opener to restart the task named"
 else
-  no "spechub-bridge fix asks the opener to restart the task named"
+  no "mapflow-bridge fix asks the opener to restart the task named"
 fi
 
 # Accepted is not recovered. With the relay still not answering here, this must
 # report failure rather than the request having been taken.
-if ! obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL=http://127.0.0.1:1 \
-     spechub-bridge fix relay >/dev/null 2>&1; then
-  ok "spechub-bridge fix fails when the restart did not bring the relay back"
+if ! obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL=http://127.0.0.1:1 \
+     mapflow-bridge fix relay >/dev/null 2>&1; then
+  ok "mapflow-bridge fix fails when the restart did not bring the relay back"
 else
-  no "spechub-bridge fix fails when the restart did not bring the relay back"
+  no "mapflow-bridge fix fails when the restart did not bring the relay back"
 fi
 
 
@@ -3137,8 +3137,8 @@ FP
 chmod +x "$OWORK/bin/free-port-stub"
 
 : > "$OWORK/opener.log"
-obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL=http://127.0.0.1:1 \
-  SPECHUB_FREE_PORT="$OWORK/bin/free-port-stub" spechub-bridge fix both >/dev/null 2>&1
+obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL=http://127.0.0.1:1 \
+  MAPFLOW_FREE_PORT="$OWORK/bin/free-port-stub" mapflow-bridge fix both >/dev/null 2>&1
 fp_count=$(grep -c '^free-port ' "$OWORK/opener.log")
 last_fp=$(grep -n '^free-port ' "$OWORK/opener.log" | tail -1 | cut -d: -f1)
 first_restart=$(grep -n '^bridge-restart ' "$OWORK/opener.log" | head -1 | cut -d: -f1)
@@ -3146,29 +3146,29 @@ if [ "$fp_count" = "2" ] \
    && grep -qxF 'free-port [--port 19989]' "$OWORK/opener.log" \
    && grep -qE '^free-port \[(|--port 19988)\]$' "$OWORK/opener.log" \
    && [ -n "$last_fp" ] && [ -n "$first_restart" ] && [ "$last_fp" -lt "$first_restart" ]; then
-  ok "spechub-bridge fix clears 19988 and 19989 here before asking for a restart"
+  ok "mapflow-bridge fix clears 19988 and 19989 here before asking for a restart"
 else
-  no "spechub-bridge fix clears 19988 and 19989 here before asking for a restart (log: $(tr '\n' '|' < "$OWORK/opener.log"))"
+  no "mapflow-bridge fix clears 19988 and 19989 here before asking for a restart (log: $(tr '\n' '|' < "$OWORK/opener.log"))"
 fi
 
 # fix relay touches no tunnel, so clearing a forwarded port would be tearing
 # down a working connection to fix something else.
 : > "$OWORK/opener.log"
-obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL=http://127.0.0.1:1 \
-  SPECHUB_FREE_PORT="$OWORK/bin/free-port-stub" spechub-bridge fix relay >/dev/null 2>&1
+obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL=http://127.0.0.1:1 \
+  MAPFLOW_FREE_PORT="$OWORK/bin/free-port-stub" mapflow-bridge fix relay >/dev/null 2>&1
 if ! grep -q '^free-port ' "$OWORK/opener.log" \
    && grep -q '^bridge-restart relay$' "$OWORK/opener.log"; then
-  ok "spechub-bridge fix relay leaves the forwarded ports alone"
+  ok "mapflow-bridge fix relay leaves the forwarded ports alone"
 else
-  no "spechub-bridge fix relay leaves the forwarded ports alone (log: $(tr '\n' '|' < "$OWORK/opener.log"))"
+  no "mapflow-bridge fix relay leaves the forwarded ports alone (log: $(tr '\n' '|' < "$OWORK/opener.log"))"
 fi
 
-# The clearer ships with spechub and may simply not be installed on a machine
+# The clearer ships with mapflow and may simply not be installed on a machine
 # that got the terminal workspace some other way. That is worth saying, but it
 # is not a reason to refuse the restart - which may be all that was needed.
 : > "$OWORK/opener.log"
-err=$(obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL=http://127.0.0.1:1 \
-        SPECHUB_FREE_PORT="$OWORK/no-such-clearer" spechub-bridge fix both 2>&1 >/dev/null)
+err=$(obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL=http://127.0.0.1:1 \
+        MAPFLOW_FREE_PORT="$OWORK/no-such-clearer" mapflow-bridge fix both 2>&1 >/dev/null)
 if grep -q '^bridge-restart both$' "$OWORK/opener.log" \
    && printf '%s' "$err" | grep -qF "$OWORK/no-such-clearer"; then
   ok "a missing port clearer is a warning, not a refusal to restart"
@@ -3190,8 +3190,8 @@ sed -i "s|OWORKLOG|$OWORK/opener.log|" "$OWORK/bin/free-port-old"
 chmod +x "$OWORK/bin/free-port-old"
 
 : > "$OWORK/opener.log"
-err=$(obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL=http://127.0.0.1:1 \
-        SPECHUB_FREE_PORT="$OWORK/bin/free-port-old" spechub-bridge fix both 2>&1 >/dev/null)
+err=$(obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL=http://127.0.0.1:1 \
+        MAPFLOW_FREE_PORT="$OWORK/bin/free-port-old" mapflow-bridge fix both 2>&1 >/dev/null)
 if ! grep -q '^oldclearer ' "$OWORK/opener.log" \
    && printf '%s' "$err" | grep -qi 'older' \
    && printf '%s' "$err" | grep -qF "$OWORK/bin/free-port-old" \
@@ -3217,8 +3217,8 @@ sed -i "s|OWORKLOG|$OWORK/opener.log|" "$OWORK/bin/free-port-usage64"
 chmod +x "$OWORK/bin/free-port-usage64"
 
 : > "$OWORK/opener.log"
-err=$(obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL=http://127.0.0.1:1 \
-        SPECHUB_FREE_PORT="$OWORK/bin/free-port-usage64" spechub-bridge fix both 2>&1 >/dev/null)
+err=$(obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL=http://127.0.0.1:1 \
+        MAPFLOW_FREE_PORT="$OWORK/bin/free-port-usage64" mapflow-bridge fix both 2>&1 >/dev/null)
 if ! grep -qE '^usage64 \[\]$' "$OWORK/opener.log" \
    && printf '%s' "$err" | grep -qi 'older' \
    && printf '%s' "$err" | grep -qF "$OWORK/bin/free-port-usage64" \
@@ -3235,26 +3235,26 @@ relay_up '[{"id":"1","type":"page","url":"https://example.com"}]'
 : > "$OWORK/opener.log"
 ( sleep 2; kill "$OPENER_PID" 2>/dev/null ) &
 killer=$!
-out=$(obare env SPECHUB_OPENER_URL="$OURL" SPECHUB_BRIDGE_URL="$BURL" \
-        SPECHUB_FREE_PORT="$OWORK/bin/free-port-stub" spechub-bridge fix both 2>&1)
+out=$(obare env MAPFLOW_OPENER_URL="$OURL" MAPFLOW_BRIDGE_URL="$BURL" \
+        MAPFLOW_FREE_PORT="$OWORK/bin/free-port-stub" mapflow-bridge fix both 2>&1)
 rc=$?
 wait "$killer" 2>/dev/null
 kill "$RELAY_PID" 2>/dev/null; wait "$RELAY_PID" 2>/dev/null
 rm -f "$WORK/relay.port"
 if [ "$rc" != "0" ] && printf '%s' "$out" | grep -q '19989'; then
-  ok "spechub-bridge fix fails and names 19989 when the opener did not come back"
+  ok "mapflow-bridge fix fails and names 19989 when the opener did not come back"
 else
-  no "spechub-bridge fix fails and names 19989 when the opener did not come back (rc=$rc, out: $(printf '%s' "$out" | tr '\n' '|'))"
+  no "mapflow-bridge fix fails and names 19989 when the opener did not come back (rc=$rc, out: $(printf '%s' "$out" | tr '\n' '|'))"
 fi
 
 opener_down
 
-block=$(obare env SPECHUB_OPENER_URL=http://127.0.0.1:1 spechub-bridge fix both 2>&1)
+block=$(obare env MAPFLOW_OPENER_URL=http://127.0.0.1:1 mapflow-bridge fix both 2>&1)
 if printf '%s' "$block" | grep -q 'BEGIN VM-SIDE HANDOFF' \
    && printf '%s' "$block" | grep -q 'END VM-SIDE HANDOFF'; then
-  ok "spechub-bridge hands over a block when it cannot reach the opener either"
+  ok "mapflow-bridge hands over a block when it cannot reach the opener either"
 else
-  no "spechub-bridge hands over a block when it cannot reach the opener either"
+  no "mapflow-bridge hands over a block when it cannot reach the opener either"
 fi
 
 # The block is pasted verbatim into PowerShell, so a $ the writing shell ate is
@@ -3322,18 +3322,18 @@ chmod +x "$NWORK/bin/powershell.exe"
 
 NPORT=$(python3 -c 'import socket
 s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')
-env PATH="$NWORK/bin:$PATH" LOCALAPPDATA="$NWORK/state" SPECHUB_OPENER_PORT="$NPORT" \
+env PATH="$NWORK/bin:$PATH" LOCALAPPDATA="$NWORK/state" MAPFLOW_OPENER_PORT="$NPORT" \
   node "$OPENER_JS" >/dev/null 2>&1 &
 NODE_PID=$!
 i=0
-while [ "$i" -lt 80 ] && ! curl -fsS -m 2 -H "X-Spechub-Token: $NTOKEN" \
+while [ "$i" -lt 80 ] && ! curl -fsS -m 2 -H "X-Mapflow-Token: $NTOKEN" \
       "http://127.0.0.1:$NPORT/health" >/dev/null 2>&1; do
   i=$((i + 1)); sleep 0.1
 done
 
 nrestart() {  # nrestart <what> -> every PowerShell command it caused, on stdout
   : > "$PSLOG"
-  curl -fsS -m 15 -X POST -H "X-Spechub-Token: $NTOKEN" \
+  curl -fsS -m 15 -X POST -H "X-Mapflow-Token: $NTOKEN" \
     -H 'Content-Type: application/json' --data "$(printf '{"what":"%s"}' "$1")" \
     "http://127.0.0.1:$NPORT/bridge/restart" >/dev/null 2>&1
   cat "$PSLOG" 2>/dev/null
@@ -3393,17 +3393,17 @@ echo "the neovim unsaved-changes dot and OSC 52 copy"
 # reaches the network. HOME, $BIN, the config and git's global config all
 # point inside $WORK, because apply writes files and uninstall deletes them.
 NWORK="$WORK/nvim-run"
-mkdir -p "$NWORK/home/.local/bin" "$NWORK/home/.config/spechub" \
+mkdir -p "$NWORK/home/.local/bin" "$NWORK/home/.config/mapflow" \
          "$NWORK/home/.config/nvim/lua/config" "$NWORK/home/.config/nvim/lua/plugins"
-NPLUG="$NWORK/home/.config/nvim/lua/plugins/spechub.lua"
+NPLUG="$NWORK/home/.config/nvim/lua/plugins/mapflow.lua"
 nw() {
   env HOME="$NWORK/home" \
-      SPECHUB_TW_BIN="$NWORK/home/.local/bin" \
-      SPECHUB_TW_CONFIG="$NWORK/home/.config/spechub/terminal-workspace.yaml" \
+      MAPFLOW_TW_BIN="$NWORK/home/.local/bin" \
+      MAPFLOW_TW_CONFIG="$NWORK/home/.config/mapflow/terminal-workspace.yaml" \
       GIT_CONFIG_GLOBAL="$NWORK/gitconfig" \
       bash "$SETUP" "$@" 2>&1
 }
-cat > "$NWORK/home/.config/spechub/terminal-workspace.yaml" <<'NCFG'
+cat > "$NWORK/home/.config/mapflow/terminal-workspace.yaml" <<'NCFG'
 enabled: true
 herdr: {enabled: false}
 gh_dash: {enabled: false}
@@ -3477,7 +3477,7 @@ fi
 
 # The colour is a config key rather than a constant, because the dot has to
 # match whatever theme the user runs.
-python3 - "$NWORK/home/.config/spechub/terminal-workspace.yaml" <<'PYCOL'
+python3 - "$NWORK/home/.config/mapflow/terminal-workspace.yaml" <<'PYCOL'
 import sys, yaml
 p = sys.argv[1]
 c = yaml.safe_load(open(p))
@@ -3510,17 +3510,17 @@ fi
 printf -- '-- mine\n' > "$NPLUG"
 nw apply >/dev/null
 if [ "$(cat "$NPLUG")" = "-- mine" ]; then
-  okn "apply leaves a spechub.lua the user wrote by hand alone"
+  okn "apply leaves a mapflow.lua the user wrote by hand alone"
 else
-  non "apply leaves a spechub.lua the user wrote by hand alone"
+  non "apply leaves a mapflow.lua the user wrote by hand alone"
 fi
 
 out=$(nw disable neovim)
 if [ "$(cat "$NPLUG" 2>/dev/null)" = "-- mine" ] \
    && printf '%s' "$out" | grep -q "by hand"; then
-  ok "disable leaves a spechub.lua the user wrote by hand alone"
+  ok "disable leaves a mapflow.lua the user wrote by hand alone"
 else
-  no "disable leaves a spechub.lua the user wrote by hand alone (said: $(flat "$out"))"
+  no "disable leaves a mapflow.lua the user wrote by hand alone (said: $(flat "$out"))"
 fi
 
 # Back to a file this script owns, so the deletion paths have something of
@@ -3643,7 +3643,7 @@ else
 fi
 rm -f "$NWORK/home/.config/nvim/lua/config/options.lua"
 
-python3 - "$NWORK/home/.config/spechub/terminal-workspace.yaml" <<'PYCLIP'
+python3 - "$NWORK/home/.config/mapflow/terminal-workspace.yaml" <<'PYCLIP'
 import sys, yaml
 p = sys.argv[1]
 c = yaml.safe_load(open(p))
@@ -3672,17 +3672,17 @@ echo "disable answers for every component"
 # and unsets git settings, and a leak here would edit the machine running the
 # suite.
 UWORK="$WORK/tw-run"
-mkdir -p "$UWORK/home/.local/bin" "$UWORK/home/.config/spechub"
+mkdir -p "$UWORK/home/.local/bin" "$UWORK/home/.config/mapflow"
 tw() {
   env HOME="$UWORK/home" \
-      SPECHUB_TW_BIN="$UWORK/home/.local/bin" \
-      SPECHUB_TW_CONFIG="$UWORK/home/.config/spechub/terminal-workspace.yaml" \
+      MAPFLOW_TW_BIN="$UWORK/home/.local/bin" \
+      MAPFLOW_TW_CONFIG="$UWORK/home/.config/mapflow/terminal-workspace.yaml" \
       GIT_CONFIG_GLOBAL="$UWORK/gitconfig" \
       bash "$SETUP" "$@" 2>&1
 }
 
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$UWORK/home/.config/spechub/terminal-workspace.yaml"
+   "$UWORK/home/.config/mapflow/terminal-workspace.yaml"
 
 # The three components with no branch. Turning one of these off is a config
 # edit, so the only useful answer is to refuse and say which edit to make.
@@ -3724,22 +3724,22 @@ fi
 
 
 echo "outdated reports what a machine is missing"
-# Every check here is offline: SPECHUB_TW_OFFLINE=1 skips the release lookups,
+# Every check here is offline: MAPFLOW_TW_OFFLINE=1 skips the release lookups,
 # so nothing in the suite touches the network. The version comparison itself is
 # covered by the table check below rather than by a live call, because a
 # passing suite must not depend on GitHub being up.
 OWORK="$WORK/tw-outdated"
-mkdir -p "$OWORK/home/.config/spechub" "$OWORK/home/.config/herdr"
+mkdir -p "$OWORK/home/.config/mapflow" "$OWORK/home/.config/herdr"
 otw() {
   env HOME="$OWORK/home" \
-      SPECHUB_TW_BIN="$OWORK/home/.local/bin" \
-      SPECHUB_TW_CONFIG="$OWORK/home/.config/spechub/terminal-workspace.yaml" \
-      SPECHUB_TW_OFFLINE=1 \
+      MAPFLOW_TW_BIN="$OWORK/home/.local/bin" \
+      MAPFLOW_TW_CONFIG="$OWORK/home/.config/mapflow/terminal-workspace.yaml" \
+      MAPFLOW_TW_OFFLINE=1 \
       bash "$SETUP" "$@" 2>&1
 }
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/spechub/terminal-workspace.yaml"
-STAMPF="$OWORK/home/.config/spechub/terminal-workspace.applied"
+   "$OWORK/home/.config/mapflow/terminal-workspace.yaml"
+STAMPF="$OWORK/home/.config/mapflow/terminal-workspace.applied"
 OHERDR="$OWORK/home/.config/herdr/config.toml"
 
 # No stamp and no managed block: apply has never run here at all. Listing what
@@ -3781,7 +3781,7 @@ fi
 # upgrade leaves behind. The row stays, because apply still has to install the
 # component; only the detail moves, because "not in your config" is now false.
 printf '\nharlequin:\n  enabled: true\n' \
-  >> "$OWORK/home/.config/spechub/terminal-workspace.yaml"
+  >> "$OWORK/home/.config/mapflow/terminal-workspace.yaml"
 out=$(otw outdated); rc=$?
 if [ "$rc" = "1" ] && printf '%s' "$out" | grep -q '^new	harlequin	new component, run apply'; then
   ok "a new component that upgrade already added reads as one to install, not one to add"
@@ -3789,7 +3789,7 @@ else
   no "outdated still says harlequin is not in the config (rc=$rc, said: $(flat "$out"))"
 fi
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/spechub/terminal-workspace.yaml"
+   "$OWORK/home/.config/mapflow/terminal-workspace.yaml"
 
 # A stamp that names every shipped component. Nothing is new, nothing is
 # reachable offline, so there is nothing to say.
@@ -3810,26 +3810,26 @@ fi
 # it with the stock binary and drop the patches it carries. outdated already
 # skips it, and naming it on upgrade has to skip it too.
 printf 'tuicr:\n  build_from_fork: true\n' \
-  > "$OWORK/home/.config/spechub/terminal-workspace.yaml"
+  > "$OWORK/home/.config/mapflow/terminal-workspace.yaml"
 # A curl that always fails, so this check cannot reach the network even if the
-# guard it tests regresses. SPECHUB_TW_OFFLINE gates the version lookups and
+# guard it tests regresses. MAPFLOW_TW_OFFLINE gates the version lookups and
 # not install_binary, which is the call a regression here would reach.
 NOCURL="$WORK/nocurl"; mkdir -p "$NOCURL"
 printf '#!/usr/bin/env bash\nexit 1\n' > "$NOCURL/curl"; chmod +x "$NOCURL/curl"
 out=$(env HOME="$OWORK/home" \
-          SPECHUB_TW_BIN="$OWORK/home/.local/bin" \
-          SPECHUB_TW_CONFIG="$OWORK/home/.config/spechub/terminal-workspace.yaml" \
-          SPECHUB_TW_OFFLINE=1 PATH="$NOCURL:$PATH" \
+          MAPFLOW_TW_BIN="$OWORK/home/.local/bin" \
+          MAPFLOW_TW_CONFIG="$OWORK/home/.config/mapflow/terminal-workspace.yaml" \
+          MAPFLOW_TW_OFFLINE=1 PATH="$NOCURL:$PATH" \
           bash "$SETUP" upgrade tuicr 2>&1); rc=$?
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/spechub/terminal-workspace.yaml"
+   "$OWORK/home/.config/mapflow/terminal-workspace.yaml"
 if printf '%s' "$out" | grep -q 'fork' && ! printf '%s' "$out" | grep -q 'tuicr installed'; then
   ok "upgrade refuses to overwrite a tuicr built from a fork"
 else
   no "upgrade tuicr overwrote a fork build (rc=$rc, said: $(flat "$out"))"
 fi
 
-# Exit 2 is the code /spechub:setup reads as "cannot tell", and it is the only
+# Exit 2 is the code /mapflow:setup reads as "cannot tell", and it is the only
 # one that leaves the user unbothered. Without PyYAML nothing here can be
 # compared, so exiting 1 would offer an upgrade for findings that do not exist.
 NOYAML="$WORK/noyaml"; mkdir -p "$NOYAML"
@@ -3843,9 +3843,9 @@ exec /usr/bin/python3 "$@"
 NOYSTUB
 chmod +x "$NOYAML/python3"
 out=$(env HOME="$OWORK/home" \
-          SPECHUB_TW_BIN="$OWORK/home/.local/bin" \
-          SPECHUB_TW_CONFIG="$OWORK/home/.config/spechub/terminal-workspace.yaml" \
-          SPECHUB_TW_OFFLINE=1 PATH="$NOYAML:$PATH" \
+          MAPFLOW_TW_BIN="$OWORK/home/.local/bin" \
+          MAPFLOW_TW_CONFIG="$OWORK/home/.config/mapflow/terminal-workspace.yaml" \
+          MAPFLOW_TW_OFFLINE=1 PATH="$NOYAML:$PATH" \
           bash "$SETUP" outdated 2>&1); rc=$?
 if [ "$rc" = "2" ]; then
   ok "outdated exits 2 rather than 1 when it cannot read the config at all"
@@ -3885,14 +3885,14 @@ elif [ -z "$TABLE_ROWS" ]; then
 else ok "the version table matches what apply installs"; fi
 
 
-echo "spechub-db opens a profile without rewriting the user's file"
+echo "mapflow-db opens a profile without rewriting the user's file"
 # The profile file is the user's. Writing it once is a convenience; writing it
 # twice would silently delete a connection string they typed.
 DBHELPER="$WORK/db-helper"
-awk -v n="spechub-db" '$0 == "  cat > \"$BIN/" n "\" <<'\''H'\''" {f=1; next} f && $0 == "H" {exit} f' \
+awk -v n="mapflow-db" '$0 == "  cat > \"$BIN/" n "\" <<'\''H'\''" {f=1; next} f && $0 == "H" {exit} f' \
   "$SETUP" > "$DBHELPER"
 DBH="$WORK/db-home"; DBBIN="$WORK/db-bin"
-mkdir -p "$DBH/.config/spechub" "$DBBIN"
+mkdir -p "$DBH/.config/mapflow" "$DBBIN"
 # A stand-in for harlequin, so the launch is observable and nothing is
 # installed to make it so. Without it the helper exits before it reads a
 # profile at all, and the check below would pass on a file nothing opened.
@@ -3902,18 +3902,18 @@ printf '%s\n' "$*" > "$HOME/harlequin-argv"
 DBSTUB
 chmod +x "$DBBIN/harlequin"
 printf 'default_profile = "mine"\n\n[profiles.mine]\nadapter = "postgres"\n' \
-  > "$DBH/.config/spechub/harlequin.toml"
-before=$(cat "$DBH/.config/spechub/harlequin.toml")
+  > "$DBH/.config/mapflow/harlequin.toml"
+before=$(cat "$DBH/.config/mapflow/harlequin.toml")
 env HOME="$DBH" PATH="$DBBIN:$PATH" bash "$DBHELPER" >/dev/null 2>&1
-if [ "$before" = "$(cat "$DBH/.config/spechub/harlequin.toml")" ]
-then ok "spechub-db never rewrites a profile file that already exists"
-else no "spechub-db overwrote the user's profile file"; fi
+if [ "$before" = "$(cat "$DBH/.config/mapflow/harlequin.toml")" ]
+then ok "mapflow-db never rewrites a profile file that already exists"
+else no "mapflow-db overwrote the user's profile file"; fi
 
 # A path in the config is a path the script has to read, or the config is a
 # place a user edits a line and sees nothing happen.
 CPW="$WORK/tw-cfgpath"
-mkdir -p "$CPW/home/.config/spechub" "$CPW/home/.local/bin"
-cat > "$CPW/home/.config/spechub/terminal-workspace.yaml" <<YML
+mkdir -p "$CPW/home/.config/mapflow" "$CPW/home/.local/bin"
+cat > "$CPW/home/.config/mapflow/terminal-workspace.yaml" <<YML
 harlequin:
   config_path: "$CPW/home/my profiles.toml"
 YML
@@ -3923,26 +3923,26 @@ YML
 sed '/^case "$ACTION" in$/,$d' "$SETUP" > "$WORK/setup-funcs.sh"
 (
   HOME="$CPW/home"
-  SPECHUB_TW_BIN="$CPW/home/.local/bin"
-  SPECHUB_TW_CONFIG="$CPW/home/.config/spechub/terminal-workspace.yaml"
+  MAPFLOW_TW_BIN="$CPW/home/.local/bin"
+  MAPFLOW_TW_CONFIG="$CPW/home/.config/mapflow/terminal-workspace.yaml"
   # shellcheck disable=SC1090
   . "$WORK/setup-funcs.sh"
   write_helpers
 ) >/dev/null 2>&1
-if grep -qF "'$CPW/home/my profiles.toml'" "$CPW/home/.local/bin/spechub-db" 2>/dev/null
-then ok "spechub-db takes its profile path from harlequin.config_path"
-else no "spechub-db ignored harlequin.config_path (default line: $(grep -m1 '^DB_CFG_DEFAULT=' "$CPW/home/.local/bin/spechub-db" 2>/dev/null))"; fi
+if grep -qF "'$CPW/home/my profiles.toml'" "$CPW/home/.local/bin/mapflow-db" 2>/dev/null
+then ok "mapflow-db takes its profile path from harlequin.config_path"
+else no "mapflow-db ignored harlequin.config_path (default line: $(grep -m1 '^DB_CFG_DEFAULT=' "$CPW/home/.local/bin/mapflow-db" 2>/dev/null))"; fi
 
 if grep -qF -- '-P mine' "$DBH/harlequin-argv" 2>/dev/null
-then ok "spechub-db launches harlequin on the one profile it found"
-else no "spechub-db launches harlequin on the one profile (argv: $(cat "$DBH/harlequin-argv" 2>/dev/null))"; fi
+then ok "mapflow-db launches harlequin on the one profile it found"
+else no "mapflow-db launches harlequin on the one profile (argv: $(cat "$DBH/harlequin-argv" 2>/dev/null))"; fi
 
 
 echo "uninstall clears every managed region"
 # uninstall strips the herdr and tuicr managed regions and leaves the two it
 # wrote into the yazi config, plus the keybindings it wrote into gh-dash. What
-# is left keeps firing: yazi still routes markdown at spechub-md and gh-dash
-# still binds keys to tuicr and spechub-open, all of them binaries uninstall
+# is left keeps firing: yazi still routes markdown at mapflow-md and gh-dash
+# still binds keys to tuicr and mapflow-open, all of them binaries uninstall
 # has just deleted. The regions are marked, so removing them is the same edit
 # already made to herdr's config, and the user's own settings around them must
 # come through untouched.
@@ -3971,7 +3971,7 @@ KMUSER
 run_keymap b "#" "$UWORK/home/.config/yazi/keymap.toml"
 
 # gh-dash reads YAML that python rewrites wholesale, so a comment marker never
-# survives a round trip. What identifies spechub's work there is the name on
+# survives a round trip. What identifies mapflow's work there is the name on
 # each keybinding, which apply already uses to replace its own entries.
 cat > "$UWORK/home/.config/gh-dash/config.yml" <<'GHUSER'
 prSections:
@@ -3987,7 +3987,7 @@ keybindings:
       command: "cd {{.RepoPath}} && tuicr pr {{.PrNumber}}\n"
     - key: o
       name: open in browser
-      command: "spechub-open \"https://github.com/{{.RepoName}}/pull/{{.PrNumber}}\"\n"
+      command: "mapflow-open \"https://github.com/{{.RepoName}}/pull/{{.PrNumber}}\"\n"
   universal:
     - key: ctrl+q
       builtin: quit
@@ -4001,8 +4001,8 @@ GHUSER
 # are exactly the ones apply leaves behind.
 mkdir -p "$UWORK/home/.config/herdr"
 : > "$UWORK/home/.config/herdr/config.toml"
-SPECHUB_ARGS="$(args alt catppuccin catppuccin-latte herdr true priority)" \
-SPECHUB_BIN="$UWORK/home/.local/bin" \
+MAPFLOW_ARGS="$(args alt catppuccin catppuccin-latte herdr true priority)" \
+MAPFLOW_BIN="$UWORK/home/.local/bin" \
   python3 "$HERDR_KEYMAP" "$UWORK/home/.config/herdr/config.toml"
 
 if grep -qF "$BEGIN_MARK" "$UWORK/home/.config/yazi/yazi.toml" \
@@ -4034,7 +4034,7 @@ fi
 
 if ! grep -qF "$BEGIN_MARK" "$UWORK/home/.config/yazi/yazi.toml" \
    && ! grep -qF "$END_MARK" "$UWORK/home/.config/yazi/yazi.toml" \
-   && ! grep -qF 'spechub-md' "$UWORK/home/.config/yazi/yazi.toml"; then
+   && ! grep -qF 'mapflow-md' "$UWORK/home/.config/yazi/yazi.toml"; then
   ok "uninstall removes the managed region from yazi.toml"
 else
   no "uninstall removes the managed region from yazi.toml (rc=$uninstall_rc, said: $(flat "$uninstall_out"))"
@@ -4050,7 +4050,7 @@ fi
 
 if ! grep -qF "$BEGIN_MARK" "$UWORK/home/.config/yazi/keymap.toml" \
    && ! grep -qF "$END_MARK" "$UWORK/home/.config/yazi/keymap.toml" \
-   && ! grep -qF 'spechub-md' "$UWORK/home/.config/yazi/keymap.toml"; then
+   && ! grep -qF 'mapflow-md' "$UWORK/home/.config/yazi/keymap.toml"; then
   ok "uninstall removes the managed region from the yazi keymap"
 else
   no "uninstall removes the managed region from the yazi keymap"
@@ -4089,7 +4089,7 @@ assert "quit" in builtins, builtins' 2>/dev/null
 then ok "the user's own gh-dash keybindings and sections survive uninstall"
 else no "the user's own gh-dash keybindings and sections survive uninstall"; fi
 
-# page_keys is spechub's too. Leaving pgup and pgdown bound after uninstall
+# page_keys is mapflow's too. Leaving pgup and pgdown bound after uninstall
 # leaves the dashboard scrolling by a keymap nobody owns any more.
 if ghq 'assert "pageUp" not in builtins, builtins
 assert "pageDown" not in builtins, builtins' 2>/dev/null
@@ -4097,31 +4097,31 @@ then ok "uninstall removes the gh-dash page keys it bound"
 else no "uninstall removes the gh-dash page keys it bound"; fi
 
 
-echo "spechub-edit sends a file to its own herdr tab"
+echo "mapflow-edit sends a file to its own herdr tab"
 # diffnav's "o" key runs $EDITOR in diffnav's own pane, and a herdr popup
 # cannot host a second full-screen app. These pin both halves of the helper
 # that carries the file out to a tab instead.
 EDITBIN="$WORK/edit-bin"; EDITHOME="$WORK/edit-home"
 mkdir -p "$EDITBIN" "$EDITHOME"
-cp "$(extract spechub-edit)" "$EDITBIN/spechub-edit"
-cp "$(extract spechub-herdr-tab)" "$EDITBIN/spechub-herdr-tab"
+cp "$(extract mapflow-edit)" "$EDITBIN/mapflow-edit"
+cp "$(extract mapflow-herdr-tab)" "$EDITBIN/mapflow-herdr-tab"
 printf '#!/bin/sh\necho "editor ran: $*"\n' > "$EDITBIN/fake-editor"
 chmod +x "$EDITBIN/fake-editor"
 edit_env() { env -i PATH="$EDITBIN:/usr/bin:/bin" HOME="$EDITHOME" \
-                 SPECHUB_EDIT_EDITOR="$EDITBIN/fake-editor" "$@"; }
+                 MAPFLOW_EDIT_EDITOR="$EDITBIN/fake-editor" "$@"; }
 
 # No herdr means no tab to open, and the file still has to reach the editor.
-if [ "$(edit_env spechub-edit /tmp/x.ts 2>&1)" = "editor ran: /tmp/x.ts" ]
-then ok "spechub-edit runs the editor in place when herdr is missing"
-else no "spechub-edit runs the editor in place when herdr is missing"; fi
+if [ "$(edit_env mapflow-edit /tmp/x.ts 2>&1)" = "editor ran: /tmp/x.ts" ]
+then ok "mapflow-edit runs the editor in place when herdr is missing"
+else no "mapflow-edit runs the editor in place when herdr is missing"; fi
 
-# spechub-edit is a wrapper, so the helper it hands the file to has to be
+# mapflow-edit is a wrapper, so the helper it hands the file to has to be
 # there. A missing one must still open the file rather than do nothing.
-mv "$EDITBIN/spechub-herdr-tab" "$WORK/herdr-tab.parked"
-if [ "$(edit_env spechub-edit /tmp/x.ts 2>&1)" = "editor ran: /tmp/x.ts" ]
-then ok "spechub-edit runs the editor in place when spechub-herdr-tab is missing"
-else no "spechub-edit runs the editor in place when spechub-herdr-tab is missing"; fi
-mv "$WORK/herdr-tab.parked" "$EDITBIN/spechub-herdr-tab"
+mv "$EDITBIN/mapflow-herdr-tab" "$WORK/herdr-tab.parked"
+if [ "$(edit_env mapflow-edit /tmp/x.ts 2>&1)" = "editor ran: /tmp/x.ts" ]
+then ok "mapflow-edit runs the editor in place when mapflow-herdr-tab is missing"
+else no "mapflow-edit runs the editor in place when mapflow-herdr-tab is missing"; fi
+mv "$WORK/herdr-tab.parked" "$EDITBIN/mapflow-herdr-tab"
 
 # A stub herdr, so the tab call is checked without a running session. The path
 # holds a space, because herdr pane run hands the string to a shell.
@@ -4144,32 +4144,32 @@ await_pane_run() {
   done
 }
 
-edit_env spechub-edit "/repo/a file.ts" >/dev/null 2>&1
+edit_env mapflow-edit "/repo/a file.ts" >/dev/null 2>&1
 await_pane_run
 if grep -q "pane run 42 .*fake-editor.*a\\\\ file.ts" "$EDITHOME/calls" 2>/dev/null
-then ok "spechub-edit opens the file in a new herdr tab, path quoted"
-else no "spechub-edit opens the file in a new herdr tab, path quoted"; fi
+then ok "mapflow-edit opens the file in a new herdr tab, path quoted"
+else no "mapflow-edit opens the file in a new herdr tab, path quoted"; fi
 
 # The label is the basename, so the tab reads as the file rather than the path.
 if grep -q 'tab create .*--label a file.ts' "$EDITHOME/calls" 2>/dev/null
-then ok "spechub-edit labels the tab with the file's basename"
-else no "spechub-edit labels the tab with the file's basename"; fi
+then ok "mapflow-edit labels the tab with the file's basename"
+else no "mapflow-edit labels the tab with the file's basename"; fi
 
-# spechub-herdr-tab quotes every argument now, and the five keybindings that
+# mapflow-herdr-tab quotes every argument now, and the five keybindings that
 # call it pass bare names. Those must reach the pane unchanged.
 : > "$EDITHOME/calls"
-edit_env spechub-herdr-tab diffpick spechub-diff pick >/dev/null 2>&1
+edit_env mapflow-herdr-tab diffpick mapflow-diff pick >/dev/null 2>&1
 await_pane_run
-if grep -q 'pane run 42 spechub-diff pick' "$EDITHOME/calls" 2>/dev/null
-then ok "spechub-herdr-tab leaves an unquoted command untouched"
-else no "spechub-herdr-tab leaves an unquoted command untouched"; fi
+if grep -q 'pane run 42 mapflow-diff pick' "$EDITHOME/calls" 2>/dev/null
+then ok "mapflow-herdr-tab leaves an unquoted command untouched"
+else no "mapflow-herdr-tab leaves an unquoted command untouched"; fi
 
 
 echo "herdr popups run without \$BIN on PATH"
 # herdr runs a popup command with its server's environment, and a server
 # started over ssh has the sshd default PATH: no ~/.local/bin. Every popup
 # target lives in $BIN, and so do the tools those targets start in turn
-# (spechub-db wants harlequin and fzf, spechub-diff pipes into diffnav), so a
+# (mapflow-db wants harlequin and fzf, mapflow-diff pipes into diffnav), so a
 # popup that only works with $BIN on PATH exits 127 on exactly the machines
 # this workspace is for.
 #
@@ -4180,14 +4180,14 @@ echo "herdr popups run without \$BIN on PATH"
 # on whitespace the way a launcher execs argv, and through sh -c, since
 # nothing here says which one herdr does. $BIN sits outside HOME on purpose,
 # so a command that guesses ~/.local/bin rather than honouring
-# SPECHUB_TW_BIN cannot pass.
+# MAPFLOW_TW_BIN cannot pass.
 PWORK="$WORK/popup-run"
 PHOME="$PWORK/home"
 PBIN="$PWORK/bin"
 PSTUB="$PWORK/stubbin"
 PLOG="$PWORK/ran.log"
-PCFG="$PHOME/.config/spechub/terminal-workspace.yaml"
-mkdir -p "$PHOME/.config/spechub" "$PBIN" "$PSTUB" "$PWORK/cwd"
+PCFG="$PHOME/.config/mapflow/terminal-workspace.yaml"
+mkdir -p "$PHOME/.config/mapflow" "$PBIN" "$PSTUB" "$PWORK/cwd"
 cat > "$PCFG" <<'PCFGEOF'
 enabled: true
 herdr: {enabled: true, renumber_plugin: false}
@@ -4221,8 +4221,8 @@ chmod +x "$PSTUB"/* "$PBIN"/*
 pw() {
   env HOME="$PHOME" \
       PATH="$PSTUB:$PBIN:/usr/bin:/bin" \
-      SPECHUB_TW_BIN="$PBIN" \
-      SPECHUB_TW_CONFIG="$PCFG" \
+      MAPFLOW_TW_BIN="$PBIN" \
+      MAPFLOW_TW_CONFIG="$PCFG" \
       GIT_CONFIG_GLOBAL="$PWORK/gitconfig" \
       bash "$SETUP" "$@" 2>&1
 }
@@ -4244,18 +4244,18 @@ PYPOP
 )
   # Only now does each target become a stub: apply may rewrite anything in
   # $BIN, and the targets have to be the ones the popups actually reach.
-  for t in spechub-diff spechub-dash spechub-db yazi lazygit; do
+  for t in mapflow-diff mapflow-dash mapflow-db yazi lazygit; do
     cat > "$PBIN/$t" <<STUB
 #!/bin/sh
 echo "$t \$*" >> "$PLOG"
-command -v spechub-test-child >/dev/null 2>&1 \\
-  || { echo "$t: spechub-test-child not on PATH=\$PATH" >&2; exit 42; }
-exec spechub-test-child
+command -v mapflow-test-child >/dev/null 2>&1 \\
+  || { echo "$t: mapflow-test-child not on PATH=\$PATH" >&2; exit 42; }
+exec mapflow-test-child
 STUB
     chmod +x "$PBIN/$t"
   done
-  printf '#!/bin/sh\nexit 0\n' > "$PBIN/spechub-test-child"
-  chmod +x "$PBIN/spechub-test-child"
+  printf '#!/bin/sh\nexit 0\n' > "$PBIN/mapflow-test-child"
+  chmod +x "$PBIN/mapflow-test-child"
 
   n=$(printf '%s\n' "$popups" | grep -c .)
   if [ "$n" -ge 6 ]; then
@@ -4295,12 +4295,12 @@ STUB
   fi
 
   # Running is not enough: each popup has to reach the thing its key names,
-  # and the pick popup has to hand spechub-diff its mode.
+  # and the pick popup has to hand mapflow-diff its mode.
   missed=""
-  for t in spechub-diff spechub-dash spechub-db yazi lazygit; do
+  for t in mapflow-diff mapflow-dash mapflow-db yazi lazygit; do
     printf '%s' "$reached" | grep -q "^$t\\b" || missed="$missed $t"
   done
-  printf '%s' "$reached" | grep -qx 'spechub-diff pick' || missed="$missed spechub-diff-pick"
+  printf '%s' "$reached" | grep -qx 'mapflow-diff pick' || missed="$missed mapflow-diff-pick"
   if [ -z "$missed" ]; then
     ok "the herdr popups reach every target they name, arguments intact"
   else
@@ -4330,10 +4330,10 @@ ISET="$IAGENT/settings.json"
 ISUB="$IAGENT/extensions/subagent/config.json"
 IMD="$IAGENT/AGENTS.md"
 IRETRO="$IAGENT/extensions/agentic-retro.ts"
-ICFG="$IHOME/.config/spechub/terminal-workspace.yaml"
+ICFG="$IHOME/.config/mapflow/terminal-workspace.yaml"
 IVER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   "$ROOT/.claude-plugin/plugin.json")
-mkdir -p "$ISTUB" "$INPM/bin" "$IHOME/.config/spechub" "$IAGENT"
+mkdir -p "$ISTUB" "$INPM/bin" "$IHOME/.config/mapflow" "$IAGENT"
 
 cat > "$ISTUB/pi.installed" <<'PISTUB'
 #!/usr/bin/env bash
@@ -4429,10 +4429,10 @@ iw() {
   local path="$ISTUB:/usr/bin:/bin"
   [ "${retro:-1}" = "1" ] && path="$IRETROBIN:$path"
   env HOME="$IHOME" PATH="$path" \
-      SPECHUB_TW_BIN="$IHOME/.local/bin" \
-      SPECHUB_TW_CONFIG="$ICFG" \
+      MAPFLOW_TW_BIN="$IHOME/.local/bin" \
+      MAPFLOW_TW_CONFIG="$ICFG" \
       GIT_CONFIG_GLOBAL="$IWORK/gitconfig" \
-      SPECHUB_TW_OFFLINE=1 \
+      MAPFLOW_TW_OFFLINE=1 \
       bash "$SETUP" "$@" 2>&1
 }
 jget() {  # jget <file> <dotted.path> -> the value as JSON, or MISSING
@@ -4472,14 +4472,14 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
   pkgs=$(jget "$ISET" packages)
   if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
-     && printf '%s' "$pkgs" | grep -qF "\"git:github.com/ac8318740/spechub@v$IVER\"" \
+     && printf '%s' "$pkgs" | grep -qF "\"npm:mapflow@$IVER\"" \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-compact-tools"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:billion-context"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"'; then
-    ok "apply installs pi-subagents, SpecHub pinned to v$IVER, pi-compact-tools, billion-context, rpiv-todo and pi-plugin-manager"
+    ok "apply installs pi-subagents, Mapflow pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo and pi-plugin-manager"
   else
-    no "apply installs pi-subagents, SpecHub pinned to v$IVER, pi-compact-tools, billion-context, rpiv-todo and pi-plugin-manager (packages: $pkgs)"
+    no "apply installs pi-subagents, Mapflow pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo and pi-plugin-manager (packages: $pkgs)"
   fi
   if grep -q '^pi .*billion-context' "$IHOME/pi.log" \
      && grep -q '^bili plugin install pi' "$IHOME/bili.log" 2>/dev/null \
@@ -4503,7 +4503,7 @@ if [ "$PI_APPLY" = "1" ]; then
   else
     no "the JSON merge keeps every key it does not claim ($(flat "$(cat "$ISET" "$ISUB")"))"
   fi
-  if [ "$(grep -c 'spechub terminal-workspace >>>' "$IMD")" = "1" ] \
+  if [ "$(grep -c 'mapflow terminal-workspace >>>' "$IMD")" = "1" ] \
      && grep -qF 'you may delegate to it' "$IMD" \
      && [ "$(head -3 "$IMD")" = "$USER_MD" ]; then
     ok "apply adds the delegation line to AGENTS.md below the user's own text"
@@ -4531,7 +4531,7 @@ if [ "$PI_APPLY" = "1" ]; then
 
   out=$(iw status)
   if printf '%s' "$out" | grep -q 'pi: 1.1.0' \
-     && printf '%s' "$out" | grep -qF "pi package: git:github.com/ac8318740/spechub@v$IVER" \
+     && printf '%s' "$out" | grep -qF "pi package: npm:mapflow@$IVER" \
      && printf '%s' "$out" | grep -qF 'pi package: npm:billion-context' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:@juicesharp/rpiv-todo' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-plugin-manager' \
@@ -4591,25 +4591,25 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
 
   # What the user had before apply stays theirs: their pi-subagents, their
-  # rpiv-todo, their plugin manager, their older SpecHub pin (moved forward,
+  # rpiv-todo, their plugin manager, their older Mapflow pin (moved forward,
   # then put back), and their extension.
-  printf '{\n  "packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo", "npm:pi-plugin-manager", "git:github.com/ac8318740/spechub@v0.1.0"]\n}\n' > "$ISET"
+  printf '{\n  "packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo", "npm:pi-plugin-manager", "npm:mapflow@0.1.0"]\n}\n' > "$ISET"
   echo "// mine" > "$IRETRO"
   out=$(iw apply)
-  if jget "$ISET" packages | grep -qF "spechub@v$IVER" && ! jget "$ISET" packages | grep -qF 'v0.1.0'; then
-    ok "apply moves an older SpecHub pin forward to v$IVER"
+  if jget "$ISET" packages | grep -qF "mapflow@$IVER" && ! jget "$ISET" packages | grep -qF '0.1.0'; then
+    ok "apply moves an older Mapflow pin forward to $IVER"
   else
-    no "apply moves an older SpecHub pin forward to v$IVER (packages: $(jget "$ISET" packages))"
+    no "apply moves an older Mapflow pin forward to $IVER (packages: $(jget "$ISET" packages))"
   fi
   iw uninstall >/dev/null
   pkgs=$(jget "$ISET" packages)
   if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"' \
-     && printf '%s' "$pkgs" | grep -qF '"git:github.com/ac8318740/spechub@v0.1.0"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:mapflow@0.1.0"' \
      && ! printf '%s' "$pkgs" | grep -qF 'pi-compact-tools' \
      && [ -f "$IRETRO" ] && [ -x "$INPM/bin/pi" ] \
-     && [ ! -e "$IHOME/.config/spechub/terminal-workspace.pi.json" ]; then
+     && [ ! -e "$IHOME/.config/mapflow/terminal-workspace.pi.json" ]; then
     ok "uninstall leaves pi, and every package and file the user had before apply"
   else
     no "uninstall leaves pi, and every package and file the user had before apply (packages: $pkgs)"
@@ -4622,7 +4622,7 @@ if [ "$PI_APPLY" = "1" ]; then
   iw uninstall >/dev/null
   if ! grep -q '^bili plugin install' "$IHOME/bili.log" \
      && ! grep -q '^bili plugin remove' "$IHOME/bili.log" \
-     && [ ! -e "$IHOME/.config/spechub/terminal-workspace.pi.json" ]; then
+     && [ ! -e "$IHOME/.config/mapflow/terminal-workspace.pi.json" ]; then
     ok "apply and uninstall leave pre-existing billion-context client plugins alone"
   else
     no "apply and uninstall leave pre-existing billion-context client plugins alone (bili: $(flat "$(cat "$IHOME/bili.log")"))"
@@ -4630,12 +4630,12 @@ if [ "$PI_APPLY" = "1" ]; then
   rm -f "$IHOME/bili-preinstalled"
 
   # A newer pin than this plugin is one the user chose, and stays.
-  printf '{\n  "packages": ["git:github.com/ac8318740/spechub@v999.0.0"]\n}\n' > "$ISET"
+  printf '{\n  "packages": ["npm:mapflow@999.0.0"]\n}\n' > "$ISET"
   iw apply >/dev/null
-  if jget "$ISET" packages | grep -qF 'v999.0.0'; then
-    ok "apply never moves a newer SpecHub pin back"
+  if jget "$ISET" packages | grep -qF '999.0.0'; then
+    ok "apply never moves a newer Mapflow pin back"
   else
-    no "apply never moves a newer SpecHub pin back (packages: $(jget "$ISET" packages))"
+    no "apply never moves a newer Mapflow pin back (packages: $(jget "$ISET" packages))"
   fi
   iw disable pi >/dev/null
 
@@ -4673,32 +4673,32 @@ if [ "$PI_APPLY" = "1" ]; then
   rm -f "$ISUB"
 
   # Without agentic-retro on PATH, the extension is skipped and the user told
-  # what to install. SpecHub itself does not need it.
+  # what to install. Mapflow itself does not need it.
   rm -f "$IRETRO"
   out=$(retro=0 iw apply)
   if [ ! -e "$IRETRO" ] && printf '%s' "$out" | grep -q 'install the agentic-retro plugin first' \
-     && jget "$ISET" packages | grep -qF "spechub@v$IVER"; then
+     && jget "$ISET" packages | grep -qF "mapflow@$IVER"; then
     ok "apply skips the agentic-retro extension when agentic-retro is not on PATH, and says why"
   else
     no "apply skips the agentic-retro extension when agentic-retro is not on PATH, and says why (said: $(flat "$out"))"
   fi
 
-  # outdated reports a SpecHub pin behind this plugin with no network at all,
+  # outdated reports a Mapflow pin behind this plugin with no network at all,
   # and upgrade moves it.
-  printf '{\n  "packages": ["git:github.com/ac8318740/spechub@v0.1.0"]\n}\n' > "$ISET"
+  printf '{\n  "packages": ["npm:mapflow@0.1.0"]\n}\n' > "$ISET"
   iw apply >/dev/null   # writes the stamp; leaves the pin, which is now owned by nobody
-  printf '{\n  "packages": ["git:github.com/ac8318740/spechub@v0.1.0"]\n}\n' > "$ISET"
+  printf '{\n  "packages": ["npm:mapflow@0.1.0"]\n}\n' > "$ISET"
   out=$(iw outdated); rc=$?
-  if [ "$rc" = "1" ] && printf '%s' "$out" | grep -qF "stale	pi-spechub	0.1.0 -> $IVER"; then
-    ok "outdated reports a SpecHub pin on pi that is behind this plugin"
+  if [ "$rc" = "1" ] && printf '%s' "$out" | grep -qF "stale	pi-mapflow	0.1.0 -> $IVER"; then
+    ok "outdated reports a Mapflow pin on pi that is behind this plugin"
   else
-    no "outdated reports a SpecHub pin on pi that is behind this plugin (rc=$rc, said: $(flat "$out"))"
+    no "outdated reports a Mapflow pin on pi that is behind this plugin (rc=$rc, said: $(flat "$out"))"
   fi
   iw upgrade >/dev/null
-  if jget "$ISET" packages | grep -qF "spechub@v$IVER"; then
-    ok "upgrade moves a stale SpecHub pin on pi forward"
+  if jget "$ISET" packages | grep -qF "mapflow@$IVER"; then
+    ok "upgrade moves a stale Mapflow pin on pi forward"
   else
-    no "upgrade moves a stale SpecHub pin on pi forward (packages: $(jget "$ISET" packages))"
+    no "upgrade moves a stale Mapflow pin on pi forward (packages: $(jget "$ISET" packages))"
   fi
 
   # A value the user had before apply goes back on disable, not away. Their
@@ -4738,10 +4738,10 @@ import json, sys
 d = json.load(open(sys.argv[1])); d.pop("markdown"); json.dump(d, open(sys.argv[1], "w"))
 PY
   iw disable pi >/dev/null
-  if [ ! -e "$IHOME/.config/spechub/terminal-workspace.pi.json" ]; then
+  if [ ! -e "$IHOME/.config/mapflow/terminal-workspace.pi.json" ]; then
     ok "disable forgets a key whose parent object the user deleted"
   else
-    no "disable forgets a key whose parent object the user deleted ($(flat "$(cat "$IHOME/.config/spechub/terminal-workspace.pi.json")"))"
+    no "disable forgets a key whose parent object the user deleted ($(flat "$(cat "$IHOME/.config/mapflow/terminal-workspace.pi.json")"))"
   fi
 
   # YAML reads a bare off as false. pi wants the string, and a value pi does
@@ -4813,20 +4813,20 @@ PY
   fi
   rm -rf "$IAGENT/npm"
 
-  # Naming pi-spechub moves only a pin behind this plugin. A newer pin, an
-  # unpinned SpecHub and no SpecHub at all are each left as they are.
+  # Naming pi-mapflow moves only a pin behind this plugin. A newer pin, an
+  # unpinned Mapflow and no Mapflow at all are each left as they are.
   bad=""
-  for pk in '"git:github.com/ac8318740/spechub@v999.0.0"' '"git:github.com/ac8318740/spechub"' ''; do
+  for pk in '"npm:mapflow@999.0.0"' '"npm:mapflow"' ''; do
     printf '{\n  "packages": [%s]\n}\n' "$pk" > "$ISET"
     before=$(cat "$ISET")
     : > "$IHOME/pi.log"
-    iw upgrade pi-spechub >/dev/null
+    iw upgrade pi-mapflow >/dev/null
     { [ "$before" = "$(cat "$ISET")" ] && ! grep -q '^pi install' "$IHOME/pi.log"; } || bad="$bad [${pk:-none}]"
   done
   if [ -z "$bad" ]; then
-    ok "upgrade pi-spechub leaves a newer, an unpinned and an absent SpecHub alone"
+    ok "upgrade pi-mapflow leaves a newer, an unpinned and an absent Mapflow alone"
   else
-    no "upgrade pi-spechub leaves a newer, an unpinned and an absent SpecHub alone (moved:$bad)"
+    no "upgrade pi-mapflow leaves a newer, an unpinned and an absent Mapflow alone (moved:$bad)"
   fi
 
   # agentic-retro writes under $PI_HOME, never pi's own override. apply and
@@ -4835,7 +4835,7 @@ PY
   rm -f "$IRETRO"
   ALT="$IWORK/alt-agent"; mkdir -p "$ALT"
   PI_CODING_AGENT_DIR="$ALT" iw apply >/dev/null
-  owned=$(jget "$IHOME/.config/spechub/terminal-workspace.pi.json" files)
+  owned=$(jget "$IHOME/.config/mapflow/terminal-workspace.pi.json" files)
   PI_CODING_AGENT_DIR="$ALT" iw disable pi >/dev/null
   if printf '%s' "$owned" | grep -qF "$IRETRO" && [ ! -e "$IRETRO" ]; then
     ok "the agentic-retro extension is found where agentic-retro writes it, whatever pi's override"
@@ -4877,7 +4877,7 @@ fi
 echo "the config example only documents keys setup.sh reads"
 # Both of these carry a comment admitting the script never reads them, which
 # makes the example config a place a user can change a number and see nothing
-# happen. The port belongs to spechub-md through $SPECHUB_MD_PORT, and the
+# happen. The port belongs to mapflow-md through $MAPFLOW_MD_PORT, and the
 # dynamic repo section is gh-dash's own setting.
 CFGEX="$ROOT/assets/terminal-workspace/config.example.yaml"
 if [ -f "$CFGEX" ]; then

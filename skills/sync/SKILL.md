@@ -1,6 +1,6 @@
 ---
 name: sync
-description: Update living specs in spechub/specs/ from recent code changes. Called automatically by /commit for retroactive spec updates. Can also be invoked manually.
+description: Update living specs in mapflow/specs/ from recent code changes. Called automatically by /commit for retroactive spec updates. Can also be invoked manually.
 argument-hint: "[file-paths or 'staged']"
 ---
 
@@ -15,7 +15,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Purpose
 
 This skill analyzes code changes. It updates the cumulative living specs in
-`spechub/specs/` to reflect what changed. It is the "fast path" mechanism
+`mapflow/specs/` to reflect what changed. It is the "fast path" mechanism
 that keeps specs current even when a workflow skips full spec planning.
 
 ## Step 1: determine change scope
@@ -37,7 +37,7 @@ This step runs before Step 3. Step 3 exits early when the diff touches no
 domain, and a token source such as `app/globals.css` usually sits outside every
 domain.
 
-1. Run `~/.claude/spechub/bin/spechub design-gate`
+1. Run `~/.claude/mapflow/bin/mapflow design-gate`
     - It prints `on` and exits 0 when the design gate is on
     - It prints `off: <reason>` and exits 1 when the gate is off
     - Skip the whole step on a non-zero exit
@@ -85,7 +85,7 @@ domain.
 
 ## Step 3: map changes to domains
 
-1. Read `spechub/domain-map.yaml`
+1. Read `mapflow/domain-map.yaml`
 2. Match changed files against domain path patterns
 3. Group changes by domain
 4. Skip files outside all domains (tests, config, docs)
@@ -96,7 +96,7 @@ If the diff affects no domains, report "No spec-relevant changes". Then exit.
 
 For each affected domain:
 
-1. Read `spechub/specs/[domain]/spec.md` (if it exists)
+1. Read `mapflow/specs/[domain]/spec.md` (if it exists)
 2. Analyze changes:
     - New functions/endpoints/components -> ADDED requirements
     - Modified signatures or behavior -> MODIFIED requirements
@@ -109,9 +109,9 @@ Write each functional requirement (FR) entry per the `writing` skill.
 ```markdown
 ### FR-014: The handoff anchor loads once
 
-- **Description**: The SessionStart hook injects `spechub/HANDOFF.md` after a
-  compaction, then moves the file into `spechub/handoffs/`.
-- **Behavior**: Given `spechub/HANDOFF.md` carries the `spechub_handoff`
+- **Description**: The SessionStart hook injects `mapflow/HANDOFF.md` after a
+  compaction, then moves the file into `mapflow/handoffs/`.
+- **Behavior**: Given `mapflow/HANDOFF.md` carries the `mapflow_handoff`
   marker, When a session starts with source `compact`, Then the hook injects
   the file and retires it.
 - **Source**: `hooks/session-start-handoff.sh`
@@ -130,7 +130,7 @@ Write each merged FR per the `writing` skill.
 ## Step 6: glossary check
 
 Glossaries live in `CONTEXT.md` at the repo root (cross-domain terms) and
-`spechub/specs/[domain]/CONTEXT.md` (domain terms). If neither exists, skip.
+`mapflow/specs/[domain]/CONTEXT.md` (domain terms). If neither exists, skip.
 
 For each glossary term, check the diff. Look for a renamed or deleted
 identifier that matches it: function, class, table, config key, route. If

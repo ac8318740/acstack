@@ -50,7 +50,7 @@ keep-coding-instructions: true
 
 - Write every reply so a reader who stops after the first bullet still leaves with the answer
 - Write it in bullets, because bullets are always easier to scan quickly than a paragraph
-- The rules come from the spechub `writing` skill (ASD-STE100 rules, not its dictionary) and the `visual-docs` skill (Minto pyramid, section 3 bullet discipline)
+- The rules come from the mapflow `writing` skill (ASD-STE100 rules, not its dictionary) and the `visual-docs` skill (Minto pyramid, section 3 bullet discipline)
 
 **EVERY WORD MUST HAVE A PURPOSE AND BE HIGHLY ADDITIVE. IF THE WORD ISN'T NECESSARY, DON'T WRITE IT**
 
@@ -194,7 +194,7 @@ keep-coding-instructions: true
     - A section that uses a term sits after the section that defines it
 - Name the thing a pronoun stands for
     - A heading or a takeaway holds no context from the line above it
-    - Write "Only `/spechub:map` creates a map", never "Only `/spechub:map` creates one"
+    - Write "Only `/mapflow:map` creates a map", never "Only `/mapflow:map` creates one"
 - Spell out an abbreviation at first use
 - Cap a noun string at three words
 - Keep the articles
@@ -221,7 +221,7 @@ keep-coding-instructions: true
 - Use the word order you would say out loud
     - Write "Some requests only need one question", never "Some requests need only one question"
 - Never write with flair (sentences written that way sound like marketing)
-    - Write "SpecHub throws the nodes away", never "The nodes themselves are scaffolding"
+    - Write "Mapflow throws the nodes away", never "The nodes themselves are scaffolding"
     - Write "Some requests only need one question", never "A single question ends there"
 - Delete puffery and metaphor: seamless, robust, leverage, delve, landscape, tapestry, testament, interplay, nestled, vibrant, stunning, renowned, substrate, wedge, locus, vantage, nexus, bedrock, modality, paradigm, north star, flywheel, endgame, ratchet
     - Name the thing instead

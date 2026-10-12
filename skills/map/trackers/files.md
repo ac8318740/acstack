@@ -1,25 +1,25 @@
 # Files tracker
 
 The fallback backend: no auth, works offline, works on any remote. One
-markdown file per node under `spechub/maps/<name>/`, managed by the SpecHub
+markdown file per node under `mapflow/maps/<name>/`, managed by the Mapflow
 CLI. Nodes here are transient working state – scratch discarded once the map
 clears.
 
-Suggest adding `spechub/maps/` to `.gitignore` when you first create the
+Suggest adding `mapflow/maps/` to `.gitignore` when you first create the
 map.
 
-CLI path: `~/.claude/spechub/bin/spechub`
+CLI path: `~/.claude/mapflow/bin/mapflow`
 
-To enumerate a project's maps: `ls spechub/maps/`.
+To enumerate a project's maps: `ls mapflow/maps/`.
 
 ## The four operations
 
 | Operation | Command |
 | --------- | ------- |
-| create    | `spechub node create --map <name> --title <t> --kind <k> --label <l> [--status] [--mode] [--answers <id>] [--blocked-by <ids>] [--pinned] [--body <md>] [--body-file <path>]` |
-| read      | `spechub node read <id> --map <name> [--json] [--visuals]` |
-| update    | `spechub node update <id> --map <name> [--title] [--status] [--mode] [--kind] [--label] [--answers] [--blocked-by] [--pinned true\|false] [--body] [--body-file] [--append-body]` |
-| list      | `spechub node list --map <name> [--status <s>] [--json]` |
+| create    | `mapflow node create --map <name> --title <t> --kind <k> --label <l> [--status] [--mode] [--answers <id>] [--blocked-by <ids>] [--pinned] [--body <md>] [--body-file <path>]` |
+| read      | `mapflow node read <id> --map <name> [--json] [--visuals]` |
+| update    | `mapflow node update <id> --map <name> [--title] [--status] [--mode] [--kind] [--label] [--answers] [--blocked-by] [--pinned true\|false] [--body] [--body-file] [--append-body]` |
+| list      | `mapflow node list --map <name> [--status <s>] [--json]` |
 
 `create` rejects a node that omits `--kind` or `--label`. `--kind` takes one of
 `destination`, `notes`, `decision`, `research`, or `work`. `--label` takes the
@@ -45,29 +45,29 @@ storing them.
 The CLI ships the two this backend would otherwise recompute by hand every
 session:
 
-- `spechub node frontier --map <name> [--mode hitl|afk] [--json]` – open
+- `mapflow node frontier --map <name> [--mode hitl|afk] [--json]` – open
   nodes with no unresolved blockers, shallowest provenance depth first.
   Provenance depth is how many `answers` links separate a node from the root.
 
     The frontier never returns the root, the one node whose frontmatter has no
     `answers`. The root is never work.
 
-- `spechub node walk --map <name> [--full] [--json] [--visuals]` – the
+- `mapflow node walk --map <name> [--full] [--json] [--visuals]` – the
   packaging walk: the root first, then each node that hangs off it, depth
   first. The walk prints the root and pinned nodes in full.
 
 Claim and resolve are `update` calls:
 
 ```bash
-spechub node update <id> --map <name> --status claimed
-spechub node update <id> --map <name> --status resolved --append-body "## Answer
+mapflow node update <id> --map <name> --status claimed
+mapflow node update <id> --map <name> --status resolved --append-body "## Answer
 ..."
 ```
 
 ## What `read` and `walk` strip
 
 Both commands drop every diagram block a node body holds. A diagram block is
-the rendered map that sits between the `<!-- spechub:diagram -->` markers
+the rendered map that sits between the `<!-- mapflow:diagram -->` markers
 `node diagram` writes. `--visuals` prints the blocks. `--json` always carries
 the whole body.
 
