@@ -1,8 +1,8 @@
-# Contributing to SpecHub
+# Contributing to Mapflow
 
 *Three sets of generated files and one version check decide whether your pull request goes green.*
 
-SpecHub ships as a Claude Code plugin and as a pi package, so an installed copy runs files straight out of a cache.
+Mapflow ships as a Claude Code plugin and as a pi package, so an installed copy runs files straight out of a cache.
 
 - **Three build steps write files this repository commits**: `cli/dist`, `agents/codex`, and `pi/agents`
 - **Regenerate whichever your change invalidates**, or CI fails on the stale copy
@@ -61,12 +61,12 @@ Today that is `assets/terminal-workspace/setup.sh`, which installs the optional 
 
 Two rules govern it.
 
-- **Every helper script carries the `spechub-*` prefix and lives in a heredoc inside `setup.sh`**, and never as a separate file
+- **Every helper script carries the `mapflow-*` prefix and lives in a heredoc inside `setup.sh`**, and never as a separate file
     - One script to install means one file to keep idempotent
     - Editing a helper means editing the heredoc
     - `uninstall` removes them by that prefix
         - A helper named anything else leaks
-- **Every edit to a user's config sits between the managed markers**, `# >>> spechub terminal-workspace >>>` and `# <<< ... <<<`
+- **Every edit to a user's config sits between the managed markers**, `# >>> mapflow terminal-workspace >>>` and `# <<< ... <<<`
     - Re-applying replaces only those regions
         - Hand-written config around them survives
     - Never write outside the markers, and never assume the file is absent
@@ -136,9 +136,9 @@ The fallback path, for a machine without Python 3.11:
 
 ```bash
 export FAKE=$(mktemp -d)
-mkdir -p "$FAKE/.config/spechub"
-cp assets/terminal-workspace/config.example.yaml "$FAKE/.config/spechub/tw.yaml"
-HOME=$FAKE SPECHUB_TW_CONFIG=$FAKE/.config/spechub/tw.yaml SPECHUB_TW_BIN=$FAKE/bin \
+mkdir -p "$FAKE/.config/mapflow"
+cp assets/terminal-workspace/config.example.yaml "$FAKE/.config/mapflow/tw.yaml"
+HOME=$FAKE MAPFLOW_TW_CONFIG=$FAKE/.config/mapflow/tw.yaml MAPFLOW_TW_BIN=$FAKE/bin \
   bash assets/terminal-workspace/setup.sh apply
 ```
 
@@ -155,7 +155,7 @@ bash tests/test-terminal-workspace.sh
 ```
 
 - It checks setup.sh against `docs/terminal-workspace.md` in both directions
-- Every `spechub-*` and every bound command the docs mention must be something setup.sh installs
+- Every `mapflow-*` and every bound command the docs mention must be something setup.sh installs
 - The docs must also cover every default keybinding
 - It merges the generated keymap onto a hand-written config and asserts the result is valid TOML
 - CI runs it on every push and pull request
@@ -186,7 +186,7 @@ git add src/ dist/ package.json package-lock.json
 To verify the bundle survives a fresh install, park `node_modules/` first, then exercise the bin wrapper:
 
 ```
-mv node_modules /tmp/nm-park && node bin/spechub.js --help; mv /tmp/nm-park node_modules
+mv node_modules /tmp/nm-park && node bin/mapflow.js --help; mv /tmp/nm-park node_modules
 ```
 
 - A healthy bundle prints the full subcommand list
@@ -196,7 +196,7 @@ mv node_modules /tmp/nm-park && node bin/spechub.js --help; mv /tmp/nm-park node
 
 *The pre-commit hook saves you a red run. CI is what actually enforces the two generated sets.*
 
-Drop this into `.git/hooks/pre-commit` inside the spechub clone, not the marketplace parent. Then run `chmod +x .git/hooks/pre-commit`. Git ignores hook files, so this stays per-clone.
+Drop this into `.git/hooks/pre-commit` inside the mapflow clone, not the marketplace parent. Then run `chmod +x .git/hooks/pre-commit`. Git ignores hook files, so this stays per-clone.
 
 ```bash
 #!/usr/bin/env bash
@@ -230,18 +230,18 @@ fi
     - `.github/workflows/ci.yml` regenerates each set and fails the run if the committed copy differs
     - Treat the hook as a convenience, and never as the guarantee
 
-`spechub/project.yaml` names both commands in one place.
+`mapflow/project.yaml` names both commands in one place.
 
 - Its `commands.build` runs the esbuild build and the Codex generator together
 - Anything that verifies a build therefore leaves the tree matching what CI expects
 
 ### 3.2. What `npm run build` does to the version
 
-*`npm run build` syncs `cli/package.json` for tidiness. `spechub --version` never depends on that sync.*
+*`npm run build` syncs `cli/package.json` for tidiness. `mapflow --version` never depends on that sync.*
 
 - `npm run build` syncs `cli/package.json`'s version from `.claude-plugin/plugin.json`, then runs esbuild
 - That is why both the pre-commit hook and the `git add` recipe above stage `cli/package.json` alongside `dist/`
-- `spechub --version` reads `.claude-plugin/plugin.json` directly at runtime, in `cli/src/lib/version.ts`
+- `mapflow --version` reads `.claude-plugin/plugin.json` directly at runtime, in `cli/src/lib/version.ts`
     - The reported version is right whether or not anything rebuilt
     - It has to work that way, because the rebuild only fires when `cli/src/` changes
     - Bumping the plugin alone would otherwise leave a baked-in copy behind
@@ -302,16 +302,16 @@ node scripts/gen-pi-agents.mjs
     - Claude Code would load a second copy under `agents/` as four more agents
 - `pi-subagents` reads them through `pi.subagents.agents` in `package.json`
 - The root `package.json` gives pi no skills
-    - pi would turn each skill into a `/skill:<name>` command, beside `/spechub:<name>`
-    - `pi/extension.ts` lists the skills in the system prompt and registers `/spechub:<name>` and `/spechub <name>`
-- The generator gives an agent the SpecHub skills it reads through `skills` and `skillPath`
+    - pi would turn each skill into a `/skill:<name>` command, beside `/mapflow:<name>`
+    - `pi/extension.ts` lists the skills in the system prompt and registers `/mapflow:<name>` and `/mapflow <name>`
+- The generator gives an agent the Mapflow skills it reads through `skills` and `skillPath`
     - `SKILLS` in the script lists them per agent
     - `pi-subagents` resolves `skillPath` from the agent file and never adds it to the parent's skills
 - The generator omits `model` and `color`
     - `model: opus` means nothing to pi, so the user's `pi-subagents` default applies
 - The generator lists pi's builtin file and shell tools in `tools`
     - A foreground subagent loads none of the parent's extensions
-    - The agents reach the CLI through `bash`, at `~/.claude/spechub/bin/spechub`
+    - The agents reach the CLI through `bash`, at `~/.claude/mapflow/bin/mapflow`
 - The root `package.json` version must equal `.claude-plugin/plugin.json`
     - `scripts/version-gate.sh` fails the pull request on a mismatch
     - `pi install git:...@vX.Y.Z` installs from the same tag
@@ -354,7 +354,7 @@ docs/migrate-0.8.md
 tests/**
 .github/**
 .claude/**
-spechub/**
+mapflow/**
 ```
 
 - The `INERT_PATHS` array at the top of `scripts/version-gate.sh` holds a second copy of this list
@@ -444,9 +444,9 @@ Publishing to npm as well would buy a second door to the same code and cost thre
     - The bundled CLI works offline
 - **PATH propagation** – a non-interactive agent subshell does not always inherit an npm global bin, notably under nvm
 
-Using SpecHub from another agent harness does not need npm either.
+Using Mapflow from another agent harness does not need npm either.
 
-- On any machine with the plugin, the hook creates `~/.local/bin/spechub`, which has no Claude Code dependency
+- On any machine with the plugin, the hook creates `~/.local/bin/mapflow`, which has no Claude Code dependency
 - It works as a typed command whenever `~/.local/bin` is on PATH
 - The hook warns when it is not
 - What another harness lacks is the orchestrator instructions, and not the binary
@@ -456,18 +456,18 @@ Revisit this only if a machine needs the CLI with **no plugin installed at all**
 - That means CI, or a device that runs an agent but not Claude Code
 - We keep the package publishable for that day
     - `npm pack --dry-run` from `cli/` shows the file list, and `prepublishOnly` runs the build
-    - The bare `spechub` name on npm belongs to an unrelated project
-        - The package would be `spechub-cli` with `spechub` as its binary
+    - The bare `mapflow` name on npm belongs to an unrelated project
+        - The package would be `mapflow-cli` with `mapflow` as its binary
 
-### 6.8. Who owns `spechub` on PATH
+### 6.8. Who owns `mapflow` on PATH
 
-*The SessionStart hook defers to a `spechub` already on PATH. Agents are outside this entirely.*
+*The SessionStart hook defers to a `mapflow` already on PATH. Agents are outside this entirely.*
 
-- The hook leaves an existing `spechub` on PATH alone if it is not the hook's own symlink
+- The hook leaves an existing `mapflow` on PATH alone if it is not the hook's own symlink
 - It says where the winner came from
 - Two managers pointing one command name at different copies make a silent race, which PATH order decides
 - The hook should not be one of the racers
-- Skills and agents call `~/.claude/spechub/bin/spechub` by absolute path
+- Skills and agents call `~/.claude/mapflow/bin/mapflow` by absolute path
     - That is always the plugin's own CLI, whatever PATH says
 
 ## 7. Writing standards
@@ -479,7 +479,7 @@ Revisit this only if a machine needs the CLI with **no plugin installed at all**
     - Section 3 of that skill holds the bullet rules
         - 90% or more of the body in bullets, one sentence each, no trailing period
         - Markdown nests four spaces per level
-- Run `~/.claude/spechub/bin/spechub lint-prose <paths>` before you open the pull request
+- Run `~/.claude/mapflow/bin/mapflow lint-prose <paths>` before you open the pull request
     - It checks sentence length, paragraph length, passive voice, the `vocabulary.md` deny lists, marks and emoji
     - It warns and never blocks
     - It does not yet check the bullet rules

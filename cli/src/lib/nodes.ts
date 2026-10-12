@@ -1,4 +1,4 @@
-// The files backend for map nodes: spechub/maps/<name>/NNN-slug.md.
+// The files backend for map nodes: mapflow/maps/<name>/NNN-slug.md.
 //
 // This module is the whole tracker contract for the files backend – create,
 // read, update, list. Frontier, claim and resolve are compositions over these
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { replaceFileAtomically } from './atomic-file.js';
-import { SPECHUB_DIR, MAPS_DIR } from './constants.js';
+import { MAPFLOW_DIR, MAPS_DIR } from './constants.js';
 import { ensureDir } from './utils.js';
 
 export const NODE_STATUSES = ['fog', 'open', 'claimed', 'resolved', 'out-of-scope'] as const;
@@ -167,7 +167,7 @@ export function bareId(reference: string): string {
 }
 
 export function mapDir(root: string, map: string): string {
-  return join(root, SPECHUB_DIR, MAPS_DIR, map);
+  return join(root, MAPFLOW_DIR, MAPS_DIR, map);
 }
 
 export function slugify(title: string): string {

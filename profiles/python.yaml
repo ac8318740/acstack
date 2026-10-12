@@ -1,5 +1,5 @@
-# Python project profile for spechub
-# Used by /spechub:setup to generate spechub/project.yaml
+# Python project profile for mapflow
+# Used by /mapflow:setup to generate mapflow/project.yaml
 
 commands:
   test: "pytest tests/ --tb=short -x"

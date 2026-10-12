@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const work = process.env.SPECHUB_TEST_WORK;
+const work = process.env.MAPFLOW_TEST_WORK;
 const home = process.env.HOME;
 const ext = await import(path.join(root, 'pi', 'extension.ts'));
 
@@ -53,10 +53,10 @@ async function fire(reg, event, payload, ctx) {
   return result;
 }
 
-function newProject(name, { spechub = true } = {}) {
+function newProject(name, { mapflow = true } = {}) {
   const dir = path.join(work, name);
-  fs.mkdirSync(path.join(dir, 'spechub'), { recursive: true });
-  if (spechub) fs.writeFileSync(path.join(dir, 'spechub', 'project.yaml'), 'profile: generic\n');
+  fs.mkdirSync(path.join(dir, 'mapflow'), { recursive: true });
+  if (mapflow) fs.writeFileSync(path.join(dir, 'mapflow', 'project.yaml'), 'profile: generic\n');
   return dir;
 }
 
@@ -64,9 +64,9 @@ function promptEvent() {
   return { type: 'before_agent_start', prompt: 'hi', systemPrompt: '', systemPromptOptions: { sections: {} } };
 }
 
-const wrapper = path.join(root, 'cli', 'bin', 'spechub.js');
-const agentLink = path.join(home, '.claude', 'spechub', 'bin', 'spechub');
-const humanLink = path.join(home, '.local', 'bin', 'spechub');
+const wrapper = path.join(root, 'cli', 'bin', 'mapflow.js');
+const agentLink = path.join(home, '.claude', 'mapflow', 'bin', 'mapflow');
+const humanLink = path.join(home, '.local', 'bin', 'mapflow');
 
 // --- session_start: CLI symlinks ---------------------------------------------
 
@@ -78,7 +78,7 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
   check('creates the human CLI symlink', fs.readlinkSync(humanLink) === wrapper);
 
   fs.rmSync(agentLink);
-  fs.symlinkSync('/nowhere/old-cache/spechub.js', agentLink);
+  fs.symlinkSync('/nowhere/old-cache/mapflow.js', agentLink);
   await fire(reg, 'session_start', { reason: 'startup' }, ctx);
   check('retargets a stale symlink', fs.readlinkSync(agentLink) === wrapper);
   check('retargets a stale symlink without a notification', !ctx.notes.some((n) => n.msg.includes('updated agent CLI')));
@@ -105,13 +105,13 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
   const ctx2 = makeCtx(newProject('with-subagents'));
   await fire(reg2, 'session_start', { reason: 'startup' }, ctx2);
   check('stays quiet when pi-subagents is loaded', !ctx2.notes.some((n) => n.msg.includes('pi-subagents')));
-  check('no setup reminder inside a spechub project', !ctx2.notes.some((n) => n.msg.includes('no project config')));
+  check('no setup reminder inside a mapflow project', !ctx2.notes.some((n) => n.msg.includes('no project config')));
 
-  const ctx3 = makeCtx(newProject('plain', { spechub: false }));
+  const ctx3 = makeCtx(newProject('plain', { mapflow: false }));
   await fire(reg2, 'session_start', { reason: 'startup' }, ctx3);
-  check('setup reminder outside a spechub project', ctx3.notes.some((n) => n.msg.includes('no project config found')));
+  check('setup reminder outside a mapflow project', ctx3.notes.some((n) => n.msg.includes('no project config found')));
 
-  const ctx4 = makeCtx(newProject('plain-new', { spechub: false }));
+  const ctx4 = makeCtx(newProject('plain-new', { mapflow: false }));
   await fire(reg2, 'session_start', { reason: 'new' }, ctx4);
   check('setup reminder only on startup', !ctx4.notes.some((n) => n.msg.includes('no project config')));
 }
@@ -124,12 +124,12 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
 
   const event = promptEvent();
   await fire(reg, 'before_agent_start', event, makeCtx(newProject('orch')));
-  check('injects orchestrator/AGENTS.md in a spechub project',
-    event.systemPromptOptions.sections['spechub-orchestrator'] === orchestrator);
+  check('injects orchestrator/AGENTS.md in a mapflow project',
+    event.systemPromptOptions.sections['mapflow-orchestrator'] === orchestrator);
 
   const plain = promptEvent();
-  await fire(reg, 'before_agent_start', plain, makeCtx(newProject('orch-plain', { spechub: false })));
-  check('no orchestrator outside a spechub project', !('spechub-orchestrator' in plain.systemPromptOptions.sections));
+  await fire(reg, 'before_agent_start', plain, makeCtx(newProject('orch-plain', { mapflow: false })));
+  check('no orchestrator outside a mapflow project', !('mapflow-orchestrator' in plain.systemPromptOptions.sections));
   check('section names are valid pi section names',
     Object.keys(event.systemPromptOptions.sections).every((n) => /^[a-z][a-z0-9_-]*$/.test(n)));
 }
@@ -137,23 +137,23 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
 // --- before_agent_start: the skills listing ------------------------------------
 
 {
-  // SpecHub's skills are not pi skills, so pi registers no /skill:<name>
+  // Mapflow's skills are not pi skills, so pi registers no /skill:<name>
   // command for them. The extension lists them in the prompt instead.
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf-8'));
   check('package.json gives pi no skills', !('skills' in manifest.pi));
 
   const reg = load();
   const event = promptEvent();
-  await fire(reg, 'before_agent_start', event, makeCtx(newProject('skills-plain', { spechub: false })));
-  const listing = event.systemPromptOptions.sections['spechub-skills'] ?? '';
+  await fire(reg, 'before_agent_start', event, makeCtx(newProject('skills-plain', { mapflow: false })));
+  const listing = event.systemPromptOptions.sections['mapflow-skills'] ?? '';
   const mapFile = path.join(root, 'skills', 'map', 'SKILL.md');
   check('lists the skills in every session, with name and absolute path',
     listing.includes(`    <name>map</name>`) && listing.includes(`    <location>${mapFile}</location>`));
   check('lists a skill with its description',
     /<name>test-conventions<\/name>\n    <description>Test placement rules[^<]*<\/description>/.test(listing));
   check('leaves out a skill only the user may run', listing.includes('<name>implement</name>') && !listing.includes('<name>setup</name>'));
-  check('tells the model to name skills as /spechub:<name>', listing.includes('write /spechub:<name>, never /skill:<name>'));
-  check('still registers /spechub:setup', reg.commands['spechub:setup'] !== undefined);
+  check('tells the model to name skills as /mapflow:<name>', listing.includes('write /mapflow:<name>, never /skill:<name>'));
+  check('still registers /mapflow:setup', reg.commands['mapflow:setup'] !== undefined);
 }
 
 // --- writing style --------------------------------------------------------------
@@ -161,38 +161,38 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
 {
   const reg = load();
   const ctx = makeCtx(newProject('style'));
-  const settings = path.join(home, '.pi', 'agent', 'spechub.json');
+  const settings = path.join(home, '.pi', 'agent', 'mapflow.json');
 
   const off = promptEvent();
   const offResult = await fire(reg, 'before_agent_start', off, ctx);
   check('writing style is off by default',
-    !off.systemPromptOptions.sections['spechub-writing-style'] && offResult === undefined);
+    !off.systemPromptOptions.sections['mapflow-writing-style'] && offResult === undefined);
 
-  await reg.commands['spechub-writing-style'].handler('on', ctx);
+  await reg.commands['mapflow-writing-style'].handler('on', ctx);
   check('the command persists on', JSON.parse(fs.readFileSync(settings, 'utf-8')).writingStyle === true);
 
   const on = promptEvent();
   const onResult = await fire(reg, 'before_agent_start', on, ctx);
-  const style = on.systemPromptOptions.sections['spechub-writing-style'] ?? '';
+  const style = on.systemPromptOptions.sections['mapflow-writing-style'] ?? '';
   check('adds the style to the system prompt without its frontmatter',
     style.startsWith('# ac writing style') && style.includes('## Before you send'));
   check('the reminder rides along as a hidden message',
-    onResult?.message?.customType === 'spechub-writing-style-reminder' && onResult.message.display === false);
+    onResult?.message?.customType === 'mapflow-writing-style-reminder' && onResult.message.display === false);
 
   // The reminder must match what the Claude hook emits from the same file.
   const hookHome = path.join(work, 'hook-home');
   fs.mkdirSync(path.join(hookHome, '.claude'), { recursive: true });
-  fs.writeFileSync(path.join(hookHome, '.claude', 'settings.json'), '{"outputStyle": "spechub:ac-writing-style"}\n');
+  fs.writeFileSync(path.join(hookHome, '.claude', 'settings.json'), '{"outputStyle": "mapflow:ac-writing-style"}\n');
   const hookOut = execFileSync('bash', [path.join(root, 'hooks', 'ac-writing-style-reminder.sh')], {
     cwd: work, input: '', env: { ...process.env, HOME: hookHome, CLAUDE_PLUGIN_ROOT: root },
   }).toString();
   const hookContext = JSON.parse(hookOut).hookSpecificOutput.additionalContext;
   check('the reminder matches hooks/ac-writing-style-reminder.sh', onResult?.message?.content === hookContext);
 
-  await reg.commands['spechub-writing-style'].handler('off', ctx);
+  await reg.commands['mapflow-writing-style'].handler('off', ctx);
   const again = promptEvent();
   await fire(reg, 'before_agent_start', again, ctx);
-  check('the command turns it back off', !again.systemPromptOptions.sections['spechub-writing-style']);
+  check('the command turns it back off', !again.systemPromptOptions.sections['mapflow-writing-style']);
 }
 
 // --- context pressure -----------------------------------------------------------
@@ -213,14 +213,14 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
   check('severe wording past the severe mark', (await settle(520000))?.entries[0].content.startsWith('Context check (urgent)'));
   check('fires again one step above the last rung', (await settle(610000))?.entries[0].content.includes('past the 600,000 severe mark'));
 
-  const stateDir = path.join(process.env.TMPDIR, 'spechub-context-pressure');
+  const stateDir = path.join(process.env.TMPDIR, 'mapflow-context-pressure');
   fs.writeFileSync(path.join(stateDir, 'press-2.quiet'), '');
   check('the quiet marker silences the nudge', (await settle(900000, 'press-2')) === undefined);
 
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir, { sessionId: 'press-1' }));
   check('a compaction restarts the ladder', (await settle(250000))?.continue === true);
 
-  fs.writeFileSync(path.join(dir, 'spechub', 'project.yaml'),
+  fs.writeFileSync(path.join(dir, 'mapflow', 'project.yaml'),
     'workflow:\n  handoff:\n    context_thresholds:\n      - "10%"\n    nudge_step: 0\n');
   const pct = await fire(reg, 'agent_before_settle', { outcome: 'completed' },
     makeCtx(dir, { tokens: 120000, contextWindow: 1000000, sessionId: 'press-3' }));
@@ -248,7 +248,7 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
   // through the extension must produce the same nudge.
   const reg = load();
   const dir = newProject('pressure-parity');
-  fs.writeFileSync(path.join(dir, 'spechub', 'project.yaml'),
+  fs.writeFileSync(path.join(dir, 'mapflow', 'project.yaml'),
     'workflow:\n  handoff:\n    context_window: 400000\n    nudge_severe: 300000\n' +
     '    context_thresholds:\n      - "50%"\n      - "75%"\n');
   const hookState = path.join(work, 'hook-pressure');
@@ -261,7 +261,7 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
     const out = execFileSync('bash', [path.join(root, 'hooks', 'context-pressure.sh')], {
       cwd: dir,
       input: JSON.stringify({ hook_event_name: 'Stop', session_id: sessionId, transcript_path: transcript }),
-      env: { ...process.env, SPECHUB_CONTEXT_PRESSURE_DIR: hookState },
+      env: { ...process.env, MAPFLOW_CONTEXT_PRESSURE_DIR: hookState },
     }).toString();
     return out.trim() ? JSON.parse(out).reason : undefined;
   };
@@ -285,11 +285,11 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
 {
   const reg = load();
   const dir = newProject('handoff');
-  const active = path.join(dir, 'spechub', 'HANDOFF.md');
-  fs.writeFileSync(active, '---\nspechub_handoff: 1\nmap: my map\ncreated: 2026-10-11T04:00:00Z\n---\n\n## Next action\nShip it\n');
+  const active = path.join(dir, 'mapflow', 'HANDOFF.md');
+  fs.writeFileSync(active, '---\nmapflow_handoff: 1\nmap: my map\ncreated: 2026-10-11T04:00:00Z\n---\n\n## Next action\nShip it\n');
 
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir));
-  const archived = path.join(dir, 'spechub', 'handoffs', 'my-map', '2026-10-11T04-00-00Z.md');
+  const archived = path.join(dir, 'mapflow', 'handoffs', 'my-map', '2026-10-11T04-00-00Z.md');
   check('moves the handoff into the archive', !fs.existsSync(active) && fs.existsSync(archived));
   const msg = reg.sent[0];
   check('injects the handoff on the next turn',
@@ -297,8 +297,8 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
 
   // The message must match what the Claude hook injects from the same file.
   const parity = newProject('handoff-parity');
-  const parityFile = path.join(parity, 'spechub', 'HANDOFF.md');
-  const anchor = '---\nspechub_handoff: 1\nmap: parity\ncreated: 2026-10-11T05:00:00Z\n---\n\n## Next action\nShip it\n';
+  const parityFile = path.join(parity, 'mapflow', 'HANDOFF.md');
+  const anchor = '---\nmapflow_handoff: 1\nmap: parity\ncreated: 2026-10-11T05:00:00Z\n---\n\n## Next action\nShip it\n';
   fs.writeFileSync(parityFile, anchor);
   const hookOut = execFileSync('bash', [path.join(root, 'hooks', 'session-start-handoff.sh')], {
     cwd: parity, input: '{"source":"compact"}',
@@ -318,19 +318,19 @@ const humanLink = path.join(home, '.local', 'bin', 'spechub');
   const reg = load();
   const ctx = makeCtx(newProject('skills'));
   const skillDirs = fs.readdirSync(path.join(root, 'skills')).filter((d) => fs.existsSync(path.join(root, 'skills', d, 'SKILL.md')));
-  check('registers /spechub:<name> for every skill',
-    skillDirs.every((d) => reg.commands[`spechub:${d}`]) && reg.commands.spechub !== undefined);
+  check('registers /mapflow:<name> for every skill',
+    skillDirs.every((d) => reg.commands[`mapflow:${d}`]) && reg.commands.mapflow !== undefined);
 
-  await reg.commands.spechub.handler('map chart the auth rewrite', ctx);
+  await reg.commands.mapflow.handler('map chart the auth rewrite', ctx);
   const mapFile = path.join(root, 'skills', 'map', 'SKILL.md');
   const sentMap = reg.userSent[0]?.content ?? '';
-  check('/spechub map sends the SpecHub map skill with the arguments',
+  check('/mapflow map sends the Mapflow map skill with the arguments',
     sentMap.startsWith(`<skill name="map" location="${mapFile}">`) && sentMap.endsWith('</skill>\n\nchart the auth rewrite'));
 
-  await reg.commands['spechub:commit'].handler('', ctx);
-  check('/spechub:commit sends the commit skill', reg.userSent[1]?.content.startsWith('<skill name="commit"'));
+  await reg.commands['mapflow:commit'].handler('', ctx);
+  check('/mapflow:commit sends the commit skill', reg.userSent[1]?.content.startsWith('<skill name="commit"'));
 
-  await reg.commands.spechub.handler('nope', ctx);
+  await reg.commands.mapflow.handler('nope', ctx);
   check('an unknown skill warns and sends nothing',
     reg.userSent.length === 2 && ctx.notes.some((n) => n.msg.includes('no skill named "nope"')));
 }

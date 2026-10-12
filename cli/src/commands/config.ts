@@ -119,7 +119,7 @@ export interface LoadedProject {
    */
   workflow: ProjectWorkflow;
   /**
-   * The directory holding spechub/, or null when there is no project here.
+   * The directory holding mapflow/, or null when there is no project here.
    * Carried so the checks that stat the project's own files have somewhere to
    * stat them from.
    */
@@ -185,23 +185,23 @@ function browserModeProblemMessage(problem: BrowserModeProblem): string {
   switch (problem.kind) {
     case 'no-project':
       return (
-        'No SpecHub project here, so there is no frontend to drive a browser for - ' +
-        'run `/spechub:setup` in the project you want to set up.'
+        'No Mapflow project here, so there is no frontend to drive a browser for - ' +
+        'run `/mapflow:setup` in the project you want to set up.'
       );
     case 'no-frontend':
       return (
         'This project configures no frontend, so it drives no browser - ' +
-        'run `/spechub:setup` if it should have one.'
+        'run `/mapflow:setup` if it should have one.'
       );
     case 'host-undescribed':
       return (
         `This host has not been described yet: none of ${BROWSER_AXIS_LIST} is set - ` +
-        'run `/spechub:host` to describe this machine.'
+        'run `/mapflow:host` to describe this machine.'
       );
     case 'host-declares-none':
       return (
         'This host declares no browser mode available: every one of ' +
-        `${BROWSER_AXIS_LIST} it sets is false - run \`/spechub:host\` to declare one ` +
+        `${BROWSER_AXIS_LIST} it sets is false - run \`/mapflow:host\` to declare one ` +
         'this machine can actually provide.'
       );
     case 'fallback-forbidden':
@@ -209,7 +209,7 @@ function browserModeProblemMessage(problem: BrowserModeProblem): string {
         `This project prefers the ${problem.preferred} browser mode, which this host does ` +
         `not declare available, and it sets frontend.browser.fallback to ` +
         `"${FALLBACK_FORBIDDEN}" - so ${problem.available} may not stand in. Set ` +
-        `${BROWSER_AXIS_KEYS[problem.preferred]} to true with \`/spechub:host\`, or change ` +
+        `${BROWSER_AXIS_KEYS[problem.preferred]} to true with \`/mapflow:host\`, or change ` +
         `this project's frontend.browser.fallback.`
       );
   }
@@ -234,15 +234,15 @@ function browserModeReason(resolved: ResolvedBrowserMode): string {
 
 /**
  * Which file a key belongs in. A `host.*` key describes the machine, so it
- * goes to the global config; every other key SpecHub knows describes the
- * project, so it goes to `spechub/project.yaml`. Bare `host` counts as a host
+ * goes to the global config; every other key Mapflow knows describes the
+ * project, so it goes to `mapflow/project.yaml`. Bare `host` counts as a host
  * key so the "that is a section" message keeps coming from the host schema.
  */
 function isHostKey(key: string): boolean {
   return key === 'host' || key.startsWith('host.');
 }
 
-/** Refuse `key`, naming the keys `spechub config set` does know. */
+/** Refuse `key`, naming the keys `mapflow config set` does know. */
 function unknownConfigKey(key: string): ConfigValidationError {
   return new ConfigValidationError(
     `Unknown config key "${key}".\n` +
@@ -276,7 +276,7 @@ type ProjectKeyUse = 'set' | 'get' | 'unset';
 /**
  * Where the project.yaml holding `key` is, refusing the two ways a project key
  * can have nowhere to live: a key neither schema knows, and a directory that
- * is not a SpecHub project. `use` says which command is asking, so the refusal
+ * is not a Mapflow project. `use` says which command is asking, so the refusal
  * reads as the sentence that command was in the middle of.
  *
  * Each of the three sentences is written out whole, so the line a user reads
@@ -293,15 +293,15 @@ function projectFileFor(key: string, use: ProjectKeyUse): string {
     switch (use) {
       case 'set':
         throw new ConfigValidationError(
-          `There is no SpecHub project here, so ${key} has nowhere to go. Run /spechub:setup first.`
+          `There is no Mapflow project here, so ${key} has nowhere to go. Run /mapflow:setup first.`
         );
       case 'get':
         throw new ConfigValidationError(
-          `There is no SpecHub project here, so ${key} has no value to read. Run /spechub:setup first.`
+          `There is no Mapflow project here, so ${key} has no value to read. Run /mapflow:setup first.`
         );
       case 'unset':
         throw new ConfigValidationError(
-          `There is no SpecHub project here, so ${key} has nothing to remove. Run /spechub:setup first.`
+          `There is no Mapflow project here, so ${key} has nothing to remove. Run /mapflow:setup first.`
         );
     }
   }
@@ -309,7 +309,7 @@ function projectFileFor(key: string, use: ProjectKeyUse): string {
 }
 
 /**
- * Write one key to the project's `spechub/project.yaml`.
+ * Write one key to the project's `mapflow/project.yaml`.
  *
  * The value is validated before the file is opened, so a value the schema
  * refuses leaves the file exactly as it was.
@@ -355,7 +355,7 @@ function unsetHostKey(key: string): void {
 }
 
 /**
- * Print one key of the project's `spechub/project.yaml`, exiting 2 when the
+ * Print one key of the project's `mapflow/project.yaml`, exiting 2 when the
  * file states no value for it.
  *
  * Exit 2 is the code the host axes use for the same answer, so a caller
@@ -376,7 +376,7 @@ function getProjectFileKey(key: string): void {
   printConfigValue(result.value);
 }
 
-/** Remove one key from the project's `spechub/project.yaml`. */
+/** Remove one key from the project's `mapflow/project.yaml`. */
 function unsetProjectFileKey(key: string): void {
   const file = projectFileFor(key, 'unset');
   if (!unsetProjectKey(file, key)) {
@@ -392,7 +392,7 @@ function unsetProjectFileKey(key: string): void {
 const UNKNOWN_KEY_MARK = '(unknown key)';
 
 /**
- * Print what the project's `spechub/project.yaml` states, above the host lines.
+ * Print what the project's `mapflow/project.yaml` states, above the host lines.
  *
  * Each side is headed by the file it came out of. The two sets of keys are
  * edited in completely different places, so a listing that ran them together
@@ -612,7 +612,7 @@ export function register(program: Command): void {
     .addHelpText(
       'after',
       '\nReference: docs/dev-setups.md for the host.* axes, ' +
-        'docs/config-reference.md for the spechub/project.yaml keys.\n'
+        'docs/config-reference.md for the mapflow/project.yaml keys.\n'
     )
     .action((key: string, value: string) => {
       reportingUserErrors(() => {

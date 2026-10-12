@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { SPECHUB_DIR, CHANGES_DIR, SPECS_DIR } from '../lib/constants.js';
+import { MAPFLOW_DIR, CHANGES_DIR, SPECS_DIR } from '../lib/constants.js';
 import { inProject } from '../lib/utils.js';
 
 export function register(program: Command): void {
@@ -20,8 +20,8 @@ export function register(program: Command): void {
         }
 
         // Auto-detect type
-        const changeDir = join(root, SPECHUB_DIR, CHANGES_DIR, name);
-        const specDir = join(root, SPECHUB_DIR, SPECS_DIR, name);
+        const changeDir = join(root, MAPFLOW_DIR, CHANGES_DIR, name);
+        const specDir = join(root, MAPFLOW_DIR, SPECS_DIR, name);
         let type: 'change' | 'spec';
         let targetDir: string;
 

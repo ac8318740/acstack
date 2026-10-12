@@ -1,8 +1,8 @@
 {
-  "name": "spechub",
-  "version": "0.44.0",
-  "private": true,
-  "description": "Spec-driven TDD workflow for pi: skills, the orchestrator prompt, and the test-writer, task-executor, task-checker and frontend-verifier subagents.",
+  "name": "mapflow",
+  "version": "0.45.0",
+  "private": false,
+  "description": "Map-based AI work orchestration for pi: skills, the orchestrator prompt, and the test-writer, task-executor, task-checker and frontend-verifier subagents.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,9 +10,32 @@
   },
   "keywords": [
     "pi-package",
-    "spechub",
+    "mapflow",
     "tdd",
-    "spec-driven"
+    "map-based",
+    "agent-orchestration"
+  ],
+  "bin": {
+    "mapflow": "./cli/bin/mapflow.js"
+  },
+  "files": [
+    ".claude-plugin/",
+    "agents/",
+    "assets/",
+    "cli/bin/",
+    "cli/dist/",
+    "cli/package.json",
+    "cli/README.md",
+    "docs/",
+    "hooks/",
+    "mapflow/",
+    "orchestrator/",
+    "output-styles/",
+    "pi/",
+    "profiles/",
+    "skills/",
+    "THIRD_PARTY_NOTICES",
+    "TROUBLESHOOTING.md"
   ],
   "pi": {
     "extensions": [

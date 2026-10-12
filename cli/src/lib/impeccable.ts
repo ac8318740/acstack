@@ -1,10 +1,10 @@
 /**
- * What SpecHub knows about impeccable, the separate Claude Code plugin a
+ * What Mapflow knows about impeccable, the separate Claude Code plugin a
  * design review calls.
  *
- * Two surfaces report on it - the impeccable row of `spechub config check`,
- * and `spechub design-gate` - and they have to agree on the plugin's name, on
- * the version SpecHub expects, and on what to say about a version that falls
+ * Two surfaces report on it - the impeccable row of `mapflow config check`,
+ * and `mapflow design-gate` - and they have to agree on the plugin's name, on
+ * the version Mapflow expects, and on what to say about a version that falls
  * short. Each of those is written down once here, so a rename or a bumped
  * expectation cannot land on one surface and miss the other.
  *
@@ -19,7 +19,7 @@ import { majorVersion } from './claude-plugins.js';
 /** The design plugin, spelled the way its own manifest spells it. */
 export const IMPECCABLE_PLUGIN = 'impeccable';
 
-/** The major version of impeccable SpecHub's design review is written against. */
+/** The major version of impeccable Mapflow's design review is written against. */
 export const IMPECCABLE_MIN_MAJOR = 4;
 
 /**
@@ -38,7 +38,7 @@ export function impeccableLauncher(installPath: string): string {
  * is nothing to say because it is major 4 or later.
  *
  * Both halves of the answer go in the sentence - what is installed, and what
- * SpecHub wanted - because naming one leaves the reader to look the other up.
+ * Mapflow wanted - because naming one leaves the reader to look the other up.
  *
  * A null `version` is a manifest that states none, which is its own sentence:
  * the plugin is installed and its version is unreadable, and standing in the
@@ -48,7 +48,7 @@ export function impeccableVersionNote(version: string | null): string | null {
   if (version === null) {
     return (
       `${IMPECCABLE_PLUGIN} is installed, and its manifest states no version to read - ` +
-      `SpecHub expects major ${IMPECCABLE_MIN_MAJOR} or later`
+      `Mapflow expects major ${IMPECCABLE_MIN_MAJOR} or later`
     );
   }
 
@@ -56,7 +56,7 @@ export function impeccableVersionNote(version: string | null): string | null {
   if (major !== null && major >= IMPECCABLE_MIN_MAJOR) return null;
 
   return (
-    `${IMPECCABLE_PLUGIN} ${version} is installed, and SpecHub expects ` +
+    `${IMPECCABLE_PLUGIN} ${version} is installed, and Mapflow expects ` +
     `major ${IMPECCABLE_MIN_MAJOR} or later`
   );
 }

@@ -8,12 +8,12 @@ The terminal workspace runs several coding agents side by side in one terminal,
 on a machine the user reaches over the network. It installs herdr and the tools
 that read diffs, pull requests and files around it.
 
-SpecHub needs none of it, so this step offers and never assumes.
+Mapflow needs none of it, so this step offers and never assumes.
 
 Read what this machine already decided:
 
 ```bash
-~/.claude/spechub/bin/spechub config get host.terminal_workspace
+~/.claude/mapflow/bin/mapflow config get host.terminal_workspace
 ```
 
 On exit 0 the user has already answered. Read which way it went:
@@ -22,7 +22,7 @@ On exit 0 the user has already answered. Read which way it went:
 - On `true`, check whether the workspace on this machine has fallen behind
 
 ```bash
-PLUGIN=$(dirname "$(dirname "$(dirname "$(readlink -f ~/.claude/spechub/bin/spechub)")")")
+PLUGIN=$(dirname "$(dirname "$(dirname "$(readlink -f ~/.claude/mapflow/bin/mapflow)")")")
 SETUP="$PLUGIN/assets/terminal-workspace/setup.sh"
 bash "$SETUP" outdated
 ```
@@ -57,8 +57,8 @@ On a `missing` row:
   "question": "You said yes but the workspace was never installed here. Install it?",
   "header": "Workspace",
   "options": [
-    {"label": "Yes", "description": "You then run /spechub:terminal-workspace, which installs herdr and the tools around it: several agents side by side in one terminal, sessions that survive a disconnect, and diffs, pull requests and files on one key each. Twelve components, every one reversible."},
-    {"label": "No", "description": "Leave this machine as it is. Nothing in SpecHub needs the workspace, and the offer comes back next time you run setup."}
+    {"label": "Yes", "description": "You then run /mapflow:terminal-workspace, which installs herdr and the tools around it: several agents side by side in one terminal, sessions that survive a disconnect, and diffs, pull requests and files on one key each. Twelve components, every one reversible."},
+    {"label": "No", "description": "Leave this machine as it is. Nothing in Mapflow needs the workspace, and the offer comes back next time you run setup."}
   ]
 }
 ```
@@ -66,7 +66,7 @@ On a `missing` row:
 On **Yes**, print this line and go to Step 13:
 
 ```
-Run /spechub:terminal-workspace – the installer is reserved for you to start.
+Run /mapflow:terminal-workspace – the installer is reserved for you to start.
 ```
 
 On any other finding:
@@ -76,7 +76,7 @@ On any other finding:
   "question": "The terminal workspace has updates. Fetch them?",
   "header": "Workspace",
   "options": [
-    {"label": "Yes", "description": "You then run /spechub:terminal-workspace upgrade, which reinstalls each stale tool and adds any new component's config block to your file."},
+    {"label": "Yes", "description": "You then run /mapflow:terminal-workspace upgrade, which reinstalls each stale tool and adds any new component's config block to your file."},
     {"label": "No", "description": "Leave this machine as it is. Everything installed keeps working, and the offer comes back next time you run setup."}
   ]
 }
@@ -85,7 +85,7 @@ On any other finding:
 On **Yes**, print this line and go to Step 13:
 
 ```
-Run /spechub:terminal-workspace upgrade – the installer is reserved for you to start.
+Run /mapflow:terminal-workspace upgrade – the installer is reserved for you to start.
 ```
 
 Never run `upgrade` or `apply` yourself. Both install binaries and write the
@@ -101,12 +101,12 @@ the key. Do not ask, and do not try to write the key. Say this instead, then go
 to Step 13:
 
 ```
-The spechub CLI on this machine predates host.terminal_workspace, so I cannot
+The mapflow CLI on this machine predates host.terminal_workspace, so I cannot
 record an answer. Restart your agent session to relink the CLI, then run
-/spechub:setup again.
+/mapflow:setup again.
 ```
 
-The SessionStart hook repoints `~/.claude/spechub/bin/spechub` at every start,
+The SessionStart hook repoints `~/.claude/mapflow/bin/mapflow` at every start,
 so a restart is the whole fix. This only happens when a plugin update lands
 mid-session.
 
@@ -117,8 +117,8 @@ On exit 2 nobody has answered yet. Ask once:
   "question": "Set up the terminal workspace on this machine?",
   "header": "Workspace",
   "options": [
-    {"label": "Yes", "description": "You then run /spechub:terminal-workspace, which installs herdr and the tools around it: several agents side by side in one terminal, sessions that survive a disconnect, and diffs, pull requests and files on one key each. Twelve components, every one reversible."},
-    {"label": "No", "description": "Leave this machine as it is. Nothing in SpecHub needs the workspace, and /spechub:terminal-workspace installs it any time later."}
+    {"label": "Yes", "description": "You then run /mapflow:terminal-workspace, which installs herdr and the tools around it: several agents side by side in one terminal, sessions that survive a disconnect, and diffs, pull requests and files on one key each. Twelve components, every one reversible."},
+    {"label": "No", "description": "Leave this machine as it is. Nothing in Mapflow needs the workspace, and /mapflow:terminal-workspace installs it any time later."}
   ]
 }
 ```
@@ -126,7 +126,7 @@ On exit 2 nobody has answered yet. Ask once:
 Write the answer, whichever way it went:
 
 ```bash
-~/.claude/spechub/bin/spechub config set host.terminal_workspace true   # or false
+~/.claude/mapflow/bin/mapflow config set host.terminal_workspace true   # or false
 ```
 
 Write it before doing anything else. The answer is the user's, and an installer
@@ -138,14 +138,14 @@ On **Yes**, hand the install to the user. The `terminal-workspace` skill sets
 call it from here. Print this line, then go to Step 13:
 
 ```
-Recorded. Run /spechub:terminal-workspace to install it – the installer is
+Recorded. Run /mapflow:terminal-workspace to install it – the installer is
 reserved for you to start.
 ```
 
 Never replicate that skill's steps by hand. It installs binaries and writes one
 config file, and a second writer of those files collides with it.
 
-On **No**, go straight to Step 13. Name `/spechub:terminal-workspace` once, and
+On **No**, go straight to Step 13. Name `/mapflow:terminal-workspace` once, and
 do not ask again.
 
 This step is the only place that asks the axis. The `host` skill owns every

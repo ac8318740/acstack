@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { SPECHUB_DIR } from './constants.js';
+import { MAPFLOW_DIR } from './constants.js';
 
 const PLUGIN_MARKER = join('.claude-plugin', 'plugin.json');
 
@@ -22,10 +22,10 @@ export function findUp(startDir: string, marker: string): string | null {
 }
 
 /**
- * Find the project root by walking up looking for an spechub/ directory.
+ * Find the project root by walking up looking for an mapflow/ directory.
  */
 export function findProjectRoot(from: string = process.cwd()): string | null {
-  return findUp(from, SPECHUB_DIR);
+  return findUp(from, MAPFLOW_DIR);
 }
 
 /**
@@ -39,7 +39,7 @@ export function findProjectRoot(from: string = process.cwd()): string | null {
  * root, because the files looked for here ship with the plugin. That resolves
  * for both the bundled layout (<plugin>/cli/dist/index.js) and the source
  * layout (<plugin>/cli/src/lib/project.ts), because Node resolves the
- * ~/.claude/spechub/bin/spechub symlink before setting import.meta.dirname.
+ * ~/.claude/mapflow/bin/mapflow symlink before setting import.meta.dirname.
  */
 export function findPluginRoot(startDir: string = import.meta.dirname): string | null {
   const fromEnv = process.env.CLAUDE_PLUGIN_ROOT;

@@ -9,7 +9,7 @@ Where each part went:
 - **Linux and dev-VM runbook**: [`../skills/bridge/SKILL-VM.md`](../skills/bridge/SKILL-VM.md)
 - **Cross-device handoff format**: [`../skills/bridge/HANDOFF.md`](../skills/bridge/HANDOFF.md)
 
-The scripts still ship under `plugins/spechub/assets/playwriter-bridge/`.
+The scripts still ship under `plugins/mapflow/assets/playwriter-bridge/`.
 
 - `stop.ps1`, `doctor.ps1`, and `vm-free-port.sh` are new since this relocation
 - The Windows runbook covers their use

@@ -10,7 +10,7 @@ background session using the command template from `workflow.handoff.agent`
 
 ```bash
 # again the FRESH AGENT opener in SKILL.md, verbatim
-<agent-template> --bg --name "<name>" "Before any other tool call, acknowledge this handoff by running ~/.claude/spechub/bin/spechub handoff ack accept --file <handoff-file> \"<one-line reason>\", or ack decline --file <handoff-file> \"<one-line reason>\". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. Then continue that work."
+<agent-template> --bg --name "<name>" "Before any other tool call, acknowledge this handoff by running ~/.claude/mapflow/bin/mapflow handoff ack accept --file <handoff-file> \"<one-line reason>\", or ack decline --file <handoff-file> \"<one-line reason>\". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. Then continue that work."
 ```
 
 There are no tabs and no workspaces here, so the destination rule has two cases,

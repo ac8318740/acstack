@@ -27,7 +27,7 @@ The variable marks "spawned by Claude Code", and nothing finer.
 - **Drop the check and let a child run the skills.** Simplest, and wrong. A
   child shares the lead's `CLAUDE_CODE_SESSION_ID`, so a child's quiet marker
   silences a context-pressure nudge the lead still needs, and a child's
-  `spechub/HANDOFF.md` overwrites the lead's anchor.
+  `mapflow/HANDOFF.md` overwrites the lead's anchor.
 
 - **Read `taskKind` from the agent's `.meta.json`.** The host does write one
   beside each agent transcript, naming `in_process_teammate` for a teammate and
@@ -60,7 +60,7 @@ The variable marks "spawned by Claude Code", and nothing finer.
   `<session>.jsonl` whether it leads or not. So the loop reads that file only
   as an early exit for a lead, never as evidence of a child.
 
-- The nonce placeholder stays angle-bracketed. `n=spechub-whoami-<nonce>` is a
+- The nonce placeholder stays angle-bracketed. `n=mapflow-whoami-<nonce>` is a
   bash syntax error, so an agent that pastes the block without substituting
   fails loudly. A bare token would run instead. It would match every transcript
   in the session that had already read the skill file, so the command would

@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { existsSync, cpSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { SPECHUB_DIR, CHANGES_DIR, ARCHIVE_DIR } from '../lib/constants.js';
+import { MAPFLOW_DIR, CHANGES_DIR, ARCHIVE_DIR } from '../lib/constants.js';
 import { listChanges, inProject, formatDate, ensureDir } from '../lib/utils.js';
 
 export function register(program: Command): void {
@@ -25,26 +25,26 @@ export function register(program: Command): void {
           for (const c of changes) {
             console.log(`  ${c}`);
           }
-          console.log(chalk.dim('\nRun: spechub archive <name>'));
+          console.log(chalk.dim('\nRun: mapflow archive <name>'));
           return;
         }
 
-        const changeDir = join(root, SPECHUB_DIR, CHANGES_DIR, name);
+        const changeDir = join(root, MAPFLOW_DIR, CHANGES_DIR, name);
         if (!existsSync(changeDir)) {
           console.error(chalk.red(`Change '${name}' not found.`));
           process.exit(1);
         }
 
         const archiveName = `${formatDate()}-${name}`;
-        const archiveDir = join(root, SPECHUB_DIR, CHANGES_DIR, ARCHIVE_DIR, archiveName);
+        const archiveDir = join(root, MAPFLOW_DIR, CHANGES_DIR, ARCHIVE_DIR, archiveName);
 
-        ensureDir(join(root, SPECHUB_DIR, CHANGES_DIR, ARCHIVE_DIR));
+        ensureDir(join(root, MAPFLOW_DIR, CHANGES_DIR, ARCHIVE_DIR));
         cpSync(changeDir, archiveDir, { recursive: true });
         rmSync(changeDir, { recursive: true });
 
         console.log(chalk.green(`Archived: ${name}`));
-        console.log(`  From: ${SPECHUB_DIR}/${CHANGES_DIR}/${name}/`);
-        console.log(`  To:   ${SPECHUB_DIR}/${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
+        console.log(`  From: ${MAPFLOW_DIR}/${CHANGES_DIR}/${name}/`);
+        console.log(`  To:   ${MAPFLOW_DIR}/${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
 
         if (!opts.skipSpecs) {
           console.log(chalk.dim('\nRemember to update living specs if needed.'));

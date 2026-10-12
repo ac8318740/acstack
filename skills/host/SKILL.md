@@ -1,6 +1,6 @@
 ---
 name: host
-description: Declare the dev setup of the machine you are on – which agent orchestrators are installed to host terminal panes and git worktrees, which browser-verification modes work here, and the optional extras. Interviews you for every axis and writes the answers to the SpecHub CLI's global config under host.*. Run it once per machine.
+description: Declare the dev setup of the machine you are on – which agent orchestrators are installed to host terminal panes and git worktrees, which browser-verification modes work here, and the optional extras. Interviews you for every axis and writes the answers to the Mapflow CLI's global config under host.*. Run it once per machine.
 disable-model-invocation: true
 allowed-tools: AskUserQuestion, Read, Bash, Glob, Grep
 ---
@@ -12,7 +12,7 @@ pane or a git worktree stop guessing.
 
 Three terms, before they get used:
 
-- A **dev setup** is the set of machine-level tools a SpecHub session runs
+- A **dev setup** is the set of machine-level tools a Mapflow session runs
   inside. It covers which agent orchestrators host the terminal panes and git
   worktrees. It also covers which browser-verification modes work on this
   machine, plus the optional extras, such as publishing the dev server to a
@@ -28,8 +28,8 @@ Three terms, before they get used:
 
 ## Why this is per machine, not per project
 
-The answers go to the SpecHub CLI's global config, never to
-`spechub/project.yaml`. Read [`notes.md`](notes.md) when the user asks why.
+The answers go to the Mapflow CLI's global config, never to
+`mapflow/project.yaml`. Read [`notes.md`](notes.md) when the user asks why.
 
 ## What this skill installs
 
@@ -58,7 +58,7 @@ here, and never ask about it.
 Run the detection script that ships beside this file:
 
 ```bash
-plugin_root=$(dirname "$(dirname "$(dirname "$(readlink -f ~/.claude/spechub/bin/spechub)")")")
+plugin_root=$(dirname "$(dirname "$(dirname "$(readlink -f ~/.claude/mapflow/bin/mapflow)")")")
 bash "$plugin_root/skills/host/detect-host.sh"
 ```
 
@@ -80,7 +80,7 @@ question in Steps 2 and 3.
 Then read what this machine already declares:
 
 ```bash
-~/.claude/spechub/bin/spechub config get host
+~/.claude/mapflow/bin/mapflow config get host
 ```
 
 Exit code 0 prints the declared axes. Exit code 2 means this machine declares
@@ -151,12 +151,12 @@ the difference matters:
 - **Skipped** means unset. This skill writes nothing for that axis. Note what
     that costs at the command line.
 
-    Run `spechub config get` on an unset axis. It writes its message to standard
+    Run `mapflow config get` on an unset axis. It writes its message to standard
     error and exits 2 for required and optional axes alike. Only the
     `(required)` or `(optional)` qualifier inside that message tells the two
     apart.
 
-  The difference that actually matters belongs to `spechub config check`, the
+  The difference that actually matters belongs to `mapflow config check`, the
   health check. It lists an unset optional axis as informational, and fails only
   on an unset required one.
 
@@ -171,14 +171,14 @@ that axis.
 One `config set` call per answered axis:
 
 ```bash
-~/.claude/spechub/bin/spechub config set host.orchestrators.herdr <true|false>
-~/.claude/spechub/bin/spechub config set host.orchestrators.orca <true|false>
-~/.claude/spechub/bin/spechub config set host.browser.remote <true|false>
-~/.claude/spechub/bin/spechub config set host.browser.headless <true|false>
-~/.claude/spechub/bin/spechub config set host.browser.local <true|false>
-~/.claude/spechub/bin/spechub config set host.preview.tailscale_serve <true|false>
-~/.claude/spechub/bin/spechub config set host.element_picker <stagewise|orca-design-mode|none>
-~/.claude/spechub/bin/spechub config set host.orca.topology <local|remote>
+~/.claude/mapflow/bin/mapflow config set host.orchestrators.herdr <true|false>
+~/.claude/mapflow/bin/mapflow config set host.orchestrators.orca <true|false>
+~/.claude/mapflow/bin/mapflow config set host.browser.remote <true|false>
+~/.claude/mapflow/bin/mapflow config set host.browser.headless <true|false>
+~/.claude/mapflow/bin/mapflow config set host.browser.local <true|false>
+~/.claude/mapflow/bin/mapflow config set host.preview.tailscale_serve <true|false>
+~/.claude/mapflow/bin/mapflow config set host.element_picker <stagewise|orca-design-mode|none>
+~/.claude/mapflow/bin/mapflow config set host.orca.topology <local|remote>
 ```
 
 The rules for this step:

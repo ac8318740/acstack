@@ -2,7 +2,7 @@
 # Test harness for detect-orchestrator.sh.
 #
 # detect-orchestrator.sh is a read-only report. It prints which orchestrators
-# this host DECLARES it has, one boolean per orchestrator (via the SpecHub
+# this host DECLARES it has, one boolean per orchestrator (via the Mapflow
 # CLI's `config get host.orchestrators.herdr` and
 # `config get host.orchestrators.orca`), and which one is actually DETECTED as
 # hosting the current session (via environment markers), then reconciles the
@@ -13,7 +13,7 @@
 # any more.
 #
 # Each case runs the script in a subshell with HOME pointed at a scratch
-# directory (containing a fake SpecHub CLI, when the case needs one) and
+# directory (containing a fake Mapflow CLI, when the case needs one) and
 # with HERDR_ENV / HERDR_PANE_ID / ORCA_PANE_KEY explicitly unset and then
 # re-set as the case requires, so nothing leaks in from the real session
 # this suite happens to be running inside.
@@ -46,26 +46,26 @@ check() { if eval "$2"; then ok "$1"; else no "$1"; fi; }
 
 # --- helpers ------------------------------------------------------------
 
-# Write a fake SpecHub CLI at $1/.claude/spechub/bin/spechub that answers
+# Write a fake Mapflow CLI at $1/.claude/mapflow/bin/mapflow that answers
 # EVERY invocation the same way: printing $2 (verbatim, plus a trailing
 # newline) and exiting with code $3 (default 0). For the cases where the tool
 # itself is the subject, so what it was asked does not matter.
 mk_cli() {
   local home_dir="$1" output="$2" code="${3:-0}"
-  local bin_dir="$home_dir/.claude/spechub/bin"
+  local bin_dir="$home_dir/.claude/mapflow/bin"
   mkdir -p "$bin_dir"
   printf '%s' "$output" > "$bin_dir/.output"
   printf '%s' "$code" > "$bin_dir/.exitcode"
-  cat > "$bin_dir/spechub" <<'CLIEOF'
+  cat > "$bin_dir/mapflow" <<'CLIEOF'
 #!/usr/bin/env bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cat "$DIR/.output"
 exit "$(cat "$DIR/.exitcode")"
 CLIEOF
-  chmod +x "$bin_dir/spechub"
+  chmod +x "$bin_dir/mapflow"
 }
 
-# Write a fake SpecHub CLI that answers the two orchestrator axes separately:
+# Write a fake Mapflow CLI that answers the two orchestrator axes separately:
 # `config get host.orchestrators.herdr` prints $2 and exits $3, and
 # `config get host.orchestrators.orca` prints $4 and exits $5.
 #
@@ -74,13 +74,13 @@ CLIEOF
 # silently passing these cases.
 mk_cli_axes() {
   local home_dir="$1"
-  local bin_dir="$home_dir/.claude/spechub/bin"
+  local bin_dir="$home_dir/.claude/mapflow/bin"
   mkdir -p "$bin_dir"
   printf '%s' "$2" > "$bin_dir/.herdr.output"
   printf '%s' "$3" > "$bin_dir/.herdr.exitcode"
   printf '%s' "$4" > "$bin_dir/.orca.output"
   printf '%s' "$5" > "$bin_dir/.orca.exitcode"
-  cat > "$bin_dir/spechub" <<'CLIEOF'
+  cat > "$bin_dir/mapflow" <<'CLIEOF'
 #!/usr/bin/env bash
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 case "${3:-}" in
@@ -91,7 +91,7 @@ esac
 cat "$DIR/.$axis.output"
 exit "$(cat "$DIR/.$axis.exitcode")"
 CLIEOF
-  chmod +x "$bin_dir/spechub"
+  chmod +x "$bin_dir/mapflow"
 }
 
 # The readable form of mk_cli_axes: each of $2 (herdr) and $3 (orca) is one
@@ -284,18 +284,18 @@ OUT="$(run_case "$H8" '')"
 check "declared_herdr=unset"                  '[ "$(get_val "$OUT" declared_herdr)" = "unset" ]'
 check "declared_orca=unset"                   '[ "$(get_val "$OUT" declared_orca)" = "unset" ]'
 WARN8="$(get_val "$OUT" warning)"
-check "warning says CLI could not be run"     'printf "%s" "$WARN8" | grep -qi "spechub"'
+check "warning says CLI could not be run"     'printf "%s" "$WARN8" | grep -qi "mapflow"'
 check "warning mentions restarting Claude Code" 'printf "%s" "$WARN8" | grep -qi "restart"'
 
 echo "Case 9: CLI exists but is not executable (R2)"
 H9="$(new_home)"
 mk_cli_declared "$H9" true false
-chmod -x "$H9/.claude/spechub/bin/spechub"
+chmod -x "$H9/.claude/mapflow/bin/mapflow"
 OUT="$(run_case "$H9" '')"
 check "declared_herdr=unset"                  '[ "$(get_val "$OUT" declared_herdr)" = "unset" ]'
 check "declared_orca=unset"                   '[ "$(get_val "$OUT" declared_orca)" = "unset" ]'
 WARN9="$(get_val "$OUT" warning)"
-check "warning says CLI could not be run"     'printf "%s" "$WARN9" | grep -qi "spechub"'
+check "warning says CLI could not be run"     'printf "%s" "$WARN9" | grep -qi "mapflow"'
 check "warning mentions restarting Claude Code" 'printf "%s" "$WARN9" | grep -qi "restart"'
 
 echo "Case 10: CLI exits with an unrelated non-zero code (R2)"
@@ -529,7 +529,7 @@ check "warning is non-empty"                   '[ -n "$(get_val "$OUT" warning)"
 # =========================================================================
 echo "Case 31: a directory sits at the CLI path -> warning names the fix (restart) (R9)"
 H31="$(new_home)"
-mkdir -p "$H31/.claude/spechub/bin/spechub"
+mkdir -p "$H31/.claude/mapflow/bin/mapflow"
 OUT="$(run_case "$H31" '')"
 CODE=$?
 check "exit code is 0"                         '[ "$CODE" -eq 0 ]'

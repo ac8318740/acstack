@@ -19,7 +19,7 @@ gets no row.
 ## Where the log lives
 
 The log is one file per map, in the main checkout:
-`<main checkout>/spechub/.decisions/<name>.tsv`. The `<name>` is the map name
+`<main checkout>/mapflow/.decisions/<name>.tsv`. The `<name>` is the map name
 you pass to `--map`.
 
 Write it in the main checkout, never in a worktree. Removing a worktree
@@ -30,7 +30,7 @@ it. Find the main checkout from any worktree:
 main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 ```
 
-Nobody commits the log. When you first create the `spechub/.decisions/`
+Nobody commits the log. When you first create the `mapflow/.decisions/`
 directory, write `.gitignore` inside it, containing a single line:
 
 ```text
@@ -58,5 +58,5 @@ A row is one tab-separated line with six columns, in this order:
 Never edit or delete a row. A wrong call gets a new row that supersedes it,
 and its `why` names the row it replaces.
 
-`/spechub:archive` reads the log before it closes the map. It hands lasting
+`/mapflow:archive` reads the log before it closes the map. It hands lasting
 decisions to `record-context`, then deletes the log file.

@@ -1,7 +1,7 @@
 {
-  "name": "spechub-cli",
-  "version": "0.44.0",
-  "description": "CLI for spec-driven development with SpecHub",
+  "name": "mapflow-cli",
+  "version": "0.45.0",
+  "description": "CLI for Mapflow map-based AI work orchestration",
   "type": "module",
   "license": "MIT",
   "author": {
@@ -13,7 +13,7 @@
     "directory": "cli"
   },
   "bin": {
-    "spechub": "./bin/spechub.js"
+    "mapflow": "./bin/mapflow.js"
   },
   "files": [
     "dist/index.js",
@@ -29,7 +29,7 @@
     "dev": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
-    "test": "vitest run",
+    "test": "vitest run --pool=vmThreads",
     "prepublishOnly": "npm run build",
     "sync-version": "node scripts/sync-version.mjs"
   },
@@ -49,8 +49,8 @@
   },
   "homepage": "https://github.com/ac8318740/spechub/tree/main/cli",
   "keywords": [
-    "spec-driven",
-    "spec",
+    "map-based",
+    "mapflow",
     "planning",
     "agent",
     "claude",

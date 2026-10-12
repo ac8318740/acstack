@@ -8,7 +8,7 @@ This is an optional setup for running several coding agents on a remote machine,
 - **The tools worth reviewing code in assume a desktop**, meaning a clipboard, a browser, and a display
 - **That remote machine has none of them**
     - A copy or an "open in browser" goes nowhere
-- **SpecHub needs none of this setup**
+- **Mapflow needs none of this setup**
     - Skip the whole document if you work locally in an editor
 
 - Run herdr on the dev machine, a terminal multiplexer that holds many terminal sessions
@@ -17,8 +17,8 @@ This is an optional setup for running several coding agents on a remote machine,
 - A pane is one terminal window inside herdr
 - The server keeps every pane alive when your connection drops
 - The local client is what lets your own clipboard and browser reach the session, which an SSH shell cannot do
-- Run `/spechub:terminal-workspace` to install and configure all of it
-- One file, `~/.config/spechub/terminal-workspace.yaml`, turns each part on or off
+- Run `/mapflow:terminal-workspace` to install and configure all of it
+- One file, `~/.config/mapflow/terminal-workspace.yaml`, turns each part on or off
 - The rest of this document explains what that sets up and why
 - Read it if you would rather configure it by hand or change the defaults
 
@@ -27,13 +27,13 @@ flowchart TD
     subgraph yours["Your machine, where you type"]
         EM["Terminal emulator<br/>(Windows Terminal, iTerm2, kitty)"]
         CL["herdr client<br/>(herdr --remote)"]
-        OUT["Clipboard and browser<br/>(spechub-clip, spechub-open)"]
+        OUT["Clipboard and browser<br/>(mapflow-clip, mapflow-open)"]
     end
     subgraph dev["Dev machine, where the code is"]
         SRV["Terminals that survive disconnect<br/>(herdr server and its panes)"]
-        RD["Reading code and markdown<br/>(yazi, spechub-md)"]
+        RD["Reading code and markdown<br/>(yazi, mapflow-md)"]
         PR["Diffs and pull requests<br/>(gh-dash, diffnav)"]
-        DB["A SQL editor on one key<br/>(harlequin, spechub-db)"]
+        DB["A SQL editor on one key<br/>(harlequin, mapflow-db)"]
     end
     EM -->|"keys you press"| CL
     CL -->|"SSH"| SRV
@@ -42,7 +42,7 @@ flowchart TD
     SRV --> DB
     RD -->|"clickable links and copied text<br/>(OSC 8, OSC 52)"| OUT
     PR -->|"clickable links and copied text<br/>(OSC 8, OSC 52)"| OUT
-    OUT -->|"no browser or clipboard reachable"| FB["A link on screen for you to click<br/>(spechub-open link route)"]
+    OUT -->|"no browser or clipboard reachable"| FB["A link on screen for you to click<br/>(mapflow-open link route)"]
 ```
 
 | Part of the diagram | Section |
@@ -54,7 +54,7 @@ flowchart TD
 | A SQL editor on one key | 8. Harlequin: a SQL editor on one key |
 | Diffs and pull requests | 9. Diffs and pull requests |
 | Clipboard and browser | 10. What crosses back to your machine |
-| A link on screen for you to click | 10.2. spechub-open: the browser |
+| A link on screen for you to click | 10.2. mapflow-open: the browser |
 
 - Sections 1 and 2 cover what you get and the loop you run daily
 - Section 3 installs it
@@ -63,7 +63,7 @@ flowchart TD
 
 ## 1. What you get, and its parts
 
-*Five tools you drive day to day. herdr owns the terminals, gh-dash triages pull requests, diffnav reads diffs, lazygit commits them, harlequin queries the database. Five more tools and SpecHub's own helpers sit behind them. Use this when your code lives on a dev machine, you drive more than one agent at a time, and you want a keyboard-only workflow.*
+*Five tools you drive day to day. herdr owns the terminals, gh-dash triages pull requests, diffnav reads diffs, lazygit commits them, harlequin queries the database. Five more tools and Mapflow's own helpers sit behind them. Use this when your code lives on a dev machine, you drive more than one agent at a time, and you want a keyboard-only workflow.*
 
 - Skip it if you work locally in a graphical editor
     - A desktop tool serves you better
@@ -94,10 +94,10 @@ Five more tools do the work those five ask for.
 | [mermaid-ascii](https://github.com/AlexanderGrooff/mermaid-ascii) | Diagram renderer | Draws a mermaid diagram, meaning one written as text inside the file, as box-drawing art |
 | [glow](https://github.com/charmbracelet/glow) | Markdown pager | Readable markdown in the terminal |
 
-SpecHub adds two helpers of its own beside those tools.
+Mapflow adds two helpers of its own beside those tools.
 
-- `spechub-md` reads markdown and draws its mermaid diagrams
-- `spechub-clip` and `spechub-open` carry your clipboard and your browser back across the link
+- `mapflow-md` reads markdown and draws its mermaid diagrams
+- `mapflow-clip` and `mapflow-open` carry your clipboard and your browser back across the link
     - Section 10 covers that pair
 
 ## 2. The daily loop
@@ -124,7 +124,7 @@ Three terms, then the loop.
 
 *One command installs every tool and writes every config. The rest of this section is the same work done by hand.*
 
-The `/spechub:terminal-workspace` skill runs `assets/terminal-workspace/setup.sh` for you, and that script takes six commands.
+The `/mapflow:terminal-workspace` skill runs `assets/terminal-workspace/setup.sh` for you, and that script takes six commands.
 
 | Command | What it does |
 | --- | --- |
@@ -149,7 +149,7 @@ What `uninstall` removes:
 - It unsets the delta git settings
 - It deletes the helper scripts
 - It removes the keybindings it wrote into gh-dash
-- It deletes `~/.config/nvim/lua/plugins/spechub.lua`, a file it wrote whole
+- It deletes `~/.config/nvim/lua/plugins/mapflow.lua`, a file it wrote whole
 - It takes back what the `pi` component added to pi (section 3.6)
 - Your own settings in those files survive, and so does every tool binary
     - harlequin is the exception, because uv owns its whole environment rather than one file in `~/.local/bin`
@@ -157,16 +157,16 @@ What `uninstall` removes:
 
 What the config holds:
 
-- The script reads `~/.config/spechub/terminal-workspace.yaml`, which the skill copies from `assets/terminal-workspace/config.example.yaml`
+- The script reads `~/.config/mapflow/terminal-workspace.yaml`, which the skill copies from `assets/terminal-workspace/config.example.yaml`
 - The config holds twelve components, each with its own `enabled` key
     - You turn a part off there and run `apply` again
 - Eight components name a tool this setup installs: `herdr`, `gh_dash`, `diffnav`, `delta`, `tuicr`, `lazygit`, `yazi`, and `harlequin`
 - `neovim` names an editor you installed yourself, and writes one file into its config
     - It starts off, and section 3.5 says why
-- `pi` names a coding agent, which npm installs, and SpecHub then installs into
+- `pi` names a coding agent, which npm installs, and Mapflow then installs into
     - It starts off too, and section 3.6 says why
 - The other two name a feature
-    - `markdown` covers `spechub-md` with mermaid-ascii and glow
+    - `markdown` covers `mapflow-md` with mermaid-ascii and glow
     - `remote` covers the clipboard and browser helpers
 - Config keys use underscores
     - gh-dash's key is `gh_dash`
@@ -199,7 +199,7 @@ Two things to do first:
 
 Where each binary lands:
 
-- Every binary except herdr lands in `~/.local/bin`, or in `$SPECHUB_TW_BIN` when you set that
+- Every binary except herdr lands in `~/.local/bin`, or in `$MAPFLOW_TW_BIN` when you set that
 - herdr's own installer always uses `~/.local/bin`
 
 By hand, herdr and gh-dash install like this:
@@ -235,9 +235,9 @@ harlequin is the one tool uv installs, rather than a release tarball.
 
 Three more steps `apply` handles that no release tarball covers:
 
-- `ya pkg add yazi-rs/plugins:piper`, the yazi plugin that lets `spechub-md` draw the preview pane
-- `pip install --user markdown`, which `spechub-md --serve` needs
-- a copy of `mermaid.min.js` at `~/.local/share/spechub/mermaid.min.js`
+- `ya pkg add yazi-rs/plugins:piper`, the yazi plugin that lets `mapflow-md` draw the preview pane
+- `pip install --user markdown`, which `mapflow-md --serve` needs
+- a copy of `mermaid.min.js` at `~/.local/share/mapflow/mermaid.min.js`
     - A served page fetches nothing from a content delivery network (CDN)
 
 ### 3.2. Let herdr read agent state from the agent
@@ -262,7 +262,7 @@ Two upstream pull requests are still open:
   [antonio2368](https://github.com/antonio2368) – configurable per-file
   `+added -removed` counts in the tree, and the `show_file_line_stats` key
 
-- [agavra/tuicr#633](https://github.com/agavra/tuicr/pull/633), opened from SpecHub's own
+- [agavra/tuicr#633](https://github.com/agavra/tuicr/pull/633), opened from Mapflow's own
   fork – move the file list boundary with `<leader>L` / `<leader>H`, and the
   `file_list_width` key
 
@@ -314,14 +314,14 @@ On a machine where you did set it true:
 - LazyVim's `pretty_path` component sets `modified_sign = ""`, so the only signal is colour
     - It sets `modified_hl = "MatchParen"`, which recolours the filename you are already looking at
     - You cannot tell a saved buffer from an unsaved one at a glance
-- `apply` writes `~/.config/nvim/lua/plugins/spechub.lua`, which appends a lualine component to `lualine_c`
+- `apply` writes `~/.config/nvim/lua/plugins/mapflow.lua`, which appends a lualine component to `lualine_c`
     - LazyVim loads every file under `lua/plugins`, so a file of our own is a complete plugin spec
     - The dot is `●` in catppuccin red, and `neovim.unsaved_dot_color` changes the colour
 - This is the only component that starts off, because a neovim config is one you built
     - Every other component owns its files outright, or edits a marked region in a config that invites one
 - It writes one whole file and never edits one of yours
     - `setup.sh disable neovim` deletes that file, and so does `uninstall`
-    - Neither one touches a `spechub.lua` you wrote by hand
+    - Neither one touches a `mapflow.lua` you wrote by hand
 - `apply` skips a machine with no LazyVim config, because both parts of the file rely on LazyVim
     - `apply` says so rather than writing a file that does nothing
 - `apply` leaves the dot out when a lualine override you wrote already marks a modified buffer, and names that file
@@ -344,18 +344,18 @@ Copy over SSH:
 - `neovim.osc52_clipboard: false` turns it off
 - `setup.sh status` prints a `neovim clipboard:` line naming which provider neovim uses
 
-### 3.6. pi: SpecHub in a second coding agent
+### 3.6. pi: Mapflow in a second coding agent
 
-*Set `pi.enabled: true` to install pi, the coding agent, with SpecHub and your pi settings. It starts off, because it writes into pi's own config.*
+*Set `pi.enabled: true` to install pi, the coding agent, with Mapflow and your pi settings. It starts off, because it writes into pi's own config.*
 
 What `apply` does:
 
 - It installs pi with `npm install -g @earendil-works/pi-coding-agent` when pi is missing
-- It installs SpecHub into pi, pinned to the version of this plugin
+- It installs Mapflow into pi, pinned to the version of this plugin
     - Re-running `apply` after a plugin update moves the pin forward, and never back
-- It installs `pi-subagents`, which SpecHub on pi needs to launch a subagent
+- It installs `pi-subagents`, which Mapflow on pi needs to launch a subagent
 - It installs `@juicesharp/rpiv-ask-user-question` as pi's question tool by default
-    - SpecHub uses it because decisions can include markdown, code and artifact previews
+    - Mapflow uses it because decisions can include markdown, code and artifact previews
     - It accepts freeform answers and notes, and needs no full-event telemetry environment variable
     - This setup still keeps pi's install telemetry disabled through `pi.settings.install_telemetry: false`
     - Set `pi.question_tool: false` to leave it out, or to remove it later if this setup installed it
@@ -379,10 +379,10 @@ How it treats pi's files:
 - `apply` installs and removes packages through `pi install` and `pi remove`, and never edits `packages` itself
 - `apply` touches nothing in a file that does not parse, and names it
     - A broken `settings.json` stops the whole component, because `pi install` rewrites that file
-- `~/.config/spechub/terminal-workspace.pi.json` records what `apply` added
+- `~/.config/mapflow/terminal-workspace.pi.json` records what `apply` added
     - `disable pi` and `uninstall` undo only what that file names
     - A package or a key you had before `apply` stays yours
-    - A value of yours that `apply` replaced goes back, and so does a SpecHub pin it moved forward
+    - A value of yours that `apply` replaced goes back, and so does a Mapflow pin it moved forward
     - A value you changed after `apply` stays as you set it
 - `apply` never touches `auth.json`
     - Run `pi`, then `/login`, yourself
@@ -631,13 +631,13 @@ split_vertical = ["prefix+v", "alt+e"]
 split_horizontal = ["prefix+minus", "alt+minus"]
 
 # A popup floats over the layout and returns you where you were. Each one has
-# a tab variant on the shift chord, which goes through spechub-herdr-tab.
+# a tab variant on the shift chord, which goes through mapflow-herdr-tab.
 # herdr runs a popup with its server's PATH. That PATH may lack ~/.local/bin.
-# Each popup goes through spechub-popup, which puts that folder back.
+# Each popup goes through mapflow-popup, which puts that folder back.
 [[keys.command]]
 key = "alt+f"
 type = "popup"
-command = "/home/you/.local/bin/spechub-popup spechub-diff"
+command = "/home/you/.local/bin/mapflow-popup mapflow-diff"
 description = "diff: branch vs dev"
 width = "90%"
 height = "90%"
@@ -645,13 +645,13 @@ height = "90%"
 [[keys.command]]
 key = "alt+shift+f"
 type = "shell"
-command = "spechub-herdr-tab diff spechub-diff"
+command = "mapflow-herdr-tab diff mapflow-diff"
 description = "diff: branch vs dev (tab)"
 
 [[keys.command]]
 key = "alt+g"
 type = "popup"
-command = "/home/you/.local/bin/spechub-popup lazygit"
+command = "/home/you/.local/bin/mapflow-popup lazygit"
 description = "git: stage, commit, push"
 width = "90%"
 height = "90%"
@@ -659,13 +659,13 @@ height = "90%"
 [[keys.command]]
 key = "alt+shift+g"
 type = "shell"
-command = "spechub-herdr-tab lazygit lazygit"
+command = "mapflow-herdr-tab lazygit lazygit"
 description = "git: stage, commit, push (tab)"
 
 [[keys.command]]
 key = "alt+x"
 type = "popup"
-command = "/home/you/.local/bin/spechub-popup spechub-diff pick"
+command = "/home/you/.local/bin/mapflow-popup mapflow-diff pick"
 description = "diff: pick what to compare"
 width = "90%"
 height = "90%"
@@ -673,13 +673,13 @@ height = "90%"
 [[keys.command]]
 key = "alt+shift+x"
 type = "shell"
-command = "spechub-herdr-tab diffpick spechub-diff pick"
+command = "mapflow-herdr-tab diffpick mapflow-diff pick"
 description = "diff: pick what to compare (tab)"
 
 [[keys.command]]
 key = "alt+i"
 type = "popup"
-command = "/home/you/.local/bin/spechub-popup spechub-dash"
+command = "/home/you/.local/bin/mapflow-popup mapflow-dash"
 description = "PR dashboard"
 width = "95%"
 height = "95%"
@@ -687,13 +687,13 @@ height = "95%"
 [[keys.command]]
 key = "alt+shift+i"
 type = "shell"
-command = "spechub-herdr-tab dash spechub-dash"
+command = "mapflow-herdr-tab dash mapflow-dash"
 description = "PR dashboard (tab)"
 
 [[keys.command]]
 key = "alt+y"
 type = "popup"
-command = "/home/you/.local/bin/spechub-popup yazi"
+command = "/home/you/.local/bin/mapflow-popup yazi"
 description = "file tree"
 width = "95%"
 height = "95%"
@@ -701,7 +701,7 @@ height = "95%"
 [[keys.command]]
 key = "alt+shift+y"
 type = "shell"
-command = "spechub-herdr-tab yazi yazi"
+command = "mapflow-herdr-tab yazi yazi"
 description = "file tree (tab)"
 
 [worktrees]
@@ -778,7 +778,7 @@ Three choices worth explaining.
     - The number you read stops being the number you press
 
 ```bash
-spechub-herdr-renumber
+mapflow-herdr-renumber
 ```
 
 - That rewrites the stored order to match the grouped order
@@ -787,13 +787,13 @@ spechub-herdr-renumber
 
 You rarely have to run it.
 
-- `apply` links a small herdr plugin, `spechub.herdr-numbers`, that runs the same helper on every event which can move a row
+- `apply` links a small herdr plugin, `mapflow.herdr-numbers`, that runs the same helper on every event which can move a row
 - Run the helper by hand when you configured herdr yourself, or when `apply` reported that the plugin link failed
 - The `herdr.renumber_plugin: false` key turns the plugin off
-- The `spechub-herdr-` prefix is the convention for a helper that only works under herdr
-- A plain `spechub-` helper such as `spechub-diff` or `spechub-md` runs in any terminal
+- The `mapflow-herdr-` prefix is the convention for a helper that only works under herdr
+- A plain `mapflow-` helper such as `mapflow-diff` or `mapflow-md` runs in any terminal
     - The name tells you up front what a command depends on
-- Both forms are reachable through the CLI, which dispatches an unknown subcommand to `spechub-<name>` on your PATH
+- Both forms are reachable through the CLI, which dispatches an unknown subcommand to `mapflow-<name>` on your PATH
 
 Two things the helper cannot fix.
 
@@ -839,7 +839,7 @@ Every popup works this way: `alt+f` and `alt+shift+f` for diffnav, `alt+i` and `
 
 - A popup is right for a glance
 - A tab is right for something you will come back to
-- Both come from the same command, and the tab variant goes through `spechub-herdr-tab`
+- Both come from the same command, and the tab variant goes through `mapflow-herdr-tab`
     - That helper creates the tab in the workspace and directory you pressed the key in
     - Then it sends the command with `herdr pane run`
     - Outside herdr it simply runs the command
@@ -848,7 +848,7 @@ Every popup works this way: `alt+f` and `alt+shift+f` for diffnav, `alt+i` and `
 - The one collision to know about is your terminal emulator claiming the same chords
 - You fix that where the emulator runs, per section 6
 - yazi previews each file type with its own command
-- It routes markdown to `spechub-md`
+- It routes markdown to `mapflow-md`
     - A document therefore renders **as the cursor moves over it** rather than needing a keypress
 - The `Enter` key opens the same renderer full width, where more of a wide diagram fits than the preview pane allows
 - The `~` and `F1` keys both open yazi's help
@@ -861,15 +861,15 @@ Every popup works this way: `alt+f` and `alt+shift+f` for diffnav, `alt+i` and `
 
 ### 7.2. Reading markdown and mermaid
 
-*`spechub-md` draws a file with its diagrams, and two keys inside the pager change what you are looking at.*
+*`mapflow-md` draws a file with its diagrams, and two keys inside the pager change what you are looking at.*
 
 ```bash
-spechub-md NOTES.md              # terminal, diagrams drawn as text
-spechub-md --numbered NOTES.md   # the source instead, with its line numbers
-spechub-md --diagram 2 NOTES.md  # one diagram alone, scrollable sideways
-spechub-md --serve NOTES.md      # browser, prints a clickable link
-spechub-md --browser NOTES.md    # the browser you are sitting at, wherever that is
-spechub-md --html NOTES.md       # that same page, as one document on stdout
+mapflow-md NOTES.md              # terminal, diagrams drawn as text
+mapflow-md --numbered NOTES.md   # the source instead, with its line numbers
+mapflow-md --diagram 2 NOTES.md  # one diagram alone, scrollable sideways
+mapflow-md --serve NOTES.md      # browser, prints a clickable link
+mapflow-md --browser NOTES.md    # the browser you are sitting at, wherever that is
+mapflow-md --html NOTES.md       # that same page, as one document on stdout
 ```
 
 `--numbered` answers the one question a rendering cannot, which is what line of the file this is.
@@ -893,7 +893,7 @@ Two keys work while you are reading.
 
 Both keys move.
 
-- `SPECHUB_MD_LINE_NUMBERS_KEY` moves `#`, and `SPECHUB_MD_BROWSER_KEY` moves `b`
+- `MAPFLOW_MD_LINE_NUMBERS_KEY` moves `#`, and `MAPFLOW_MD_BROWSER_KEY` moves `b`
 - In `less`, `b` is back-a-page
     - The binding costs you nothing, and both `Ctrl-B` and `PageUp` still do that
 - Both bindings need `less` 582 or newer, and an older version leaves the two keys alone
@@ -901,17 +901,17 @@ Both keys move.
 
 A wide diagram cannot fit a narrow pane.
 
-- `spechub-md` replaces anything wider than the terminal with a note
+- `mapflow-md` replaces anything wider than the terminal with a note
 - The note gives its size and the two ways to see it
 - The `--diagram N` flag prints that one diagram unwrapped through `less -S`, where the arrow keys scroll sideways
-- `SPECHUB_MD_PAD` tunes the spacing passed to `mermaid-ascii`, defaulting to `-x 2 -y 2`
+- `MAPFLOW_MD_PAD` tunes the spacing passed to `mermaid-ascii`, defaulting to `-x 2 -y 2`
     - Tighter padding buys roughly a third of the height back and very little width
 - Section 11.3 explains why the note exists at all
 - Terminal mode replaces each mermaid fence with a box-drawing rendering
 - `mermaid-ascii` handles `graph`, `flowchart`, and `sequenceDiagram`
 - Anything else keeps its source visible with a note rather than disappearing
 
-Two things `spechub-md` normalises first, because `mermaid-ascii` handles
+Two things `mapflow-md` normalises first, because `mermaid-ascii` handles
 neither:
 
 - `style`, `classDef`, `class`, `linkStyle`, and `click` lines, which it would
@@ -928,17 +928,17 @@ Serve mode renders the file with python-markdown and draws diagrams with a **loc
     - herdr then rebuilds that link into the frame it sends the client
     - The bare URL prints underneath for a terminal without OSC 8
 - So ctrl+click opens the page in the browser on your own machine, as long as your SSH config forwards the port from there
-- The `spechub-md --serve` command takes that port from `$SPECHUB_MD_PORT` and falls back to 6419
+- The `mapflow-md --serve` command takes that port from `$MAPFLOW_MD_PORT` and falls back to 6419
 
 Only one server can hold that port at a time, and a second `--serve` names the process holding it and the command to stop it:
 
 ```
 port 6419 is busy: [Errno 98] Address already in use
-  held by pid 680666: spechub-md-serve - /path/to/NOTES.md 6419 serve
+  held by pid 680666: mapflow-md-serve - /path/to/NOTES.md 6419 serve
   stop it with:  kill 680666
 ```
 
-- Use that pid rather than `pkill -f spechub-md-serve`, which also matches any shell whose own command line mentions the name, including the one you type it in
+- Use that pid rather than `pkill -f mapflow-md-serve`, which also matches any shell whose own command line mentions the name, including the one you type it in
 
 ### 7.3. Reading markdown from the file tree
 
@@ -946,13 +946,13 @@ port 6419 is busy: [Errno 98] Address already in use
 
 The file tree draws markdown twice over.
 
-- Moving the cursor onto a `.md` file renders it straight into the preview pane, through the piper plugin running `spechub-md --preview`
+- Moving the cursor onto a `.md` file renders it straight into the preview pane, through the piper plugin running `mapflow-md --preview`
 - The pane is narrow
     - A wide diagram shows a placeholder there rather than a chopped drawing
-- `Enter` on the same file opens `spechub-md` full width, where the diagrams fit
+- `Enter` on the same file opens `mapflow-md` full width, where the diagrams fit
 - A rule in yazi's `[opener]` config table puts that ahead of the editor
     - Reading is the default
-- Press `O` to choose from the same menu instead, which offers **Read (spechub-md)**, **Read with line numbers**, then **Edit**
+- Press `O` to choose from the same menu instead, which offers **Read (mapflow-md)**, **Read with line numbers**, then **Edit**
 - Nothing shims `$EDITOR`
 - Nothing changes your shell environment
 - `b` on a file hands it to the browser you are sitting at, by the routes in section 7.4
@@ -961,7 +961,7 @@ The file tree draws markdown twice over.
 - Move it with `yazi.browser_key`
 - `#` switches the preview pane between the rendered markdown and the source with line numbers, and switches it back
     - Press it when you are about to quote a line in a review
-    - The pane redraws as `spechub-md --numbered` would print it, numbers down the left
+    - The pane redraws as `mapflow-md --numbered` would print it, numbers down the left
     - Every later `.md` file you move onto previews the same way until you press `#` again
 - The key is unbound in yazi's file list, and `yazi.line_numbers_key` moves it
 - The same key does the same job one level in, while you are reading a document full width after `Enter`
@@ -971,12 +971,12 @@ The file tree draws markdown twice over.
     - Section 7.2 describes the reader's half
 - It is a binding in `lesskey`, the key-binding config file for the `less` pager, rather than a yazi one
     - So `yazi.line_numbers_key` does not move it
-- The switch is a file on disk, `$XDG_STATE_HOME/spechub/md-line-numbers`
-- `spechub-md --toggle-line-numbers` creates and removes it
+- The switch is a file on disk, `$XDG_STATE_HOME/mapflow/md-line-numbers`
+- `mapflow-md --toggle-line-numbers` creates and removes it
 - That is what the key runs
 - Only the preview pane reads it (see section 11.5)
 - `setup.sh apply` reads a `yazi.toml` you wrote first and leaves alone anything you have set
-- Add `spechub-md` to your own `[opener]` table to read markdown with it
+- Add `mapflow-md` to your own `[opener]` table to read markdown with it
 - Add `show_hidden = true` to your own `mgr` table if you want hidden files shown
 - Section 11.4 says what it concedes and why
 - `D` sends the file under the cursor to the machine you sit at, over Tailscale Taildrop
@@ -1007,7 +1007,7 @@ Four keys and a cursor move cover the loop.
 
 - `--browser` is the one to reach for
     - The same key works however you attached
-    - It asks `spechub-open --why` where the browser is rather than deciding that a second time
+    - It asks `mapflow-open --why` where the browser is rather than deciding that a second time
 
 | Where the browser is | What `--browser` does |
 | --- | --- |
@@ -1085,9 +1085,9 @@ We measured one delivery rather than estimating it.
 *`alt+q` opens harlequin on a connection profile. `alt+shift+q` opens it in a tab.*
 
 - Query on the left, rows on the right, schema tree beside both
-- Profiles live in `~/.config/spechub/harlequin.toml`, which `spechub-db` writes once and never touches again
-- `spechub-db` with no argument launches the only profile, or opens an fzf menu when there is more than one
-- `spechub-db <profile>` skips the menu
+- Profiles live in `~/.config/mapflow/harlequin.toml`, which `mapflow-db` writes once and never touches again
+- `mapflow-db` with no argument launches the only profile, or opens an fzf menu when there is more than one
+- `mapflow-db <profile>` skips the menu
 
 ### 8.1. Why uv, and not a release binary
 
@@ -1112,7 +1112,7 @@ read_only = true
 
 ### 8.3. Connecting to Snowflake
 
-- Put the credentials in `~/.snowflake/connections.toml` and name the connection from the profile, rather than writing a connection string into the spechub file
+- Put the credentials in `~/.snowflake/connections.toml` and name the connection from the profile, rather than writing a connection string into the mapflow file
 - `externalbrowser` authentication does not work on a dev machine, because there is no browser for it to open
     - Use a key pair, or a password
 - `--read-only` exists for postgres and not for snowflake
@@ -1207,7 +1207,7 @@ keybindings:
 
 *One key shows what your branch adds to dev. Another picks any comparison. A third opens the dashboard, scoped to where you are standing.*
 
-- `alt+f` runs `spechub-diff`, which compares the branch you are on against `origin/dev`, committed work only
+- `alt+f` runs `mapflow-diff`, which compares the branch you are on against `origin/dev`, committed work only
 - A repository with no dev branch falls back to the default branch, read from `origin/HEAD`
 - The comparison is `git diff <base>...HEAD`, three dots
     - You see the commits your branch added since the two diverged, and never the ones the base picked up meanwhile
@@ -1248,7 +1248,7 @@ Error: signal: aborted (core dumped)
 ```
 
 - A committed build artifact is what does it
-    - SpecHub's own `cli/dist/index.js.map` carries a single 982,428-character line
+    - Mapflow's own `cli/dist/index.js.map` carries a single 982,428-character line
     - `alt+f` on `main` aborted in 1.7 seconds and showed none of the other 51 files
 
 So the file goes, and not the diff. The helper drops any file whose patch holds a line over 20,000 characters, and names it in the banner:
@@ -1258,7 +1258,7 @@ skipped  cli/dist/index.js.map  (one line is 982428 chars, and diffnav aborts on
 ```
 
 - 20,000 is far above any line a person writes and far below where delta gives out
-- `SPECHUB_DIFF_LINE_LIMIT` changes it
+- `MAPFLOW_DIFF_LINE_LIMIT` changes it
 - The helper refuses anything that is not a positive whole number
 - awk compares each line length against that value
     - A value like `abc` makes every comparison a string comparison
@@ -1288,7 +1288,7 @@ any branch   ==>  any branch                pick the base, then the branch to co
 - Picking "any branch" asks twice, prompting `source (compare against)` and then `change (the new work)`
 - `apply` installs fzf alongside diffnav, and without fzf the picker says so and falls back to the automatic diff
 
-`spechub-dash` adds a section for whichever repository you are standing in, then hands a generated config to gh-dash:
+`mapflow-dash` adds a section for whichever repository you are standing in, then hands a generated config to gh-dash:
 
 ```bash
 #!/usr/bin/env bash
@@ -1311,7 +1311,7 @@ gh dash --config "$GEN" "$@"
 
 - Because a herdr popup inherits the focused pane's directory, `alt+i` from an agent's worktree opens the dashboard already scoped to that repository
 
-### 9.4. spechub-gh: why an action failed
+### 9.4. mapflow-gh: why an action failed
 
 *gh-dash throws gh's stderr away, so a helper on `$PATH` turns a refusal into a notification.*
 
@@ -1322,9 +1322,9 @@ gh dash --config "$GEN" "$@"
 - The input box closes, nothing else happens
 - The dashboard looks like it ignored the key
 
-`spechub-dash` answers that without patching gh-dash.
+`mapflow-dash` answers that without patching gh-dash.
 
-- It links `spechub-gh` into a directory of its own at the front of `$PATH`, under the name `gh`
+- It links `mapflow-gh` into a directory of its own at the front of `$PATH`, under the name `gh`
 - gh-dash therefore finds it before the real one
 - The real `gh` still does the work and still decides the exit code
 - The only thing added is a notification carrying gh's own words when a `pr` or `issue` action fails:
@@ -1334,7 +1334,7 @@ gh pr review failed
 Can not approve your own pull request.
 ```
 
-- `spechub-gh` passes `gh dash` itself straight through
+- `mapflow-gh` passes `gh dash` itself straight through
 - It also passes through every subcommand that is not an action, `repo view` and `api` among them
 - Those fail for reasons a notification cannot help with
 
@@ -1382,7 +1382,7 @@ Can not approve your own pull request.
 
 - diffnav runs `$EDITOR` inside its own pane, and a herdr popup cannot host a second full-screen app
 - Neovim never drew in the `alt+f` and `alt+x` popups, so the key looked dead
-- `spechub-edit` stands in as `$EDITOR` and hands the file to `spechub-herdr-tab`, the same helper the tab keys use
+- `mapflow-edit` stands in as `$EDITOR` and hands the file to `mapflow-herdr-tab`, the same helper the tab keys use
     - The tab opens in the workspace and directory you pressed the key in
     - The tab carries the file's name, not its whole path
     - The popup keeps the diff, so close it to reach the tab
@@ -1390,7 +1390,7 @@ Can not approve your own pull request.
 
 ## 10. What crosses back to your machine
 
-*A dev machine has no display and no clipboard of its own. The `spechub-clip` and `spechub-open` helpers carry each one back across the link.*
+*A dev machine has no display and no clipboard of its own. The `mapflow-clip` and `mapflow-open` helpers carry each one back across the link.*
 
 Two gaps, and three gh-dash keys fall into them:
 
@@ -1400,7 +1400,7 @@ Two gaps, and three gh-dash keys fall into them:
 - Neither is a gh-dash bug, because the clipboard and the browser are on the machine you are typing at, several hops away
 - The two helpers below carry each one back across
 
-### 10.1. spechub-clip: the clipboard
+### 10.1. mapflow-clip: the clipboard
 
 *OSC 52 crosses SSH for free, so a copy on the dev machine lands on your own clipboard.*
 
@@ -1411,21 +1411,21 @@ Two gaps, and three gh-dash keys fall into them:
 - Windows Terminal, iTerm2, kitty, and Ghostty all act on it
 
 ```bash
-spechub-clip "some text"      # copy the arguments
-git rev-parse HEAD | spechub-clip
-spechub-clip --out            # print what was copied last
+mapflow-clip "some text"      # copy the arguments
+git rev-parse HEAD | mapflow-clip
+mapflow-clip --out            # print what was copied last
 ```
 
 - Reading back is not symmetrical
 - Windows Terminal refuses OSC 52 clipboard *reads* on purpose
     - A program that can read your clipboard without asking is a security hole
 - So `--out` replays a local cache, and not the real clipboard
-- To reach a program that only knows how to shell out, `setup.sh apply` also writes an `xclip` onto `$PATH` backed by `spechub-clip`
+- To reach a program that only knows how to shell out, `setup.sh apply` also writes an `xclip` onto `$PATH` backed by `mapflow-clip`
 - That is what makes gh-dash's `y` and `Y` work unchanged, with no rebinding and no flicker
 - The `remote.clipboard_shim` key turns it off, and `setup.sh uninstall` removes it
 - The script skips it anyway on a machine with a real `xclip`, or with a display for one to talk to
 
-### 10.2. spechub-open: the browser
+### 10.2. mapflow-open: the browser
 
 *Seven routes, tried in order, ending in a link you can click from any terminal.*
 
@@ -1434,11 +1434,11 @@ spechub-clip --out            # print what was copied last
 - The dashboard is still on screen when gh-dash runs `$BROWSER`
 - It discards that command's output
 - A route that needs to say anything, or to hand you a link to click, therefore has nowhere to put it
-- As a keybinding gh-dash steps aside and gives `spechub-open` the terminal
+- As a keybinding gh-dash steps aside and gives `mapflow-open` the terminal
 
 It tries, in order:
 
-1. `$SPECHUB_OPEN_CMD`, if you set one. The escape hatch
+1. `$MAPFLOW_OPEN_CMD`, if you set one. The escape hatch
 2. `xdg-open`, when this machine has a display after all
 3. `wslview` or `explorer.exe`, when the Windows half of the machine holds the browser
 4. The opener on your laptop, which puts the page in your default browser with nothing to click. See section 10.5
@@ -1462,7 +1462,7 @@ The opener sits ahead of the bridge because the two are not competing for the sa
     - It reaches the browser you actually use
 - Both can be up at once
 - Each keeps its own job
-- `setup.sh status` prints which route a machine will take, and the last line of `~/.cache/spechub/open.log` says what the last press actually did
+- `setup.sh status` prints which route a machine will take, and the last line of `~/.cache/mapflow/open.log` says what the last press actually did
 
 ### 10.3. Under `herdr --remote`
 
@@ -1472,20 +1472,20 @@ The opener sits ahead of the bridge because the two are not competing for the sa
 - The client is a thin attach
     - It sends input and draws what the server sends back
 
-`spechub-clip` works, and we measured that rather than inferring it.
+`mapflow-clip` works, and we measured that rather than inferring it.
 
 - A pane's OSC 52 write reaches the clipboard on the machine you attached from
-- So `spechub-clip "some text"` on the dev machine pastes on your own
+- So `mapflow-clip "some text"` on the dev machine pastes on your own
 - Nothing in herdr's own documentation promises this
     - It mentions OSC 7 and OSC 8, and never OSC 52
 - We tested it on herdr 0.8.2 and it crossed
 - Terminals differ in what they act on
-    - Copy something with `spechub-clip` after your first attach and check that it pasted
+    - Copy something with `mapflow-clip` after your first attach and check that it pasted
 - Clipboard *images* travel the other way, and only on this path
 - Copy a screenshot on your machine, focus an agent pane, and herdr stages the image on the dev machine and pastes its path
 - An SSH shell cannot do that at all
     - That is the single strongest reason to prefer a remote attach
-- `spechub-open` runs on the dev machine
+- `mapflow-open` runs on the dev machine
     - That is the honest answer for routes 1 to 5
 - An override, a display, WSL, the opener or a bridge tunnel all have to be reachable *from there*
 - The opener and the bridge are reachable
@@ -1501,8 +1501,8 @@ The opener sits ahead of the bridge because the two are not competing for the sa
 
 One trap belongs to your SSH config rather than to herdr.
 
-- The `spechub-md --serve` command prints the URL it is listening on
-- That is the port *on the dev machine*, meaning `$SPECHUB_MD_PORT` or 6419
+- The `mapflow-md --serve` command prints the URL it is listening on
+- That is the port *on the dev machine*, meaning `$MAPFLOW_MD_PORT` or 6419
 - The printed link is wrong from where you are sitting, if your host block forwards it to a different local port
 - You want the local number instead
 - Forwarding `6419` to `6419` avoids the question entirely
@@ -1511,10 +1511,10 @@ One trap belongs to your SSH config rather than to herdr.
 
 *The link route needs only a terminal. One environment variable buys back a real one-key open.*
 
-The link route works over SSH, through herdr, and under `herdr --remote`. To get a real one-key open instead, give `spechub-open` something that can do it:
+The link route works over SSH, through herdr, and under `herdr --remote`. To get a real one-key open instead, give `mapflow-open` something that can do it:
 
 ```bash
-export SPECHUB_OPEN_CMD="ssh laptop open"   # or any command taking a URL
+export MAPFLOW_OPEN_CMD="ssh laptop open"   # or any command taking a URL
 ```
 
 ### 10.5. The opener: a page in your own browser, with nothing to click
@@ -1551,7 +1551,7 @@ cd $env:USERPROFILE\playwriter-bridge
 ```
 
 - That generates a shared secret and stores it at `%LOCALAPPDATA%\playwriter-bridge\opener.token`
-- It copies the secret to each dev machine at `~/.config/spechub/opener.token`, over the same ssh the tunnel uses
+- It copies the secret to each dev machine at `~/.config/mapflow/opener.token`, over the same ssh the tunnel uses
 - Every request from the dev machine carries it
 - Loopback binding alone would not be enough
     - The reverse tunnel makes the port reachable by anything running on the dev machine
@@ -1579,19 +1579,19 @@ The opener rides the same machinery as the bridge.
 
 *Node's startup would roughly double the cost of a preview that runs on every cursor move.*
 
-- The `spechub-md` and `spechub-clip` helpers are their own executables rather than subcommands of the `spechub` CLI
-- The `spechub-md --preview` command runs on every cursor move in the file manager, and Node's startup would roughly double it
+- The `mapflow-md` and `mapflow-clip` helpers are their own executables rather than subcommands of the `mapflow` CLI
+- The `mapflow-md --preview` command runs on every cursor move in the file manager, and Node's startup would roughly double it
 - The CLI dispatches to them anyway, the way git does
-- So `spechub md` runs `spechub-md`, either form works
+- So `mapflow md` runs `mapflow-md`, either form works
 - A config can keep the fast one
 
 ### 11.2. How `b` and `#` reach a running pager
 
-*A `lesskey` binding whose `quit` action carries an exit status, which `spechub-md` reads and acts on.*
+*A `lesskey` binding whose `quit` action carries an exit status, which `mapflow-md` reads and acts on.*
 
 - The `less` pager has no action that runs a fixed command
 - Its one shell escape would hand over the rendered temporary copy rather than the file you asked for
-- So each key quits `less` with an exit status of its own, and `spechub-md` reads that status and does the work
+- So each key quits `less` with an exit status of its own, and `mapflow-md` reads that status and does the work
 - It needs `less` 582 or newer, and an older version ignores the bindings and leaves both keys alone
 - `setup.sh apply` writes the `#` binding as `\#` in the `lesskey` file
 - `lesskey` reads a line starting with `#` as a comment
@@ -1610,7 +1610,7 @@ The opener rides the same machinery as the bridge.
 - A note that names the size is the honest answer, and a badly drawn diagram is not
 - A wide diagram still appears in place when it fits
 - glow wraps whatever it renders
-    - `spechub-md` holds the drawing back
+    - `mapflow-md` holds the drawing back
     - It runs glow on the prose, then splices the full-width art into the output
 - The pager is `less -S`
     - glow already wrapped the prose to the pane
@@ -1656,7 +1656,7 @@ The opener rides the same machinery as the bridge.
 One collision belongs to herdr rather than yazi.
 
 - herdr hosts a `type = "shell"` command in a real pane for as long as the process runs
-- So `spechub-herdr-tab` creates the tab and then hands the wait to a detached child
+- So `mapflow-herdr-tab` creates the tab and then hands the wait to a detached child
 - It returns in about 100ms rather than three and a half seconds
 - Without that a stray pane sits in the current tab
 
@@ -1664,9 +1664,9 @@ One collision belongs to herdr rather than yazi.
 
 *The key and the preview pane are two processes that never meet, so the switch has to sit on disk between them.*
 
-- The state file is `$XDG_STATE_HOME/spechub/md-line-numbers`, or `~/.local/state/spechub/md-line-numbers` when that variable is unset
+- The state file is `$XDG_STATE_HOME/mapflow/md-line-numbers`, or `~/.local/state/mapflow/md-line-numbers` when that variable is unset
 - Its presence is the whole setting
-    - `spechub-md --toggle-line-numbers` only has to create or remove it
+    - `mapflow-md --toggle-line-numbers` only has to create or remove it
 - Only the preview pane reads that file
     - Every other route asks for a view by name
 - The full-width read has **Read with line numbers** as its own entry under `O`
@@ -1707,7 +1707,7 @@ A document bound for the opener is the third case.
 
 The opener proves itself the same way and for the same reason.
 
-- The `spechub-open` helper asks it for `/health`, carrying the shared token, and takes the route only if the opener answers
+- The `mapflow-open` helper asks it for `/health`, carrying the shared token, and takes the route only if the opener answers
 - A token sitting on disk proves nothing about a service being up
 - A service being up proves nothing without the token it is going to demand
 - Success on the bridge is likewise not an exit status
@@ -1749,10 +1749,10 @@ The opener proves itself the same way and for the same reason.
 - **gh-dash never says why an action failed**
     - It discards gh's stderr
     - A refusal shows as `exit status 1` for two seconds
-    - `spechub-gh`, which `spechub-dash` puts on `$PATH` as `gh`, turns that into a notification quoting gh
+    - `mapflow-gh`, which `mapflow-dash` puts on `$PATH` as `gh`, turns that into a notification quoting gh
     - Approving your own pull request is the one you will hit
 - **A dev machine has no clipboard and no browser**
-    - The `o`, `y`, and `Y` keys in gh-dash all fail there until `apply` installs `spechub-clip` and `spechub-open`
+    - The `o`, `y`, and `Y` keys in gh-dash all fail there until `apply` installs `mapflow-clip` and `mapflow-open`
     - The `setup.sh status` command says which browser route a machine ended up with
 - **Snowflake's browser login cannot work on a dev machine**
     - `externalbrowser` authentication opens a browser, and that machine has none
@@ -1760,6 +1760,6 @@ The opener proves itself the same way and for the same reason.
     - `--read-only` guards a postgres connection only, so a snowflake profile has no such switch
 - **diffnav aborts on one very long line**
     - delta dies on `SIGABRT`, and diffnav quits with `FATA signal: aborted (core dumped)`, showing none of the diff
-    - `spechub-diff` drops any file whose patch holds a line over 20,000 characters and names it in the banner
+    - `mapflow-diff` drops any file whose patch holds a line over 20,000 characters and names it in the banner
     - A committed source map is the usual culprit
         - The file is worth keeping out of git in the first place

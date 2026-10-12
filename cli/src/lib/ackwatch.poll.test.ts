@@ -67,7 +67,7 @@ describe('watch — a poll interval of zero', () => {
   let file: string;
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), 'spechub-ackwatch-poll-'));
+    dir = mkdtempSync(join(tmpdir(), 'mapflow-ackwatch-poll-'));
     file = join(dir, 'session.jsonl');
     counter.calls = 0;
   });

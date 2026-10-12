@@ -60,9 +60,9 @@ Neither tool sees the other's sessions. `herdr worktree list` never reports an O
 A script shipped with the sibling `new-worktree` skill answers both questions. Run it rather than working it out by hand:
 
 ```bash
-SPECHUB_ROOT=$(cd -- "$(dirname -- "$(readlink -f "$HOME/.claude/spechub/bin/spechub")")/../.." && pwd)
-"$SPECHUB_ROOT/skills/new-worktree/detect-orchestrator.sh"          # the host
-"$SPECHUB_ROOT/skills/new-worktree/detect-orchestrator.sh" <path>   # one checkout's owner
+MAPFLOW_ROOT=$(cd -- "$(dirname -- "$(readlink -f "$HOME/.claude/mapflow/bin/mapflow")")/../.." && pwd)
+"$MAPFLOW_ROOT/skills/new-worktree/detect-orchestrator.sh"          # the host
+"$MAPFLOW_ROOT/skills/new-worktree/detect-orchestrator.sh" <path>   # one checkout's owner
 ```
 
 Read `detector.md` before you run the detector for the first time in a session. It explains the path, the six output lines, and the case where the script does not run.

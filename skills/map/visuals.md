@@ -12,7 +12,7 @@ and how you regenerate a parent's diagram.
 
 ```mermaid
 flowchart TD
-  C{"Does the node have children?"} -->|yes| G["Generated: its subtree<br/>spechub node diagram --map name --from id"]
+  C{"Does the node have children?"} -->|yes| G["Generated: its subtree<br/>mapflow node diagram --map name --from id"]
   C -->|no| K{"Its kind"}
   K -->|notes| X["No visual required"]
   K -->|decision| D["The option space"]
@@ -39,7 +39,7 @@ find it.
 Four rules sit on top of that table:
 
 - **A node with children leads with its subtree**, whatever its kind, so
-  `spechub node diagram --map <name> --from <id>` writes visual 1 and your own
+  `mapflow node diagram --map <name> --from <id>` writes visual 1 and your own
   diagram moves to slot 2
     - The github backend pipes `gh issue list` in and passes `--stdin` instead
     - `SKILL.md` holds both commands in full
@@ -64,9 +64,9 @@ A node body has five parts, in this order:
 5. `## Answer`, appended when the node resolves
 
 ```
-<!-- spechub:diagram -->
+<!-- mapflow:diagram -->
 ...two mermaid fences...
-<!-- /spechub:diagram -->
+<!-- /mapflow:diagram -->
 ```
 
 - **The markers hold generated content only**, so a regeneration never touches a
@@ -286,12 +286,12 @@ anything.
 
 ```bash
 # files backend
-~/.claude/spechub/bin/spechub node diagram --map <name> --from <parent id>
+~/.claude/mapflow/bin/mapflow node diagram --map <name> --from <parent id>
 
 # github backend – one list call feeds every parent's render
 gh issue list --label "map:<name>" --state all --limit 500 \
   --json number,title,body,state,stateReason,labels,url > /tmp/<name>.json
-~/.claude/spechub/bin/spechub node diagram --stdin --from <parent id> < /tmp/<name>.json
+~/.claude/mapflow/bin/mapflow node diagram --stdin --from <parent id> < /tmp/<name>.json
 ```
 
 The renderer prints the two markers itself, so its output is the whole block.
@@ -319,7 +319,7 @@ map: demo · root: #12 · answers: #12 · label: Cache the token?
 Should the client hold the auth token between requests, or fetch a new one each
 time?
 
-<!-- spechub:diagram -->
+<!-- mapflow:diagram -->
 
 ```mermaid
 flowchart TD
@@ -361,7 +361,7 @@ flowchart LR
   class lg6 legendFront
 ```
 
-<!-- /spechub:diagram -->
+<!-- /mapflow:diagram -->
 
 ```mermaid
 quadrantChart

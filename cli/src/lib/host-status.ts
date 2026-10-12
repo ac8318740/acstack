@@ -1,7 +1,7 @@
 import { HOST_AXES, getKey, parseBooleanWord, type GlobalConfig } from './global-config.js';
 
 /**
- * The decisions behind `spechub config show` and `spechub config check`.
+ * The decisions behind `mapflow config show` and `mapflow config check`.
  *
  * Everything here is pure: it turns already-read config and already-read
  * project settings into answers. Reaching out to the machine (looking for
@@ -292,7 +292,7 @@ export function projectAllowsFallback(project: ProjectHostContext): boolean {
  * throws: a host with no browser is an ordinary answer, not a crash.
  */
 export type BrowserModeProblem =
-  /** There is no SpecHub project here at all. */
+  /** There is no Mapflow project here at all. */
   | { kind: 'no-project' }
   /** There is a project, but it configures no frontend, so it drives no browser. */
   | { kind: 'no-frontend' }
@@ -327,7 +327,7 @@ export type BrowserModeResolution =
  * Which browser mode this machine should drive for this project, decided from
  * what is declared and nothing else.
  *
- * Both `spechub config browser-mode` and check 4 of `spechub config check`
+ * Both `mapflow config browser-mode` and check 4 of `mapflow config check`
  * ask this same question, so they ask it here rather than each carrying its
  * own copy of the priority-and-fallback rules and drifting apart.
  *
@@ -398,7 +398,7 @@ export interface ProjectBrowserSettings {
 }
 
 /**
- * The project settings `spechub config show` reports, read once and shared by
+ * The project settings `mapflow config show` reports, read once and shared by
  * the text listing and the JSON output so the two can never drift apart.
  */
 export interface ProjectSettings {
@@ -482,7 +482,7 @@ export function frontendHelpersDir(projectYaml: unknown): string | null {
  * running unless a project turns it off and frontend verification staying off
  * until a project turns it on.
  *
- * A string goes through the same parser `spechub config set` writes these
+ * A string goes through the same parser `mapflow config set` writes these
  * keys with. `off`, `on`, `yes` and `no` are words the command accepts and
  * turns into `false` or `true` on the way to disk, but the YAML core schema
  * reads them as strings - so a user who typed one by hand would otherwise

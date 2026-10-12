@@ -15,7 +15,7 @@
 #
 # It also covers the threshold ladder: the hook fires at most once per rung per
 # session, remembering the last rung it fired in a per-session state file under
-# SPECHUB_CONTEXT_PRESSURE_DIR. That covers the default rungs (warn, severe,
+# MAPFLOW_CONTEXT_PRESSURE_DIR. That covers the default rungs (warn, severe,
 # then every nudge_step above severe), an explicit context_thresholds ladder in
 # project.yaml (block and flow style, absolute and percentage rungs), the
 # context window a percentage resolves against, and the .quiet silence marker
@@ -56,7 +56,7 @@ echo ""
 # Fixture / assertion helpers
 # ---------------------------------------------------------------------------
 
-# Enter a fresh, isolated cwd for one case (the hook reads spechub/project.yaml
+# Enter a fresh, isolated cwd for one case (the hook reads mapflow/project.yaml
 # relative to cwd, so each case gets its own directory to avoid bleed).
 enter_case() {
   CASE_DIR="$WORK/case_$1"
@@ -67,7 +67,7 @@ enter_case() {
 
 # --- ladder state isolation -------------------------------------------------
 # The hook keeps per-session ladder state (the last threshold rung it fired) in
-# SPECHUB_CONTEXT_PRESSURE_DIR, and fires at most once per rung per session.
+# MAPFLOW_CONTEXT_PRESSURE_DIR, and fires at most once per rung per session.
 # Runs that share a state directory therefore silence each other, so by default
 # every run_hook call gets its OWN fresh state directory: each such run stands
 # for a first stop in a session that has never been nudged. Cases that exercise
@@ -157,18 +157,18 @@ ladder_step() {
   run_hook "$(stop_payload_session "$T" "$SID")" -u HERDR_ENV
 }
 
-# Write spechub/project.yaml (relative to cwd) from stdin, for the cases whose
+# Write mapflow/project.yaml (relative to cwd) from stdin, for the cases whose
 # config is richer than mk_config's two thresholds.
 mk_config_raw() {
-  mkdir -p spechub
-  cat > spechub/project.yaml
+  mkdir -p mapflow
+  cat > mapflow/project.yaml
 }
 
-# Write spechub/project.yaml (relative to cwd) with threshold overrides.
+# Write mapflow/project.yaml (relative to cwd) with threshold overrides.
 mk_config() {
   local warn="$1" severe="$2"
-  mkdir -p spechub
-  cat > spechub/project.yaml <<EOF
+  mkdir -p mapflow
+  cat > mapflow/project.yaml <<EOF
 workflow:
   handoff:
     nudge_warn: $warn
@@ -231,7 +231,7 @@ session_start_payload() {
 # Run the hook. $1 = JSON payload, remaining args = env assignments/flags for
 # `env` (e.g. HERDR_ENV=1, or -u HERDR_ENV to unset it). Sets OUT and RC.
 #
-# SPECHUB_CONTEXT_PRESSURE_DIR is always set, so a test can never touch the
+# MAPFLOW_CONTEXT_PRESSURE_DIR is always set, so a test can never touch the
 # real state directory under TMPDIR. Unless the case pinned one with
 # use_state_dir, each run gets a fresh directory: the hook fires once per
 # threshold rung per session, so runs sharing state would otherwise silence
@@ -244,7 +244,7 @@ run_hook() {
     STATE_SEQ=$((STATE_SEQ + 1))
     dir="$WORK/state_$STATE_SEQ"
   fi
-  OUT="$(printf '%s' "$payload" | env "$@" SPECHUB_CONTEXT_PRESSURE_DIR="$dir" bash "$HOOK" 2>"$WORK/stderr.log")"
+  OUT="$(printf '%s' "$payload" | env "$@" MAPFLOW_CONTEXT_PRESSURE_DIR="$dir" bash "$HOOK" 2>"$WORK/stderr.log")"
   RC=$?
   ERR="$(cat "$WORK/stderr.log" 2>/dev/null)"
   if [ -n "$ERR" ]; then
@@ -273,10 +273,10 @@ reads_severe() {
 is_silent() {
   local out="$1"
   [ -z "$out" ] && return 0
-  SPECHUB_TEST_OUT="$out" python3 -c '
+  MAPFLOW_TEST_OUT="$out" python3 -c '
 import json, os, sys
 try:
-    d = json.loads(os.environ["SPECHUB_TEST_OUT"])
+    d = json.loads(os.environ["MAPFLOW_TEST_OUT"])
 except Exception:
     sys.exit(1)
 sys.exit(0 if "decision" not in d else 1)
@@ -288,9 +288,9 @@ sys.exit(0 if "decision" not in d else 1)
 is_block_shape() {
   local out="$1"
   [ -z "$out" ] && return 1
-  SPECHUB_TEST_OUT="$out" python3 -c '
+  MAPFLOW_TEST_OUT="$out" python3 -c '
 import json, os
-d = json.loads(os.environ["SPECHUB_TEST_OUT"])
+d = json.loads(os.environ["MAPFLOW_TEST_OUT"])
 assert d.get("decision") == "block"
 assert isinstance(d.get("reason"), str) and d["reason"].strip()
 for forbidden in ("hookSpecificOutput", "additionalContext", "systemMessage"):
@@ -301,10 +301,10 @@ for forbidden in ("hookSpecificOutput", "additionalContext", "systemMessage"):
 # Print the "reason" field of a block-shaped JSON string (empty on failure).
 reason_of() {
   local out="$1"
-  SPECHUB_TEST_OUT="$out" python3 -c '
+  MAPFLOW_TEST_OUT="$out" python3 -c '
 import json, os
 try:
-    d = json.loads(os.environ["SPECHUB_TEST_OUT"])
+    d = json.loads(os.environ["MAPFLOW_TEST_OUT"])
     print(d.get("reason", ""))
 except Exception:
     print("")
@@ -315,9 +315,9 @@ except Exception:
 is_valid_json() {
   local out="$1"
   [ -z "$out" ] && return 0
-  SPECHUB_TEST_OUT="$out" python3 -c '
+  MAPFLOW_TEST_OUT="$out" python3 -c '
 import json, os
-json.loads(os.environ["SPECHUB_TEST_OUT"])
+json.loads(os.environ["MAPFLOW_TEST_OUT"])
 ' 2>/dev/null
 }
 
@@ -335,10 +335,10 @@ check "hooks/context-pressure.sh passes bash -n" 'bash -n "$HOOK" 2>/dev/null'
 # teammate, so registering it there would only burn a process on every agent
 # that finishes.
 echo "Case 1: hooks.json registers context-pressure.sh under Stop and SessionStart, not SubagentStop"
-HOOKS_JSON_CHECK="$(SPECHUB_HOOKS_JSON="$HOOKS_JSON" python3 -c '
+HOOKS_JSON_CHECK="$(MAPFLOW_HOOKS_JSON="$HOOKS_JSON" python3 -c '
 import json, os
 
-path = os.environ["SPECHUB_HOOKS_JSON"]
+path = os.environ["MAPFLOW_HOOKS_JSON"]
 try:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -661,7 +661,7 @@ for pair in "warn-no-herdr:$RC_WARN_NO_HERDR" "warn-herdr:$RC_WARN_HERDR" "sever
 done
 
 # ---------------------------------------------------------------------------
-# Case 14: per-session state lives under SPECHUB_CONTEXT_PRESSURE_DIR
+# Case 14: per-session state lives under MAPFLOW_CONTEXT_PRESSURE_DIR
 # ---------------------------------------------------------------------------
 echo "Case 14: per-session state directory"
 enter_case 14

@@ -4,7 +4,7 @@ import { request } from 'node:http';
 import { delimiter, join } from 'node:path';
 
 /**
- * Asking the live machine what it can actually do, for `spechub config
+ * Asking the live machine what it can actually do, for `mapflow config
  * show`/`check`. Every probe here is bounded: `check` runs on a developer's
  * machine at a moment when something is already suspected broken, so a dead
  * port or a wedged binary must come back as a failed check, never as a hang.

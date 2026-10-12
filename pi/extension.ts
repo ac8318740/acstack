@@ -1,26 +1,26 @@
 /**
- * SpecHub on pi.
+ * Mapflow on pi.
  *
  * The pi port of the Claude Code hooks in hooks/. Claude Code and Codex never
  * load this file, and nothing in hooks/ depends on it.
  *
  *   session_start        symlink the CLI, warn once if pi-subagents is
  *                        missing, and print the setup reminder outside a
- *                        spechub project            (hooks/session-start.sh)
- *   before_agent_start   list SpecHub's skills in the system prompt in every
+ *                        mapflow project            (hooks/session-start.sh)
+ *   before_agent_start   list Mapflow's skills in the system prompt in every
  *                        session, and add orchestrator/AGENTS.md in a
- *                        spechub project            (hooks/session-start.sh)
+ *                        mapflow project            (hooks/session-start.sh)
  *                        add the writing style and its per-turn reminder when
  *                        the user turned it on      (hooks/ac-writing-style-reminder.sh)
  *   agent_before_settle  nudge towards a handoff as context fills
  *                                                   (hooks/context-pressure.sh)
- *   session_compact      re-inject spechub/HANDOFF.md after a compaction, and
+ *   session_compact      re-inject mapflow/HANDOFF.md after a compaction, and
  *                        restart the nudge ladder   (hooks/session-start-handoff.sh,
  *                                                    hooks/context-pressure.sh)
  *
- * It also registers /spechub <skill>, a /spechub:<skill> command per skill,
- * and /spechub-writing-style on|off. Those two forms are the only way a user
- * runs a SpecHub skill on pi: package.json lists no skills, so pi adds no
+ * It also registers /mapflow <skill>, a /mapflow:<skill> command per skill,
+ * and /mapflow-writing-style on|off. Those two forms are the only way a user
+ * runs a Mapflow skill on pi: package.json lists no skills, so pi adds no
  * /skill:<name> commands for them.
  *
  * Only type imports come from pi, so Node can strip the types and load this
@@ -82,35 +82,35 @@ function linkCli(ctx: ExtensionContext, src: string, link: string, label: string
 		try {
 			fs.mkdirSync(path.dirname(link), { recursive: true });
 			fs.symlinkSync(src, link);
-			report(ctx, `spechub: linked ${label} at ${link} -> ${src}`);
+			report(ctx, `mapflow: linked ${label} at ${link} -> ${src}`);
 		} catch {
-			report(ctx, `spechub: failed to create symlink at ${link} – see ${troubleshoot} (section: command not found).`, "warning");
+			report(ctx, `mapflow: failed to create symlink at ${link} – see ${troubleshoot} (section: command not found).`, "warning");
 		}
 		return;
 	}
 
 	if (current === undefined) {
-		report(ctx, `spechub: ${link} exists but is not a symlink – not overwriting. See ${troubleshoot} (section: command not found).`, "warning");
+		report(ctx, `mapflow: ${link} exists but is not a symlink – not overwriting. See ${troubleshoot} (section: command not found).`, "warning");
 		return;
 	}
 
 	if (current === src) return;
 	try {
-		const tmp = `${link}.spechub-${process.pid}`;
+		const tmp = `${link}.mapflow-${process.pid}`;
 		fs.symlinkSync(src, tmp);
 		fs.renameSync(tmp, link);
 		// A repoint is routine after every upgrade, so it stays off the UI.
-		process.stderr.write(`spechub: updated ${label} at ${link} -> ${src}\n`);
+		process.stderr.write(`mapflow: updated ${label} at ${link} -> ${src}\n`);
 	} catch {
-		report(ctx, `spechub: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale cache).`, "warning");
+		report(ctx, `mapflow: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale cache).`, "warning");
 	}
 }
 
-/** The first executable `spechub` on PATH, like `command -v spechub`. */
-function spechubOnPath(): string | undefined {
+/** The first executable `mapflow` on PATH, like `command -v mapflow`. */
+function mapflowOnPath(): string | undefined {
 	for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {
 		if (!dir) continue;
-		const candidate = path.join(dir, "spechub");
+		const candidate = path.join(dir, "mapflow");
 		try {
 			fs.accessSync(candidate, fs.constants.X_OK);
 			if (fs.statSync(candidate).isFile()) return candidate;
@@ -132,28 +132,28 @@ function realpathOrSelf(file: string): string {
 /**
  * The same two symlinks hooks/session-start.sh refreshes.
  *
- * Every skill and agent calls the CLI as ~/.claude/spechub/bin/spechub, so the
+ * Every skill and agent calls the CLI as ~/.claude/mapflow/bin/mapflow, so the
  * agent path keeps its Claude-flavoured location on pi too. With both Claude
  * Code and pi installed, each one points the symlink at its own copy on every
  * session start, so it flips between the two caches. Both copies are a
  * released CLI, so either target works.
  */
 function linkClis(ctx: ExtensionContext): void {
-	const wrapper = path.join(packageRoot, "cli", "bin", "spechub.js");
+	const wrapper = path.join(packageRoot, "cli", "bin", "mapflow.js");
 	const dist = path.join(packageRoot, "cli", "dist", "index.js");
 	if (!fs.existsSync(wrapper)) return;
 	if (!fs.existsSync(dist)) {
-		report(ctx, `spechub: CLI is missing its built output (${dist}) – see ${troubleshoot} (section: ERR_MODULE_NOT_FOUND).`, "error");
+		report(ctx, `mapflow: CLI is missing its built output (${dist}) – see ${troubleshoot} (section: ERR_MODULE_NOT_FOUND).`, "error");
 		return;
 	}
 
 	const home = os.homedir();
-	linkCli(ctx, wrapper, path.join(home, ".claude", "spechub", "bin", "spechub"), "agent CLI");
+	linkCli(ctx, wrapper, path.join(home, ".claude", "mapflow", "bin", "mapflow"), "agent CLI");
 
-	// Defer to a spechub on PATH that someone else installed. The agent path
+	// Defer to a mapflow on PATH that someone else installed. The agent path
 	// above is absolute, so it is never affected.
-	const humanLink = path.join(home, ".local", "bin", "spechub");
-	const onPath = spechubOnPath();
+	const humanLink = path.join(home, ".local", "bin", "mapflow");
+	const onPath = mapflowOnPath();
 	// The shell hook says so on every session. pi shows each report as a
 	// notification, so this stays silent instead.
 	if (!onPath || onPath === humanLink || realpathOrSelf(onPath) === realpathOrSelf(humanLink)) {
@@ -163,7 +163,7 @@ function linkClis(ctx: ExtensionContext): void {
 	if (process.platform === "linux" || process.platform === "darwin") {
 		const vmFreePort = path.join(packageRoot, "assets", "playwriter-bridge", "vm-free-port.sh");
 		if (fs.existsSync(vmFreePort)) {
-			linkCli(ctx, vmFreePort, path.join(home, ".claude", "spechub", "bin", "vm-free-port.sh"), "vm-free-port.sh");
+			linkCli(ctx, vmFreePort, path.join(home, ".claude", "mapflow", "bin", "vm-free-port.sh"), "vm-free-port.sh");
 		}
 	}
 }
@@ -172,7 +172,7 @@ function linkClis(ctx: ExtensionContext): void {
 // Writing style
 // --------------------------------------------------------------------------
 
-const settingsFile = (): string => path.join(agentDir(), "spechub.json");
+const settingsFile = (): string => path.join(agentDir(), "mapflow.json");
 
 function readSettings(): { writingStyle?: boolean } {
 	try {
@@ -274,7 +274,7 @@ function flowList(value: string): string[] {
 }
 
 /**
- * The workflow.handoff keys from spechub/project.yaml. A port of read_config
+ * The workflow.handoff keys from mapflow/project.yaml. A port of read_config
  * in hooks/context-pressure.sh, hand-rolled for the same reason: no YAML
  * library is guaranteed to be installed.
  */
@@ -394,7 +394,7 @@ export function contextNudge(
  * there once the work is handed over.
  */
 function pressureStateDir(): string {
-	return process.env.SPECHUB_CONTEXT_PRESSURE_DIR || path.join(process.env.TMPDIR || "/tmp", "spechub-context-pressure");
+	return process.env.MAPFLOW_CONTEXT_PRESSURE_DIR || path.join(process.env.TMPDIR || "/tmp", "mapflow-context-pressure");
 }
 
 function sessionKey(ctx: ExtensionContext): string | undefined {
@@ -409,7 +409,7 @@ function sessionKey(ctx: ExtensionContext): string | undefined {
 // --------------------------------------------------------------------------
 
 const HANDOFF_PREAMBLE =
-	"The session was just compacted. The following SpecHub handoff captures " +
+	"The session was just compacted. The following Mapflow handoff captures " +
 	"load-bearing work state the summary may have compressed. Treat it as " +
 	"authoritative for what to do next.\n\n" +
 	'Resume now: when the user\'s next message is "continue" (or any short ' +
@@ -420,12 +420,12 @@ const HANDOFF_PREAMBLE =
 	"wrong assumption taken after compaction is expensive to unwind.\n\n";
 
 /**
- * Consume spechub/HANDOFF.md the way hooks/session-start-handoff.sh does:
- * only a file carrying the spechub_handoff marker, moved into a per-map
+ * Consume mapflow/HANDOFF.md the way hooks/session-start-handoff.sh does:
+ * only a file carrying the mapflow_handoff marker, moved into a per-map
  * archive so it is never injected twice. Returns the text to inject.
  */
 export function consumeHandoff(cwd: string, now: Date = new Date()): string | undefined {
-	const active = path.join(cwd, "spechub", "HANDOFF.md");
+	const active = path.join(cwd, "mapflow", "HANDOFF.md");
 	const raw = readText(active);
 	if (!raw?.trim()) return undefined;
 
@@ -439,18 +439,18 @@ export function consumeHandoff(cwd: string, now: Date = new Date()): string | un
 		if (sep !== -1) meta[line.slice(0, sep).trim()] = line.slice(sep + 1).trim();
 	}
 	const body = lines.slice(end + 1).join("\n").replace(/^\n+/, "");
-	if (!("spechub_handoff" in meta) || !body.trim()) return undefined;
+	if (!("mapflow_handoff" in meta) || !body.trim()) return undefined;
 
 	let map = (meta.map || meta.change || "ad-hoc").replace(/[^A-Za-z0-9._-]/g, "-");
 	if (!map.replace(/^\.+|\.+$/g, "")) map = "ad-hoc";
 	let stamp = (meta.created || "").replace(/[^A-Za-z0-9._-]/g, "-");
 	if (!stamp) stamp = now.toISOString().replace(/\.\d+Z$/, "Z").replace(/:/g, "-");
 
-	const changeDir = path.join(cwd, "spechub", "changes", map);
+	const changeDir = path.join(cwd, "mapflow", "changes", map);
 	const archiveDir =
 		map !== "ad-hoc" && fs.existsSync(changeDir)
 			? path.join(changeDir, "handoffs")
-			: path.join(cwd, "spechub", "handoffs", map);
+			: path.join(cwd, "mapflow", "handoffs", map);
 	try {
 		fs.mkdirSync(archiveDir, { recursive: true });
 		let dest = path.join(archiveDir, `${stamp}.md`);
@@ -523,7 +523,7 @@ function escapeXml(text: string): string {
 }
 
 /**
- * The skills section of the system prompt. SpecHub's skills are not pi skills,
+ * The skills section of the system prompt. Mapflow's skills are not pi skills,
  * because pi would turn each one into a /skill:<name> command, so this lists
  * them the way pi's formatSkillsForPrompt lists its own. Like pi, it leaves
  * out a skill only the user may run.
@@ -532,10 +532,10 @@ export function skillsSection(skills: Map<string, SkillInfo>): string | undefine
 	const visible = [...skills].filter(([, skill]) => !skill.userOnly);
 	if (visible.length === 0) return undefined;
 	const lines = [
-		"The following SpecHub skills provide specialized instructions for specific tasks.",
+		"The following Mapflow skills provide specialized instructions for specific tasks.",
 		"Use the read tool to load a skill's file when the task matches its description.",
 		"When a skill file references a relative path, resolve it against the skill directory (parent of SKILL.md / dirname of the path) and use that absolute path in tool commands.",
-		"When you tell the user to run a SpecHub skill, write /spechub:<name>, never /skill:<name>.",
+		"When you tell the user to run a Mapflow skill, write /mapflow:<name>, never /skill:<name>.",
 		"",
 		"<available_skills>",
 	];
@@ -553,10 +553,10 @@ export function skillsSection(skills: Map<string, SkillInfo>): string | undefine
 }
 
 /**
- * The user message for one SpecHub skill, in the same shape pi's own
+ * The user message for one Mapflow skill, in the same shape pi's own
  * /skill:<name> expansion produces. Built from this package's file, so a
  * generic name such as map or commit that another package's skill took
- * first still runs the SpecHub skill.
+ * first still runs the Mapflow skill.
  */
 export function skillInvocation(name: string, file: string, args: string): string | undefined {
 	const content = readText(file);
@@ -569,14 +569,14 @@ export function skillInvocation(name: string, file: string, args: string): strin
 // The extension
 // --------------------------------------------------------------------------
 
-export default function spechub(pi: ExtensionAPI): void {
+export default function mapflow(pi: ExtensionAPI): void {
 	// A background subagent loads every ambient extension. The orchestrator
 	// prompt and the nudges belong to the lead session, never to a subagent.
 	if (process.env[SUBAGENT_CHILD_ENV] === "1" || process.env[HERDR_BRIDGE_CHILD_ENV] === "1") return;
 
 	const orchestratorFile = path.join(packageRoot, "orchestrator", "AGENTS.md");
 	const styleFile = path.join(packageRoot, "output-styles", "ac-writing-style.md");
-	const isProject = (cwd: string) => fs.existsSync(path.join(cwd, "spechub", "project.yaml"));
+	const isProject = (cwd: string) => fs.existsSync(path.join(cwd, "mapflow", "project.yaml"));
 	let warnedSubagents = false;
 
 	pi.on("session_start", async (event, ctx) => {
@@ -586,18 +586,18 @@ export default function spechub(pi: ExtensionAPI): void {
 			warnedSubagents = true;
 			report(
 				ctx,
-				"spechub: pi-subagents is not loaded, so the test-writer, task-executor, task-checker and frontend-verifier agents cannot run. Install it with `pi install npm:pi-subagents`.",
+				"mapflow: pi-subagents is not loaded, so the test-writer, task-executor, task-checker and frontend-verifier agents cannot run. Install it with `pi install npm:pi-subagents`.",
 				"warning",
 			);
 		}
 
 		if (event.reason === "startup" && !isProject(ctx.cwd)) {
-			report(ctx, "spechub: no project config found. Run /spechub:setup to set up.");
+			report(ctx, "mapflow: no project config found. Run /mapflow:setup to set up.");
 		}
 	});
 
-	// /spechub map <args> and /spechub:map <args> both run SpecHub's own map
-	// skill, matching the /spechub:map names Claude Code shows.
+	// /mapflow map <args> and /mapflow:map <args> both run Mapflow's own map
+	// skill, matching the /mapflow:map names Claude Code shows.
 	const skills = listSkills();
 	const skillsPrompt = skillsSection(skills);
 
@@ -605,21 +605,21 @@ export default function spechub(pi: ExtensionAPI): void {
 		const sections = event.systemPromptOptions.sections;
 
 		// Every session, like the plugin's skills on Claude Code.
-		if (skillsPrompt) sections["spechub-skills"] = skillsPrompt;
+		if (skillsPrompt) sections["mapflow-skills"] = skillsPrompt;
 
 		if (isProject(ctx.cwd)) {
 			const orchestrator = readText(orchestratorFile);
-			if (orchestrator) sections["spechub-orchestrator"] = orchestrator;
-			else report(ctx, `spechub: could not read ${orchestratorFile}`, "warning");
+			if (orchestrator) sections["mapflow-orchestrator"] = orchestrator;
+			else report(ctx, `mapflow: could not read ${orchestratorFile}`, "warning");
 		}
 
 		if (!readSettings().writingStyle) return;
 		const style = readText(styleFile);
 		if (!style) return;
-		sections["spechub-writing-style"] = stripFrontmatter(style);
+		sections["mapflow-writing-style"] = stripFrontmatter(style);
 		const reminder = extractWritingReminder(style);
 		if (!reminder) return;
-		return { message: { customType: "spechub-writing-style-reminder", content: reminder, display: false } };
+		return { message: { customType: "mapflow-writing-style-reminder", content: reminder, display: false } };
 	});
 
 	pi.on("agent_before_settle", async (event, ctx) => {
@@ -635,7 +635,7 @@ export default function spechub(pi: ExtensionAPI): void {
 		const lastText = readText(lastFile)?.trim();
 		const lastRung = lastText && /^\d+$/.test(lastText) ? Number.parseInt(lastText, 10) : undefined;
 
-		const cfg = readHandoffConfig(readText(path.join(ctx.cwd, "spechub", "project.yaml")));
+		const cfg = readHandoffConfig(readText(path.join(ctx.cwd, "mapflow", "project.yaml")));
 		const nudge = contextNudge(usage.tokens, usage.contextWindow, cfg, lastRung, process.env.HERDR_ENV === "1");
 		if (!nudge) return;
 
@@ -648,7 +648,7 @@ export default function spechub(pi: ExtensionAPI): void {
 			return;
 		}
 		return {
-			entries: [{ type: "custom_message", customType: "spechub-context-pressure", content: nudge.reason, display: true }],
+			entries: [{ type: "custom_message", customType: "mapflow-context-pressure", content: nudge.reason, display: true }],
 			continue: true,
 		};
 	});
@@ -668,7 +668,7 @@ export default function spechub(pi: ExtensionAPI): void {
 
 		const handoff = consumeHandoff(ctx.cwd);
 		if (handoff) {
-			pi.sendMessage({ customType: "spechub-handoff", content: handoff, display: true }, { deliverAs: "nextTurn" });
+			pi.sendMessage({ customType: "mapflow-handoff", content: handoff, display: true }, { deliverAs: "nextTurn" });
 		}
 	});
 
@@ -676,19 +676,19 @@ export default function spechub(pi: ExtensionAPI): void {
 		const file = skills.get(name)?.file;
 		const message = file && skillInvocation(name, file, args);
 		if (!message) {
-			report(ctx, `spechub: no skill named "${name}". Skills: ${[...skills.keys()].join(", ")}`, "warning");
+			report(ctx, `mapflow: no skill named "${name}". Skills: ${[...skills.keys()].join(", ")}`, "warning");
 			return;
 		}
 		if (ctx.isIdle()) pi.sendUserMessage(message);
 		else pi.sendUserMessage(message, { deliverAs: "followUp" });
 	};
 
-	pi.registerCommand("spechub", {
-		description: "Run a SpecHub skill: /spechub <skill> [args], e.g. /spechub map",
+	pi.registerCommand("mapflow", {
+		description: "Run a Mapflow skill: /mapflow <skill> [args], e.g. /mapflow map",
 		handler: async (args, ctx) => {
 			const [name = "", ...rest] = args.trim().split(/\s+/);
 			if (!name) {
-				report(ctx, `spechub: usage is /spechub <skill> [args]. Skills: ${[...skills.keys()].join(", ")}`);
+				report(ctx, `mapflow: usage is /mapflow <skill> [args]. Skills: ${[...skills.keys()].join(", ")}`);
 				return;
 			}
 			runSkill(name, rest.join(" "), ctx);
@@ -696,14 +696,14 @@ export default function spechub(pi: ExtensionAPI): void {
 	});
 
 	for (const name of skills.keys()) {
-		pi.registerCommand(`spechub:${name}`, {
-			description: `Run the SpecHub ${name} skill`,
+		pi.registerCommand(`mapflow:${name}`, {
+			description: `Run the Mapflow ${name} skill`,
 			handler: async (args, ctx) => runSkill(name, args, ctx),
 		});
 	}
 
-	pi.registerCommand("spechub-writing-style", {
-		description: "Turn the SpecHub writing style on or off for every pi session (on | off)",
+	pi.registerCommand("mapflow-writing-style", {
+		description: "Turn the Mapflow writing style on or off for every pi session (on | off)",
 		handler: async (args, ctx) => {
 			const choice = args.trim().toLowerCase();
 			const settings = readSettings();
@@ -711,10 +711,10 @@ export default function spechub(pi: ExtensionAPI): void {
 				settings.writingStyle = choice === "on";
 				writeSettings(settings);
 			} else if (choice) {
-				report(ctx, "spechub: usage is /spechub-writing-style on|off", "warning");
+				report(ctx, "mapflow: usage is /mapflow-writing-style on|off", "warning");
 				return;
 			}
-			report(ctx, `spechub: writing style is ${settings.writingStyle ? "on" : "off"} (${settingsFile()}).`);
+			report(ctx, `mapflow: writing style is ${settings.writingStyle ? "on" : "off"} (${settingsFile()}).`);
 		},
 	});
 }
