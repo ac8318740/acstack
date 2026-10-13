@@ -383,6 +383,8 @@ What `apply` does:
 - It sets `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json`
 - It binds `"app.message.dequeue"` to `"ctrl+enter"` in `~/.pi/agent/keybindings.json`
 - It writes the four keys under `pi.settings` into `~/.pi/agent/settings.json`
+- It patches pi's bundled TUI so Windows Terminal Win32 input records paste as text
+    - `pi update` can replace the bundle, so `setup.sh upgrade pi` reapplies the patch
 
 How it treats pi's files:
 
@@ -475,6 +477,7 @@ The two paths deliver keys by different routes.
 - The two routes do not carry the same set
 - The `ctrl+alt` family survives the escape-sequence route and dies on the native one
 - `ctrl+<digit>` does the opposite
+
 - Either way herdr accepts the binding and then never sees the key
 - A chord that does not cross is therefore silently dead, and herdr reports no error
 - `alt+<key>` is the only family that crossed both
