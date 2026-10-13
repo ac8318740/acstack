@@ -174,8 +174,8 @@ else
   no "the amber remedy does not name vm-free-port.sh --port"
 fi
 
-if grep -q "X-Mapflow-Token" "$DOCTOR" && ! grep -q "X-Spechub-Token" "$DOCTOR"; then
-  ok "doctor.ps1 probes opener health with the Mapflow auth header"
+if grep -q "X-ACStack-Token" "$DOCTOR" && ! grep -q "X-Spechub-Token" "$DOCTOR"; then
+  ok "doctor.ps1 probes opener health with the ACStack auth header"
 else
   no "doctor.ps1 uses a stale opener auth header"
 fi

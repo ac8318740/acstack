@@ -48,7 +48,7 @@ jobs:
           else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "${tag}" -m "mapflow ${new}"
+            git tag -a "${tag}" -m "acstack ${new}"
             git push origin "refs/tags/${tag}"
             echo "tag-release: created ${tag}."
           fi

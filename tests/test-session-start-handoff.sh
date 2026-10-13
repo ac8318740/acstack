@@ -31,14 +31,14 @@ check() { if eval "$2"; then ok "$1"; else no "$1"; fi; }
 
 # Write an active handoff. $1 = change, $2 = created timestamp.
 mk() {
-  mkdir -p mapflow
-  cat > mapflow/HANDOFF.md <<EOF
+  mkdir -p acstack
+  cat > acstack/HANDOFF.md <<EOF
 ---
-mapflow_handoff: 1
+acstack_handoff: 1
 change: $1
 created: $2
 ---
-# Mapflow Handoff – $1
+# ACStack Handoff – $1
 
 ## Next action
 Resume the $1 work.
@@ -54,44 +54,44 @@ echo ""
 
 # --- Case 1: change dir exists -> inject body, consume, archive in change ------
 echo "Case 1: active change on disk"
-mkdir -p mapflow/changes/AUTH-12
+mkdir -p acstack/changes/AUTH-12
 mk "AUTH-12" "2026-05-25T14:30:00Z"
 OUT="$(run compact)"
 check "outputs additionalContext"          '[ -n "$OUT" ] && printf "%s" "$OUT" | grep -q additionalContext'
 check "injects the body (next action)"      'printf "%s" "$OUT" | grep -q "Resume the AUTH-12 work"'
-check "strips frontmatter from injection"   '! printf "%s" "$OUT" | grep -q mapflow_handoff'
-check "consumes active HANDOFF.md"           '[ ! -f mapflow/HANDOFF.md ]'
-check "archives inside the change dir"       '[ -f mapflow/changes/AUTH-12/handoffs/2026-05-25T14-30-00Z.md ]'
-check "archive keeps full file (frontmatter)" 'grep -q mapflow_handoff mapflow/changes/AUTH-12/handoffs/2026-05-25T14-30-00Z.md'
+check "strips frontmatter from injection"   '! printf "%s" "$OUT" | grep -q acstack_handoff'
+check "consumes active HANDOFF.md"           '[ ! -f acstack/HANDOFF.md ]'
+check "archives inside the change dir"       '[ -f acstack/changes/AUTH-12/handoffs/2026-05-25T14-30-00Z.md ]'
+check "archive keeps full file (frontmatter)" 'grep -q acstack_handoff acstack/changes/AUTH-12/handoffs/2026-05-25T14-30-00Z.md'
 
 # --- Case 2: second compact, nothing pending -> silent no-op ------------------
 echo "Case 2: no pending handoff"
 OUT="$(run compact)"
 check "produces no output"                   '[ -z "$OUT" ]'
 
-# --- Case 3: ad-hoc (no change dir) -> falls back to mapflow/handoffs ---------
+# --- Case 3: ad-hoc (no change dir) -> falls back to acstack/handoffs ---------
 echo "Case 3: ad-hoc work"
 mk "ad-hoc" "2026-05-25T15:00:00Z"
 run compact >/dev/null
-check "archives under mapflow/handoffs/ad-hoc" '[ -f mapflow/handoffs/ad-hoc/2026-05-25T15-00-00Z.md ]'
-check "consumes active HANDOFF.md"             '[ ! -f mapflow/HANDOFF.md ]'
+check "archives under acstack/handoffs/ad-hoc" '[ -f acstack/handoffs/ad-hoc/2026-05-25T15-00-00Z.md ]'
+check "consumes active HANDOFF.md"             '[ ! -f acstack/HANDOFF.md ]'
 
 # --- Case 4: collision -> unique numeric suffix ------------------------------
 echo "Case 4: same timestamp twice"
-mkdir -p mapflow/changes/REF-9
+mkdir -p acstack/changes/REF-9
 mk "REF-9" "2026-05-25T16:00:00Z"; run compact >/dev/null
 mk "REF-9" "2026-05-25T16:00:00Z"; run compact >/dev/null
-check "first archived without suffix"        '[ -f mapflow/changes/REF-9/handoffs/2026-05-25T16-00-00Z.md ]'
-check "second archived with -2 suffix"       '[ -f mapflow/changes/REF-9/handoffs/2026-05-25T16-00-00Z-2.md ]'
+check "first archived without suffix"        '[ -f acstack/changes/REF-9/handoffs/2026-05-25T16-00-00Z.md ]'
+check "second archived with -2 suffix"       '[ -f acstack/changes/REF-9/handoffs/2026-05-25T16-00-00Z-2.md ]'
 
 # --- Case 5: file without the marker -> never touched ------------------------
 echo "Case 5: unmarked file (a user's own HANDOFF.md)"
-mkdir -p mapflow
-printf '# my own notes\nnot a mapflow handoff\n' > mapflow/HANDOFF.md
+mkdir -p acstack
+printf '# my own notes\nnot an acstack handoff\n' > acstack/HANDOFF.md
 OUT="$(run compact)"
 check "produces no output"                   '[ -z "$OUT" ]'
-check "leaves the file untouched"            '[ -f mapflow/HANDOFF.md ]'
-rm -f mapflow/HANDOFF.md
+check "leaves the file untouched"            '[ -f acstack/HANDOFF.md ]'
+rm -f acstack/HANDOFF.md
 
 # --- Case 6: non-compact source -> never fires -------------------------------
 echo "Case 6: source is not compact"
@@ -100,7 +100,7 @@ for src in startup resume clear; do
   OUT="$(run "$src")"
   check "no-op on source=$src"               '[ -z "$OUT" ]'
 done
-check "leaves active handoff in place"       '[ -f mapflow/HANDOFF.md ]'
+check "leaves active handoff in place"       '[ -f acstack/HANDOFF.md ]'
 
 # --- Case 7: malformed stdin -> clean no-op ----------------------------------
 echo "Case 7: malformed payload"
@@ -109,53 +109,53 @@ check "produces no output on garbage stdin"  '[ -z "$OUT" ]'
 
 # Write an active handoff with the current map: key. $1 = map, $2 = created.
 mkmap() {
-  mkdir -p mapflow
-  cat > mapflow/HANDOFF.md <<EOF
+  mkdir -p acstack
+  cat > acstack/HANDOFF.md <<EOF
 ---
-mapflow_handoff: 1
+acstack_handoff: 1
 map: $1
 created: $2
 ---
-# Mapflow Handoff – $1
+# ACStack Handoff – $1
 
 ## Next action
 Resume the $1 work.
 EOF
 }
 
-# --- Case 8: map key routes to mapflow/handoffs/<map>/ ------------------------
+# --- Case 8: map key routes to acstack/handoffs/<map>/ ------------------------
 echo "Case 8: map frontmatter key"
 mkmap "wayfinder" "2026-05-25T18:00:00Z"
 OUT="$(run compact)"
 check "injects the handoff body"             'printf %s "$OUT" | grep -q "Resume the wayfinder work"'
-check "archives under handoffs/<map>"        '[ -f mapflow/handoffs/wayfinder/2026-05-25T18-00-00Z.md ]'
-check "active handoff consumed"              '[ ! -f mapflow/HANDOFF.md ]'
+check "archives under handoffs/<map>"        '[ -f acstack/handoffs/wayfinder/2026-05-25T18-00-00Z.md ]'
+check "active handoff consumed"              '[ ! -f acstack/HANDOFF.md ]'
 
 # --- Case 9: map wins over change when both present ---------------------------
 echo "Case 9: map key wins over change"
-mkdir -p mapflow
-cat > mapflow/HANDOFF.md <<'EOF'
+mkdir -p acstack
+cat > acstack/HANDOFF.md <<'EOF'
 ---
-mapflow_handoff: 1
+acstack_handoff: 1
 map: newmap
 change: oldchange
 created: 2026-05-25T19:00:00Z
 ---
-# Mapflow Handoff – newmap
+# ACStack Handoff – newmap
 
 ## Next action
 Continue.
 EOF
 OUT="$(run compact)"
-check "routes by map, not change"            '[ -f mapflow/handoffs/newmap/2026-05-25T19-00-00Z.md ]'
-check "did not route by change"              '[ ! -d mapflow/handoffs/oldchange ]'
+check "routes by map, not change"            '[ -f acstack/handoffs/newmap/2026-05-25T19-00-00Z.md ]'
+check "did not route by change"              '[ ! -d acstack/handoffs/oldchange ]'
 
-# --- Case 10: hostile map name cannot escape mapflow/ -------------------------
+# --- Case 10: hostile map name cannot escape acstack/ -------------------------
 echo "Case 10: map name is sanitized"
 mkmap "../../escape" "2026-05-25T20:00:00Z"
 OUT="$(run compact)"
-check "no file written outside mapflow"      '[ ! -e ../escape ] && [ ! -e escape ]'
-check "archived under a sanitized name"      '[ -d "mapflow/handoffs/..-..-escape" ]'
+check "no file written outside acstack"      '[ ! -e ../escape ] && [ ! -e escape ]'
+check "archived under a sanitized name"      '[ -d "acstack/handoffs/..-..-escape" ]'
 
 echo ""
 echo "----------------------------------------"

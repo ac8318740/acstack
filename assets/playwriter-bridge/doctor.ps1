@@ -163,14 +163,14 @@ if (-not (Test-Path $openerToken)) {
     # A token here is only half of it: the dev machine needs the same bytes, and
     # nothing on this side can see whether it has them. Say so rather than
     # calling it green and leaving a VM that gets 401 on every request.
-    Add-Result 'Opener token' 'green' 'present here (each VM needs the same copy at ~/.config/mapflow/opener.token)'
+    Add-Result 'Opener token' 'green' 'present here (each VM needs the same copy at ~/.config/acstack/opener.token)'
 }
 
 if ($openerListener -and (Test-Path $openerToken)) {
     try {
         $tok = (Get-Content $openerToken -Raw).Trim()
         $r = Invoke-WebRequest -Uri 'http://127.0.0.1:19989/health' `
-            -Headers @{ 'X-Mapflow-Token' = $tok } `
+            -Headers @{ 'X-ACStack-Token' = $tok } `
             -TimeoutSec $CurlTimeoutSeconds -UseBasicParsing -ErrorAction Stop
         $h = $r.Content | ConvertFrom-Json
         $mermaid = if ($h.mermaid) { 'mermaid cached' } else { 'no mermaid cached yet (first push will send it)' }
@@ -287,7 +287,7 @@ if ($stuckHosts.Count -eq 0 -and $authHosts.Count -eq 0 -and $hostKeyHosts.Count
         # human has to act. Reporting both the same way either cries wolf or
         # buries the marker.
         $who = ($retryHosts | ForEach-Object { $_.Label }) -join ', '
-        $free = ($retryHosts | ForEach-Object { "bash ~/.claude/mapflow/bin/vm-free-port.sh --port $($_.Port)" } |
+        $free = ($retryHosts | ForEach-Object { "bash ~/.claude/acstack/bin/vm-free-port.sh --port $($_.Port)" } |
             Select-Object -Unique) -join ' ; '
         # The window trails five minutes, so the row can still be amber after the
         # tunnel has quietly rebound. Say that the clearer is safe anyway: it
@@ -328,7 +328,7 @@ will bind on its own once the port is free. Marker contents:
 $tail
 
 Run on ${hn}:
-  bash ~/.claude/mapflow/bin/vm-free-port.sh --port $hp
+  bash ~/.claude/acstack/bin/vm-free-port.sh --port $hp
 
 Expected result:
   ss -lnt 'sport = :$hp' is empty, or vm-free-port.sh refuses and tells

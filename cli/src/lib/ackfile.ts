@@ -1,6 +1,6 @@
 // The ack sidecar: how a handoff target says yes or no in writing.
 //
-// `mapflow handoff ack accept|decline --file <handoff-file>` writes a JSON
+// `acstack handoff ack accept|decline --file <handoff-file>` writes a JSON
 // record to `<handoff-file>.ack`, and the sender's watcher polls that exact
 // path. The naming is the contract between the two halves, so it lives here
 // once and both halves import it.

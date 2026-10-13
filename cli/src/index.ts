@@ -3,8 +3,8 @@ import { spawnSync } from 'node:child_process';
 import { resolveVersion } from './lib/version.js';
 
 const program = new Command()
-  .name('mapflow')
-  .description('CLI for map-based development')
+  .name('acstack')
+  .description('CLI for the ACStack agentic coding stack')
   .version(resolveVersion(import.meta.dirname));
 
 // Commands are registered by their own modules
@@ -13,6 +13,7 @@ const commands = await Promise.all([
   import('./commands/show.js'),
   import('./commands/archive.js'),
   import('./commands/node.js'),
+  import('./commands/alignment.js'),
   import('./commands/config.js'),
   import('./commands/design-gate.js'),
   import('./commands/feedback.js'),
@@ -26,20 +27,20 @@ for (const mod of commands) {
 
 program.addHelpText(
   'after',
-  '\nAny other subcommand runs `mapflow-<name>` from your PATH, the way git\n' +
+  '\nAny other subcommand runs `acstack-<name>` from your PATH, the way git\n' +
     'does. The terminal workspace installs several: md, diff, dash, tab.'
 );
 
-// git-style dispatch: `mapflow md x` runs `mapflow-md x` when md is not a
+// git-style dispatch: `acstack md x` runs `acstack-md x` when md is not a
 // built-in. Keeping those helpers as their own executables matters -
-// mapflow-md --preview runs on every cursor move in a file manager, and
+// acstack-md --preview runs on every cursor move in a file manager, and
 // paying Node's startup for it would make previews noticeably slower.
 const first = process.argv[2];
 const known = new Set(
   program.commands.flatMap((c) => [c.name(), ...c.aliases()])
 );
 if (first && !first.startsWith('-') && !known.has(first)) {
-  const result = spawnSync(`mapflow-${first}`, process.argv.slice(3), {
+  const result = spawnSync(`acstack-${first}`, process.argv.slice(3), {
     stdio: 'inherit',
   });
   // A spawn error carrying an errno code means there is no such helper, so

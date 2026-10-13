@@ -1,10 +1,10 @@
-// Node #199: `mapflow node read` and `mapflow node walk` strip marker-bounded
+// Node #199: `acstack node read` and `acstack node walk` strip marker-bounded
 // generated blocks from their human-readable output by default, and a new
 // `--visuals` flag on each command puts the blocks back. `--json` always
 // keeps the blocks, on both commands, whatever `--visuals` says.
 //
 // These tests spawn the built CLI, the same way config.test.ts does, and
-// write real node markdown files into a real temporary Mapflow project. No
+// write real node markdown files into a real temporary ACStack project. No
 // mocks – see cli/src/lib/diagram.test.ts and cli/src/lib/github-issues.test.ts
 // for the house style this follows.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -17,7 +17,7 @@ import { DIAGRAM_START, DIAGRAM_END } from '../lib/diagram.js';
 import { NODE_KINDS } from '../lib/nodes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CLI_BIN = join(__dirname, '..', '..', 'bin', 'mapflow.js');
+const CLI_BIN = join(__dirname, '..', '..', 'bin', 'acstack.js');
 
 function runCli(args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv } = {}) {
   return spawnSync(process.execPath, [CLI_BIN, ...args], {
@@ -30,7 +30,7 @@ function runCli(args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv } 
 }
 
 /**
- * Runs `<producer> | mapflow <args>` through a real shell.
+ * Runs `<producer> | acstack <args>` through a real shell.
  *
  * A pipe stdin only behaves like the real thing when a real producer is on the
  * other end of it, so these tests build one rather than handing the CLI a
@@ -151,11 +151,11 @@ function countOccurrences(haystack: string, needle: string): number {
   return (haystack.match(new RegExp(escapeRegExp(needle), 'g')) ?? []).length;
 }
 
-/** A temp Mapflow project root: a directory holding mapflow/project.yaml. */
+/** A temp ACStack project root: a directory holding acstack/project.yaml. */
 function makeProject(): string {
-  const root = mkdtempSync(join(tmpdir(), 'mapflow-node-project-'));
-  mkdirSync(join(root, 'mapflow'), { recursive: true });
-  writeFileSync(join(root, 'mapflow', 'project.yaml'), '# test project\n');
+  const root = mkdtempSync(join(tmpdir(), 'acstack-node-project-'));
+  mkdirSync(join(root, 'acstack'), { recursive: true });
+  writeFileSync(join(root, 'acstack', 'project.yaml'), '# test project\n');
   return root;
 }
 
@@ -169,7 +169,7 @@ interface NodeFixture {
 
 /** Writes one node file, in the exact frontmatter+title+body shape nodes.ts reads. */
 function writeNodeFile(root: string, map: string, fixture: NodeFixture): void {
-  const dir = join(root, 'mapflow', 'maps', map);
+  const dir = join(root, 'acstack', 'maps', map);
   mkdirSync(dir, { recursive: true });
   const frontmatter = ['status: open', 'mode: hitl', 'kind: work', `label: ${JSON.stringify(fixture.title)}`];
   if (fixture.answers) frontmatter.push(`answers: "${fixture.answers}"`);
@@ -778,7 +778,7 @@ describe('enum rejections', () => {
 
 describe('kind from a stored file and from a label', () => {
   it('refuses a hand-edited file in the file schema wording, not the flag sentence', () => {
-    const dir = join(root, 'mapflow', 'maps', 'm');
+    const dir = join(root, 'acstack', 'maps', 'm');
     mkdirSync(dir, { recursive: true });
     const content =
       '---\nstatus: open\nmode: hitl\nkind: bogus\nlabel: "L"\nblocked-by: []\n---\n\n# T\n\nBody.\n';
@@ -860,6 +860,29 @@ describe('--body-file -', () => {
 // different sentence.
 // ---------------------------------------------------------------------------
 
+describe('--summary', () => {
+  const readSummary = (): unknown =>
+    (JSON.parse(runCli(['node', 'read', '001', '--map', 'm', '--json'], { cwd: root }).stdout) as {
+      summary: unknown;
+    }).summary;
+
+  it('is stored by create, replaced and cleared by update, and printed by --json', () => {
+    expect(runCli([...CREATE_ARGS, '--summary', 'Customers pay less.'], { cwd: root }).status).toBe(0);
+    expect(readSummary()).toBe('Customers pay less.');
+    const update = ['node', 'update', '001', '--map', 'm', '--summary'];
+    expect(runCli([...update, 'Orders ship faster.'], { cwd: root }).status).toBe(0);
+    expect(readSummary()).toBe('Orders ship faster.');
+    expect(runCli([...update, ''], { cwd: root }).status).toBe(0);
+    expect(readSummary()).toBeNull();
+  });
+
+  it('refuses a blank summary on create', () => {
+    const result = runCli([...CREATE_ARGS, '--summary', '  '], { cwd: root });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('summary must not be empty');
+  });
+});
+
 describe('--body-file - on a terminal', () => {
   it('names --body, the flag that takes the text directly', () => {
     const result = runTty([...CREATE_ARGS, '--body-file', '-'], { cwd: root });
@@ -891,7 +914,7 @@ describe('stdin window', () => {
     const producer = streamingProducer('stream.cjs', `${CHUNKS.join('\n')}\n`);
     const create = runPiped(producer, [...CREATE_ARGS, '--body-file', '-'], {
       cwd: root,
-      env: { MAPFLOW_STDIN_SILENCE_MS: '400' },
+      env: { ACSTACK_STDIN_SILENCE_MS: '400' },
     });
     expect(create.status).toBe(0);
     const read = runCli(['node', 'read', '001', '--map', 'm', '--json'], { cwd: root });
@@ -902,7 +925,7 @@ describe('stdin window', () => {
   it('refuses a pipe that opens and then stays silent past the window', () => {
     const create = runPiped(silentProducer('silent.cjs'), [...CREATE_ARGS, '--body-file', '-'], {
       cwd: root,
-      env: { MAPFLOW_STDIN_SILENCE_MS: '300' },
+      env: { ACSTACK_STDIN_SILENCE_MS: '300' },
     });
     expect(create.status).toBe(1);
     // The window is a silence, so the message names one. The old wording
@@ -916,7 +939,7 @@ describe('stdin window', () => {
     const producer = streamingProducer('issues.cjs', issuesJson());
     const result = runPiped(producer, ['node', 'diagram', '--stdin'], {
       cwd: root,
-      env: { MAPFLOW_STDIN_SILENCE_MS: '400' },
+      env: { ACSTACK_STDIN_SILENCE_MS: '400' },
     });
     expect(result.status).toBe(0);
     expect(result.stdout).toContain('n101');
@@ -941,7 +964,7 @@ describe('stdin window', () => {
   it('refuses a silent pipe on node diagram --stdin too', () => {
     const result = runPiped(silentProducer('silent-diagram.cjs'), ['node', 'diagram', '--stdin'], {
       cwd: root,
-      env: { MAPFLOW_STDIN_SILENCE_MS: '300' },
+      env: { ACSTACK_STDIN_SILENCE_MS: '300' },
     });
     expect(result.status).toBe(1);
     expect(result.stderr).toMatch(/silen(ce|t)/i);
@@ -953,21 +976,21 @@ describe('stdin window', () => {
     // to be told what to widen without going looking for it.
     const create = runPiped(silentProducer('silent-hint.cjs'), [...CREATE_ARGS, '--body-file', '-'], {
       cwd: root,
-      env: { MAPFLOW_STDIN_SILENCE_MS: '300' },
+      env: { ACSTACK_STDIN_SILENCE_MS: '300' },
     });
     expect(create.status).toBe(1);
     const lines = create.stderr.trimEnd().split('\n');
     expect(lines[0]).toMatch(/silen(ce|t)/i);
-    expect(lines[1]).toContain('MAPFLOW_STDIN_SILENCE_MS');
+    expect(lines[1]).toContain('ACSTACK_STDIN_SILENCE_MS');
   });
 
-  it('ignores the old MAPFLOW_STDIN_IDLE_MS name', () => {
+  it('ignores the old ACSTACK_STDIN_IDLE_MS name', () => {
     // A one-millisecond window would cut this producer off on the first read.
     // The old name opens no window, so the default thirty seconds stands and
     // the half-second wait is nothing.
     const create = runPiped('( sleep 0.5; echo hi )', [...CREATE_ARGS, '--body-file', '-'], {
       cwd: root,
-      env: { MAPFLOW_STDIN_IDLE_MS: '1' },
+      env: { ACSTACK_STDIN_IDLE_MS: '1' },
     });
     expect(create.status).toBe(0);
   });
@@ -985,7 +1008,7 @@ describe('node diagram refusals', () => {
     const result = runCli(['node', 'diagram', '--map', 'nope'], { cwd: root });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Map 'nope' does not exist");
-    expect(result.stderr).toContain(join(root, 'mapflow', 'maps', 'nope'));
+    expect(result.stderr).toContain(join(root, 'acstack', 'maps', 'nope'));
     expect(result.stderr).toContain('directory');
   });
 
@@ -1009,15 +1032,15 @@ describe('node diagram refusals', () => {
 // ---------------------------------------------------------------------------
 // A. workflow.maps.tracker: github
 //
-// The map lives in GitHub issues, so mapflow/maps/<name>/ is not there and
+// The map lives in GitHub issues, so acstack/maps/<name>/ is not there and
 // never will be. Every command that reads a map has to say so rather than
 // answer from an empty directory, because an empty answer reads as a finished
 // map and is the one wrong answer nobody checks.
 // ---------------------------------------------------------------------------
 
-/** Writes mapflow/project.yaml with the tracker set, or with no tracker key. */
+/** Writes acstack/project.yaml with the tracker set, or with no tracker key. */
 function setTracker(value: 'github' | 'files' | null): void {
-  const path = join(root, 'mapflow', 'project.yaml');
+  const path = join(root, 'acstack', 'project.yaml');
   const body = value === null ? '# test project\n' : `workflow:\n  maps:\n    tracker: ${value}\n`;
   writeFileSync(path, body);
 }
@@ -1160,7 +1183,7 @@ describe('a map directory that does not exist', () => {
 
       it.each(MISSING_MAP_COMMANDS)('$name names the missing directory', ({ args }) => {
         const result = runCli(args, { cwd: root });
-        expect(result.stderr).toContain(join(root, 'mapflow', 'maps', 'nope'));
+        expect(result.stderr).toContain(join(root, 'acstack', 'maps', 'nope'));
         expect(result.stderr).toContain('directory');
       });
 

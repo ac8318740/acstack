@@ -93,7 +93,7 @@ herdr tab rename <root_tab_id> <topic>-1.0
 
 # the quoted prompt is the FRESH AGENT opener in SKILL.md – use it verbatim
 herdr agent start <handoff-name> --kind claude --pane <root_pane_id> \
-  -- "Before any other tool call, acknowledge this handoff by running ~/.claude/mapflow/bin/mapflow handoff ack accept --file <handoff-file> \"<one-line reason>\", or ack decline --file <handoff-file> \"<one-line reason>\". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. Then continue that work."
+  -- "Before any other tool call, acknowledge this handoff by running ~/.claude/acstack/bin/acstack handoff ack accept --file <handoff-file> \"<one-line reason>\", or ack decline --file <handoff-file> \"<one-line reason>\". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. Then continue that work."
 ```
 
 `--label <slug>` names the workspace, and the rename names its first tab –
@@ -189,7 +189,7 @@ simply time out. Read the real state with `herdr agent get <pane-id>`, and carry
 on from there.
 
 Never write `hasTrustDialogAccepted` into `~/.claude.json`, and never edit any
-security settings file. Mapflow does not touch those.
+security settings file. ACStack does not touch those.
 
 ## Report the labels
 

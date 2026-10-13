@@ -1,4 +1,4 @@
-// The files backend for map nodes: mapflow/maps/<name>/NNN-slug.md.
+// The files backend for map nodes: acstack/maps/<name>/NNN-slug.md.
 //
 // This module is the whole tracker contract for the files backend – create,
 // read, update, list. Frontier, claim and resolve are compositions over these
@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { replaceFileAtomically } from './atomic-file.js';
-import { MAPFLOW_DIR, MAPS_DIR } from './constants.js';
+import { ACSTACK_DIR, MAPS_DIR } from './constants.js';
 import { ensureDir } from './utils.js';
 
 export const NODE_STATUSES = ['fog', 'open', 'claimed', 'resolved', 'out-of-scope'] as const;
@@ -79,6 +79,7 @@ export interface GraphNode {
   mode: NodeMode;
   kind: NodeKind;
   label: string;
+  summary?: string;
   answers?: string;
   blockedBy: string[];
   pinned: boolean;
@@ -93,6 +94,7 @@ export interface MapNode {
   mode: NodeMode;
   kind: NodeKind;
   label: string; // short name for drawing – see LABEL_MAX_WORDS and LABEL_MAX_CHARS
+  summary?: string; // one plain sentence for a business reader; the body stays technical
   answers?: string; // provenance parent id; absent only on the root
   blockedBy: string[];
   pinned: boolean;
@@ -106,6 +108,7 @@ export interface CreateNodeInput {
   mode?: NodeMode;
   kind: NodeKind;
   label: string;
+  summary?: string;
   answers?: string;
   blockedBy?: string[];
   pinned?: boolean;
@@ -118,6 +121,7 @@ export interface UpdateNodeInput {
   mode?: NodeMode;
   kind?: NodeKind; // no clear path – every node has a kind
   label?: string;
+  summary?: string; // an empty string clears it
   answers?: string;
   blockedBy?: string[];
   pinned?: boolean;
@@ -147,6 +151,14 @@ const frontmatterSchema = z.object({
       const problem = labelCapProblem(trimmed);
       if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem });
     }),
+  summary: z
+    .string()
+    .transform(value => value.trim())
+    .superRefine((trimmed, ctx) => {
+      const problem = summaryProblem(trimmed);
+      if (problem) ctx.addIssue({ code: z.ZodIssueCode.custom, message: problem });
+    })
+    .optional(),
   answers: idValue.optional(),
   'blocked-by': z.array(idValue).default([]),
   pinned: z.boolean().default(false),
@@ -167,7 +179,7 @@ export function bareId(reference: string): string {
 }
 
 export function mapDir(root: string, map: string): string {
-  return join(root, MAPFLOW_DIR, MAPS_DIR, map);
+  return join(root, ACSTACK_DIR, MAPS_DIR, map);
 }
 
 export function slugify(title: string): string {
@@ -254,6 +266,21 @@ function validateLabel(label: unknown): string {
   return trimmed;
 }
 
+// A summary is optional, so it has no caps – only a blank or a multi-line one
+// is refused, since neither is the one sentence the field is for.
+function summaryProblem(trimmed: string): string | undefined {
+  if (!trimmed) return 'must not be empty';
+  if (/[\r\n]/.test(trimmed)) return 'must be a single line';
+  return undefined;
+}
+
+function validateSummary(summary: string): string {
+  const trimmed = summary.trim();
+  const problem = summaryProblem(trimmed);
+  if (problem) throw new Error(`summary ${problem}`);
+  return trimmed;
+}
+
 /**
  * Ids compared as a reader writes them.
  *
@@ -332,6 +359,7 @@ function parseNodeFile(dir: string, file: string): MapNode {
     mode: parsed.data.mode,
     kind: parsed.data.kind,
     label: parsed.data.label,
+    summary: parsed.data.summary,
     answers: parsed.data.answers,
     blockedBy: parsed.data['blocked-by'],
     pinned: parsed.data.pinned,
@@ -378,6 +406,7 @@ function serializeNode(node: MapNode): string {
     `kind: ${node.kind}`,
     `label: ${JSON.stringify(node.label)}`,
   ];
+  if (node.summary) lines.push(`summary: ${JSON.stringify(node.summary)}`);
   if (node.answers) lines.push(`answers: "${node.answers}"`);
   lines.push(
     node.blockedBy.length > 0
@@ -458,6 +487,7 @@ export function createNode(root: string, map: string, input: CreateNodeInput): M
   const title = validateTitle(input.title);
   const kind = validateKind(input.kind);
   const label = validateLabel(input.label);
+  const summary = input.summary === undefined ? undefined : validateSummary(input.summary);
   const nodes = loadNodes(root, map);
   const answers = input.answers ? normalizeId(input.answers) : undefined;
   const blockedBy = (input.blockedBy ?? []).map(normalizeId);
@@ -480,6 +510,7 @@ export function createNode(root: string, map: string, input: CreateNodeInput): M
     mode: input.mode ?? 'hitl',
     kind,
     label,
+    summary,
     answers,
     blockedBy,
     pinned: input.pinned ?? false,
@@ -536,6 +567,9 @@ export function updateNode(
   if (input.mode !== undefined) node.mode = input.mode;
   if (input.kind !== undefined) node.kind = validateKind(input.kind);
   if (input.label !== undefined) node.label = validateLabel(input.label);
+  if (input.summary !== undefined) {
+    node.summary = input.summary.trim() ? validateSummary(input.summary) : undefined;
+  }
   if (input.pinned !== undefined) node.pinned = input.pinned;
   if (input.body !== undefined) node.body = input.body;
   if (input.appendBody !== undefined) {

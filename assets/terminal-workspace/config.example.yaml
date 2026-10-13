@@ -1,16 +1,16 @@
-# Mapflow terminal workspace.
-# Copy to ~/.config/mapflow/terminal-workspace.yaml, edit, then run
+# ACStack terminal workspace.
+# Copy to ~/.config/acstack/terminal-workspace.yaml, edit, then run
 # setup.sh apply.
 #
 # This is machine-level, not per-project. It installs binaries and writes
-# keybindings for your user, so it does not belong in mapflow/project.yaml.
+# keybindings for your user, so it does not belong in acstack/project.yaml.
 #
 # What each component is, every key, and the traps worth knowing:
-# docs/terminal-workspace.md in the Mapflow plugin.
+# docs/terminal-workspace.md in the ACStack plugin.
 #
 # A key here never carries a hyphen, so gh-dash is gh_dash. The last two
-# blocks name a feature rather than a binary: markdown is mapflow-md, and
-# remote is mapflow-clip plus mapflow-open.
+# blocks name a feature rather than a binary: markdown is acstack-md, and
+# remote is acstack-clip plus acstack-open.
 
 # Master switch. With this false, apply exits without installing anything.
 # It removes nothing either. Use setup.sh uninstall for that.
@@ -177,7 +177,7 @@ harlequin:
   # harlequin-<name> package alongside it. Adding one and running apply again
   # reinstalls harlequin with the new set.
   adapters: [postgres, snowflake]
-  # Your connection profiles. mapflow writes a starter file here the first time
+  # Your connection profiles. acstack writes a starter file here the first time
   # you press the key, and never writes it again - what is in it is yours.
   #
   #   default_profile = "local"
@@ -190,16 +190,16 @@ harlequin:
   # schema, or a single connection_name pointing at a connection in
   # ~/.snowflake/connections.toml. Prefer the second: it keeps the secret out
   # of this file.
-  config_path: "~/.config/mapflow/harlequin.toml"
+  config_path: "~/.config/acstack/harlequin.toml"
 
 pi:
   # Off by default, because it writes into pi's own config in ~/.pi/agent.
   # pi is a coding agent in the terminal. Turning this on installs it with npm
-  # if it is missing, then installs Mapflow into it, pinned to this plugin's
-  # version, with pi-subagents, which Mapflow needs to launch a subagent.
+  # if it is missing, then installs ACStack into it, pinned to this plugin's
+  # version, with pi-subagents, which ACStack needs to launch a subagent.
   #
   # It also writes one line into pi's context file in ~/.pi/agent (AGENTS.md
-  # by default) that lets pi delegate when a Mapflow skill says to.
+  # by default) that lets pi delegate when an ACStack skill says to.
   # It sets "toolActivation": "eager" in
   # ~/.pi/agent/extensions/subagent/config.json. It binds
   # "app.message.dequeue" to "ctrl+enter" in ~/.pi/agent/keybindings.json.
@@ -226,6 +226,10 @@ pi:
   # pi.settings.install_telemetry, which controls pi's anonymous install and
   # update reporting and stays false in this example.
   web_access: true
+  # pi-lens, which adds diagnostics, code-intelligence tools and local
+  # observability logs to pi. Off by default because it is a heavier dev-tool
+  # layer and may download helper tools when pi-lens needs them.
+  lens: false
   # pi-slash-anywhere, which lets slash commands run from any prompt.
   slash_anywhere: true
   # agentic-retro's pi extension, which queues each finished pi session for a
@@ -266,8 +270,8 @@ neovim:
   enabled: false
   # LazyVim marks an unsaved buffer by recolouring the filename and nothing
   # else, so a glance at the statusline cannot tell you a buffer is modified.
-  # Turning this on writes ~/.config/nvim/lua/plugins/mapflow.lua, a whole
-  # file of mapflow's own, which appends a dot to the statusline for a
+  # Turning this on writes ~/.config/nvim/lua/plugins/acstack.lua, a whole
+  # file of acstack's own, which appends a dot to the statusline for a
   # modified buffer, and makes copy work over SSH (osc52_clipboard below).
   # It never edits a file you wrote, and
   # `setup.sh disable neovim` deletes it again.
@@ -285,7 +289,7 @@ neovim:
 yazi:
   enabled: true
   # A file manager. Markdown renders live in the preview pane through
-  # mapflow-md, so a document draws as the cursor moves over it. Enter opens
+  # acstack-md, so a document draws as the cursor moves over it. Enter opens
   # the same renderer full width, where more of a diagram fits.
   # A popup, leaving the tab layout alone.
   popup_key: "alt+y"
@@ -310,10 +314,10 @@ yazi:
 
 markdown:
   enabled: true
-  # This component installs three tools: mapflow-md, mermaid-ascii and glow.
-  # mapflow-md draws a markdown file in the terminal, calling glow for the
+  # This component installs three tools: acstack-md, mermaid-ascii and glow.
+  # acstack-md draws a markdown file in the terminal, calling glow for the
   # prose and mermaid-ascii for the diagrams. A mermaid diagram is a diagram
-  # written as text in the file itself. mapflow-md can also serve the same
+  # written as text in the file itself. acstack-md can also serve the same
   # file to a real browser, for the diagrams worth studying.
   #
   # Text rather than inline images is deliberate. herdr emits the kitty
@@ -322,7 +326,7 @@ markdown:
   # text far better than bitmaps. The fast refresh modes an interactive
   # terminal needs are the ones that drop the greyscale depth an image needs.
   #
-  # mapflow-md --serve takes its port from $MAPFLOW_MD_PORT and falls back to
+  # acstack-md --serve takes its port from $ACSTACK_MD_PORT and falls back to
   # 6419. Forward whichever port you serve on, or the link --serve prints is
   # unreachable from your laptop.
 
@@ -333,12 +337,12 @@ remote:
   # The dev machine – the remote machine your agents run on, a virtual machine
   # in this setup – has no display and no clipboard. Anything that shells out
   # to xclip fails, and xdg-open exits 1. Two programs close the gap.
-  # mapflow-clip sends text to your own terminal's clipboard over OSC 52, an
+  # acstack-clip sends text to your own terminal's clipboard over OSC 52, an
   # escape sequence a terminal reads as "put this text on the clipboard of the
-  # machine I am running on". mapflow-open finds whatever browser is actually
+  # machine I am running on". acstack-open finds whatever browser is actually
   # reachable.
   #
-  # Install an xclip stand-in backed by mapflow-clip. Programs that only know
+  # Install an xclip stand-in backed by acstack-clip. Programs that only know
   # how to shell out – gh-dash's y and Y among them – then copy correctly.
   # Skipped when the machine has a real xclip or a display of its own.
   clipboard_shim: true

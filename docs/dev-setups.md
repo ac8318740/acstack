@@ -2,14 +2,14 @@
 
 *One file per machine records what that machine has installed. A skill never has to guess.*
 
-You run Mapflow on more than one machine. Those machines are not the same.
+You run ACStack on more than one machine. Those machines are not the same.
 
 - **One has herdr installed, another has Orca, a third has neither**
 - **One can drive a real Chrome window**
 - **Another has no display at all**
 - **A skill cannot guess which**
-    - Each machine answers nine questions once, with `/mapflow:host` and `/mapflow:setup`
-- **The answers live in `~/.config/mapflow/config.json`** as `host.*` keys
+    - Each machine answers nine questions once, with `/acstack:host` and `/acstack:setup`
+- **The answers live in `~/.config/acstack/config.json`** as `host.*` keys
 - **The worktree skills and the frontend verifier read them** instead of probing
 
 Four terms first.
@@ -21,14 +21,14 @@ Four terms first.
 
 ```mermaid
 flowchart TD
-    HOST["Describe this machine once<br/>(/mapflow:host - section 4)"] --> AXES["Every axis, and what reads it<br/>(host.* in ~/.config/mapflow/config.json - section 1)"]
+    HOST["Describe this machine once<br/>(/acstack:host - section 4)"] --> AXES["Every axis, and what reads it<br/>(host.* in ~/.config/acstack/config.json - section 1)"]
     AXES --> ORCH["Orchestrator axes<br/>(host.orchestrators.* - section 2)"]
     AXES --> BROW["Browser axes<br/>(host.browser.* - section 3)"]
     AXES --> OPT["Optional axes<br/>(preview, terminal workspace, element picker, Orca topology)"]
     ORCH -->|"pick the worktree tool"| WT["new-worktree, teardown-worktree"]
     BROW -->|"pick the browser"| FV["frontend-verifier"]
-    PROJ["What this project prefers<br/>(frontend.browser.* in mapflow/project.yaml)"] --> FV
-    OPT -.->|"nothing reads them yet"| CHK["mapflow config check lists them"]
+    PROJ["What this project prefers<br/>(frontend.browser.* in acstack/project.yaml)"] --> FV
+    OPT -.->|"nothing reads them yet"| CHK["acstack config check lists them"]
 ```
 
 ## 1. Every axis, and what reads it
@@ -39,23 +39,23 @@ flowchart TD
 | --- | --- | --- | --- | --- |
 | `host.orchestrators.herdr` | `true`, `false` | yes | global config | `detect-orchestrator.sh`, so both worktree skills; check 2 runs `herdr api snapshot` |
 | `host.orchestrators.orca` | `true`, `false` | yes | global config | the same detector; check 2 runs `orca-ide status --json` |
-| `host.browser.remote` | `true`, `false` | yes, with a frontend | global config | `mapflow config browser-mode`, so `frontend-verifier`; checks 3 and 4 |
+| `host.browser.remote` | `true`, `false` | yes, with a frontend | global config | `acstack config browser-mode`, so `frontend-verifier`; checks 3 and 4 |
 | `host.browser.headless` | `true`, `false` | yes, with a frontend | global config | the same |
 | `host.browser.local` | `true`, `false` | yes, with a frontend | global config | the same |
 | `host.preview.tailscale_serve` | `true`, `false` | no | global config | nothing; check 5 lists it |
-| `host.terminal_workspace` | `true`, `false` | no | global config | `/mapflow:setup` offers the workspace once, and never asks again after this is set |
+| `host.terminal_workspace` | `true`, `false` | no | global config | `/acstack:setup` offers the workspace once, and never asks again after this is set |
 | `host.element_picker` | `stagewise`, `orca-design-mode`, `none` | no | global config | nothing; check 5 lists it |
 | `host.orca.topology` | `local`, `remote` | no | global config | nothing; check 5 marks it inert unless `host.orchestrators.orca` is `true` |
-| `frontend.browser.mode` | `remote`, `headless`, `local` | no | `mapflow/project.yaml` | the preference, weighed against the three host axes |
-| `frontend.browser.cdp_port` | a port number | no | `mapflow/project.yaml` | `frontend-verifier`; defaults to `19988` for `remote` and `9555` otherwise |
-| `frontend.browser.fallback` | `none`, or any word | no | `mapflow/project.yaml` | only `none` acts: it forbids a stand-in mode |
+| `frontend.browser.mode` | `remote`, `headless`, `local` | no | `acstack/project.yaml` | the preference, weighed against the three host axes |
+| `frontend.browser.cdp_port` | a port number | no | `acstack/project.yaml` | `frontend-verifier`; defaults to `19988` for `remote` and `9555` otherwise |
+| `frontend.browser.fallback` | `none`, or any word | no | `acstack/project.yaml` | only `none` acts: it forbids a stand-in mode |
 
 Where the file lives, and how the CLI reads a value:
 
-- The global config is a JSON file at `~/.config/mapflow/config.json`
+- The global config is a JSON file at `~/.config/acstack/config.json`
     - It moves under `$XDG_CONFIG_HOME` when you set that variable
-    - Run `~/.claude/mapflow/bin/mapflow config path` for the real location
-- `mapflow config show` prints every axis with the project's settings
+    - Run `~/.claude/acstack/bin/acstack config path` for the real location
+- `acstack config show` prints every axis with the project's settings
 - The CLI matches an enum value case-sensitively
     - `stagewise` works, and `Stagewise` does not
 - The CLI matches a boolean loosely: `true`, `yes`, and `on` all mean true, and `false`, `no`, and `off` all mean false
@@ -131,30 +131,30 @@ How the two sides meet:
 - The first mode the host does declare stands in, when the host does not declare that mode
 - The order is remote, headless, local
 - Setting `frontend.browser.fallback` to `none` refuses any stand-in and fails instead
-- `~/.claude/mapflow/bin/mapflow config browser-mode` applies those rules and prints the answer with its reason
+- `~/.claude/acstack/bin/acstack config browser-mode` applies those rules and prints the answer with its reason
 - The frontend verifier runs that command instead of choosing for itself
 
 ## 4. Describe this machine once
 
 *Eight steps. Each install plans before it touches anything.*
 
-1. Run `/mapflow:host`. It detects what is here, then asks about every axis.
+1. Run `/acstack:host`. It detects what is here, then asks about every axis.
 2. Detection never decides a required axis. It only pre-fills the recommended answer.
 3. On Linux the skill offers two installs. Each one plans first and waits for approval.
 4. `install-orca.sh --plan` lists the steps, and `--apply` runs them. It installs the AppImage, the `orca-ide` and `orca` symlinks, and a systemd user unit.
 5. The apply prints the pairing URL only when it started or restarted the server. The journal must already hold the readiness line. Otherwise it prints the `journalctl` command to run by hand.
 6. `install-herdr-block.sh --plan` lists the steps, and `--apply` writes the block. The block goes into `~/.config/herdr/config.toml`. It names the directory herdr creates worktrees under.
-7. Run `~/.claude/mapflow/bin/mapflow config check`. It prints five numbered checks.
+7. Run `~/.claude/acstack/bin/acstack config check`. It prints five numbered checks.
 8. Read its exit code. It exits 2 on an unset required axis, 1 on any other failure, and 0 when everything passes.
 
-This skill asks eight of the nine axes. `/mapflow:setup` asks the ninth, at
+This skill asks eight of the nine axes. `/acstack:setup` asks the ninth, at
 the end of its own run, and writes `host.terminal_workspace` from the answer.
 
-- The offer comes last on purpose: the workspace installs binaries, and nothing in Mapflow needs it
+- The offer comes last on purpose: the workspace installs binaries, and nothing in ACStack needs it
 - Either answer ends the offer for good
-- After a `true` answer, `/mapflow:setup` re-checks this machine on every later run and offers `upgrade` when a tool or a component has moved on
+- After a `true` answer, `/acstack:setup` re-checks this machine on every later run and offers `upgrade` when a tool or a component has moved on
 - The key records the answer, never the install: `true` means the user said yes, not that the workspace is on the machine
-- `/mapflow:terminal-workspace` is the only thing that installs it, and only you can start it
+- `/acstack:terminal-workspace` is the only thing that installs it, and only you can start it
 
 Four things stay yours.
 

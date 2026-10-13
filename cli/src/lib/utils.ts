@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readSync, readdirSync } from 'node
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import chalk from 'chalk';
-import { MAPFLOW_DIR, CHANGES_DIR, SPECS_DIR, ARCHIVE_DIR } from './constants.js';
+import { ACSTACK_DIR, CHANGES_DIR, SPECS_DIR, ARCHIVE_DIR } from './constants.js';
 import { findProjectRoot } from './project.js';
 
 /**
@@ -45,7 +45,7 @@ export function readMarkdown(path: string): string | null {
 }
 
 export function listChanges(root: string): string[] {
-  const dir = join(root, MAPFLOW_DIR, CHANGES_DIR);
+  const dir = join(root, ACSTACK_DIR, CHANGES_DIR);
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter(e => e.isDirectory() && e.name !== ARCHIVE_DIR)
@@ -53,7 +53,7 @@ export function listChanges(root: string): string[] {
 }
 
 export function listSpecs(root: string): string[] {
-  const dir = join(root, MAPFLOW_DIR, SPECS_DIR);
+  const dir = join(root, ACSTACK_DIR, SPECS_DIR);
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter(e => e.isDirectory())
@@ -61,7 +61,7 @@ export function listSpecs(root: string): string[] {
 }
 
 export function listArchivedChanges(root: string): string[] {
-  const dir = join(root, MAPFLOW_DIR, CHANGES_DIR, ARCHIVE_DIR);
+  const dir = join(root, ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR);
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter(e => e.isDirectory())
@@ -69,7 +69,7 @@ export function listArchivedChanges(root: string): string[] {
 }
 
 export function requireProject(root: string | null): asserts root is string {
-  if (!root) fail('Not in a Mapflow project. Run `/mapflow:setup` first.');
+  if (!root) fail('Not in an ACStack project. Run `/acstack:setup` first.');
 }
 
 /**
@@ -81,12 +81,12 @@ export function requireProject(root: string | null): asserts root is string {
  * it turns a thrown error into a stack trace, which is why the preamble is one
  * wrapper rather than four lines each action repeats.
  */
-export function inProject<A extends unknown[]>(action: (root: string, ...args: A) => void) {
-  return (...args: A): void => {
+export function inProject<A extends unknown[]>(action: (root: string, ...args: A) => void | Promise<void>) {
+  return async (...args: A): Promise<void> => {
     const root = findProjectRoot();
     requireProject(root);
     try {
-      action(root, ...args);
+      await action(root, ...args);
     } catch (err) {
       fail((err as Error).message, errorHint(err));
     }
@@ -112,13 +112,13 @@ const CHUNK_BYTES = 64 * 1024;
 const DEFAULT_STDIN_SILENCE_MS = 30_000;
 // A genuinely slow producer needs a wider window, and the tests need a much
 // narrower one. Both read the same knob.
-const STDIN_SILENCE_ENV = 'MAPFLOW_STDIN_SILENCE_MS';
+const STDIN_SILENCE_ENV = 'ACSTACK_STDIN_SILENCE_MS';
 
 // The refusal for a caller that names no sentence of its own. `node diagram
 // --stdin` is that caller, and the pipe it names is the one it documents.
 const TTY_REFUSAL =
   'nothing is piped into stdin - stdin is a terminal. Pipe the input in, ' +
-  'as in `gh issue list --json ... | mapflow ...`.';
+  'as in `gh issue list --json ... | acstack ...`.';
 
 /** The silence window in milliseconds, from the environment or the default. */
 function stdinSilenceMs(): number {
@@ -130,7 +130,7 @@ function stdinSilenceMs(): number {
  * Read the whole of stdin, synchronously.
  *
  * `readFileSync(0)` alone is not enough. When the producer is slower to answer
- * than this process is to start - `gh issue list | mapflow ...` always is - the
+ * than this process is to start - `gh issue list | acstack ...` always is - the
  * pipe is still empty on the first read, and a non-blocking fd 0 answers EAGAIN
  * rather than waiting. So the read retries on EAGAIN with a short nap between
  * tries, and stops on the end of the pipe.

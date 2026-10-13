@@ -119,7 +119,7 @@ Copy every file from the plugin into `%USERPROFILE%\playwriter-bridge\`:
 `register-tasks.ps1` refuses to run when `relay.ps1`, `tunnel.ps1`,
 `opener.ps1` or `opener.js` is missing from this directory.
 
-They live in the plugin at `plugins/mapflow/assets/playwriter-bridge/`.
+They live in the plugin at `plugins/acstack/assets/playwriter-bridge/`.
 The same directory holds `vm-free-port.sh`, which belongs on the VM. You
 do not need that file on Windows.
 
@@ -245,7 +245,7 @@ the recipe starts them all again.
 
 ### Updates (automatic)
 
-After initial setup you do not re-copy scripts by hand. The Mapflow
+After initial setup you do not re-copy scripts by hand. The ACStack
 SessionStart hook runs `sync.ps1` on each Claude Code launch. `sync.ps1`
 compares the deployed scripts in `%USERPROFILE%\playwriter-bridge\` against
 the plugin cache by content hash.
@@ -299,7 +299,7 @@ Two tasks run it:
 Every request from a VM carries a shared secret called the opener token.
 `register-tasks.ps1` generates it and stores it at
 `%LOCALAPPDATA%\playwriter-bridge\opener.token`. It then pushes the token over
-`ssh` to `~/.config/mapflow/opener.token` on each VM.
+`ssh` to `~/.config/acstack/opener.token` on each VM.
 
 The token is not optional. The reverse tunnel makes 19989 reachable by
 anything running on the VM, and this service puts pages on your screen.

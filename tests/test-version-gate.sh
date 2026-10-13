@@ -45,7 +45,7 @@ make_base_repo() {
     git init -q -b main
     git config user.email "test@example.com"
     git config user.name "Test"
-    mkdir -p .claude-plugin docs/adr skills/foo .github/workflows .claude mapflow tests
+    mkdir -p .claude-plugin docs/adr skills/foo .github/workflows .claude acstack tests
     printf '{\n  "version": "%s"\n}\n' "$ver" > .claude-plugin/plugin.json
     echo "readme"    > README.md
     echo "contrib"   > CONTRIBUTING.md
@@ -58,7 +58,7 @@ make_base_repo() {
     echo "cli code"  > cli.js
     echo "ci"        > .github/workflows/ci.yml
     echo "settings"  > .claude/settings.json
-    echo "spec"      > mapflow/specs.md
+    echo "spec"      > acstack/specs.md
     echo "test"      > tests/test-x.sh
     git add -A
     git commit -q -m "base"
@@ -253,11 +253,11 @@ check "stderr mentions the output style file"       'grep -q "output-styles/ac-w
 echo "Case 14: package.json and plugin.json both bumped to 0.15.4"
 REPO="$WORK/case14"
 make_base_repo "$REPO"
-(cd "$REPO" && printf '{\n  "name": "mapflow",\n  "version": "0.15.3"\n}\n' > package.json && git add package.json && git commit -q -m "pi manifest")
+(cd "$REPO" && printf '{\n  "name": "acstack",\n  "version": "0.15.3"\n}\n' > package.json && git add package.json && git commit -q -m "pi manifest")
 new_branch "$REPO" feature
 (cd "$REPO" && echo "skill v2" > skills/foo/SKILL.md && git add skills/foo/SKILL.md && git commit -q -m "skill update")
 set_version "$REPO" "0.15.4"
-(cd "$REPO" && printf '{\n  "name": "mapflow",\n  "version": "0.15.4"\n}\n' > package.json && git add -A && git commit -q -m "bump version")
+(cd "$REPO" && printf '{\n  "name": "acstack",\n  "version": "0.15.4"\n}\n' > package.json && git add -A && git commit -q -m "bump version")
 run_gate "$REPO" main feature
 CODE=$?
 check "exits 0"                                     '[ "$CODE" -eq 0 ]'
@@ -266,7 +266,7 @@ check "exits 0"                                     '[ "$CODE" -eq 0 ]'
 echo "Case 15: plugin.json bumped to 0.15.4, package.json still 0.15.3"
 REPO="$WORK/case15"
 make_base_repo "$REPO"
-(cd "$REPO" && printf '{\n  "name": "mapflow",\n  "version": "0.15.3"\n}\n' > package.json && git add package.json && git commit -q -m "pi manifest")
+(cd "$REPO" && printf '{\n  "name": "acstack",\n  "version": "0.15.3"\n}\n' > package.json && git add package.json && git commit -q -m "pi manifest")
 new_branch "$REPO" feature
 (cd "$REPO" && echo "skill v2" > skills/foo/SKILL.md && git add skills/foo/SKILL.md && git commit -q -m "skill update")
 set_version "$REPO" "0.15.4"
