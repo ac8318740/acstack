@@ -58,7 +58,12 @@ jobs:
           node-version: '22'
           registry-url: https://registry.npmjs.org
 
-      - name: Publish to npm
+      - name: Install npm with staged publish support
+        run: |
+          npm install -g npm@11.19.0
+          npm --version
+
+      - name: Stage npm release
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
@@ -70,7 +75,8 @@ jobs:
             exit 1
           fi
           if npm view "${name}@${version}" version >/dev/null 2>&1; then
-            echo "npm: ${name}@${version} already published, nothing to do."
+            echo "npm: ${name}@${version} already published, nothing to stage."
             exit 0
           fi
-          npm publish --access public --provenance
+          npm stage publish . --access public --provenance
+          echo "npm: staged ${name}@${version}. Approve it on npmjs.com to publish."
