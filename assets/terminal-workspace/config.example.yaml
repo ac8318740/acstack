@@ -217,7 +217,10 @@ pi:
   # markdown, code and artifact previews beside a decision, accepts freeform
   # answers and notes, and does not require a full-event telemetry env var.
   question_tool: true
-  # rpiv-todo, which adds a todo tool to pi.
+  # rpiv-todo, which adds a todo tool to pi. When this is on, apply also
+  # suggests a line for the user's global ~/.pi/agent/AGENTS.md if their Pi
+  # context file does not already mention todo discipline. It never edits that
+  # user-owned file for them.
   todo: true
   # pi-plugin-manager, which adds pi plugin management commands.
   plugin_manager: true

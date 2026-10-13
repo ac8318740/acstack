@@ -359,6 +359,7 @@ What `apply` does:
     - Setup leaves Claude Code and Codex alone, and removes bili from them if an older setup added it
     - Set `pi.billion_context: false` to leave it out, or to remove it later if this setup installed it
 - It installs `@juicesharp/rpiv-todo` and `pi-plugin-manager` by default
+    - When todo is on, `apply` suggests a todo-discipline line for the user's global Pi context file if it is missing
     - Set `pi.todo: false` or `pi.plugin_manager: false` to leave either package out
 - It installs `@juicesharp/rpiv-ask-user-question` as pi's question tool by default
     - ACStack uses it because decisions can include markdown, code and artifact previews

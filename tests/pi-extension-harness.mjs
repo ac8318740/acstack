@@ -61,7 +61,11 @@ function newProject(name, { acstack = true } = {}) {
 }
 
 function promptEvent() {
-  return { type: 'before_agent_start', prompt: 'hi', systemPrompt: '', systemPromptOptions: { sections: {} } };
+  return { type: 'before_agent_start', messageType: 'user', prompt: 'hi', images: [], systemPrompt: '', systemPromptOptions: { sections: {} } };
+}
+
+function customEvent() {
+  return { type: 'before_agent_start', messageType: 'custom', message: { customType: 'test', content: 'hi' }, systemPrompt: '', systemPromptOptions: { sections: {} } };
 }
 
 const wrapper = path.join(root, 'cli', 'bin', 'acstack.js');
@@ -163,21 +167,18 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   const ctx = makeCtx(newProject('style'));
   const settings = path.join(home, '.pi', 'agent', 'acstack.json');
 
-  const off = promptEvent();
-  const offResult = await fire(reg, 'before_agent_start', off, ctx);
-  check('writing style is off by default',
-    !off.systemPromptOptions.sections['acstack-writing-style'] && offResult === undefined);
-
-  await reg.commands['acstack-writing-style'].handler('on', ctx);
-  check('the command persists on', JSON.parse(fs.readFileSync(settings, 'utf-8')).writingStyle === true);
-
   const on = promptEvent();
   const onResult = await fire(reg, 'before_agent_start', on, ctx);
   const style = on.systemPromptOptions.sections['acstack-writing-style'] ?? '';
-  check('adds the style to the system prompt without its frontmatter',
+  check('adds the default style to the system prompt without its frontmatter',
     style.startsWith('# ac writing style') && style.includes('## Before you send'));
-  check('the reminder rides along as a hidden message',
+  check('the reminder rides along as a hidden message for user turns',
     onResult?.message?.customType === 'acstack-writing-style-reminder' && onResult.message.display === false);
+
+  const custom = customEvent();
+  const customResult = await fire(reg, 'before_agent_start', custom, ctx);
+  check('custom-triggered turns get the style without the reminder',
+    custom.systemPromptOptions.sections['acstack-writing-style'] === style && customResult === undefined);
 
   // The reminder must match what the Claude hook emits from the same file.
   const hookHome = path.join(work, 'hook-home');
@@ -187,12 +188,32 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
     cwd: work, input: '', env: { ...process.env, HOME: hookHome, CLAUDE_PLUGIN_ROOT: root },
   }).toString();
   const hookContext = JSON.parse(hookOut).hookSpecificOutput.additionalContext;
-  check('the reminder matches hooks/ac-writing-style-reminder.sh', onResult?.message?.content === hookContext);
+  check('the default reminder matches hooks/ac-writing-style-reminder.sh', onResult?.message?.content === hookContext);
 
   await reg.commands['acstack-writing-style'].handler('off', ctx);
-  const again = promptEvent();
-  await fire(reg, 'before_agent_start', again, ctx);
-  check('the command turns it back off', !again.systemPromptOptions.sections['acstack-writing-style']);
+  const off = promptEvent();
+  const offResult = await fire(reg, 'before_agent_start', off, ctx);
+  check('the writing style command can turn injection off',
+    !off.systemPromptOptions.sections['acstack-writing-style'] && offResult === undefined);
+
+  const customFile = path.join(ctx.cwd, 'custom-writing-style.md');
+  fs.writeFileSync(customFile, `---\nname: mine\n---\n# custom style\n\n## Who you are\n\n### Custom persona\n\n- Write like me\n\n## Shape: Minto pyramid\n\n## Before you send\n\n1. Check the custom style\n`);
+  await reg.commands['acstack-writing-style'].handler('custom ./custom-writing-style.md', ctx);
+  const customStyleEvent = promptEvent();
+  const customStyleResult = await fire(reg, 'before_agent_start', customStyleEvent, ctx);
+  const customStyle = customStyleEvent.systemPromptOptions.sections['acstack-writing-style'] ?? '';
+  check('the writing style command can use a user-owned custom file',
+    customStyle.startsWith('# custom style') && customStyle.includes('Check the custom style'));
+  check('the custom style reminder comes from the custom file',
+    customStyleResult?.message?.content.includes('Custom persona') && customStyleResult.message.content.includes('Check the custom style'));
+  check('the custom style path is persisted outside the package as an absolute path',
+    JSON.parse(fs.readFileSync(settings, 'utf-8')).writingStyle.path === customFile);
+
+  await reg.commands['acstack-writing-style'].handler('default', ctx);
+  const defaultAgain = promptEvent();
+  await fire(reg, 'before_agent_start', defaultAgain, ctx);
+  check('the writing style command can return to the bundled default',
+    defaultAgain.systemPromptOptions.sections['acstack-writing-style'] === style);
 }
 
 // --- context pressure -----------------------------------------------------------

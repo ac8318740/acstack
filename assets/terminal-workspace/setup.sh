@@ -3886,6 +3886,17 @@ pi_npm_pin() {  # pi_npm_pin <name>
   [ "$src" != "npm:$1" ]
 }
 
+pi_suggest_todo_discipline() {
+  local needle="When using a todo list, keep it current as work completes."
+  grep -qsF "$needle" "$PI_DIR"/AGENTS.override.md "$PI_DIR"/AGENTS.md "$PI_DIR"/AGENTS.MD \
+    "$PI_DIR"/CLAUDE.md "$PI_DIR"/CLAUDE.MD && return 0
+  say "pi: todo tool installed. For stricter todo discipline, ask the agent"
+  say "pi: running this setup to hand-edit $PI_DIR/AGENTS.md and add:"
+  say "pi: $needle Before reporting a task as done, check the todo list"
+  say "pi: and mark every completed step completed. Do not leave stale"
+  say "pi: in-progress or pending todos after a commit, PR, merge or workflow gate."
+}
+
 # The pin apply would move to, or nothing when the installed one is current
 # or newer. A newer pin is one the user chose, so it is never moved back.
 pi_acstack_behind() {
@@ -3977,6 +3988,7 @@ apply_pi() {
   pi_add npm:pi-subagents npm:pi-subagents
   if [ "$(cfg_get pi.todo true)" = "true" ]; then
     pi_add npm:@juicesharp/rpiv-todo npm:@juicesharp/rpiv-todo
+    pi_suggest_todo_discipline
   else
     pi_drop npm:@juicesharp/rpiv-todo
   fi
