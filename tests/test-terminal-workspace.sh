@@ -4743,6 +4743,17 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
   iw uninstall >/dev/null
 
+  # The old git install is the user's, so apply names it and leaves it.
+  printf '{\n  "packages": ["git:github.com/ac8318740/spechub@v0.42.0"]\n}\n' > "$ISET"
+  out=$(iw apply)
+  if jget "$ISET" packages | grep -qF 'spechub@v0.42.0' \
+     && printf '%s' "$out" | grep -qF 'run: pi remove git:github.com/ac8318740/spechub@v0.42.0'; then
+    ok "apply names an old git ACStack install and leaves it"
+  else
+    no "apply names an old git ACStack install and leaves it (said: $(flat "$out"))"
+  fi
+  iw disable pi >/dev/null
+
   # A newer pin than this plugin is one the user chose, and stays.
   printf '{\n  "packages": ["npm:acstack@999.0.0"]\n}\n' > "$ISET"
   iw apply >/dev/null
