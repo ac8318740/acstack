@@ -69,7 +69,7 @@ ls -d ~/.claude/plugins/cache/spechub/acstack/*/ 2>&1
 
 - **Plugin cache missing entirely**: the second `ls` returned nothing
     - Fix: the user has not installed the plugin
-    - Run `/plugin marketplace add ac8318740/acstack`, then `/plugin install acstack@spechub` in Claude Code
+    - Run `/plugin marketplace add ac8318740/ac-agentic-coding`, then `/plugin install acstack@ac-agentic-coding` in Claude Code
 
 ---
 
