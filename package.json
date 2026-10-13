@@ -1,12 +1,12 @@
 {
   "name": "acstack",
-  "version": "0.48.3",
+  "version": "0.48.5",
   "private": false,
   "description": "Agentic coding stack with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ac8318740/spechub.git"
+    "url": "git+https://github.com/ac8318740/acstack.git"
   },
   "keywords": [
     "pi-package",

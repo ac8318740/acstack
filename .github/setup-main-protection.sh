@@ -25,7 +25,7 @@
 
 set -euo pipefail
 
-REPO="${REPO:-ac8318740/spechub}"
+REPO="${REPO:-ac8318740/acstack}"
 
 say() { printf '\n== %s\n' "$*"; }
 

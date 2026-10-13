@@ -1,6 +1,6 @@
 # acstack-cli
 
-The command-line half of [ACStack](https://github.com/ac8318740/spechub) – a
+The command-line half of [ACStack](https://github.com/ac8318740/acstack) – a
 map-based agentic coding workflow where an agent plans changes as a graph of
 nodes before writing code.
 

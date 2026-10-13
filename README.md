@@ -49,8 +49,8 @@ You need the Claude Code CLI and Node.js 20 or later.
 Install the plugin:
 
 ```
-/plugin marketplace add ac8318740/spechub
-/plugin install acstack@spechub
+/plugin marketplace add ac8318740/ac-agentic-coding
+/plugin install acstack@ac-agentic-coding
 ```
 
 Then, in your project:
