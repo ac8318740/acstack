@@ -29,9 +29,11 @@ session.
    nothing else. Never ask a question whose answer depends on one still open.
 
 2. **Facts are your job, never the user's.** Skip a question that an
-   environment fact would answer. Dispatch parallel `Explore` subagents, one
-   per distinct place to look, not a fixed count. Fold what they find into
-   the round.
+   environment fact would answer.
+
+   Dispatch parallel read-only codebase-search subagents, one per distinct
+   place to look, not a fixed count. Use `Explore` on Claude Code and `scout`
+   on pi. Fold what they find into the round.
 
 3. **Run it before you ask it.** Check whether running something could answer
    the question – behaviour, timing, output, or performance. If it could,
@@ -106,8 +108,8 @@ the tracker's `update` and `create` operations:
     Write the answer per the `writing` skill.
 
 2. Create a node for each new question the answer surfaced, with `answers`
-   naming the node that surfaced it. Questions that can be stated precisely
-   are `open`; the rest are `fog`.
+   naming the node that surfaced it. Mark precise questions `open`; mark the
+   rest `fog`.
 
 3. Invoke the `record-context` skill for each resolution – it decides whether
    the decision earns an ADR, a glossary term, both, or neither.

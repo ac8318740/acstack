@@ -55,7 +55,7 @@ ACStack runs on Claude Code, Codex, and pi. The skills name each capability once
 - **Launch a subagent** – start a child agent with its own context, by its ACStack name (`test-writer`, `task-executor`, `task-checker`, `frontend-verifier`)
     - Claude Code: the Agent tool, with `subagent_type` set to that name
     - pi: the `subagent` tool from `pi-subagents`
-    - `Explore` names a read-only codebase-search agent: Claude Code's `Explore`, pi's `scout`
+    - **Read-only codebase-search subagent** – Claude Code's `Explore`, pi's `scout`
     - `debugger` names a debugging agent
     - On a host without a matching built-in agent, launch a general subagent with that brief
 - **Agent team** – parallel full sessions, each owning one scope and launching its own subagents
@@ -502,7 +502,7 @@ Launch each agent by the name below (see Host tools for how your host takes it).
 | Implement task        | `task-executor`     | CANNOT modify tests                                |
 | Verify implementation | `task-checker`      | Mock skepticism, full regression, TDD isolation    |
 | Verify frontend UI    | `frontend-verifier` | Real browser, screenshots, non-negotiable          |
-| Find/locate something | `Explore`           | Built-in codebase search                           |
+| Find/locate something | `Explore` / `scout` | Read-only codebase search; `scout` on pi           |
 | Debug/investigate     | `debugger`          | Built-in debugging agent                           |
 
 ---
