@@ -361,6 +361,8 @@ What `apply` does:
     - `pi-subagents` delegates only when your request or your instructions allow it
 - It sets `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json`
 - It writes the four keys under `pi.settings` into `~/.pi/agent/settings.json`
+- It patches pi's bundled TUI so Windows Terminal Win32 input records paste as text
+    - `pi update` can replace the bundle, so `setup.sh upgrade pi` reapplies the patch
 
 How it treats pi's files:
 
@@ -376,7 +378,7 @@ How it treats pi's files:
     - A value you changed after `apply` stays as you set it
 - `apply` never touches `auth.json`
     - Run `pi`, then `/login`, yourself
-- `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether you are logged in
+- `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether `auth.json` exists
 
 ## 4. How you attach
 
@@ -452,6 +454,7 @@ The two paths deliver keys by different routes.
 - The two routes do not carry the same set
 - The `ctrl+alt` family survives the escape-sequence route and dies on the native one
 - `ctrl+<digit>` does the opposite
+
 - Either way herdr accepts the binding and then never sees the key
 - A chord that does not cross is therefore silently dead, and herdr reports no error
 - `alt+<key>` is the only family that crossed both
