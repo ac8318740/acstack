@@ -184,6 +184,7 @@ function toJson(node: GraphNode): Record<string, unknown> {
     mode: node.mode,
     kind: node.kind,
     label: node.label,
+    summary: node.summary ?? null,
     answers: node.answers ?? null,
     'blocked-by': node.blockedBy,
     pinned: node.pinned,
@@ -218,6 +219,8 @@ function printNode(node: GraphNode): void {
   );
 }
 
+const SUMMARY_HELP = 'one plain-language sentence a business reader understands';
+
 /** The flags `node create` takes, as commander hands them to the action. */
 interface CreateOptions {
   map: string;
@@ -226,6 +229,7 @@ interface CreateOptions {
   mode?: NodeMode;
   kind: NodeKind;
   label: string;
+  summary?: string;
   answers?: string;
   blockedBy?: string[];
   pinned?: boolean;
@@ -242,6 +246,7 @@ interface UpdateOptions {
   mode?: NodeMode;
   kind?: NodeKind;
   label?: string;
+  summary?: string;
   answers?: string;
   blockedBy?: string[];
   pinned?: string;
@@ -268,6 +273,7 @@ function registerCreate(nodeCmd: Command): void {
     .option('--mode <mode>', 'hitl (a human settles it) or afk (an agent settles it alone)', parseMode)
     .requiredOption('--kind <kind>', ALLOWED_KINDS_SENTENCE, parseKind)
     .requiredOption('--label <label>', `short name for diagrams: ${LABEL_CAP_SENTENCE}`)
+    .option('--summary <text>', SUMMARY_HELP)
     .option('--answers <id>', 'the node whose resolution raised this one (its provenance parent) – required except on the root')
     .option('--blocked-by <ids>', 'comma-separated ids of nodes that must settle before this one can be worked', parseIdList)
     .option('--pinned', 'load in full every session')
@@ -283,6 +289,7 @@ function registerCreate(nodeCmd: Command): void {
           mode: opts.mode,
           kind: opts.kind,
           label: opts.label,
+          summary: opts.summary,
           answers: opts.answers,
           blockedBy: opts.blockedBy,
           pinned: opts.pinned,
@@ -330,6 +337,7 @@ function registerUpdate(nodeCmd: Command): void {
     .option('--mode <mode>', oneOf(NODE_MODES), parseMode)
     .option('--kind <kind>', ALLOWED_KINDS_SENTENCE, parseKind)
     .option('--label <label>', `new short name for diagrams: ${LABEL_CAP_SENTENCE}`)
+    .option('--summary <text>', `${SUMMARY_HELP}; empty string clears`)
     .option('--answers <id>', 'new provenance parent')
     .option('--blocked-by <ids>', 'comma-separated blocking ids; empty string clears', parseIdList)
     .option('--pinned <bool>', 'true or false')
@@ -351,6 +359,7 @@ function registerUpdate(nodeCmd: Command): void {
           mode: opts.mode,
           kind: opts.kind,
           label: opts.label,
+          summary: opts.summary,
           answers: opts.answers,
           blockedBy: opts.blockedBy,
           pinned: opts.pinned === undefined ? undefined : opts.pinned === 'true',
