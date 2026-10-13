@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   tag-release:
@@ -43,11 +44,33 @@ jobs:
           fi
           tag="v${new}"
           if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
-            echo "tag-release: ${tag} already exists, nothing to do."
+            echo "tag-release: ${tag} already exists."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${tag}" -m "mapflow ${new}"
+            git push origin "refs/tags/${tag}"
+            echo "tag-release: created ${tag}."
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          name="$(jq -r '.name' package.json)"
+          version="$(jq -r '.version' package.json)"
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not set. Add an npm automation token as the NPM_TOKEN repository secret."
+            exit 1
+          fi
+          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "npm: ${name}@${version} already published, nothing to do."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${tag}" -m "mapflow ${new}"
-          git push origin "refs/tags/${tag}"
-          echo "tag-release: created ${tag}."
+          npm publish --access public --provenance
