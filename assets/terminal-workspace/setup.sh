@@ -39,6 +39,11 @@ PI_RETRO_EXT="${PI_HOME:-$HOME/.pi}/agent/extensions/agentic-retro.ts"
 PI_MAPFLOW="npm:mapflow"
 PI_BILLION="npm:billion-context"
 PI_SLASH_ANYWHERE="npm:pi-slash-anywhere"
+PI_ZENTUI="npm:pi-zentui"
+PI_ZENTUI_CFG="$PI_DIR/zentui.json"
+PI_THEME_DIR="$PI_DIR/themes"
+PI_THEME="$PI_THEME_DIR/alex-mid-grey.json"
+PI_LENS_CFG="$HOME/.pi-lens/config.json"
 # A line starting with # is a heading in markdown, and the model reads it. An
 # HTML comment carries the same marker and renders as nothing.
 PI_MD_BEGIN="<!-- >>> mapflow terminal-workspace >>> -->"
@@ -178,6 +183,57 @@ PY
   mkdir -p "$BIN"; cp "$found" "$BIN/$name"; chmod +x "$BIN/$name"
   rm -rf "$tmp"
   say "$name installed to $BIN/$name"
+}
+
+install_plain_github_binary() {  # install_plain_github_binary <name> <repo> <asset-match>
+  local name="$1" repo="$2" match="$3"
+  if [ "${INSTALL_FORCE:-0}" != "1" ] && have "$name"; then
+    say "$name already installed"; return 0
+  fi
+  local json url tmp
+  json=$(curl -sSf "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null)
+  [ -z "$json" ] && { say "$name: could not reach the GitHub release API"; return 1; }
+  url=$(MAPFLOW_JSON="$json" py "$match" <<'PY'
+import json, os, sys
+try:
+    d = json.loads(os.environ["MAPFLOW_JSON"])
+except ValueError:
+    raise SystemExit
+for a in d.get("assets", []):
+    if sys.argv[1] in a["name"]:
+        print(a["browser_download_url"]); break
+PY
+)
+  [ -z "$url" ] && { say "$name: no matching release asset, install manually"; return 1; }
+  tmp=$(mktemp)
+  if ! curl -fsSL "$url" -o "$tmp"; then
+    rm -f "$tmp"; say "$name: download failed"; return 1
+  fi
+  mkdir -p "$BIN"; cp "$tmp" "$BIN/$name"; chmod +x "$BIN/$name"
+  rm -f "$tmp"
+  say "$name installed to $BIN/$name"
+}
+
+install_npm_tool() {  # install_npm_tool <command> <package>
+  local command="$1" package="$2"
+  if have "$command"; then say "$command already installed"; return 0; fi
+  have npm || { say "$command: npm not installed, skipping"; return 0; }
+  if npm install -g "$package" >/dev/null 2>&1; then
+    say "$command installed with npm"
+  else
+    say "$command install failed, run: npm install -g $package"
+  fi
+}
+
+install_uv_tool() {  # install_uv_tool <command> <package>
+  local command="$1" package="$2"
+  if have "$command"; then say "$command already installed"; return 0; fi
+  have uv || { say "$command: uv not installed, skipping"; return 0; }
+  if uv tool install "$package" >/dev/null 2>&1; then
+    say "$command installed with uv"
+  else
+    say "$command install failed, run: uv tool install $package"
+  fi
 }
 
 write_helpers() {
@@ -3184,6 +3240,30 @@ apply_harlequin() {
     || say "harlequin install failed, run: uv tool install harlequin"
 }
 
+apply_lens_extra_tools() {
+  # A small machine-wide pi-lens toolbelt for common project ecosystems.
+  # Pi-lens can fall back to npx or prompt for some tools, but putting these
+  # on PATH makes them available in any repo without per-project setup.
+  if [ "$(cfg_get pi.lens_extra_tools.python false)" = "true" ]; then
+    install_uv_tool black black
+    install_uv_tool mypy mypy
+    install_npm_tool pyright pyright
+  fi
+  if [ "$(cfg_get pi.lens_extra_tools.docker false)" = "true" ]; then
+    install_plain_github_binary hadolint hadolint/hadolint Linux-x86_64
+    install_npm_tool docker-langserver dockerfile-language-server-nodejs
+  fi
+  if [ "$(cfg_get pi.lens_extra_tools.github_actions false)" = "true" ]; then
+    install_binary actionlint rhysd/actionlint linux_amd64
+    install_uv_tool zizmor zizmor
+  fi
+  if [ "$(cfg_get pi.lens_extra_tools.terraform false)" = "true" ]; then
+    install_binary terraform-ls hashicorp/terraform-ls linux_amd64
+    install_binary tflint terraform-linters/tflint linux_amd64
+    install_plain_github_binary terragrunt gruntwork-io/terragrunt linux_amd64
+  fi
+}
+
 apply_ghdash() {
   have gh || { say "gh not installed, skipping dashboard"; return 0; }
   gh extension list 2>/dev/null | grep -q gh-dash || gh extension install dlvhdr/gh-dash >/dev/null 2>&1
@@ -3495,7 +3575,7 @@ s = ((c.get("pi") or {}).get("settings") or {})
 KEYS = {"hide_thinking_block": ("hideThinkingBlock", True, (True, False)),
         "mermaid": ("markdown.mermaid", "streaming", ("off", "final", "streaming")),
         "install_telemetry": ("enableInstallTelemetry", False, (True, False)),
-        "theme": ("theme", "system", None)}
+        "theme": ("theme", "alex-mid-grey", None)}
 out = {}
 for k, (key, default, allowed) in KEYS.items():
     v = s.get(k, default)
@@ -3512,6 +3592,153 @@ for k, (key, default, allowed) in KEYS.items():
     out[key] = v
 print(json.dumps(out))
 PY
+}
+
+pi_zentui_wanted() {
+  cat <<'JSON'
+{
+  "components.editor.enabled": true,
+  "components.editor.style": "accent-rail",
+  "components.editor.styles.accent-rail.transparent": false,
+  "components.userMessages.enabled": false,
+  "components.footer.style": "starship",
+  "components.footer.modelLabel": "id",
+  "components.footer.styles.starship.segments.modelInfo": true,
+  "components.footer.styles.starship.extensionStatuses.defaultPlacement": "off",
+  "components.extensionStatuses.defaultVisibility": "hide",
+  "components.extensionStatuses.visibility.pi-lens": "hide",
+  "components.extensionStatuses.visibility.pi-lens-lsp": "hide",
+  "components.extensionStatuses.visibility.ponytail": "hide",
+  "components.footer.styles.starship.responsive": true,
+  "components.footer.styles.starship.format": "$cwd( in $session_name)( on $git_branch)( $git_status)( via $runtime)$fill$model($sep$provider)($sep$thinkingLevel)($sep$context)( $auto_compaction)($sep$tokens)( $cache_read)( $cache_write)($sep$cost)( $subscription)",
+  "components.footer.styles.starship.compactFormat": "$cwd$wrap(in $session_name)$wrap(on $git_branch) $git_status$fill$model$wrap_sep($provider)$wrap_sep($thinkingLevel)$wrap_sep$context$wrap_sep$tokens"
+}
+JSON
+}
+
+pi_zentui_release() {
+  cat <<'JSON'
+{
+  "components.editor.enabled": null,
+  "components.editor.style": null,
+  "components.editor.styles.accent-rail.transparent": null,
+  "components.userMessages.enabled": null,
+  "components.footer.style": null,
+  "components.footer.modelLabel": null,
+  "components.footer.styles.starship.segments.modelInfo": null,
+  "components.footer.styles.starship.extensionStatuses.defaultPlacement": null,
+  "components.extensionStatuses.defaultVisibility": null,
+  "components.extensionStatuses.visibility.pi-lens": null,
+  "components.extensionStatuses.visibility.pi-lens-lsp": null,
+  "components.extensionStatuses.visibility.ponytail": null,
+  "components.footer.styles.starship.responsive": null,
+  "components.footer.styles.starship.format": null,
+  "components.footer.styles.starship.compactFormat": null
+}
+JSON
+}
+
+pi_write_theme() {
+  if [ -e "$PI_THEME" ] && ! pi_state owns file "$PI_THEME"; then
+    say "pi: $PI_THEME already exists, so the Mapflow theme was left alone"
+    return 0
+  fi
+  MAPFLOW_PI_THEME="$PI_THEME" py <<'PY'
+import json, os
+
+target = os.environ["MAPFLOW_PI_THEME"]
+theme = {
+    "$schema": "https://pi.dev/schemas/theme.schema.json",
+    "name": "alex-mid-grey",
+    "vars": {
+        "surfaceMuted": "#21262D",
+        "border": "#30363D",
+        "borderSubtle": "#21262D",
+        "text": "#C9D1D9",
+        "textBright": "#E6EDF3",
+        "muted": "#8B949E",
+        "dim": "#6E7681",
+        "toolStatus": "#59616B",
+        "blue": "#58A6FF",
+        "blueSoft": "#79C0FF",
+        "inlineCode": "#D2A8FF",
+        "green": "#3FB950",
+        "red": "#F85149",
+        "yellow": "#E0A052",
+        "orange": "#FFA657",
+        "purple": "#D2A8FF",
+        "toolAccent": "#95A7FF",
+        "toolName": "#8B85D6",
+        "toolText": "#98A1AC",
+        "pink": "#FF7B72",
+        "userPromptBg": "#24272e",
+    },
+    "colors": {
+        "accent": "toolAccent",
+        "border": "border",
+        "borderAccent": "toolStatus",
+        "borderMuted": "borderSubtle",
+        "success": "green",
+        "error": "red",
+        "warning": "yellow",
+        "muted": "muted",
+        "dim": "dim",
+        "text": "text",
+        "thinkingText": "toolText",
+        "selectedBg": "surfaceMuted",
+        "searchMatchBg": "#3B2E10",
+        "searchMatchText": "textBright",
+        "userMessageBg": "userPromptBg",
+        "userMessageText": "textBright",
+        "customMessageBg": "",
+        "customMessageText": "text",
+        "customMessageLabel": "muted",
+        "toolPendingBg": "",
+        "toolSuccessBg": "",
+        "toolErrorBg": "#211414",
+        "toolTitle": "toolName",
+        "toolOutput": "toolText",
+        "scrollbarTrack": "borderSubtle",
+        "scrollbarThumb": "border",
+        "mdHeading": "textBright",
+        "mdLink": "blue",
+        "mdLinkUrl": "dim",
+        "mdCode": "inlineCode",
+        "mdCodeBlock": "text",
+        "mdCodeBlockBorder": "#0D1117",
+        "mdQuote": "toolText",
+        "mdQuoteBorder": "border",
+        "mdHr": "borderSubtle",
+        "mdListBullet": "muted",
+        "toolDiffAdded": "#45B85A",
+        "toolDiffRemoved": "#E45D57",
+        "toolDiffContext": "dim",
+        "syntaxComment": "dim",
+        "syntaxKeyword": "pink",
+        "syntaxFunction": "purple",
+        "syntaxVariable": "text",
+        "syntaxString": "blueSoft",
+        "syntaxNumber": "orange",
+        "syntaxType": "orange",
+        "syntaxOperator": "muted",
+        "syntaxPunctuation": "muted",
+        "thinkingOff": "borderSubtle",
+        "thinkingMinimal": "border",
+        "thinkingLow": "dim",
+        "thinkingMedium": "muted",
+        "thinkingHigh": "blue",
+        "thinkingXhigh": "blueSoft",
+        "thinkingMax": "#9FCFF8",
+        "bashMode": "green",
+    },
+    "export": {"pageBg": "#0D1117", "cardBg": "#161B22", "infoBg": "#1C2128"},
+}
+os.makedirs(os.path.dirname(target), exist_ok=True)
+json.dump(theme, open(target, "w"), indent=2, ensure_ascii=False)
+open(target, "a").write("\n")
+PY
+  pi_state own file "$PI_THEME"
+  say "pi: Mapflow theme written to $PI_THEME"
 }
 
 # npm installs pi into its global bin, which a fresh shell may not have on
@@ -3723,6 +3950,20 @@ apply_pi() {
   else
     pi_drop npm:pi-compact-tools
   fi
+  [ "$(cfg_get pi.settings.theme alex-mid-grey)" = "alex-mid-grey" ] && pi_write_theme
+  if [ "$(cfg_get pi.zentui true)" = "true" ]; then
+    pi_add "$PI_ZENTUI" "$PI_ZENTUI"
+    pi_state merge "$PI_ZENTUI_CFG" zentui "$(pi_zentui_wanted)"
+  else
+    pi_state merge "$PI_ZENTUI_CFG" zentui "$(pi_zentui_release)"
+    pi_drop "$PI_ZENTUI"
+  fi
+  if [ "$(cfg_get pi.hide_lens_lsp_status true)" = "true" ]; then
+    pi_state merge "$PI_LENS_CFG" pi_lens '{"ui.hideLspStatus": true, "widget.visible": false}'
+  else
+    pi_state merge "$PI_LENS_CFG" pi_lens '{"ui.hideLspStatus": null, "widget.visible": null}'
+  fi
+  apply_lens_extra_tools
 
   # agentic-retro writes its own extension file. This setup only asks it to,
   # and owns the file only when it was not there before.
@@ -3769,6 +4010,7 @@ remove_pi() {
     pi_drop npm:pi-plugin-manager
     pi_drop npm:@juicesharp/rpiv-todo
     pi_drop npm:pi-compact-tools
+    pi_drop "$PI_ZENTUI"
     pi_drop npm:@juicesharp/rpiv-ask-user-question
     pi_drop npm:pi-web-access
     pi_drop "$PI_SLASH_ANYWHERE"
@@ -3783,6 +4025,13 @@ remove_pi() {
   fi
   pi_state merge "$PI_SETTINGS" settings \
     '{"hideThinkingBlock": null, "markdown.mermaid": null, "enableInstallTelemetry": null, "theme": null}'
+  pi_state merge "$PI_ZENTUI_CFG" zentui "$(pi_zentui_release)"
+  pi_state merge "$PI_LENS_CFG" pi_lens '{"ui.hideLspStatus": null, "widget.visible": null}'
+  if pi_state owns file "$PI_THEME"; then
+    rm -f "$PI_THEME"
+    pi_state disown file "$PI_THEME"
+    say "pi: Mapflow theme removed"
+  fi
   pi_state merge "$PI_KEYBINDINGS" keybindings '{"app.message.dequeue": null}'
   pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": null}'
   pi_state md strip
@@ -3816,6 +4065,12 @@ pi-plugin-manager	pi	npm	pi-plugin-manager	-
 pi-web-access	pi	npm	pi-web-access	-
 pi-slash-anywhere	pi	npm	pi-slash-anywhere	-
 pi-compact-tools	pi	npm	pi-compact-tools	-
+pi-zentui	pi	npm	pi-zentui	-
+actionlint	pi	github	rhysd/actionlint	linux_amd64
+hadolint	pi	github	hadolint/hadolint	Linux-x86_64
+terraform-ls	pi	github	hashicorp/terraform-ls	linux_amd64
+tflint	pi	github	terraform-linters/tflint	linux_amd64
+terragrunt	pi	github	gruntwork-io/terragrunt	linux_amd64
 T
 }
 
@@ -3846,8 +4101,18 @@ installed_version() {  # installed_version <name> -> a bare version, or nothing
     harlequin) v=$(uv tool list 2>/dev/null | awk '$1=="harlequin"{print $2}') ;;
     # 1.1.0
     pi)        find_pi; v=$(pi --version 2>/dev/null | awk '{print $NF}') ;;
+    # actionlint version 1.7.7
+    actionlint) v=$(actionlint -version 2>/dev/null | awk '{print $2}') ;;
+    # Haskell Dockerfile Linter 2.12.0
+    hadolint)  v=$(hadolint --version 2>/dev/null | awk '{print $NF}') ;;
+    # terraform-ls version 0.36.5
+    terraform-ls) v=$(terraform-ls version 2>/dev/null | awk '{print $2}') ;;
+    # TFLint version 0.59.1
+    tflint)    v=$(tflint --version 2>/dev/null | awk 'NR==1{print $3}') ;;
+    # terragrunt version v0.91.2
+    terragrunt) v=$(terragrunt --version 2>/dev/null | awk '{print $NF}') ;;
     # pi installs npm packages under its own directory, not npm's global one.
-    pi-subagents|pi-compact-tools|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
+    pi-subagents|pi-compact-tools|pi-zentui|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
                v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
   esac
   printf '%s' "${v#v}"
@@ -3993,7 +4258,7 @@ upgrade_one() {  # upgrade_one <name>
     # With no target, pi update updates pi itself and no package.
     pi)        pi update >/dev/null 2>&1 \
                  && say "pi updated" || say "pi update failed" ;;
-    pi-subagents|pi-compact-tools|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
+    pi-subagents|pi-compact-tools|pi-zentui|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
       if pi_npm_pin "$1"; then
         say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
         return 0
@@ -4010,6 +4275,10 @@ upgrade_one() {  # upgrade_one <name>
     # here rather than behind a table lookup that will never find it.
     mermaid-ascii)
       INSTALL_FORCE=1 install_binary mermaid-ascii AlexanderGrooff/mermaid-ascii Linux_x86_64 ;;
+    hadolint)
+      INSTALL_FORCE=1 install_plain_github_binary hadolint hadolint/hadolint Linux-x86_64 ;;
+    terragrunt)
+      INSTALL_FORCE=1 install_plain_github_binary terragrunt gruntwork-io/terragrunt linux_amd64 ;;
     # The fork build comes from a local checkout, so a release archive would
     # replace it with the stock binary and silently drop the patches it carries.
     # outdated already skips it; naming it here has to skip it too.
@@ -4078,7 +4347,7 @@ case "$ACTION" in
     if have pi || [ "$(cfg_get pi.enabled false)" = "true" ]; then
       echo
       have pi && say "pi: $(installed_version pi)" || say "pi: not installed"
-      for id in npm:pi-subagents "$PI_MAPFLOW" "$PI_BILLION" npm:@juicesharp/rpiv-todo npm:pi-plugin-manager npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access "$PI_SLASH_ANYWHERE" npm:pi-compact-tools; do
+      for id in npm:pi-subagents "$PI_MAPFLOW" "$PI_BILLION" npm:@juicesharp/rpiv-todo npm:pi-plugin-manager npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access "$PI_SLASH_ANYWHERE" npm:pi-compact-tools "$PI_ZENTUI"; do
         src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
       done
       [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \
