@@ -4449,6 +4449,18 @@ for k in sys.argv[2].split("."):
 print(json.dumps(d))
 PY
 }
+jget_key() {  # jget_key <file> <literal-key> -> the value as JSON, or MISSING
+  python3 - "$1" "$2" <<'PY'
+import json, sys
+try:
+    d = json.load(open(sys.argv[1]))
+except (OSError, ValueError):
+    print("MISSING"); raise SystemExit
+if not isinstance(d, dict) or sys.argv[2] not in d:
+    print("MISSING"); raise SystemExit
+print(json.dumps(d[sys.argv[2]]))
+PY
+}
 
 PI_APPLY=1
 case "$(uname -m)" in x86_64|amd64) ;; *) PI_APPLY=0 ;; esac
@@ -4497,6 +4509,11 @@ if [ "$PI_APPLY" = "1" ]; then
   else
     no "apply writes the four personal settings into settings.json ($(flat "$(cat "$ISET")"))"
   fi
+  if [ "$(jget_key "$IAGENT/keybindings.json" app.message.dequeue)" = '"ctrl+enter"' ]; then
+    ok "apply binds Pi queued-message restore to ctrl+enter"
+  else
+    no "apply binds Pi queued-message restore to ctrl+enter ($(flat "$(cat "$IAGENT/keybindings.json" 2>/dev/null)"))"
+  fi
   if [ "$(jget "$ISET" deviceId)" = '"dev-1"' ] && grep -qF '"note": "café"' "$ISET" \
      && [ "$(jget "$ISUB" maxDepth)" = "2" ] && [ "$(jget "$ISUB" toolActivation)" = '"eager"' ]; then
     ok "the JSON merge keeps every key it does not claim, unescaped"
@@ -4517,10 +4534,10 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
 
   # Re-applying changes nothing: no install call, and every file byte for byte.
-  before=$(cat "$ISET" "$ISUB" "$IMD")
+  before=$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json")
   : > "$IHOME/pi.log"; : > "$IHOME/npm.log"; : > "$IHOME/bili.log"
   out=$(iw apply)
-  if [ "$before" = "$(cat "$ISET" "$ISUB" "$IMD")" ] \
+  if [ "$before" = "$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json")" ] \
      && ! grep -q '^pi install' "$IHOME/pi.log" \
      && ! grep -q '^npm install' "$IHOME/npm.log" \
      && ! grep -q '^bili plugin install' "$IHOME/bili.log"; then
@@ -4574,6 +4591,7 @@ if [ "$PI_APPLY" = "1" ]; then
      && [ "$(jget "$ISET" hideThinkingBlock)" = "MISSING" ] \
      && [ "$(jget "$ISET" markdown)" = "MISSING" ] \
      && [ "$(jget "$ISET" theme)" = '"dark"' ] \
+     && [ "$(jget_key "$IAGENT/keybindings.json" app.message.dequeue)" = "MISSING" ] \
      && [ "$(jget "$ISUB" toolActivation)" = "MISSING" ] && [ "$(jget "$ISUB" maxDepth)" = "2" ] \
      && [ "$(cat "$IMD")" = "$USER_MD" ] && [ ! -e "$IRETRO" ] \
      && [ "$(jget "$ISET" packages)" = "[]" ] \
@@ -4706,12 +4724,13 @@ if [ "$PI_APPLY" = "1" ]; then
   iw disable pi >/dev/null
   printf '{\n  "theme": "dark",\n  "markdown": {"mermaid": "final"}\n}\n' > "$ISET"
   printf '{\n  "toolActivation": "dynamic"\n}\n' > "$ISUB"
+  printf '{\n  "app.message.dequeue": "ctrl+r"\n}\n' > "$IAGENT/keybindings.json"
   iw apply >/dev/null
-  mid="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation)"
+  mid="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation) $(jget_key "$IAGENT/keybindings.json" app.message.dequeue)"
   iw disable pi >/dev/null
-  after="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation)"
-  if [ "$mid" = '"system" "streaming" "eager"' ] && [ "$after" = '"dark" "final" "dynamic"' ]; then
-    ok "disable puts back the values apply replaced in settings.json and the subagent config"
+  after="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation) $(jget_key "$IAGENT/keybindings.json" app.message.dequeue)"
+  if [ "$mid" = '"system" "streaming" "eager" "ctrl+enter"' ] && [ "$after" = '"dark" "final" "dynamic" "ctrl+r"' ]; then
+    ok "disable puts back the values apply replaced in settings.json, keybindings.json and the subagent config"
   else
     no "disable puts back the values apply replaced (after apply: $mid; after disable: $after)"
   fi

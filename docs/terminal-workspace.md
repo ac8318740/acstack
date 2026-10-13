@@ -376,6 +376,7 @@ What `apply` does:
     - That is `AGENTS.md` by default, or the first of `AGENTS.override.md`, `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md` and `CLAUDE.MD` that exists, which is the one pi reads
     - `pi-subagents` delegates only when your request or your instructions allow it
 - It sets `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json`
+- It binds `"app.message.dequeue"` to `"ctrl+enter"` in `~/.pi/agent/keybindings.json`
 - It writes the four keys under `pi.settings` into `~/.pi/agent/settings.json`
 
 How it treats pi's files:
