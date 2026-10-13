@@ -78,5 +78,12 @@ jobs:
             echo "npm: ${name}@${version} already published, nothing to stage."
             exit 0
           fi
-          npm stage publish . --access public --provenance
-          echo "npm: staged ${name}@${version}. Approve it on npmjs.com to publish."
+          if npm stage publish . --access public --provenance 2>&1 | tee /tmp/npm-stage.log; then
+            echo "npm: staged ${name}@${version}. Approve it on npmjs.com to publish."
+            exit 0
+          fi
+          if grep -q "Version uniqueness check failed unexpectedly" /tmp/npm-stage.log; then
+            echo "npm: ${name}@${version} appears to be staged already. Approve it on npmjs.com to publish."
+            exit 0
+          fi
+          exit 1
