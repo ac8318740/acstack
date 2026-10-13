@@ -1,6 +1,6 @@
 {
   "name": "mapflow",
-  "version": "0.45.4",
+  "version": "0.45.5",
   "private": false,
   "description": "Map-based agentic coding plugin with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
   "license": "MIT",
@@ -16,7 +16,7 @@
     "agent-orchestration"
   ],
   "bin": {
-    "mapflow": "./cli/bin/mapflow.js"
+    "mapflow": "cli/bin/mapflow.js"
   },
   "files": [
     ".claude-plugin/",
