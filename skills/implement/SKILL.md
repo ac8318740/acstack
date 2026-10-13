@@ -104,6 +104,12 @@ over the relevant code. Use `Explore` on Claude Code and `scout` on pi.
 Use as many as there are distinct places to look, not a fixed count. Act on
 what they find.
 
+Every pipeline subagent below starts with a fresh context. Put the reference
+paths the search turned up in each subagent's prompt: the source files to
+touch, existing tests to copy, and any outside docs or examples for a library
+or host API. Each one should read those paths directly, not search for them
+again.
+
 ### 5. Execute within the claim
 
 The pipeline's state lives inside the claim, not on the node. For each
