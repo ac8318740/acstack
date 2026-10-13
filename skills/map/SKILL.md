@@ -182,10 +182,8 @@ the list, marked `skip: <reason>`.
     - `hitl` nodes: run grilling rounds over them. A round is the whole hitl
      frontier.
     - `afk` nodes: claim and run without the user. Unlimited, and in parallel
-     when independent. Research goes to read-only codebase-search subagents,
-     with the findings written into the resolution.
-
-     Use `Explore` on Claude Code and `scout` on pi.
+     when independent. Research goes to read-only codebase-search subagents:
+     `Explore` on Claude Code and `scout` on pi.
 
      Implementation work follows `/acstack:implement`'s procedure – it owns
      the claim-execute-resolve flow, the explorer dispatch, and the TDD
