@@ -37,6 +37,7 @@ PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 # pi's override, so look where it writes.
 PI_RETRO_EXT="${PI_HOME:-$HOME/.pi}/agent/extensions/agentic-retro.ts"
 PI_ACSTACK="npm:acstack"
+PI_ACSTACK_GIT="git:github.com/ac8318740/spechub"  # the install source before npm
 PI_BILLION="npm:billion-context"
 BILLION_CONFIG="$HOME/.config/billion-context/billion-context.json"
 PI_SLASH_ANYWHERE="npm:pi-slash-anywhere"
@@ -4022,6 +4023,11 @@ apply_pi() {
   else
     pi_drop "$PI_SLASH_ANYWHERE"
   fi
+  # The old git install serves stale skills beside npm:acstack. The user
+  # installed it, so apply names it and leaves it.
+  local old
+  old=$(pi_state pkg "$PI_ACSTACK_GIT") \
+    && say "pi: $old serves old ACStack skills, run: pi remove $old"
   local ver cur; ver=$(acstack_version)
   if [ -n "$ver" ]; then
     if cur=$(pi_state pkg "$PI_ACSTACK") && [ -z "$(pi_acstack_behind)" ]; then
