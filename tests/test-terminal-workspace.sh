@@ -4332,6 +4332,7 @@ ISET="$IAGENT/settings.json"
 ISUB="$IAGENT/extensions/subagent/config.json"
 IMD="$IAGENT/AGENTS.md"
 IRETRO="$IAGENT/extensions/agentic-retro.ts"
+IBILLION="$IHOME/.config/billion-context/billion-context.json"
 ILENS="$IHOME/.pi-lens/config.json"
 ICFG="$IHOME/.config/acstack/terminal-workspace.yaml"
 IVER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
@@ -4515,6 +4516,11 @@ if [ "$PI_APPLY" = "1" ]; then
   else
     no "apply installs billion-context natively for pi only, not for Claude Code or Codex (pi: $(flat "$(cat "$IHOME/pi.log" 2>/dev/null)"); bili: $(flat "$(cat "$IHOME/bili.log" 2>/dev/null)"))"
   fi
+  if [ "$(jget "$IBILLION" pi.subagents)" = "false" ]; then
+    ok "apply disables billion-context acp_delegate for pi"
+  else
+    no "apply disables billion-context acp_delegate for pi ($(flat "$(cat "$IBILLION" 2>/dev/null)"))"
+  fi
   if [ "$(jget "$ISET" hideThinkingBlock)" = "true" ] \
      && [ "$(jget "$ISET" markdown.mermaid)" = '"streaming"' ] \
      && [ "$(jget "$ISET" enableInstallTelemetry)" = "false" ] \
@@ -4564,10 +4570,10 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
 
   # Re-applying changes nothing: no install call, and every file byte for byte.
-  before=$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json" "$IAGENT/zentui.json" "$ILENS" "$IAGENT/themes/alex-mid-grey.json")
+  before=$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json" "$IBILLION" "$IAGENT/zentui.json" "$ILENS" "$IAGENT/themes/alex-mid-grey.json")
   : > "$IHOME/pi.log"; : > "$IHOME/npm.log"; : > "$IHOME/bili.log"
   out=$(iw apply)
-  if [ "$before" = "$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json" "$IAGENT/zentui.json" "$ILENS" "$IAGENT/themes/alex-mid-grey.json")" ] \
+  if [ "$before" = "$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json" "$IBILLION" "$IAGENT/zentui.json" "$ILENS" "$IAGENT/themes/alex-mid-grey.json")" ] \
      && ! grep -q '^pi install' "$IHOME/pi.log" \
      && ! grep -q '^npm install' "$IHOME/npm.log" \
      && ! grep -q '^bili plugin install' "$IHOME/bili.log"; then
@@ -4644,7 +4650,7 @@ if [ "$PI_APPLY" = "1" ]; then
      && [ "$(jget "$ISET" theme)" = '"dark"' ] \
      && [ "$(jget_key "$IAGENT/keybindings.json" app.message.dequeue)" = "MISSING" ] \
      && [ "$(jget "$ISUB" toolActivation)" = "MISSING" ] && [ "$(jget "$ISUB" maxDepth)" = "2" ] \
-     && [ "$(cat "$IMD")" = "$USER_MD" ] && [ ! -e "$IRETRO" ] \
+     && [ "$(cat "$IMD")" = "$USER_MD" ] && [ ! -e "$IRETRO" ] && [ ! -e "$IBILLION" ] \
      && [ "$(jget "$ISET" packages)" = "[]" ] \
      && [ ! -e "$IAGENT/themes/alex-mid-grey.json" ] \
      && [ "$(jget "$IAGENT/zentui.json" components.footer.modelLabel)" = "MISSING" ] \
@@ -4662,16 +4668,35 @@ if [ "$PI_APPLY" = "1" ]; then
     no "disable pi removes its packages, keys, block, extension and billion-context client installs, and keeps the user's own (said: $(flat "$out"); settings: $(flat "$(cat "$ISET")"); pi: $(flat "$(cat "$IHOME/pi.log" 2>/dev/null)"); bili: $(flat "$(cat "$IHOME/bili.log" 2>/dev/null)"))"
   fi
 
+  printf '{"pi": true}\n' > "$IBILLION"
+  : > "$IHOME/pi.log"; : > "$IHOME/bili.log"
+  out=$(iw apply)
+  if ! grep -q '^bili plugin install pi' "$IHOME/bili.log" \
+     && ! jget "$ISET" packages | grep -qF 'billion-context' \
+     && printf '%s' "$out" | grep -qF 'acp_delegate could not be disabled'; then
+    ok "apply skips billion-context when its acp_delegate setting cannot be written"
+  else
+    no "apply skips billion-context when its acp_delegate setting cannot be written (said: $(flat "$out"); packages: $(jget "$ISET" packages); bili: $(flat "$(cat "$IHOME/bili.log")"))"
+  fi
+  iw disable pi >/dev/null
+
   # What the user had before apply stays theirs: their pi-subagents, their
   # rpiv-todo, their plugin manager, their slash-anywhere package, their older
   # ACStack pin (moved forward, then put back), and their extension.
   printf '{\n  "packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo", "npm:pi-plugin-manager", "npm:pi-slash-anywhere", "npm:acstack@0.1.0"]\n}\n' > "$ISET"
+  mkdir -p "$(dirname "$IBILLION")"
+  printf '{\n  "pi": {"subagents": true},\n  "keep": 1\n}\n' > "$IBILLION"
   echo "// mine" > "$IRETRO"
   out=$(iw apply)
   if jget "$ISET" packages | grep -qF "acstack@$IVER" && ! jget "$ISET" packages | grep -qF '0.1.0'; then
     ok "apply moves an older ACStack pin forward to $IVER"
   else
     no "apply moves an older ACStack pin forward to $IVER (packages: $(jget "$ISET" packages))"
+  fi
+  if [ "$(jget "$IBILLION" pi.subagents)" = "false" ] && [ "$(jget "$IBILLION" keep)" = "1" ]; then
+    ok "apply preserves billion-context config while disabling pi subagents"
+  else
+    no "apply preserves billion-context config while disabling pi subagents ($(flat "$(cat "$IBILLION")"))"
   fi
   iw uninstall >/dev/null
   pkgs=$(jget "$ISET" packages)
@@ -4682,10 +4707,11 @@ if [ "$PI_APPLY" = "1" ]; then
      && printf '%s' "$pkgs" | grep -qF '"npm:acstack@0.1.0"' \
      && ! printf '%s' "$pkgs" | grep -qF 'pi-compact-tools' \
      && [ -f "$IRETRO" ] && [ -x "$INPM/bin/pi" ] \
+     && [ "$(jget "$IBILLION" pi.subagents)" = "true" ] && [ "$(jget "$IBILLION" keep)" = "1" ] \
      && [ ! -e "$IHOME/.config/acstack/terminal-workspace.pi.json" ]; then
     ok "uninstall leaves pi, and every package and file the user had before apply"
   else
-    no "uninstall leaves pi, and every package and file the user had before apply (packages: $pkgs)"
+    no "uninstall leaves pi, and every package and file the user had before apply (packages: $pkgs; billion: $(flat "$(cat "$IBILLION" 2>/dev/null)"))"
   fi
 
   printf 'pi\nclaude\ncodex\n' > "$IHOME/bili-preinstalled"
@@ -4729,6 +4755,9 @@ if [ "$PI_APPLY" = "1" ]; then
 
   # A settings.json pi cannot parse concedes the whole component: pi rewrites
   # that file on install, so even one install call puts the user's file at risk.
+  printf '{}\n' > "$ISET"
+  rm -f "$IBILLION"
+  iw apply >/dev/null
   printf '{ "theme": "dark", oops }\n' > "$ISET"
   : > "$IHOME/pi.log"
   out=$(iw apply)
@@ -4740,10 +4769,12 @@ if [ "$PI_APPLY" = "1" ]; then
     no "apply leaves an unparseable settings.json alone, installs nothing, and names the file (said: $(flat "$out"))"
   fi
   out=$(iw disable pi); rc=$?
-  if [ "$(cat "$ISET")" = '{ "theme": "dark", oops }' ] && printf '%s' "$out" | grep -qF 'does not parse'; then
-    ok "disable pi leaves an unparseable settings.json alone and says so"
+  if [ "$(cat "$ISET")" = '{ "theme": "dark", oops }' ] \
+     && [ ! -e "$IBILLION" ] \
+     && printf '%s' "$out" | grep -qF 'does not parse'; then
+    ok "disable pi leaves an unparseable settings.json alone, releases billion-context config, and says so"
   else
-    no "disable pi leaves an unparseable settings.json alone and says so (rc=$rc, said: $(flat "$out"))"
+    no "disable pi leaves an unparseable settings.json alone, releases billion-context config, and says so (rc=$rc, said: $(flat "$out"); billion: $(flat "$(cat "$IBILLION" 2>/dev/null)"))"
   fi
 
   # A broken subagent config concedes that one key. Everything else applies.

@@ -38,6 +38,7 @@ PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 PI_RETRO_EXT="${PI_HOME:-$HOME/.pi}/agent/extensions/agentic-retro.ts"
 PI_ACSTACK="npm:acstack"
 PI_BILLION="npm:billion-context"
+BILLION_CONFIG="$HOME/.config/billion-context/billion-context.json"
 PI_SLASH_ANYWHERE="npm:pi-slash-anywhere"
 PI_ZENTUI="npm:pi-zentui"
 PI_ZENTUI_CFG="$PI_DIR/zentui.json"
@@ -3989,10 +3990,16 @@ apply_pi() {
   bili_client remove codex
   bili_client remove claude
   if [ "$(cfg_get pi.billion_context true)" = "true" ]; then
-    pi_add "$PI_BILLION" "$PI_BILLION"
-    bili_client install pi
+    pi_state merge "$BILLION_CONFIG" billion '{"pi.subagents": false}'
+    if [ "$(json_field "$BILLION_CONFIG" pi.subagents)" = "False" ]; then
+      pi_add "$PI_BILLION" "$PI_BILLION"
+      bili_client install pi
+    else
+      say "pi: billion-context acp_delegate could not be disabled, so billion-context setup was skipped"
+    fi
   else
     bili_client remove pi
+    pi_state merge "$BILLION_CONFIG" billion '{"pi.subagents": null}'
     pi_drop "$PI_BILLION"
   fi
   if [ "$(cfg_get pi.question_tool true)" = "true" ]; then
@@ -4100,6 +4107,7 @@ remove_pi() {
   else
     say "pi: $PI_SETTINGS does not parse, so its packages were left installed"
   fi
+  pi_state merge "$BILLION_CONFIG" billion '{"pi.subagents": null}'
   if pi_state owns file "$PI_RETRO_EXT"; then
     rm -f "$PI_RETRO_EXT"
     pi_state disown file "$PI_RETRO_EXT"
