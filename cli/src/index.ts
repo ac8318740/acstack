@@ -13,6 +13,7 @@ const commands = await Promise.all([
   import('./commands/show.js'),
   import('./commands/archive.js'),
   import('./commands/node.js'),
+  import('./commands/alignment.js'),
   import('./commands/config.js'),
   import('./commands/design-gate.js'),
   import('./commands/feedback.js'),

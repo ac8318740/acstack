@@ -16,14 +16,17 @@ To enumerate a project's maps: `ls acstack/maps/`.
 
 | Operation | Command |
 | --------- | ------- |
-| create    | `acstack node create --map <name> --title <t> --kind <k> --label <l> [--status] [--mode] [--answers <id>] [--blocked-by <ids>] [--pinned] [--body <md>] [--body-file <path>]` |
+| create    | `acstack node create --map <name> --title <t> --kind <k> --label <l> [--summary <s>] [--status] [--mode] [--answers <id>] [--blocked-by <ids>] [--pinned] [--body <md>] [--body-file <path>]` |
 | read      | `acstack node read <id> --map <name> [--json] [--visuals]` |
-| update    | `acstack node update <id> --map <name> [--title] [--status] [--mode] [--kind] [--label] [--answers] [--blocked-by] [--pinned true\|false] [--body] [--body-file] [--append-body]` |
+| update    | `acstack node update <id> --map <name> [--title] [--status] [--mode] [--kind] [--label] [--summary] [--answers] [--blocked-by] [--pinned true\|false] [--body] [--body-file] [--append-body]` |
 | list      | `acstack node list --map <name> [--status <s>] [--json]` |
 
 `create` rejects a node that omits `--kind` or `--label`. `--kind` takes one of
 `destination`, `notes`, `decision`, `research`, or `work`. `--label` takes the
 node's short name for a diagram, at most four words and thirty characters.
+
+`--summary` is optional: one plain sentence, on one line, for a business
+reader. `create` refuses a blank one, and on `update` an empty string clears it.
 
 ## No body header
 

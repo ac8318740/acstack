@@ -81,12 +81,12 @@ export function requireProject(root: string | null): asserts root is string {
  * it turns a thrown error into a stack trace, which is why the preamble is one
  * wrapper rather than four lines each action repeats.
  */
-export function inProject<A extends unknown[]>(action: (root: string, ...args: A) => void) {
-  return (...args: A): void => {
+export function inProject<A extends unknown[]>(action: (root: string, ...args: A) => void | Promise<void>) {
+  return async (...args: A): Promise<void> => {
     const root = findProjectRoot();
     requireProject(root);
     try {
-      action(root, ...args);
+      await action(root, ...args);
     } catch (err) {
       fail((err as Error).message, errorHint(err));
     }

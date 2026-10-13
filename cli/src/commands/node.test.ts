@@ -860,6 +860,29 @@ describe('--body-file -', () => {
 // different sentence.
 // ---------------------------------------------------------------------------
 
+describe('--summary', () => {
+  const readSummary = (): unknown =>
+    (JSON.parse(runCli(['node', 'read', '001', '--map', 'm', '--json'], { cwd: root }).stdout) as {
+      summary: unknown;
+    }).summary;
+
+  it('is stored by create, replaced and cleared by update, and printed by --json', () => {
+    expect(runCli([...CREATE_ARGS, '--summary', 'Customers pay less.'], { cwd: root }).status).toBe(0);
+    expect(readSummary()).toBe('Customers pay less.');
+    const update = ['node', 'update', '001', '--map', 'm', '--summary'];
+    expect(runCli([...update, 'Orders ship faster.'], { cwd: root }).status).toBe(0);
+    expect(readSummary()).toBe('Orders ship faster.');
+    expect(runCli([...update, ''], { cwd: root }).status).toBe(0);
+    expect(readSummary()).toBeNull();
+  });
+
+  it('refuses a blank summary on create', () => {
+    const result = runCli([...CREATE_ARGS, '--summary', '  '], { cwd: root });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('summary must not be empty');
+  });
+});
+
 describe('--body-file - on a terminal', () => {
   it('names --body, the flag that takes the text directly', () => {
     const result = runTty([...CREATE_ARGS, '--body-file', '-'], { cwd: root });

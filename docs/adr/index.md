@@ -15,3 +15,4 @@
 - [0015](0015-a-node-id-links-to-its-issue-through-an-anchor.md) – A node id links to its issue through an anchor
 - [0016](0016-the-map-root-carries-no-status-of-its-own.md) – The map root carries no status of its own
 - [0017](0017-call-impeccable-copy-only-its-questions.md) – Call impeccable's command line, and copy only its question sets
+- [0018](0018-alignment-packs-use-local-viewers.md) – Alignment packs use local viewers

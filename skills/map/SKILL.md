@@ -95,6 +95,7 @@ operation. First the root:
 # files backend – github.md has the equivalent
 ~/.claude/acstack/bin/acstack node create --map <name> --title "<destination>" \
   --kind destination --label "<at most four words>" \
+  --summary "<one plain sentence>" \
   --body "<the destination, as settled>"
 ```
 
@@ -114,6 +115,12 @@ operation. First the root:
 - Every node carries a `kind` and a `label`, both required. A `label` is the
   node's short name for a diagram. `trackers/files.md` holds the kinds, the
   caps, and the contract the CLI enforces.
+
+- Give every `work` node and the destination a `--summary`: one sentence, in
+  plain words, on what the node means for the business. The body stays the
+  technical definition, and alignment packs show both.
+
+  Other kinds may carry a summary too. Only the files backend stores one.
 
 - Every node body carries a diagram, two at most. A childless `notes` node is
   the one exception.

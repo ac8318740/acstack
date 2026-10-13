@@ -120,6 +120,15 @@ describe('create', () => {
     expect(getNode(root, 'demo', '001').label).toBe('Token refresh flow');
   });
 
+  it('round-trips a summary holding YAML punctuation, and rejects a blank one', () => {
+    const summary = 'Refunds: "fast" and #1 – no waiting.';
+    createNode(root, 'demo', { title: 'Root', kind: 'destination', label: 'Root', summary });
+    expect(getNode(root, 'demo', '001').summary).toBe(summary);
+    expect(() =>
+      createNode(root, 'demo', { title: 'A', kind: 'work', label: 'A', answers: '001', summary: ' ' })
+    ).toThrow(/summary must not be empty/);
+  });
+
   it('rejects a node with no label', () => {
     expect(() =>
       createNode(root, 'demo', invalid<CreateNodeInput>({ title: 'Root', kind: 'notes' }))
@@ -400,6 +409,16 @@ describe('update', () => {
     expect(getNode(root, 'demo', '001').label).toBe('Old label');
   });
 
+  it('sets, trims and clears the summary, refusing a multi-line one', () => {
+    createNode(root, 'demo', { title: 'Root', kind: 'notes', label: 'Root' });
+    updateNode(root, 'demo', '001', { summary: '  Customers stay signed in.  ' });
+    expect(getNode(root, 'demo', '001').summary).toBe('Customers stay signed in.');
+    expect(() => updateNode(root, 'demo', '001', { summary: 'One.\nTwo.' })).toThrow(/single line/);
+    updateNode(root, 'demo', '001', { summary: '' });
+    expect(getNode(root, 'demo', '001').summary).toBeUndefined();
+    expect(readFileSync(join(mapDir(root, 'demo'), '001-root.md'), 'utf-8')).not.toContain('summary');
+  });
+
   it('flips pinned', () => {
     createNode(root, 'demo', { title: 'Root', kind: 'destination', label: 'Root', pinned: true });
     updateNode(root, 'demo', '001', { pinned: false });
@@ -449,6 +468,7 @@ describe('list', () => {
       title: 'Root',
       kind: 'destination',
       label: 'Root node',
+      summary: 'Readers see the plan in one line.',
       pinned: true,
       body: 'Line one.\n\nLine two.',
     });
