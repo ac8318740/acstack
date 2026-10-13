@@ -1,5 +1,5 @@
-# Node/TypeScript project profile for mapflow
-# Used by /mapflow:setup to generate mapflow/project.yaml
+# Node/TypeScript project profile for acstack
+# Used by /acstack:setup to generate acstack/project.yaml
 
 commands:
   test: "npm test"

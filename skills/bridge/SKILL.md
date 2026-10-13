@@ -78,7 +78,7 @@ later. Tell the user clearly which block goes where.
   (`doctor.ps1`). Reach for those before improvising.
 
 - Do not edit the scripts in place to "try something". Change them in
-  `plugins/mapflow/assets/playwriter-bridge/`.
+  `plugins/acstack/assets/playwriter-bridge/`.
 
     On the next Claude Code launch, the SessionStart hook redeploys
     changed scripts to `%USERPROFILE%\playwriter-bridge\` on the
@@ -99,7 +99,7 @@ one as "UTF-8 Unicode (with BOM)".
 
 ## Files this skill governs
 
-Under `plugins/mapflow/assets/playwriter-bridge/`:
+Under `plugins/acstack/assets/playwriter-bridge/`:
 
 - `launcher-src.cs`, `build-launcher.ps1` – launcher shim (hides console,
   owns the child process tree)

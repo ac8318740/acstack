@@ -36,7 +36,7 @@ const { replaceFileAtomically } = await import('./atomic-file.js');
 
 /** A temp directory holding one file of `text`, handing back that file's path. */
 function fileHolding(text: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'mapflow-atomic-'));
+  const dir = mkdtempSync(join(tmpdir(), 'acstack-atomic-'));
   const file = join(dir, 'project.yaml');
   writeFileSync(file, text, 'utf-8');
   return file;

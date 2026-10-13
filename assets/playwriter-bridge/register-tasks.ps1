@@ -258,7 +258,7 @@ if (-not (Test-Path $sshExe)) {
         # A warning, never a throw. The tasks are already registered by this
         # point and the start loop is still ahead, so throwing here left every
         # task registered and none of them running.
-        Write-Warning "ssh.exe not found, so the opener token was not pushed. Enable the Windows OpenSSH Client optional feature, then copy $tokenFile to ~/.config/mapflow/opener.token on each VM by hand."
+        Write-Warning "ssh.exe not found, so the opener token was not pushed. Enable the Windows OpenSSH Client optional feature, then copy $tokenFile to ~/.config/acstack/opener.token on each VM by hand."
         $sshExe = $null
     }
 }
@@ -268,7 +268,7 @@ foreach ($vm in $VMs) {
     # Single-quoted on the remote side so the shell there cannot interpret it,
     # and 0600 because it is a bearer credential for opening pages on this
     # screen.
-    $cmd = "mkdir -p ~/.config/mapflow && umask 077 && printf '%s' '$token' > ~/.config/mapflow/opener.token"
+    $cmd = "mkdir -p ~/.config/acstack && umask 077 && printf '%s' '$token' > ~/.config/acstack/opener.token"
     # $ErrorActionPreference is 'Stop' for this script, and merging a native
     # command's stderr into the pipeline under it turns any stderr line into a
     # terminating NativeCommandError. ssh writes one on a first connection:
@@ -281,9 +281,9 @@ foreach ($vm in $VMs) {
     $sshCode = $LASTEXITCODE
     $ErrorActionPreference = $prevEap
     if ($sshCode -eq 0) {
-        Write-Host "  $vm : token installed at ~/.config/mapflow/opener.token"
+        Write-Host "  $vm : token installed at ~/.config/acstack/opener.token"
     } else {
-        Write-Warning "  $vm : could not push the token (ssh exit $sshCode). Copy $tokenFile to ~/.config/mapflow/opener.token on that VM by hand."
+        Write-Warning "  $vm : could not push the token (ssh exit $sshCode). Copy $tokenFile to ~/.config/acstack/opener.token on that VM by hand."
     }
 }
 

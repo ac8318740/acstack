@@ -1,6 +1,6 @@
 # The config writer verifies its result instead of predicting it
 
-`mapflow config set` writes a key into `mapflow/project.yaml` by splicing the
+`acstack config set` writes a key into `acstack/project.yaml` by splicing the
 new value over the old value's bytes, so a hand-edited file keeps its comments
 and its spacing. Before writing, it parses what it built and compares that data
 against what the YAML document interface would have produced. The two must

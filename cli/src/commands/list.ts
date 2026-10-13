@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { MAPFLOW_DIR, CHANGES_DIR, SPECS_DIR } from '../lib/constants.js';
+import { ACSTACK_DIR, CHANGES_DIR, SPECS_DIR } from '../lib/constants.js';
 import { listChanges, listSpecs, inProject } from '../lib/utils.js';
 
 interface ListItem {
@@ -28,7 +28,7 @@ export function register(program: Command): void {
 
         if (showSpecs) {
           for (const name of listSpecs(root)) {
-            const specDir = join(root, MAPFLOW_DIR, SPECS_DIR, name);
+            const specDir = join(root, ACSTACK_DIR, SPECS_DIR, name);
             const specFile = join(specDir, 'spec.md');
             items.push({
               name,
@@ -41,7 +41,7 @@ export function register(program: Command): void {
           }
         } else {
           for (const name of listChanges(root)) {
-            const changeDir = join(root, MAPFLOW_DIR, CHANGES_DIR, name);
+            const changeDir = join(root, ACSTACK_DIR, CHANGES_DIR, name);
             const artifacts = existsSync(changeDir)
               ? readdirSync(changeDir)
                   .filter(f => f.endsWith('.md'))

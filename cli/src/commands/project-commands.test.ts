@@ -1,4 +1,4 @@
-// Node #218: `mapflow archive`, `mapflow list` and `mapflow show` each open
+// Node #218: `acstack archive`, `acstack list` and `acstack show` each open
 // with `findProjectRoot()` then `requireProject(root)`, and neither wraps its
 // body. Anything the body throws reaches the user as a raw Node stack trace.
 //
@@ -27,10 +27,10 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CLI_BIN = join(__dirname, '..', '..', 'bin', 'mapflow.js');
+const CLI_BIN = join(__dirname, '..', '..', 'bin', 'acstack.js');
 
-/** The refusal `requireProject` prints when no ancestor holds a mapflow/ directory. */
-const NOT_A_PROJECT = 'Not in a Mapflow project. Run `/mapflow:setup` first.';
+/** The refusal `requireProject` prints when no ancestor holds an acstack/ directory. */
+const NOT_A_PROJECT = 'Not in an ACStack project. Run `/acstack:setup` first.';
 
 function runCli(args: string[], opts: { cwd?: string } = {}) {
   return spawnSync(process.execPath, [CLI_BIN, ...args], {
@@ -42,7 +42,7 @@ function runCli(args: string[], opts: { cwd?: string } = {}) {
   });
 }
 
-/** The shape `mapflow list --json` prints for one entry. */
+/** The shape `acstack list --json` prints for one entry. */
 interface ListItemJson {
   name: string;
   type: 'change' | 'spec';
@@ -51,7 +51,7 @@ interface ListItemJson {
   artifacts?: string[];
 }
 
-/** The shape `mapflow show <spec> --json` prints. */
+/** The shape `acstack show <spec> --json` prints. */
 interface ShowSpecJson {
   name: string;
   type: 'spec';
@@ -59,7 +59,7 @@ interface ShowSpecJson {
 }
 
 /**
- * A temp Mapflow project holding one change with one artifact, one spec, and
+ * A temp ACStack project holding one change with one artifact, one spec, and
  * an existing archive directory.
  *
  * Every command under test needs a project that actually has something in it:
@@ -67,9 +67,9 @@ interface ShowSpecJson {
  * needs a change to copy and a destination to copy it to.
  */
 function makeProject(): string {
-  const root = mkdtempSync(join(tmpdir(), 'mapflow-project-cmds-'));
-  mkdirSync(join(root, 'mapflow'), { recursive: true });
-  writeFileSync(join(root, 'mapflow', 'project.yaml'), '# test project\n');
+  const root = mkdtempSync(join(tmpdir(), 'acstack-project-cmds-'));
+  mkdirSync(join(root, 'acstack'), { recursive: true });
+  writeFileSync(join(root, 'acstack', 'project.yaml'), '# test project\n');
   mkdirSync(changeDir(root), { recursive: true });
   writeFileSync(join(changeDir(root), 'proposal.md'), '# Proposal\n\nSome prose.\n');
   mkdirSync(specDir(root), { recursive: true });
@@ -82,15 +82,15 @@ const CHANGE_NAME = 'mychange';
 const SPEC_NAME = 'myspec';
 
 function changeDir(root: string): string {
-  return join(root, 'mapflow', 'changes', CHANGE_NAME);
+  return join(root, 'acstack', 'changes', CHANGE_NAME);
 }
 
 function specDir(root: string): string {
-  return join(root, 'mapflow', 'specs', SPEC_NAME);
+  return join(root, 'acstack', 'specs', SPEC_NAME);
 }
 
 function archiveDir(root: string): string {
-  return join(root, 'mapflow', 'changes', 'archive');
+  return join(root, 'acstack', 'changes', 'archive');
 }
 
 /**
@@ -176,12 +176,12 @@ function expectCleanError(stderr: string): void {
 }
 
 let root: string;
-/** A directory with no mapflow/ anywhere above it, for the refusal tests. */
+/** A directory with no acstack/ anywhere above it, for the refusal tests. */
 let outside: string;
 
 beforeEach(() => {
   root = makeProject();
-  outside = mkdtempSync(join(tmpdir(), 'mapflow-outside-'));
+  outside = mkdtempSync(join(tmpdir(), 'acstack-outside-'));
 });
 
 afterEach(() => {
@@ -198,10 +198,10 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// mapflow list
+// acstack list
 // ---------------------------------------------------------------------------
 
-describe('mapflow list', () => {
+describe('acstack list', () => {
   it('reports an unreadable change directory as a clean error, with no stack trace', ctx => {
     denyAccess(changeDir(root), 0o000, 0o755);
     if (canReadDirDespiteNoPermission(changeDir(root))) {
@@ -215,7 +215,7 @@ describe('mapflow list', () => {
     expectCleanError(result.stderr);
   });
 
-  it('refuses outside a Mapflow project', () => {
+  it('refuses outside an ACStack project', () => {
     const result = runCli(['list'], { cwd: outside });
 
     expect(result.status).toBe(1);
@@ -240,10 +240,10 @@ describe('mapflow list', () => {
 });
 
 // ---------------------------------------------------------------------------
-// mapflow show
+// acstack show
 // ---------------------------------------------------------------------------
 
-describe('mapflow show', () => {
+describe('acstack show', () => {
   it('reports an unreadable spec.md as a clean error, with no stack trace', ctx => {
     const specFile = join(specDir(root), 'spec.md');
     denyAccess(specFile, 0o000, 0o644);
@@ -272,7 +272,7 @@ describe('mapflow show', () => {
     expectCleanError(result.stderr);
   });
 
-  it('refuses outside a Mapflow project', () => {
+  it('refuses outside an ACStack project', () => {
     const result = runCli(['show', SPEC_NAME], { cwd: outside });
 
     expect(result.status).toBe(1);
@@ -298,10 +298,10 @@ describe('mapflow show', () => {
 });
 
 // ---------------------------------------------------------------------------
-// mapflow archive
+// acstack archive
 // ---------------------------------------------------------------------------
 
-describe('mapflow archive', () => {
+describe('acstack archive', () => {
   it('reports an unwritable archive destination as a clean error, with no stack trace', ctx => {
     denyAccess(archiveDir(root), 0o500, 0o755);
     if (canWriteDespiteReadOnly(archiveDir(root))) {
@@ -315,7 +315,7 @@ describe('mapflow archive', () => {
     expectCleanError(result.stderr);
   });
 
-  it('refuses outside a Mapflow project', () => {
+  it('refuses outside an ACStack project', () => {
     const result = runCli(['archive', CHANGE_NAME], { cwd: outside });
 
     expect(result.status).toBe(1);

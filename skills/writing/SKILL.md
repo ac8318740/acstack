@@ -41,7 +41,7 @@ description: One plain-language standard for every durable artifact. A durable a
 
 **BEFORE YOU WRITE A SENTENCE, ASK: COULD A DEVELOPER TWO YEARS INTO THEIR CAREER READ THIS ONCE AND GET IT? IF NOT, YOU DO NOT UNDERSTAND IT WELL ENOUGH YET. GO BACK.**
 
-Mapflow adopts the writing rules of ASD-STE100 (Simplified Technical English), not its licensed dictionary. ASD-STE100 is an aerospace standard for controlled technical writing. The file `vocabulary.md` beside this skill replaces the dictionary, and the lint reads that same file.
+ACStack adopts the writing rules of ASD-STE100 (Simplified Technical English), not its licensed dictionary. ASD-STE100 is an aerospace standard for controlled technical writing. The file `vocabulary.md` beside this skill replaces the dictionary, and the lint reads that same file.
 
 Every rule below is a way to write. Each rule has a `Write:` and `Not:` pair in `examples.md` beside this skill, except rules 3 and 11, which keep theirs inline. Read `examples.md` before you write your first durable artifact in a session.
 
@@ -51,7 +51,7 @@ An instruction is a numbered step, a procedure line, or a handoff next action.
 
 ### 1. Cap a descriptive sentence at 25 words, and an instruction at 20 words (ASD-STE100)
 
-`mapflow lint-prose` checks both caps. The 20-word cap applies to an ordered list item, written `1.` or `1)`. An unordered bullet keeps the 25-word cap.
+`acstack lint-prose` checks both caps. The 20-word cap applies to an ordered list item, written `1.` or `1)`. An unordered bullet keeps the 25-word cap.
 
 ### 2. Give each sentence one instruction (ASD-STE100)
 
@@ -139,7 +139,7 @@ Five ways this fails. Each carries its own pair.
 
 **A sentence written for drama.** State the fact and stop. A sentence built for effect reads as marketing, not as documentation.
 
-- Write: Mapflow throws the nodes away.
+- Write: ACStack throws the nodes away.
 - Not: The nodes themselves are scaffolding.
 
 - Write: Some requests only need one question.
@@ -228,4 +228,4 @@ Check five things in what you just wrote.
 4. Voice. Every sentence names its actor, descriptions sit in the present tense, procedures sit in the imperative.
 5. Headings. Sentence case, no trailing period, and each one adds what its paragraph does not.
 
-Then run `~/.claude/mapflow/bin/mapflow lint-prose <paths>` when it is available. It warns and never blocks.
+Then run `~/.claude/acstack/bin/acstack lint-prose <paths>` when it is available. It warns and never blocks.

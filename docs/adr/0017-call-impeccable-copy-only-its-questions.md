@@ -1,12 +1,12 @@
 # Call impeccable's command line, and copy only its question sets
 
-mapflow uses impeccable, a third-party design plugin, as an optional design gate. mapflow calls five commands through impeccable's documented command-line contract: `detect`, `context`, `audit`, `polish`, and `document`. It copies only impeccable's stable question sets, into the map's frontend branch. It never copies impeccable's files and depends on no other surface.
+acstack uses impeccable, a third-party design plugin, as an optional design gate. acstack calls five commands through impeccable's documented command-line contract: `detect`, `context`, `audit`, `polish`, and `document`. It copies only impeccable's stable question sets, into the map's frontend branch. It never copies impeccable's files and depends on no other surface.
 
 This project does not own impeccable, and impeccable moved three major versions in a year.
 
 ## Considered options
 
-Copying impeccable into mapflow turns every upstream release into a manual port. Naming all 23 commands ties mapflow to names that change between versions. Putting the integration inside impeccable is not possible, since this project does not own that repo.
+Copying impeccable into acstack turns every upstream release into a manual port. Naming all 23 commands ties acstack to names that change between versions. Putting the integration inside impeccable is not possible, since this project does not own that repo.
 
 ## Consequences
 

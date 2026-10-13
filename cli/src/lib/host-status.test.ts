@@ -10,7 +10,7 @@ import {
 } from './host-status.js';
 
 /**
- * Pure decision logic behind `mapflow config show`/`mapflow config check`.
+ * Pure decision logic behind `acstack config show`/`acstack config check`.
  *
  * These two functions do not exist yet (this whole file is expected to fail
  * to even load until `src/lib/host-status.ts` is created), but the behaviour
@@ -179,11 +179,11 @@ describe('ORCHESTRATOR_PROBES', () => {
 
 /**
  * `remoteCdpPort(project)` is the port `browser-mode:remote` probes in
- * `mapflow config check` - see its doc comment in host-status.ts for the
+ * `acstack config check` - see its doc comment in host-status.ts for the
  * rule. These cases pin the five inputs that rule branches on.
  */
 describe('remoteCdpPort', () => {
-  it('returns the bridge port when there is no Mapflow project at all', () => {
+  it('returns the bridge port when there is no ACStack project at all', () => {
     const project = projectHostContext(undefined, false);
     expect(remoteCdpPort(project)).toBe(DEFAULT_REMOTE_CDP_PORT);
   });
