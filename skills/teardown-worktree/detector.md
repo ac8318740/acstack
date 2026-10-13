@@ -4,7 +4,7 @@ What `detect-orchestrator.sh` prints, and what to do when it does not run.
 
 ## Why the path goes through the CLI symlink
 
-The path goes through `~/.claude/mapflow/bin/mapflow`, the invariant symlink the SessionStart hook maintains. The plugin re-creates that symlink every time an agent session starts. It is the only reliable way to find the plugin's own root.
+The path goes through `~/.claude/acstack/bin/acstack`, the invariant symlink the SessionStart hook maintains. The plugin re-creates that symlink every time an agent session starts. It is the only reliable way to find the plugin's own root.
 
 Do not invent a shorter path, and do not reach for `$CLAUDE_PLUGIN_ROOT` – the plugin deliberately does not depend on that variable reaching a fresh subshell.
 
@@ -12,7 +12,7 @@ Do not invent a shorter path, and do not reach for `$CLAUDE_PLUGIN_ROOT` – the
 
 The script always exits 0 and prints exactly six lines:
 
-- `declared_herdr` – whether the user has herdr installed on this host, recorded in the Mapflow global config under `host.orchestrators.herdr`. One of `true`, `false`, `unset`.
+- `declared_herdr` – whether the user has herdr installed on this host, recorded in the ACStack global config under `host.orchestrators.herdr`. One of `true`, `false`, `unset`.
 - `declared_orca` – the same yes-or-no answer for Orca, recorded under `host.orchestrators.orca`. One of `true`, `false`, `unset`. The two are independent: a host can have both installed, one, or neither, so one answer says nothing about the other.
 - `detected` – which orchestrator is actually hosting this session, read from the environment markers an orchestrator injects into the terminals it opens. One of `herdr`, `orca`, `none`.
 - `active` – the branch to run for this session. One of `herdr`, `orca`, `none`.

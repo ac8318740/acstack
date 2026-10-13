@@ -1,28 +1,28 @@
 #!/usr/bin/env bash
-# Mapflow handoff reload (consume-once, change-aware).
+# ACStack handoff reload (consume-once, change-aware).
 #
 # When a session resumes after compaction (SessionStart source == "compact"),
-# re-inject the handoff anchor written by /mapflow:compact-and-continue, then
+# re-inject the handoff anchor written by /acstack:compact-and-continue, then
 # retire it so it can never be injected twice.
 #
 # The compaction summary carries the conversation narrative; this anchor carries
 # the load-bearing state the summary may have compressed away (next action, task
 # ledger, agent-team file ownership, blockers).
 #
-# Active (pending) handoff lives at the fixed path mapflow/HANDOFF.md, so this
+# Active (pending) handoff lives at the fixed path acstack/HANDOFF.md, so this
 # hook reads one known file with no CLI call. The file's frontmatter records the
 # change it belongs to. On consume, the file is MOVED into that change's own
 # folder, accumulating a per-change history:
 #
-#   mapflow/changes/<change>/handoffs/<timestamp>.md   (when the change dir exists)
-#   mapflow/handoffs/<change>/<timestamp>.md           (ad-hoc, or change archived)
+#   acstack/changes/<change>/handoffs/<timestamp>.md   (when the change dir exists)
+#   acstack/handoffs/<change>/<timestamp>.md           (ad-hoc, or change archived)
 #
 # Storing consumed handoffs inside the change dir means they travel with the
-# change when /mapflow:archive moves it. Names are timestamped with a numeric
+# change when /acstack:archive moves it. Names are timestamped with a numeric
 # collision suffix (-2, -3, ...) so many handoffs accumulate without overwrite.
 #
 # No-op on a fresh startup, on --resume, on /clear, when no anchor exists, when
-# the anchor is empty, or when the file lacks the mapflow_handoff marker (so a
+# the anchor is empty, or when the file lacks the acstack_handoff marker (so a
 # user's own unrelated HANDOFF.md is never touched).
 #
 # Runs alongside session-start.sh as a second SessionStart hook. Claude Code
@@ -36,14 +36,14 @@ command -v python3 >/dev/null 2>&1 || exit 0
 # Capture the hook payload from stdin before running python. The heredoc below
 # becomes python's stdin (the program source), so the payload must travel via an
 # env var, not sys.stdin.
-MAPFLOW_HOOK_INPUT="$(cat)"
-export MAPFLOW_HOOK_INPUT
+ACSTACK_HOOK_INPUT="$(cat)"
+export ACSTACK_HOOK_INPUT
 
 python3 <<'PY'
 import json, os, re, shutil, sys
 
 try:
-    data = json.loads(os.environ.get("MAPFLOW_HOOK_INPUT", ""))
+    data = json.loads(os.environ.get("ACSTACK_HOOK_INPUT", ""))
 except Exception:
     sys.exit(0)
 
@@ -53,7 +53,7 @@ if not isinstance(data, dict):
 if data.get("source") != "compact":
     sys.exit(0)
 
-active = os.path.join("mapflow", "HANDOFF.md")
+active = os.path.join("acstack", "HANDOFF.md")
 try:
     with open(active, encoding="utf-8") as f:
         raw = f.read()
@@ -90,7 +90,7 @@ meta, body = parse_frontmatter(raw)
 
 # Only consume files this plugin wrote. A bare HANDOFF.md without the marker is
 # left untouched.
-if not meta or "mapflow_handoff" not in meta:
+if not meta or "acstack_handoff" not in meta:
     sys.exit(0)
 
 if not body.strip():
@@ -99,7 +99,7 @@ if not body.strip():
 # "map" is the current key; "change" is accepted for anchors written by
 # pre-map versions of the handoff skill. The value feeds os.path.join, so
 # sanitize it the same way as the stamp – a name with "/" or ".." must not
-# route the archived handoff outside mapflow/.
+# route the archived handoff outside acstack/.
 change = meta.get("map") or meta.get("change") or "ad-hoc"
 change = re.sub(r"[^A-Za-z0-9._-]", "-", str(change))
 if not change.strip("."):
@@ -113,13 +113,13 @@ if not stamp:
     stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H-%M-%SZ")
 
 # Route to the change's own folder when that change dir exists, so consumed
-# handoffs travel with the change on /mapflow:archive. Otherwise fall back to a
+# handoffs travel with the change on /acstack:archive. Otherwise fall back to a
 # neutral top-level handoffs dir (ad-hoc work, or a change already archived).
-change_dir = os.path.join("mapflow", "changes", change)
+change_dir = os.path.join("acstack", "changes", change)
 if change != "ad-hoc" and os.path.isdir(change_dir):
     archive_dir = os.path.join(change_dir, "handoffs")
 else:
-    archive_dir = os.path.join("mapflow", "handoffs", change)
+    archive_dir = os.path.join("acstack", "handoffs", change)
 
 # Find a non-colliding destination: <stamp>.md, then <stamp>-2.md, -3.md, ...
 dest = None
@@ -143,7 +143,7 @@ if dest:
         pass
 
 preamble = (
-    "The session was just compacted. The following Mapflow handoff captures "
+    "The session was just compacted. The following ACStack handoff captures "
     "load-bearing work state the summary may have compressed. Treat it as "
     "authoritative for what to do next.\n\n"
     "Resume now: when the user's next message is \"continue\" (or any short "

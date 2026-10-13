@@ -1,6 +1,6 @@
 # A document opener service on the laptop, separate from the Playwriter bridge
 
-`mapflow-open` sends a rendered page to the opener, a small HTTP service on
+`acstack-open` sends a rendered page to the opener, a small HTTP service on
 the user's laptop. The opener stores the page and serves it back on an
 address only the laptop can reach (the loopback interface). It then hands
 that address to the user's default browser.

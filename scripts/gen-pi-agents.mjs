@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate pi-subagents agent definitions from the Mapflow agent markdown.
+// Generate pi-subagents agent definitions from the ACStack agent markdown.
 //
 // agents/<name>.md  ->  pi/agents/<name>.md
 //
@@ -23,8 +23,8 @@
 //                          subagent keeps its harness prompt
 //   inheritProjectContext  true - the agents follow the repo's AGENTS.md
 //   inheritSkills          true - the agents keep the user's own pi skills
-//   skills, skillPath      the Mapflow skills each agent reads, from SKILLS
-//                          below. Mapflow's skills are not pi skills (they
+//   skills, skillPath      the ACStack skills each agent reads, from SKILLS
+//                          below. ACStack's skills are not pi skills (they
 //                          would each show up as a /skill:<name> command), so
 //                          an agent resolves its own from the skills/
 //                          directory. skillPath is relative to the agent
@@ -34,7 +34,7 @@
 //   tools                  pi's builtin file and shell tools, listed so the
 //                          set is fixed. A foreground child loads none of
 //                          the parent's extensions, so an agent reaches the
-//                          mapflow CLI through bash, at its absolute path
+//                          acstack CLI through bash, at its absolute path
 //
 // Deliberately not emitted:
 //   model  - ours says "opus", a Claude alias. Omitting it lets the user's
@@ -56,7 +56,7 @@ const srcDir = join(root, 'agents');
 const outDir = join(root, 'pi', 'agents');
 const tools = 'read, grep, find, ls, bash, edit, write';
 
-// The Mapflow skills each agent reads. test-conventions names the test-writer
+// The ACStack skills each agent reads. test-conventions names the test-writer
 // in its description, browser-verify covers the agent-browser commands the
 // frontend-verifier runs, and the frontend-verifier's prompt points at bridge.
 const SKILLS = {

@@ -9,7 +9,7 @@ For each finding (MUST first, then SHOULD, then CONSIDER):
 3. If fix breaks something, revert and try alternate approach
 4. Move to next finding
 
-After all fixes, run full verification using commands from `mapflow/project.yaml`:
+After all fixes, run full verification using commands from `acstack/project.yaml`:
 
 ```bash
 # Run the project's configured test, lint, and typecheck commands

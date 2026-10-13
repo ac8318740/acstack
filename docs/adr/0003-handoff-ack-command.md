@@ -1,8 +1,8 @@
 # Handoff acknowledgement is a CLI command, not a reply
 
-/mapflow:handoff hands work to another agent and asks it to reply ACCEPT or DECLINE. The sender's watcher, `mapflow handoff watch` (`cli/src/lib/ackwatch.ts`), grepped the receiver's transcript for that keyword, a convention an agent can drift from.
+/acstack:handoff hands work to another agent and asks it to reply ACCEPT or DECLINE. The sender's watcher, `acstack handoff watch` (`cli/src/lib/ackwatch.ts`), grepped the receiver's transcript for that keyword, a convention an agent can drift from.
 
-The receiver now acknowledges by running `mapflow handoff ack accept|decline --file <handoff-file> "<reason>"`. That command writes a sidecar `<handoff-file>.ack` file, which the watcher polls instead of the transcript.
+The receiver now acknowledges by running `acstack handoff ack accept|decline --file <handoff-file> "<reason>"`. That command writes a sidecar `<handoff-file>.ack` file, which the watcher polls instead of the transcript.
 
 ## Considered options
 

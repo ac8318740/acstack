@@ -63,12 +63,12 @@ already behind both watches.
 
 ```bash
 # token route – <new-token> is the one in the nudge message
-~/.claude/mapflow/bin/mapflow handoff watch --file <handoff-file> --nudged \
+~/.claude/acstack/bin/acstack handoff watch --file <handoff-file> --nudged \
   --session-id <id> --cwd <dir> --token <new-token> --turns <n> \
   --ack-after <startedAt of the first watch>
 
 # fresh route – <n> doubled, because --fresh re-counts the spent turns
-~/.claude/mapflow/bin/mapflow handoff watch --file <handoff-file> --nudged \
+~/.claude/acstack/bin/acstack handoff watch --file <handoff-file> --nudged \
   --session-id <id> --cwd <dir> --fresh --turns <2n>
 ```
 

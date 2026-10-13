@@ -47,8 +47,8 @@ export interface RenderOptions {
 
 // The markers are what let a regeneration replace the diagram in a node body
 // without touching anything a human wrote around it.
-export const DIAGRAM_START = '<!-- mapflow:diagram -->';
-export const DIAGRAM_END = '<!-- /mapflow:diagram -->';
+export const DIAGRAM_START = '<!-- acstack:diagram -->';
+export const DIAGRAM_END = '<!-- /acstack:diagram -->';
 
 /** A fenced code block's opening run, as the line that closes it has to match. */
 interface Fence {

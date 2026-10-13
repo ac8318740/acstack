@@ -15,12 +15,12 @@ cannot. One machine has herdr installed, another has Orca, another has neither.
 None of that is a property of the project, so none of it belongs in the
 project's config file.
 
-The answers therefore go to the global config of the Mapflow command-line
-interface. That is a JSON file at `~/.config/mapflow/config.json`, or under
+The answers therefore go to the global config of the ACStack command-line
+interface. That is a JSON file at `~/.config/acstack/config.json`, or under
 `$XDG_CONFIG_HOME` when you set that environment variable. Run
-`~/.claude/mapflow/bin/mapflow config path` to print the real location.
+`~/.claude/acstack/bin/acstack config path` to print the real location.
 
-They do not go in `mapflow/project.yaml`.
+They do not go in `acstack/project.yaml`.
 
 Project concerns stay in `project.yaml`. In particular
 `frontend.browser.mode` stays there as the *project's preference*, while
@@ -33,7 +33,7 @@ The path resolution looks odd, so here is why. The plugin's own files live in a
 versioned cache directory. Its path changes on every release, so nobody can
 hardcode it.
 
-The one invariant path is `~/.claude/mapflow/bin/mapflow`, a symlink to the CLI
+The one invariant path is `~/.claude/acstack/bin/acstack`, a symlink to the CLI
 inside the current cache. The SessionStart hook re-points that symlink at the
 start of every agent session.
 
@@ -55,7 +55,7 @@ symlink rather than from a written-down path.
 - **Recovering from version skew.** Do not re-ask – the answer is not the
     problem, and re-asking a boolean axis only loops. Tell the user to restart
     their agent session, so the SessionStart hook re-points
-    `~/.claude/mapflow/bin/mapflow` at the current cache.
+    `~/.claude/acstack/bin/acstack` at the current cache.
 
     Skip the axis and carry on. Do not report it to the user as their mistake.
 
@@ -66,7 +66,7 @@ machine has that orchestrator installed. They are independent, so both can be
 true at once. Neither says that the orchestrator is hosting the current
 session.
 
-At worktree time, `/mapflow:new-worktree` and `/mapflow:teardown-worktree` run
+At worktree time, `/acstack:new-worktree` and `/acstack:teardown-worktree` run
 the same detector. It reads the environment markers an orchestrator sets in the
 terminals it opens, and those markers name the orchestrator hosting this
 session. The markers are `HERDR_ENV` or `HERDR_PANE_ID` for herdr, and
@@ -77,11 +77,11 @@ git worktrees and say so. An environment variable for an orchestrator that was
 never declared is worth a warning, not a refusal.
 
 **The host declares, the project prefers.** `host.browser.*` says what this
-machine can do. `frontend.browser.mode` in `mapflow/project.yaml` says what the
+machine can do. `frontend.browser.mode` in `acstack/project.yaml` says what the
 project would like.
 
-Today the only thing that compares the two is the Mapflow command-line
-interface's own health check, `~/.claude/mapflow/bin/mapflow config check`.
+Today the only thing that compares the two is the ACStack command-line
+interface's own health check, `~/.claude/acstack/bin/acstack config check`.
 
 It passes when the host declares the project's preferred mode available. It
 passes with a note when the host does not. The note names the first mode the

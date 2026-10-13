@@ -1,5 +1,5 @@
 <!--
-`mapflow lint-prose` reads this layout. One Markdown table per section, columns
+`acstack lint-prose` reads this layout. One Markdown table per section, columns
 `| Avoid | Write instead | Note |`, one entry per row. `Avoid` holds one
 lowercase word or phrase, never a regular expression. `Write instead` holds a
 replacement, or `-` when the fix is to delete the word. Words sit under

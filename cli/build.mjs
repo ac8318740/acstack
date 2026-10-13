@@ -1,4 +1,4 @@
-// Bundles the mapflow CLI into a single self-contained dist/index.js.
+// Bundles the acstack CLI into a single self-contained dist/index.js.
 //
 // The bundle is what ships through the marketplace install – there is no npm
 // install step downstream, so dist/index.js must run with no node_modules next
@@ -26,7 +26,7 @@ const config = {
   outfile: 'dist/index.js',
   sourcemap: 'external',
   banner: {
-    js: "import { createRequire as __mapflowCreateRequire } from 'module'; const require = __mapflowCreateRequire(import.meta.url);",
+    js: "import { createRequire as __acstackCreateRequire } from 'module'; const require = __acstackCreateRequire(import.meta.url);",
   },
 };
 

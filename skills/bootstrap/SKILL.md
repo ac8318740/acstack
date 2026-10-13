@@ -1,6 +1,6 @@
 ---
 name: bootstrap
-description: Multi-pass AI crawl to generate initial living specs from the existing codebase. Use when mapflow/specs/ domains need their initial spec.md files bootstrapped from code.
+description: Multi-pass AI crawl to generate initial living specs from the existing codebase. Use when acstack/specs/ domains need their initial spec.md files bootstrapped from code.
 argument-hint: "[domain-names (optional)]"
 disable-model-invocation: true
 ---
@@ -15,9 +15,9 @@ Consider the user input before you proceed, if it is not empty.
 
 ## Purpose
 
-This skill bootstraps cumulative living specs in `mapflow/specs/`. It crawls the existing codebase with multiple independent AI passes. It then merges the passes and validates the results.
+This skill bootstraps cumulative living specs in `acstack/specs/`. It crawls the existing codebase with multiple independent AI passes. It then merges the passes and validates the results.
 
-**IMPORTANT**: This is a one-time bootstrapping operation. Only run when `mapflow/specs/` domains have no `spec.md` files yet.
+**IMPORTANT**: This is a one-time bootstrapping operation. Only run when `acstack/specs/` domains have no `spec.md` files yet.
 
 ## Your role: orchestrator only
 
@@ -33,9 +33,9 @@ Your job is to:
 
 ## Pre-flight check
 
-1. Read `mapflow/domain-map.yaml` to get the list of domains and their file path mappings.
+1. Read `acstack/domain-map.yaml` to get the list of domains and their file path mappings.
 2. If `$ARGUMENTS` specifies domain names, filter to only those domains.
-3. Check if any `mapflow/specs/*/spec.md` files already exist:
+3. Check if any `acstack/specs/*/spec.md` files already exist:
     - If specs exist, warn the user. Ask for confirmation before overwriting.
     - If no specs exist, proceed automatically.
 
@@ -98,7 +98,7 @@ Launch a single subagent to apply validated corrections from Phase 3.
 
 ## Phase 5: human review (pass 9)
 
-Present a summary to the user. Ask: "Review the specs in `mapflow/specs/`. Want to edit any domain before finalizing?"
+Present a summary to the user. Ask: "Review the specs in `acstack/specs/`. Want to edit any domain before finalizing?"
 
 ## Phase 6: finalization (pass 10)
 

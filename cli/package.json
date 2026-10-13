@@ -1,7 +1,7 @@
 {
-  "name": "mapflow-cli",
-  "version": "0.46.0",
-  "description": "CLI for Mapflow map-based AI work orchestration",
+  "name": "acstack-cli",
+  "version": "0.47.0",
+  "description": "CLI for the ACStack agentic coding stack",
   "type": "module",
   "license": "MIT",
   "author": {
@@ -13,7 +13,7 @@
     "directory": "cli"
   },
   "bin": {
-    "mapflow": "./bin/mapflow.js"
+    "acstack": "./bin/acstack.js"
   },
   "files": [
     "dist/index.js",
@@ -49,8 +49,8 @@
   },
   "homepage": "https://github.com/ac8318740/spechub/tree/main/cli",
   "keywords": [
-    "map-based",
-    "mapflow",
+    "agentic-coding",
+    "acstack",
     "planning",
     "agent",
     "claude",

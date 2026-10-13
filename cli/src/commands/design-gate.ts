@@ -1,5 +1,5 @@
 /**
- * `mapflow design-gate` - one call that answers whether the design gate is on.
+ * `acstack design-gate` - one call that answers whether the design gate is on.
  *
  * The answer lives in two places: `workflow.design_review` in the project's
  * own file, and whether the impeccable plugin is installed on the machine.
@@ -43,7 +43,7 @@ import { readYaml } from '../lib/utils.js';
  * person reads them. The JSON carries the same ones, so the two renderings
  * stay one contract instead of becoming two.
  */
-const REASON_NO_PROJECT = 'no mapflow project here';
+const REASON_NO_PROJECT = 'no acstack project here';
 const REASON_KEY_FALSE = `${DESIGN_REVIEW_KEY} is false`;
 const REASON_NOT_INSTALLED = `${IMPECCABLE_PLUGIN} is not installed`;
 

@@ -252,7 +252,7 @@ describe('one composer writes the rejection both enum schemas give', () => {
 /**
  * The three context-pressure rungs, and the name each language gives them.
  *
- * The hook cannot ask the CLI for these: `mapflow config get` exits 2 on an
+ * The hook cannot ask the CLI for these: `acstack config get` exits 2 on an
  * unset key, and the hook runs on `Stop`, where booting node costs the user a
  * pause on every turn. So the copies stay, and this test is what keeps them
  * saying the same thing.

@@ -25,7 +25,7 @@ You review screenshots. You report results. You do not need user approval.
 
 ## Project configuration
 
-Read `mapflow/project.yaml` for frontend settings:
+Read `acstack/project.yaml` for frontend settings:
 
 - `frontend.directory` – frontend source directory
 - `frontend.dev_server_url` – dev server URL
@@ -34,9 +34,9 @@ Read `mapflow/project.yaml` for frontend settings:
 - `frontend.commands.dev` – command to start the dev server
 - `frontend.browser.cdp_port` – CDP (Chrome DevTools Protocol) port. Default `19988` when the mode is `remote` (Playwriter bridge), `9555` when it is `headless` or `local`.
 
-You do not read `frontend.browser.mode` or `frontend.browser.fallback`. Step 3 asks the Mapflow CLI which browser mode to use, and the CLI reads both.
+You do not read `frontend.browser.mode` or `frontend.browser.fallback`. Step 3 asks the ACStack CLI which browser mode to use, and the CLI reads both.
 
-If `mapflow/project.yaml` has no `frontend` section, report SKIP and exit.
+If `acstack/project.yaml` has no `frontend` section, report SKIP and exit.
 
 ## Step 0: Read the knowledge base
 
@@ -94,7 +94,7 @@ exit 1
 Run this command first:
 
 ```bash
-~/.claude/mapflow/bin/mapflow config browser-mode --json
+~/.claude/acstack/bin/acstack config browser-mode --json
 ```
 
 It answers from declared configuration alone. It probes nothing, so it returns at once and always gives the same answer on the same machine.
@@ -121,7 +121,7 @@ Do not guess a mode. Do not pick a fallback yourself.
 
 The command already applied every fallback rule this project allows. Three things make it exit 1:
 
-- the project configures no frontend, or there is no Mapflow project here
+- the project configures no frontend, or there is no ACStack project here
 - this host declares no browser mode available, or nobody has described this host yet
 - the project forbids a fallback, and this host does not declare the mode it prefers
 
@@ -165,7 +165,7 @@ Troubleshooting:
 3. In Chrome, is the Playwriter extension installed in the active profile, with its icon clicked on the target tab?
 4. If port 19988 is stuck on the browser machine, restart the relay with `playwriter serve --host 127.0.0.1 --replace`.
 
-For a persistent cross-device setup (Windows laptop + Linux VM, auto-reconnecting scheduled tasks, ssh-agent key persistence, automated diagnosis via doctor.ps1), see plugins/mapflow/skills/bridge/SKILL.md.
+For a persistent cross-device setup (Windows laptop + Linux VM, auto-reconnecting scheduled tasks, ssh-agent key persistence, automated diagnosis via doctor.ps1), see plugins/acstack/skills/bridge/SKILL.md.
 ```
 
 ### Mode: `headless`

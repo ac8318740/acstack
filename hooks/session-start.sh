@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
-# Mapflow SessionStart hook.
+# ACStack SessionStart hook.
 #
 # Two symlinks get refreshed on every session start:
 #
-#   1. ~/.claude/mapflow/bin/mapflow – the **agent-facing** invariant path. Every
+#   1. ~/.claude/acstack/bin/acstack – the **agent-facing** invariant path. Every
 #      skill and agent in this plugin invokes the CLI through this exact path.
 #      It is referenced by absolute path (no PATH, no env-var propagation, no
 #      shell-rc setup), and the hook re-resolves it to the current plugin cache
 #      version on every session start. Survives version bumps; survives stale
 #      caches; survives subshell PATH inheritance issues.
 #
-#   2. ~/.local/bin/mapflow – the **human convenience** symlink. Lets users type
-#      `mapflow` at a terminal if ~/.local/bin is on PATH. Not load-bearing for
+#   2. ~/.local/bin/acstack – the **human convenience** symlink. Lets users type
+#      `acstack` at a terminal if ~/.local/bin is on PATH. Not load-bearing for
 #      agents – if it breaks, nothing in the plugin breaks.
 #
-# Both symlinks point at ${CLAUDE_PLUGIN_ROOT}/cli/bin/mapflow.js, which is a
+# Both symlinks point at ${CLAUDE_PLUGIN_ROOT}/cli/bin/acstack.js, which is a
 # tiny node wrapper that loads ../dist/index.js.
 #
-# When a project is initialized (mapflow/project.yaml exists), the hook also
+# When a project is initialized (acstack/project.yaml exists), the hook also
 # injects the plugin's orchestrator instructions as additionalContext so installs
 # stay version-agnostic. Otherwise prints a one-line reminder.
 
@@ -25,7 +25,7 @@ set -u
 
 plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
 troubleshoot="${plugin_root}/TROUBLESHOOTING.md"
-cli_wrapper="${plugin_root}/cli/bin/mapflow.js"
+cli_wrapper="${plugin_root}/cli/bin/acstack.js"
 cli_dist="${plugin_root}/cli/dist/index.js"
 
 # Symlink $link to point at $src. Reports linked / updated / unchanged.
@@ -41,37 +41,37 @@ link_cli() {
   if [ ! -e "$link" ] && [ ! -L "$link" ]; then
     mkdir -p "$dir" 2>/dev/null
     if ln -s "$src" "$link" 2>/dev/null; then
-      echo "mapflow: linked ${label} at ${link} -> ${src}" >&2
+      echo "acstack: linked ${label} at ${link} -> ${src}" >&2
     else
-      echo "mapflow: failed to create symlink at ${link} – see ${troubleshoot} (section: command not found)." >&2
+      echo "acstack: failed to create symlink at ${link} – see ${troubleshoot} (section: command not found)." >&2
     fi
   elif [ -L "$link" ]; then
     local current
     current=$(readlink "$link")
     if [ "$current" != "$src" ]; then
       if ln -sfn "$src" "$link" 2>/dev/null; then
-        echo "mapflow: updated ${label} at ${link} -> ${src}" >&2
+        echo "acstack: updated ${label} at ${link} -> ${src}" >&2
       else
-        echo "mapflow: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale cache)." >&2
+        echo "acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale cache)." >&2
       fi
     fi
   elif [ -e "$link" ]; then
-    echo "mapflow: ${link} exists but is not a symlink – not overwriting. See ${troubleshoot} (section: command not found)." >&2
+    echo "acstack: ${link} exists but is not a symlink – not overwriting. See ${troubleshoot} (section: command not found)." >&2
   fi
 }
 
 if [ -n "$plugin_root" ] && [ -f "$cli_wrapper" ]; then
   if [ ! -f "$cli_dist" ]; then
-    echo "mapflow: CLI is missing its built output (${cli_dist})." >&2
-    echo "mapflow: this should not happen for a published version – see ${troubleshoot} (section: ERR_MODULE_NOT_FOUND)." >&2
+    echo "acstack: CLI is missing its built output (${cli_dist})." >&2
+    echo "acstack: this should not happen for a published version – see ${troubleshoot} (section: ERR_MODULE_NOT_FOUND)." >&2
   else
     # Agent-facing invariant path. Skills/agents invoke this directly.
-    link_cli "$cli_wrapper" "${HOME}/.claude/mapflow/bin/mapflow" "agent CLI"
+    link_cli "$cli_wrapper" "${HOME}/.claude/acstack/bin/acstack" "agent CLI"
 
     # Human-convenience path. Only useful when ~/.local/bin is on PATH.
     #
-    # Defer to any other mapflow that already owns the name. The usual one is a
-    # global `npm install -g mapflow-cli`, which people install to drive a
+    # Defer to any other acstack that already owns the name. The usual one is a
+    # global `npm install -g acstack-cli`, which people install to drive a
     # project from outside Claude Code. Two managers pointing one command name
     # at different copies is a silent PATH race: whichever directory sorts
     # first wins, and it can differ per machine. Better to let the one the user
@@ -79,12 +79,12 @@ if [ -n "$plugin_root" ] && [ -f "$cli_wrapper" ]; then
     #
     # The agent path above is never affected. It is absolute, so it always
     # reaches this plugin's own CLI no matter what is on PATH.
-    human_link="${HOME}/.local/bin/mapflow"
-    on_path=$(command -v mapflow 2>/dev/null || true)
+    human_link="${HOME}/.local/bin/acstack"
+    on_path=$(command -v acstack 2>/dev/null || true)
     if [ -n "$on_path" ] && [ "$on_path" != "$human_link" ] &&
        [ "$(readlink -f "$on_path" 2>/dev/null)" != "$(readlink -f "$human_link" 2>/dev/null)" ]; then
-      echo "mapflow: \`mapflow\` on PATH comes from ${on_path} – leaving it alone." >&2
-      echo "mapflow: agents and skills are unaffected – they use ~/.claude/mapflow/bin/mapflow directly." >&2
+      echo "acstack: \`acstack\` on PATH comes from ${on_path} – leaving it alone." >&2
+      echo "acstack: agents and skills are unaffected – they use ~/.claude/acstack/bin/acstack directly." >&2
     else
       link_cli "$cli_wrapper" "$human_link" "human CLI"
     fi
@@ -94,17 +94,17 @@ if [ -n "$plugin_root" ] && [ -f "$cli_wrapper" ]; then
         *":${HOME}/.local/bin:"*) ;;
         *)
           # The human symlink exists but PATH won't pick it up. This only affects
-          # humans typing `mapflow` at a terminal – agents are unaffected because
-          # they use the absolute ~/.claude/mapflow/bin/mapflow path.
+          # humans typing `acstack` at a terminal – agents are unaffected because
+          # they use the absolute ~/.claude/acstack/bin/acstack path.
           rc_hint="~/.profile"
           case "${SHELL:-}" in
             */zsh) rc_hint="~/.zshrc" ;;
             */bash) rc_hint="~/.bashrc (Linux) or ~/.bash_profile (macOS)" ;;
             */fish) rc_hint="~/.config/fish/config.fish" ;;
           esac
-          echo "mapflow: ~/.local/bin is not on PATH – typed \`mapflow\` won't work. Add this to ${rc_hint} and restart the shell:" >&2
+          echo "acstack: ~/.local/bin is not on PATH – typed \`acstack\` won't work. Add this to ${rc_hint} and restart the shell:" >&2
           echo "  export PATH=\"\$HOME/.local/bin:\$PATH\"" >&2
-          echo "mapflow: agents and skills are unaffected – they use ~/.claude/mapflow/bin/mapflow directly. See ${troubleshoot} for details." >&2
+          echo "acstack: agents and skills are unaffected – they use ~/.claude/acstack/bin/acstack directly. See ${troubleshoot} for details." >&2
           ;;
       esac
     fi
@@ -136,15 +136,15 @@ if [ -n "$plugin_root" ] && [ -d "${HOME}/.codex" ]; then
       dst="${codex_dst}/$(basename "$src")"
 
       if [ -e "$dst" ] && ! grep -qF "$marker" "$dst" 2>/dev/null; then
-        echo "mapflow: ${dst} was not written by mapflow - leaving it alone." >&2
+        echo "acstack: ${dst} was not written by acstack - leaving it alone." >&2
         continue
       fi
 
       if ! cmp -s "$src" "$dst" 2>/dev/null; then
         if cp "$src" "$dst" 2>/dev/null; then
-          echo "mapflow: installed Codex agent $(basename "$src" .toml)" >&2
+          echo "acstack: installed Codex agent $(basename "$src" .toml)" >&2
         else
-          echo "mapflow: could not write ${dst}" >&2
+          echo "acstack: could not write ${dst}" >&2
         fi
       fi
     done
@@ -173,7 +173,7 @@ if [ -n "$plugin_root" ]; then
       # cache copy keeps it current with no copy and no restart - mirrors the
       # agent-facing CLI symlink. Skips silently if the helper is not shipped.
       vmfp_src="${plugin_root}/assets/playwriter-bridge/vm-free-port.sh"
-      vmfp_link="${HOME}/.claude/mapflow/bin/vm-free-port.sh"
+      vmfp_link="${HOME}/.claude/acstack/bin/vm-free-port.sh"
       if [ -f "$vmfp_src" ]; then
         link_cli "$vmfp_src" "$vmfp_link" "vm-free-port.sh"
       fi
@@ -181,20 +181,20 @@ if [ -n "$plugin_root" ]; then
   esac
 fi
 
-if [ ! -f mapflow/project.yaml ]; then
-  echo 'mapflow: no project config found. Run /mapflow:setup to set up.' >&2
+if [ ! -f acstack/project.yaml ]; then
+  echo 'acstack: no project config found. Run /acstack:setup to set up.' >&2
   exit 0
 fi
 
 claude_md="${plugin_root}/orchestrator/AGENTS.md"
 
 if [ -z "$plugin_root" ] || [ ! -r "$claude_md" ]; then
-  echo "mapflow: could not read orchestrator/AGENTS.md (CLAUDE_PLUGIN_ROOT=${plugin_root:-unset})" >&2
+  echo "acstack: could not read orchestrator/AGENTS.md (CLAUDE_PLUGIN_ROOT=${plugin_root:-unset})" >&2
   exit 0
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo 'mapflow: python3 not found; skipping orchestrator injection' >&2
+  echo 'acstack: python3 not found; skipping orchestrator injection' >&2
   exit 0
 fi
 

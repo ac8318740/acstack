@@ -1,5 +1,5 @@
-# Python project profile for mapflow
-# Used by /mapflow:setup to generate mapflow/project.yaml
+# Python project profile for acstack
+# Used by /acstack:setup to generate acstack/project.yaml
 
 commands:
   test: "pytest tests/ --tb=short -x"

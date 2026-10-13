@@ -18,21 +18,21 @@ For `herdr`, `delta`, `neovim` and `pi` it does not. Set `<component>.enabled: f
 yourself after those four, or the next `apply` restores them.
 
 `neovim` is the one whose undo is a deletion. The component writes a whole file
-of Mapflow's own, so `disable` removes `~/.config/nvim/lua/plugins/mapflow.lua`
+of ACStack's own, so `disable` removes `~/.config/nvim/lua/plugins/acstack.lua`
 and leaves the rest of the user's neovim config alone. Neither `disable` nor
-`uninstall` touches a `mapflow.lua` the user wrote by hand.
+`uninstall` touches a `acstack.lua` the user wrote by hand.
 
 `pi` undoes only what `apply` added, because pi's config is the user's:
 
 - It removes the pi packages `apply` installed, and keeps any the user installed first
 - It releases the four settings and `toolActivation`, unless the user has changed one since
     - A value `apply` replaced goes back to what the user had, and a key `apply` added goes
-- It puts back a Mapflow pin `apply` moved forward, unless the user has moved it since
+- It puts back an ACStack pin `apply` moved forward, unless the user has moved it since
 - It removes the delegation block from pi's context file, and the user's text stays byte for byte
 - It removes agentic-retro's extension only when `apply` was the one to write it
 - It keeps the pi binary, its logins and its sessions
 - It touches nothing in a `settings.json` that does not parse, and says so
-- It records what it added in `~/.config/mapflow/terminal-workspace.pi.json`
+- It records what it added in `~/.config/acstack/terminal-workspace.pi.json`
 
 `yazi`, `markdown` and `remote` have no `disable` path. `disable` refuses for
 those three and names the edit that turns one off. Set the component's
@@ -51,7 +51,7 @@ settings around them survive, and every binary stays except harlequin, which uv
 owns whole rather than as one file in `$BIN`.
 
 pi stays too. It holds the user's logins and sessions, and the user may run it
-without Mapflow. `uninstall` prints the npm command that removes it.
+without ACStack. `uninstall` prints the npm command that removes it.
 
 ## 9. Keeping it current
 
@@ -86,10 +86,10 @@ pi adds four rows of its own:
 
 - `pi`, `pi-subagents` and `pi-compact-tools` compare against npm, and `upgrade` runs `pi update` for each
     - A package the user pinned, such as `npm:pi-subagents@1.0.0`, reports `unknown`, because `pi update` never moves it
-- `pi-mapflow` compares Mapflow's pin in pi against this plugin's version, with no network at all
-    - `upgrade pi-mapflow` moves the pin forward, and so does `apply`
+- `pi-acstack` compares ACStack's pin in pi against this plugin's version, with no network at all
+    - `upgrade pi-acstack` moves the pin forward, and so does `apply`
     - Neither moves a pin newer than this plugin, because the user chose it
-    - Neither installs Mapflow where it is absent or unpinned
+    - Neither installs ACStack where it is absent or unpinned
 
 `upgrade` reinstalls each stale binary and appends any new component's config
 block to the user's file, comments intact. The three tools that update

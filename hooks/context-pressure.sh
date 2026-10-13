@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mapflow context-pressure nudge (Stop / SessionStart hook).
+# ACStack context-pressure nudge (Stop / SessionStart hook).
 #
 # Measures how much context the session has consumed and, past a threshold,
 # blocks the stop with a short continuity-versus-freshness checkpoint before
@@ -40,7 +40,7 @@
 #   nudge when it crosses each rung rather than on every single stop.
 #
 #   The default rungs are workflow.handoff.nudge_warn and nudge_severe from
-#   mapflow/project.yaml (defaulting to 200000 / 500000), and then one rung
+#   acstack/project.yaml (defaulting to 200000 / 500000), and then one rung
 #   every workflow.handoff.nudge_step tokens (default 100000) above the last
 #   one. Setting workflow.handoff.context_thresholds replaces the default rungs
 #   entirely with the listed ones - written either block style (one "- item"
@@ -62,8 +62,8 @@
 #
 # Per-session state:
 #
-#   State lives in MAPFLOW_CONTEXT_PRESSURE_DIR, defaulting to a
-#   mapflow-context-pressure directory under TMPDIR (or /tmp), created when it
+#   State lives in ACSTACK_CONTEXT_PRESSURE_DIR, defaulting to a
+#   acstack-context-pressure directory under TMPDIR (or /tmp), created when it
 #   is missing. The session key is the payload's session_id, falling back to the
 #   transcript's basename without its .jsonl suffix. Two files per key:
 #
@@ -96,12 +96,12 @@ command -v python3 >/dev/null 2>&1 || exit 0
 # Capture the hook payload from stdin before running python. The heredoc below
 # becomes python's stdin (the program source), so the payload must travel via an
 # env var, not sys.stdin.
-MAPFLOW_HOOK_INPUT="$(cat)"
-export MAPFLOW_HOOK_INPUT
+ACSTACK_HOOK_INPUT="$(cat)"
+export ACSTACK_HOOK_INPUT
 
 # Resolve the state directory here so python only has to read one variable.
-MAPFLOW_CONTEXT_PRESSURE_DIR="${MAPFLOW_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/mapflow-context-pressure}"
-export MAPFLOW_CONTEXT_PRESSURE_DIR
+ACSTACK_CONTEXT_PRESSURE_DIR="${ACSTACK_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/acstack-context-pressure}"
+export ACSTACK_CONTEXT_PRESSURE_DIR
 
 # stderr goes nowhere: a hook that writes to stderr is noise at best, and a
 # traceback from an unforeseen payload must never reach the user. Every failure
@@ -134,7 +134,7 @@ SMALL_WINDOW_MODEL = re.compile(r"haiku|-4-\d|-4\b")
 AGENCY = (
     "The call is yours. If you have a strong view either way, act on it "
     "without asking. Either keep continuity in this session, or choose "
-    "freshness with /mapflow:handoff. Ask the user with the host's question "
+    "freshness with /acstack:handoff. Ask the user with the host's question "
     "tool if you don't know which route would make the work go better."
 )
 
@@ -144,7 +144,7 @@ AGENCY = (
 STANDING_AGREEMENT = (
     "If you are partway through a long run of tasks and the user already "
     "agreed to a handoff earlier in this session, including in a handoff "
-    "or compaction summary you resumed from, use /mapflow:handoff without "
+    "or compaction summary you resumed from, use /acstack:handoff without "
     "asking again."
 )
 
@@ -166,7 +166,7 @@ def bail():
 
 
 try:
-    data = json.loads(os.environ.get("MAPFLOW_HOOK_INPUT", ""))
+    data = json.loads(os.environ.get("ACSTACK_HOOK_INPUT", ""))
 except Exception:
     bail()
 
@@ -187,7 +187,7 @@ if _stop_hook_active is True or (
 
 # --- state directory and session key ---------------------------------------
 
-state_dir = os.environ.get("MAPFLOW_CONTEXT_PRESSURE_DIR", "").strip()
+state_dir = os.environ.get("ACSTACK_CONTEXT_PRESSURE_DIR", "").strip()
 if not state_dir:
     bail()
 
@@ -361,7 +361,7 @@ def read_config():
         "context_thresholds": None,
     }
     try:
-        with open(os.path.join("mapflow", "project.yaml"), encoding="utf-8", errors="replace") as f:
+        with open(os.path.join("acstack", "project.yaml"), encoding="utf-8", errors="replace") as f:
             lines = f.read().split("\n")
     except OSError:
         return cfg
@@ -557,7 +557,7 @@ if large_context:
 continuity += ", with ACP compression as an in-place option if the host offers it."
 freshness = (
     "Freshness: if a fresh context window or an independent read would help "
-    "more, use /mapflow:handoff."
+    "more, use /acstack:handoff."
 )
 
 if rung >= severe_at:

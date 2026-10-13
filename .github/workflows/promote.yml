@@ -188,7 +188,7 @@ jobs:
             exit 1
           fi
 
-          # 6. The commit must be green on Mapflow's five CI checks. These names are the
+          # 6. The commit must be green on ACStack's five CI checks. These names are the
           # `name:` values of the jobs in ci.yml, tests.yml, and version-gate.yml. A skipped
           # or neutral run counts as passing, exactly as branch protection reads it.
           #

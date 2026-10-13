@@ -1,4 +1,4 @@
-// `mapflow lint-prose` – warn about prose that drifts from the writing
+// `acstack lint-prose` – warn about prose that drifts from the writing
 // standard. The checks live in lib/prose.ts; this file owns the filesystem, the
 // path walking and the output.
 //

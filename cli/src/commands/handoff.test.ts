@@ -16,7 +16,7 @@ let handoffFile: string;
 let originalSessionId: string | undefined;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'mapflow-handoff-cli-'));
+  dir = mkdtempSync(join(tmpdir(), 'acstack-handoff-cli-'));
   handoffFile = join(dir, 'handoff-2026-08-23.md');
   writeFileSync(handoffFile, '# Handoff\n');
   originalSessionId = process.env.CLAUDE_SESSION_ID;

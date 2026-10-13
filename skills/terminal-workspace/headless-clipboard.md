@@ -25,7 +25,7 @@ bash "$SETUP" status     # read the last lines
 copies over OSC 52. OSC 52 is an escape sequence a terminal reads as "put this
 text on the clipboard of the machine I am running on".
 
-The `o` key becomes a keybinding running `mapflow-open`, because gh-dash runs
+The `o` key becomes a keybinding running `acstack-open`, because gh-dash runs
 `$BROWSER` with its output discarded and the dashboard still drawn. A route that
 must hand you a link then has nowhere to draw it.
 
@@ -50,14 +50,14 @@ Every line `status` can print is here, in the order the code tries the routes:
 | `neovim clipboard: OSC 52, written by this setup` | neovim copies to your terminal over OSC 52 | Nothing |
 | `neovim clipboard: set by <file>` | The user's own lua sets `vim.g.clipboard` | Nothing |
 | `neovim clipboard: none` | `neovim.enabled` is true and the file lacks the clipboard | Run `apply` |
-| `browser: $MAPFLOW_OPEN_CMD = ...` | The user set an override, and it wins over every route below | Nothing |
+| `browser: $ACSTACK_OPEN_CMD = ...` | The user set an override, and it wins over every route below | Nothing |
 | `browser: xdg-open on this machine` | The machine has a desktop of its own | Nothing |
 | `browser: the Windows side of this machine` | This is WSL, and Windows opens the page | Nothing |
 | `browser: your default browser on your laptop` | The opener is up and holds the token | Nothing |
 | `browser: Chrome on your laptop` | The Playwriter bridge is up and proven attached | Nothing |
 | `browser: none - o hands you a link` | The normal case over SSH. ctrl+click it | Nothing |
 | `browser: none, and no terminal either` | `o` copies and reports failure | Below |
-| `browser: unknown` | `mapflow-open` did not answer, so it is missing or broken | Run `apply` |
+| `browser: unknown` | `acstack-open` did not answer, so it is missing or broken | Run `apply` |
 
 Two of those rows name services this skill does not install. The opener is a
 small service on the user's laptop that opens a page in their default browser.
@@ -67,12 +67,12 @@ the `bridge` skill covers it.
 Each runs on its own reverse tunnel, port 19988 for the bridge and port 19989
 for the opener. One can be up while the other is down.
 
-The opener has no key in this config, so do not invent one. `mapflow-open` takes
+The opener has no key in this config, so do not invent one. `acstack-open` takes
 that route only when two things hold. A token file sits at
-`~/.config/mapflow/opener.token`. The service answers on
+`~/.config/acstack/opener.token`. The service answers on
 `http://127.0.0.1:19989` with that token.
 
-Setting `MAPFLOW_OPEN_OPENER=off` in the environment skips the route.
+Setting `ACSTACK_OPEN_OPENER=off` in the environment skips the route.
 
 `browser: none` is not a fault. Nothing on that machine can open a page, so `o`
 hands the terminal a link instead. That link is the one route that works over
@@ -81,13 +81,13 @@ any number of SSH hops.
 To make it a real one-key open, give it a command that can:
 
 ```bash
-export MAPFLOW_OPEN_CMD="ssh laptop open"   # any command taking a URL
+export ACSTACK_OPEN_CMD="ssh laptop open"   # any command taking a URL
 ```
 
 Do not suggest installing a browser or an X server on the dev machine to fix
 this. The browser belongs on the machine the user is sitting at.
 
-Under `herdr --remote`, panes run on the remote host, so `mapflow-open` looks
+Under `herdr --remote`, panes run on the remote host, so `acstack-open` looks
 for a browser there and normally finds none. That is normal, not a fault. It
 falls to the link route, which the client draws.
 
@@ -100,7 +100,7 @@ clipboard the user attached from.
 The herdr documentation never promises this, and terminals differ in whether
 they act on OSC 52 at all.
 
-So have the user run `mapflow-clip test-string` after the first attach, then
+So have the user run `acstack-clip test-string` after the first attach, then
 paste on the client. Believe that test over the measurement.
 
 If it does not cross, say so plainly. The link is still on screen, and herdr's
@@ -119,7 +119,7 @@ A bridge relay answering on its HTTP port does not rule this out. Ours answered
 `Multiple extensions connected. Specify extensionId.`
 
 Diagnose it by asking what is really on the other end, never by trusting a
-successful open. Port 9555 below is the CDP port Mapflow defaults to for a
+successful open. Port 9555 below is the CDP port ACStack defaults to for a
 headless or local browser, so a stray Chrome on this machine answers there:
 
 ```bash
@@ -127,7 +127,7 @@ agent-browser get cdp-url          # the endpoint actually attached to
 curl -s 127.0.0.1:9555/json/list   # the tabs a headless Chrome here holds
 ```
 
-`mapflow-open` runs that check itself before taking the bridge route. If you
+`acstack-open` runs that check itself before taking the bridge route. If you
 find a stray headless Chrome holding pages, say so. It is a leftover, and
 killing it is the user's call, not yours.
 

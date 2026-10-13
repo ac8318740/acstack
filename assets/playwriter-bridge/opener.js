@@ -27,7 +27,7 @@ const os = require('os');
 const crypto = require('crypto');
 const { execFile } = require('child_process');
 
-const PORT = Number(process.env.MAPFLOW_OPENER_PORT || 19989);
+const PORT = Number(process.env.ACSTACK_OPENER_PORT || 19989);
 const HOME = process.env.LOCALAPPDATA || os.homedir();
 const STATE = path.join(HOME, 'playwriter-bridge');
 const DOCS = path.join(STATE, 'docs');
@@ -73,7 +73,7 @@ loadToken();
 function authorised(req) {
   const t = loadToken();
   if (!t) return false;
-  const got = req.headers['x-mapflow-token'];
+  const got = req.headers['x-acstack-token'];
   if (typeof got !== 'string' || got.length !== t.length) return false;
   return crypto.timingSafeEqual(Buffer.from(got), Buffer.from(t));
 }
@@ -151,12 +151,12 @@ function injectReloader(html, id) {
 <script>
 (function(){
   var id=${JSON.stringify(id)},cur=null;
-  try{var y=sessionStorage.getItem('mapflow-scroll-'+id);if(y)addEventListener('load',function(){scrollTo(0,+y)})}catch(e){}
-  addEventListener('beforeunload',function(){try{sessionStorage.setItem('mapflow-scroll-'+id,String(scrollY))}catch(e){}});
+  try{var y=sessionStorage.getItem('acstack-scroll-'+id);if(y)addEventListener('load',function(){scrollTo(0,+y)})}catch(e){}
+  addEventListener('beforeunload',function(){try{sessionStorage.setItem('acstack-scroll-'+id,String(scrollY))}catch(e){}});
   setInterval(function(){
     fetch('/doc/'+id+'/version',{cache:'no-store'}).then(function(r){return r.json()}).then(function(d){
       if(cur===null){cur=d.version;return}
-      if(d.version!==cur){try{sessionStorage.setItem('mapflow-scroll-'+id,String(scrollY))}catch(e){}location.reload()}
+      if(d.version!==cur){try{sessionStorage.setItem('acstack-scroll-'+id,String(scrollY))}catch(e){}location.reload()}
     }).catch(function(){});
   },1500);
 })();
