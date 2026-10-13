@@ -3680,14 +3680,14 @@ apply_pi() {
   else
     pi_drop npm:pi-plugin-manager
   fi
+  # bili's proxy dies with the session that started it, cutting off every
+  # other Claude Code or Codex session. Keep it in pi; undo older installs.
+  bili_client remove codex
+  bili_client remove claude
   if [ "$(cfg_get pi.billion_context true)" = "true" ]; then
     pi_add "$PI_BILLION" "$PI_BILLION"
     bili_client install pi
-    bili_client install claude
-    bili_client install codex
   else
-    bili_client remove codex
-    bili_client remove claude
     bili_client remove pi
     pi_drop "$PI_BILLION"
   fi
