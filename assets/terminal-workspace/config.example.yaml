@@ -1,5 +1,6 @@
 # Mapflow terminal workspace.
-# Copy to ~/.config/mapflow/terminal-workspace.yaml, edit, then run setup.sh apply.
+# Copy to ~/.config/mapflow/terminal-workspace.yaml, edit, then run
+# setup.sh apply.
 #
 # This is machine-level, not per-project. It installs binaries and writes
 # keybindings for your user, so it does not belong in mapflow/project.yaml.
@@ -225,6 +226,10 @@ pi:
   # pi.settings.install_telemetry, which controls pi's anonymous install and
   # update reporting and stays false in this example.
   web_access: true
+  # pi-lens, which adds diagnostics, code-intelligence tools and local
+  # observability logs to pi. Off by default because it is a heavier dev-tool
+  # layer and may download helper tools when pi-lens needs them.
+  lens: false
   # pi-slash-anywhere, which lets slash commands run from any prompt.
   slash_anywhere: true
   # agentic-retro's pi extension, which queues each finished pi session for a
