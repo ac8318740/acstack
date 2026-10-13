@@ -31,6 +31,7 @@ END="# <<< mapflow terminal-workspace <<<"
 # override for it.
 PI_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 PI_SETTINGS="$PI_DIR/settings.json"
+PI_KEYBINDINGS="$PI_DIR/keybindings.json"
 PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 # agentic-retro install-pi picks its own directory, from $PI_HOME rather than
 # pi's override, so look where it writes.
@@ -3370,7 +3371,7 @@ if cmd == "merge":
     prior = owned.setdefault(slot + "_prior", {})
     wrote, dropped = [], []
     for key, value in want.items():
-        *parents, leaf = key.split(".")
+        parents, leaf = ([], key) if slot == "keybindings" else (key.split(".")[:-1], key.split(".")[-1])
         node = d
         for p in parents:
             if node.get(p, MISSING) is MISSING and value is not None:
@@ -3739,6 +3740,7 @@ apply_pi() {
   fi
 
   pi_state merge "$PI_SETTINGS" settings "$(pi_settings_wanted)"
+  pi_state merge "$PI_KEYBINDINGS" keybindings '{"app.message.dequeue": "ctrl+enter"}'
   pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": "eager"}'
   pi_state md write
 
@@ -3774,6 +3776,7 @@ remove_pi() {
   fi
   pi_state merge "$PI_SETTINGS" settings \
     '{"hideThinkingBlock": null, "markdown.mermaid": null, "enableInstallTelemetry": null, "theme": null}'
+  pi_state merge "$PI_KEYBINDINGS" keybindings '{"app.message.dequeue": null}'
   pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": null}'
   pi_state md strip
   return 0
