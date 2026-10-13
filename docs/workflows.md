@@ -121,7 +121,7 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
 
 - `/acstack:implement` claims `afk` work nodes from the frontier when a map exists
     - It treats the request itself as the work item when none does
-    - Either way, parallel explorer subagents run over the relevant code before anyone writes anything
+    - Either way, parallel read-only codebase-search subagents run over the relevant code before anyone writes anything
 - The command resolves paths at claim time
     - A node describes behaviour
     - It can sit unstarted for weeks

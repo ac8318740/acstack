@@ -39,7 +39,7 @@ If the user provided an error message or stack trace, note the key details (file
 
 **Do NOT skip this step.** Delegate exploration to subagents:
 
-1. **Locate the code**: Launch an Explore subagent to find the files involved. Read only a file you can already name.
+1. **Locate the code**: Launch a read-only codebase-search subagent to find the files involved. Use `Explore` on Claude Code and `scout` on pi. Read only a file you can already name.
 
 2. **Read the integration points**: Have the subagent read the broken function's callers and callees, not just the function. Understand:
     - What calls this code? (upstream)

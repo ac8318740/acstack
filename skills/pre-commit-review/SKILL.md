@@ -73,7 +73,8 @@ If no meaningful code changes exist (only docs, config, assets), report "No code
 
 ## Step 2: DISCOVER – Learn project conventions (parallel)
 
-Launch **3 parallel Explore subagents** to build a dynamic understanding of the project's current conventions.
+Launch **3 parallel read-only codebase-search subagents** to build a dynamic understanding of the project's current conventions.
+Use `Explore` on Claude Code and `scout` on pi.
 Do NOT hardcode conventions – discover them fresh each time.
 
 **Subagent A – Living Specs & Architecture:**
@@ -177,7 +178,8 @@ Add each finding to the review as `SHOULD | PROSE`, at the `file:line` it names.
 
 ## Step 4: ADJACENT – Check surrounding code for rot
 
-For each file with findings from Step 3, launch an **Explore subagent** (up to 3 in parallel).
+For each file with findings from Step 3, launch a **read-only codebase-search subagent**.
+Use up to 3 subagents in parallel.
 Each subagent examines the rest of that file and its immediate imports for the same categories of issue.
 
 ```

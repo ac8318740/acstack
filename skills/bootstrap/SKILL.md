@@ -41,7 +41,7 @@ Your job is to:
 
 ## Phase 1: independent exploration (passes 1-3)
 
-Launch **3 parallel `Explore` subagents** at once. Each gets a different exploration strategy:
+Launch **3 parallel read-only codebase-search subagents** at once. Use `Explore` on Claude Code and `scout` on pi. Each gets a different exploration strategy:
 
 ### Pass 1 – entry points strategy
 
@@ -90,7 +90,7 @@ Launch a single subagent to merge the 3 independent drafts per domain. It resolv
 
 ## Phase 3: validation (passes 5-7)
 
-Launch 3 parallel Explore subagents to validate ALL domains independently – each checks that FRs match actual code behavior.
+Launch 3 parallel read-only codebase-search subagents to validate ALL domains independently. Each checks that FRs match actual code behavior.
 
 ## Phase 4: correction merge (pass 8)
 

@@ -98,9 +98,11 @@ Claim each node as you start it:
 
 Nodes describe behaviour, not paths. **Resolve paths at claim time**.
 
-Before any code change, dispatch parallel explorer subagents over the
-relevant code. Use as many as there are distinct places to look, not a fixed
-count. Act on what they find.
+Before any code change, dispatch parallel read-only codebase-search subagents
+over the relevant code. Use `Explore` on Claude Code and `scout` on pi.
+
+Use as many as there are distinct places to look, not a fixed count. Act on
+what they find.
 
 ### 5. Execute within the claim
 
@@ -219,8 +221,9 @@ diff.
 - **The tracker is the progress record** – claim on start, resolve on pass,
   release on stall. No checkbox files, no phase fields.
 
-- **Explore before writing** – parallel explorer subagents over the relevant
-  code, sized to the node, before any edit.
+- **Explore before writing** – parallel read-only codebase-search subagents
+  over the relevant code, sized to the node, before any edit. Use `Explore` on
+  Claude Code and `scout` on pi.
 
 - **Resume is a query** – picking up where you left off means asking the
   tracker what is workable now, not reconstructing history. A fresh session
