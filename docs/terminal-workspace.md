@@ -356,7 +356,7 @@ What `apply` does:
 - It installs `pi-subagents`, which Mapflow on pi needs to launch a subagent
 - It installs `billion-context` by default for context compression in pi
     - When the `bili` command is available, setup runs native plugin setup for pi
-    - Setup also enables the native plugin when this device has Claude Code or Codex
+    - Setup leaves Claude Code and Codex alone, and removes bili from them if an older setup added it
     - Set `pi.billion_context: false` to leave it out, or to remove it later if this setup installed it
 - It installs `@juicesharp/rpiv-todo` and `pi-plugin-manager` by default
     - Set `pi.todo: false` or `pi.plugin_manager: false` to leave either package out

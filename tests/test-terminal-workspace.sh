@@ -4495,11 +4495,11 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
   if grep -q '^pi .*billion-context' "$IHOME/pi.log" \
      && grep -q '^bili plugin install pi' "$IHOME/bili.log" 2>/dev/null \
-     && grep -q '^bili plugin install claude' "$IHOME/bili.log" 2>/dev/null \
-     && grep -q '^bili plugin install codex' "$IHOME/bili.log" 2>/dev/null; then
-    ok "apply installs billion-context natively for pi and enables it for present Claude Code and Codex clients"
+     && ! grep -q '^bili plugin install claude' "$IHOME/bili.log" 2>/dev/null \
+     && ! grep -q '^bili plugin install codex' "$IHOME/bili.log" 2>/dev/null; then
+    ok "apply installs billion-context natively for pi only, not for Claude Code or Codex"
   else
-    no "apply installs billion-context natively for pi and enables it for present Claude Code and Codex clients (pi: $(flat "$(cat "$IHOME/pi.log" 2>/dev/null)"); bili: $(flat "$(cat "$IHOME/bili.log" 2>/dev/null)"))"
+    no "apply installs billion-context natively for pi only, not for Claude Code or Codex (pi: $(flat "$(cat "$IHOME/pi.log" 2>/dev/null)"); bili: $(flat "$(cat "$IHOME/bili.log" 2>/dev/null)"))"
   fi
   if [ "$(jget "$ISET" hideThinkingBlock)" = "true" ] \
      && [ "$(jget "$ISET" markdown.mermaid)" = '"streaming"' ] \
@@ -4600,8 +4600,6 @@ if [ "$PI_APPLY" = "1" ]; then
      && grep -Eq '^pi (remove|uninstall|disable).*@juicesharp/rpiv-todo|^pi .*@juicesharp/rpiv-todo.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-plugin-manager|^pi .*pi-plugin-manager.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -q '^bili plugin remove pi' "$IHOME/bili.log" \
-     && grep -q '^bili plugin remove claude' "$IHOME/bili.log" \
-     && grep -q '^bili plugin remove codex' "$IHOME/bili.log" \
      && printf '%s' "$out" | grep -qF 'pi.enabled: false'; then
     ok "disable pi removes its packages, keys, block, extension and billion-context client installs, and keeps the user's own"
   else
@@ -4646,6 +4644,21 @@ if [ "$PI_APPLY" = "1" ]; then
     no "apply and uninstall leave pre-existing billion-context client plugins alone (bili: $(flat "$(cat "$IHOME/bili.log")"))"
   fi
   rm -f "$IHOME/bili-preinstalled"
+
+  # An older setup enabled bili for Claude Code and Codex. apply now undoes it.
+  printf '{}\n' > "$ISET"
+  mkdir -p "$IHOME/.config/mapflow"
+  printf '{"files": ["bili:claude", "bili:codex"]}\n' > "$IHOME/.config/mapflow/terminal-workspace.pi.json"
+  : > "$IHOME/bili.log"
+  iw apply >/dev/null
+  if grep -q '^bili plugin remove claude' "$IHOME/bili.log" \
+     && grep -q '^bili plugin remove codex' "$IHOME/bili.log" \
+     && ! grep -q '^bili plugin install claude\|^bili plugin install codex' "$IHOME/bili.log"; then
+    ok "apply removes billion-context from Claude Code and Codex when an older setup enabled it"
+  else
+    no "apply removes billion-context from Claude Code and Codex when an older setup enabled it (bili: $(flat "$(cat "$IHOME/bili.log")"))"
+  fi
+  iw uninstall >/dev/null
 
   # A newer pin than this plugin is one the user chose, and stays.
   printf '{\n  "packages": ["npm:mapflow@999.0.0"]\n}\n' > "$ISET"
@@ -4881,15 +4894,11 @@ billion_default=$(python3 -c 'import yaml,sys; print((yaml.safe_load(open(sys.ar
   "$ROOT/assets/terminal-workspace/config.example.yaml" 2>/dev/null)
 if [ "$billion_default" = "True" ] \
    && grep -q 'billion-context' "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   && grep -q 'Claude Code' "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   && grep -q 'Codex' "$ROOT/assets/terminal-workspace/config.example.yaml" \
    && grep -q '`pi.billion_context: false`' "$DOCS" \
-   && grep -q '`billion-context`' "$DOCS" \
-   && grep -q 'Claude Code' "$DOCS" \
-   && grep -q 'Codex' "$DOCS"; then
-  ok "billion-context has a documented default toggle for pi, Claude Code and Codex"
+   && grep -q '`billion-context`' "$DOCS"; then
+  ok "billion-context has a documented default toggle for pi"
 else
-  no "billion-context has a documented default toggle for pi, Claude Code and Codex"
+  no "billion-context has a documented default toggle for pi"
 fi
 
 
