@@ -16,7 +16,7 @@
     "agent-orchestration"
   ],
   "bin": {
-    "mapflow": "./cli/bin/mapflow.js"
+    "mapflow": "cli/bin/mapflow.js"
   },
   "files": [
     ".claude-plugin/",
