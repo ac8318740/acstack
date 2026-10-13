@@ -370,6 +370,9 @@ What `apply` does:
     - It adds web search, URL fetching, GitHub repo cloning, PDF extraction and media understanding tools to pi
     - This is separate from pi's anonymous install and update reporting; `pi.settings.install_telemetry: false` still controls that telemetry setting
     - Set `pi.web_access: false` to leave it out, or to remove it later if this setup installed it
+- It can install `pi-lens` for diagnostics and code-intelligence tools
+    - It is off by default because it is a heavier dev-tool layer
+    - Set `pi.lens: true` to install it, or `pi.lens: false` to remove it later if this setup installed it
 - It installs `pi-slash-anywhere` by default, so slash commands work from any prompt
     - Set `pi.slash_anywhere: false` to leave it out, or to remove it later if this setup installed it
 - It installs `pi-compact-tools` and runs `agentic-retro install-pi`, each behind its own toggle
@@ -398,7 +401,7 @@ How it treats pi's files:
 - `apply` never touches `auth.json`
     - Run `pi`, then `/login`, yourself
 - `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether `auth.json` exists
-- `setup.sh outdated` and `setup.sh upgrade` include `billion-context`, `@juicesharp/rpiv-todo`, `pi-plugin-manager`, `@juicesharp/rpiv-ask-user-question`, `pi-web-access`, and `pi-slash-anywhere` like pi's other npm packages
+- `setup.sh outdated` and `setup.sh upgrade` include `billion-context`, `@juicesharp/rpiv-todo`, `pi-plugin-manager`, `@juicesharp/rpiv-ask-user-question`, `pi-web-access`, `pi-lens`, and `pi-slash-anywhere` like pi's other npm packages
 
 ## 4. How you attach
 

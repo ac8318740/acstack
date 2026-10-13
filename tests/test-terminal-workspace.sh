@@ -4601,6 +4601,25 @@ if [ "$PI_APPLY" = "1" ]; then
   pi_cfg ""
   iw apply >/dev/null
 
+  pi_cfg "  lens: true"
+  out=$(iw apply)
+  if jget "$ISET" packages | grep -qF '"npm:pi-lens"' \
+     && iw status | grep -qF 'pi package: npm:pi-lens'; then
+    ok "pi.lens installs and status reports pi-lens"
+  else
+    no "pi.lens installs and status reports pi-lens (said: $(flat "$out"); packages: $(jget "$ISET" packages))"
+  fi
+  pi_cfg "  lens: false"
+  out=$(iw apply)
+  if ! jget "$ISET" packages | grep -qF 'pi-lens' \
+     && grep -q '^pi remove npm:pi-lens' "$IHOME/pi.log"; then
+    ok "turning pi.lens off removes pi-lens when apply installed it"
+  else
+    no "turning pi.lens off removes pi-lens when apply installed it (said: $(flat "$out"); packages: $(jget "$ISET" packages); pi: $(flat "$(cat "$IHOME/pi.log")"))"
+  fi
+  pi_cfg ""
+  iw apply >/dev/null
+
   # disable takes back what apply added and nothing else.
   : > "$IHOME/pi.log"; : > "$IHOME/bili.log"
   out=$(iw disable pi)
@@ -4829,17 +4848,18 @@ PY
   printf '%s\n' "$USER_MD" > "$IMD"
 
   # A pinned npm package never moves under pi update, so it is no finding and
-  # upgrade leaves it. billion-context, rpiv-todo, pi-plugin-manager and
-  # pi-slash-anywhere are covered here too, because they are pi npm packages
-  # with the same version, outdated and upgrade behaviour.
-  printf '{\n  "packages": ["npm:pi-subagents@1.0.0", "npm:billion-context@1.0.0", "npm:@juicesharp/rpiv-todo@1.0.0", "npm:pi-plugin-manager@1.0.0", "npm:pi-slash-anywhere@1.0.0"]\n}\n' > "$ISET"
+  # upgrade leaves it. billion-context, rpiv-todo, pi-plugin-manager,
+  # pi-lens and pi-slash-anywhere are covered here too, because they are pi
+  # npm packages with the same version, outdated and upgrade behaviour.
+  printf '{\n  "packages": ["npm:pi-subagents@1.0.0", "npm:billion-context@1.0.0", "npm:@juicesharp/rpiv-todo@1.0.0", "npm:pi-plugin-manager@1.0.0", "npm:pi-lens@1.0.0", "npm:pi-slash-anywhere@1.0.0"]\n}\n' > "$ISET"
   mkdir -p "$IAGENT/npm/node_modules/pi-subagents" "$IAGENT/npm/node_modules/billion-context" \
            "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo" "$IAGENT/npm/node_modules/pi-plugin-manager" \
-           "$IAGENT/npm/node_modules/pi-slash-anywhere"
+           "$IAGENT/npm/node_modules/pi-lens" "$IAGENT/npm/node_modules/pi-slash-anywhere"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-subagents/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/billion-context/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-plugin-manager/package.json"
+  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-lens/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-slash-anywhere/package.json"
   out=$(iw outdated)
   : > "$IHOME/pi.log"
@@ -4847,26 +4867,30 @@ PY
   bup=$(iw upgrade billion-context)
   tup=$(iw upgrade @juicesharp/rpiv-todo)
   pup=$(iw upgrade pi-plugin-manager)
+  lup=$(iw upgrade pi-lens)
   sup=$(iw upgrade pi-slash-anywhere)
   if printf '%s' "$out" | grep -qF "unknown	pi-subagents	pinned to npm:pi-subagents@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	billion-context	pinned to npm:billion-context@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	@juicesharp/rpiv-todo	pinned to npm:@juicesharp/rpiv-todo@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-plugin-manager	pinned to npm:pi-plugin-manager@1.0.0" \
+     && printf '%s' "$out" | grep -qF "unknown	pi-lens	pinned to npm:pi-lens@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-slash-anywhere	pinned to npm:pi-slash-anywhere@1.0.0" \
      && ! printf '%s' "$out" | grep -q '^stale	pi-subagents' \
      && ! printf '%s' "$out" | grep -q '^stale	billion-context' \
      && ! printf '%s' "$out" | grep -q '^stale	@juicesharp/rpiv-todo' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-plugin-manager' \
+     && ! printf '%s' "$out" | grep -q '^stale	pi-lens' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-slash-anywhere' \
      && ! grep -q '^pi update' "$IHOME/pi.log" \
      && printf '%s' "$up" | grep -q 'pinned' \
      && printf '%s' "$bup" | grep -q 'pinned' \
      && printf '%s' "$tup" | grep -q 'pinned' \
      && printf '%s' "$pup" | grep -q 'pinned' \
+     && printf '%s' "$lup" | grep -q 'pinned' \
      && printf '%s' "$sup" | grep -q 'pinned'; then
-    ok "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them"
+    ok "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them"
   else
-    no "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); todo upgrade: $(flat "$tup"); plugin manager upgrade: $(flat "$pup"); slash upgrade: $(flat "$sup"))"
+    no "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); todo upgrade: $(flat "$tup"); plugin manager upgrade: $(flat "$pup"); lens upgrade: $(flat "$lup"); slash upgrade: $(flat "$sup"))"
   fi
   rm -rf "$IAGENT/npm"
 
@@ -4935,6 +4959,17 @@ if [ "$slash_default" = "True" ] \
   ok "pi-slash-anywhere has a documented default toggle for pi"
 else
   no "pi-slash-anywhere has a documented default toggle for pi"
+fi
+
+lens_default=$(python3 -c 'import yaml,sys; print((yaml.safe_load(open(sys.argv[1]))["pi"] or {}).get("lens"))' \
+  "$ROOT/assets/terminal-workspace/config.example.yaml" 2>/dev/null)
+if [ "$lens_default" = "False" ] \
+   && grep -q 'pi-lens' "$ROOT/assets/terminal-workspace/config.example.yaml" \
+   && grep -q '`pi.lens: true`' "$DOCS" \
+   && grep -q '`pi-lens`' "$DOCS"; then
+  ok "pi-lens has a documented optional toggle for pi"
+else
+  no "pi-lens has a documented optional toggle for pi"
 fi
 
 
