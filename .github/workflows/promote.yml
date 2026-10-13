@@ -56,7 +56,7 @@
 # on the whole path.
 #
 # MANUAL FALLBACK: an admin can promote by hand with
-#   gh api -X PATCH repos/ac8318740/spechub/git/refs/heads/main -f sha=<dev sha>
+#   gh api -X PATCH repos/ac8318740/acstack/git/refs/heads/main -f sha=<dev sha>
 # That call needs promotion-gate green on the SHA, so it only works while a promotion run
 # holds the gate open. Fixing the cause the failing precondition names and re-labelling is
 # the real path.

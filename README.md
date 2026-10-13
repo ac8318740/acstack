@@ -49,7 +49,7 @@ You need the Claude Code CLI and Node.js 20 or later.
 Install the plugin:
 
 ```
-/plugin marketplace add ac8318740/spechub
+/plugin marketplace add ac8318740/acstack
 /plugin install acstack@spechub
 ```
 

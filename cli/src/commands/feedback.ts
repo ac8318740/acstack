@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { execSync } from 'node:child_process';
 import chalk from 'chalk';
 
-const ISSUES_URL = 'https://github.com/ac8318740/spechub/issues/new';
+const ISSUES_URL = 'https://github.com/ac8318740/acstack/issues/new';
 
 export function register(program: Command): void {
   program

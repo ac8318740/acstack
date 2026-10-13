@@ -19744,7 +19744,7 @@ var init_feedback = __esm({
   "src/commands/feedback.ts"() {
     "use strict";
     init_source();
-    ISSUES_URL = "https://github.com/ac8318740/spechub/issues/new";
+    ISSUES_URL = "https://github.com/ac8318740/acstack/issues/new";
   }
 });
 
