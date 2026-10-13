@@ -4508,6 +4508,13 @@ if [ "$PI_APPLY" = "1" ]; then
   else
     no "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui (packages: $pkgs)"
   fi
+  if printf '%s' "$out" | grep -qF 'todo tool installed' \
+     && printf '%s' "$out" | grep -qF 'hand-edit' \
+     && printf '%s' "$out" | grep -qF 'When using a todo list, keep it current as work completes.'; then
+    ok "apply suggests a user-owned Pi todo discipline instruction"
+  else
+    no "apply suggests a user-owned Pi todo discipline instruction (said: $(flat "$out"))"
+  fi
   if grep -q '^pi .*billion-context' "$IHOME/pi.log" \
      && grep -q '^bili plugin install pi' "$IHOME/bili.log" 2>/dev/null \
      && ! grep -q '^bili plugin install claude' "$IHOME/bili.log" 2>/dev/null \

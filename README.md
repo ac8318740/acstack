@@ -101,9 +101,10 @@ Then, in your project, run `/acstack:setup`.
     ```
 
     - Set `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json` to offer the `subagent` tool from the first turn (restart pi after)
-- pi has no output styles, so the writing style is a toggle
-    - Run `/acstack-writing-style on` to add it to every pi session
-    - Run `/acstack-writing-style off` to remove it
+- pi gets the ACStack writing style from the extension by default
+    - Run `/acstack-writing-style default` to use the bundled style again
+    - Run `/acstack-writing-style off` to disable style injection
+    - Run `/acstack-writing-style custom <path>` to use a user-owned style file
 
 ## 2. The three commands, and which one to use
 

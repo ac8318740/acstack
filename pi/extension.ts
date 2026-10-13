@@ -10,8 +10,8 @@
  *   before_agent_start   list ACStack's skills in the system prompt in every
  *                        session, and add orchestrator/AGENTS.md in a
  *                        acstack project            (hooks/session-start.sh)
- *                        add the writing style and its per-turn reminder when
- *                        the user turned it on      (hooks/ac-writing-style-reminder.sh)
+ *                        add the writing style and its per-turn reminder
+ *                        from the SSOT style file   (hooks/ac-writing-style-reminder.sh)
  *   agent_before_settle  nudge with a continuity-versus-freshness checkpoint
  *                        as context fills          (hooks/context-pressure.sh)
  *   session_compact      re-inject acstack/HANDOFF.md after a compaction, and
@@ -19,9 +19,9 @@
  *                                                    hooks/context-pressure.sh)
  *
  * It also registers /acstack <skill>, a /acstack:<skill> command per skill,
- * and /acstack-writing-style on|off. Those two forms are the only way a user
- * runs an ACStack skill on pi: package.json lists no skills, so pi adds no
- * /skill:<name> commands for them.
+ * and /acstack-writing-style for the bundled/default/custom style choice.
+ * The first two forms are the only way a user runs an ACStack skill on pi:
+ * package.json lists no skills, so pi adds no /skill:<name> commands for them.
  *
  * Only type imports come from pi, so Node can strip the types and load this
  * file in tests/test-pi-extension.sh with a stub API.
@@ -45,12 +45,46 @@ function agentDir(): string {
 	return process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
 }
 
+const settingsFile = (): string => path.join(agentDir(), "acstack.json");
+
+type WritingStyleMode = "default" | "off" | "custom";
+type WritingStyleSettings = { mode?: WritingStyleMode; path?: string };
+type AcstackSettings = { writingStyle?: boolean | WritingStyleSettings };
+
 function readText(file: string): string | undefined {
 	try {
 		return fs.readFileSync(file, "utf-8");
 	} catch {
 		return undefined;
 	}
+}
+
+function readSettings(): AcstackSettings {
+	try {
+		const parsed = JSON.parse(readText(settingsFile()) ?? "{}");
+		return parsed && typeof parsed === "object" ? parsed : {};
+	} catch {
+		return {};
+	}
+}
+
+function writeSettings(settings: AcstackSettings): void {
+	fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
+	fs.writeFileSync(settingsFile(), `${JSON.stringify(settings, null, 2)}\n`, "utf-8");
+}
+
+function writingStyleSettings(settings: AcstackSettings = readSettings()): WritingStyleSettings {
+	const value = settings.writingStyle;
+	if (value === false) return { mode: "off" };
+	if (value === true || value === undefined) return { mode: "default" };
+	if (value && typeof value === "object") return { mode: value.mode ?? "default", path: value.path };
+	return { mode: "default" };
+}
+
+function expandUserPath(file: string, cwd = process.cwd()): string {
+	if (file === "~") return os.homedir();
+	if (file.startsWith(`~${path.sep}`)) return path.join(os.homedir(), file.slice(2));
+	return path.isAbsolute(file) ? file : path.resolve(cwd, file);
 }
 
 function report(ctx: ExtensionContext, message: string, level: "info" | "warning" | "error" = "info"): void {
@@ -171,22 +205,6 @@ function linkClis(ctx: ExtensionContext): void {
 // --------------------------------------------------------------------------
 // Writing style
 // --------------------------------------------------------------------------
-
-const settingsFile = (): string => path.join(agentDir(), "acstack.json");
-
-function readSettings(): { writingStyle?: boolean } {
-	try {
-		const parsed = JSON.parse(readText(settingsFile()) ?? "{}");
-		return parsed && typeof parsed === "object" ? parsed : {};
-	} catch {
-		return {};
-	}
-}
-
-function writeSettings(settings: { writingStyle?: boolean }): void {
-	fs.mkdirSync(path.dirname(settingsFile()), { recursive: true });
-	fs.writeFileSync(settingsFile(), `${JSON.stringify(settings, null, 2)}\n`, "utf-8");
-}
 
 function stripFrontmatter(text: string): string {
 	const match = /^---\n[\s\S]*?\n---\n/.exec(text);
@@ -616,10 +634,16 @@ export default function acstack(pi: ExtensionAPI): void {
 			else report(ctx, `acstack: could not read ${orchestratorFile}`, "warning");
 		}
 
-		if (!readSettings().writingStyle) return;
-		const style = readText(styleFile);
-		if (!style) return;
+		const styleCfg = writingStyleSettings();
+		if (styleCfg.mode === "off") return;
+		const resolvedStyleFile = styleCfg.mode === "custom" && styleCfg.path ? expandUserPath(styleCfg.path) : styleFile;
+		const style = readText(resolvedStyleFile);
+		if (!style) {
+			report(ctx, `acstack: could not read writing style at ${resolvedStyleFile}`, "warning");
+			return;
+		}
 		sections["acstack-writing-style"] = stripFrontmatter(style);
+		if (event.messageType !== "user") return;
 		const reminder = extractWritingReminder(style);
 		if (!reminder) return;
 		return { message: { customType: "acstack-writing-style-reminder", content: reminder, display: false } };
@@ -686,6 +710,44 @@ export default function acstack(pi: ExtensionAPI): void {
 		else pi.sendUserMessage(message, { deliverAs: "followUp" });
 	};
 
+	pi.registerCommand("acstack-writing-style", {
+		description: "Configure ACStack writing style injection: default | off | custom <path>",
+		handler: async (args, ctx) => {
+			const [choice = "", ...rest] = args.trim().split(/\s+/).filter(Boolean);
+			const settings = readSettings();
+			const current = writingStyleSettings(settings);
+			if (!choice || choice === "show") {
+				report(ctx, `acstack: writing style is ${current.mode}${current.path ? ` (${current.path})` : ""} (${settingsFile()}).`);
+				return;
+			}
+			if (choice === "default") {
+				settings.writingStyle = { mode: "default" };
+				writeSettings(settings);
+				report(ctx, `acstack: writing style is default (${settingsFile()}).`);
+				return;
+			}
+			if (choice === "off") {
+				settings.writingStyle = { mode: "off" };
+				writeSettings(settings);
+				report(ctx, `acstack: writing style is off (${settingsFile()}).`);
+				return;
+			}
+			if (choice === "custom") {
+				const customPath = rest.join(" ").trim();
+				if (!customPath) {
+					report(ctx, "acstack: usage is /acstack-writing-style custom <path>", "warning");
+					return;
+				}
+				const resolvedPath = expandUserPath(customPath, ctx.cwd);
+				settings.writingStyle = { mode: "custom", path: resolvedPath };
+				writeSettings(settings);
+				report(ctx, `acstack: writing style is custom (${resolvedPath}) (${settingsFile()}).`);
+				return;
+			}
+			report(ctx, "acstack: usage is /acstack-writing-style [show|default|off|custom <path>]", "warning");
+		},
+	});
+
 	pi.registerCommand("acstack", {
 		description: "Run an ACStack skill: /acstack <skill> [args], e.g. /acstack map",
 		handler: async (args, ctx) => {
@@ -704,20 +766,4 @@ export default function acstack(pi: ExtensionAPI): void {
 			handler: async (args, ctx) => runSkill(name, args, ctx),
 		});
 	}
-
-	pi.registerCommand("acstack-writing-style", {
-		description: "Turn the ACStack writing style on or off for every pi session (on | off)",
-		handler: async (args, ctx) => {
-			const choice = args.trim().toLowerCase();
-			const settings = readSettings();
-			if (choice === "on" || choice === "off") {
-				settings.writingStyle = choice === "on";
-				writeSettings(settings);
-			} else if (choice) {
-				report(ctx, "acstack: usage is /acstack-writing-style on|off", "warning");
-				return;
-			}
-			report(ctx, `acstack: writing style is ${settings.writingStyle ? "on" : "off"} (${settingsFile()}).`);
-		},
-	});
 }
