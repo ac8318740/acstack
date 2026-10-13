@@ -3652,8 +3652,7 @@ pi_drop() {  # pi_drop <identity>
 # A package pi holds at a fixed version, such as npm:pi-subagents@1.0.0.
 pi_npm_pin() {  # pi_npm_pin <name>
   local src
-  version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}' \
-    || return 1
+  pi_npm_package "$1" || return 1
   src=$(pi_state pkg "npm:$1") || return 1
   [ "$src" != "npm:$1" ]
 }
@@ -3902,6 +3901,11 @@ pi-compact-tools	pi	npm	pi-compact-tools	-
 T
 }
 
+# Whether <name> is a pi npm package in version_table, pi itself included.
+pi_npm_package() {  # pi_npm_package <name>
+  version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}'
+}
+
 installed_version() {  # installed_version <name> -> a bare version, or nothing
   local v=""
   case "$1" in
@@ -3930,8 +3934,8 @@ installed_version() {  # installed_version <name> -> a bare version, or nothing
     # 1.1.0
     pi)        find_pi; v=$(pi --version 2>/dev/null | awk '{print $NF}') ;;
     # pi installs npm packages under its own directory, not npm's global one.
-    pi-subagents|pi-compact-tools|pi-web-access|pi-lens|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
-               v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
+    *)         pi_npm_package "$1" \
+                 && v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
   esac
   printf '%s' "${v#v}"
 }
@@ -4063,7 +4067,7 @@ upgrade_from_table() {  # upgrade_from_table <name>
 
 upgrade_one() {  # upgrade_one <name>
   if [ "$1" = "pi-acstack" ] \
-     || version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}'; then
+     || pi_npm_package "$1"; then
     find_pi
   fi
   case "$1" in
@@ -4080,13 +4084,6 @@ upgrade_one() {  # upgrade_one <name>
                else
                  say "pi update failed"
                fi ;;
-    pi-subagents|pi-compact-tools|pi-web-access|pi-lens|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
-      if pi_npm_pin "$1"; then
-        say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
-        return 0
-      fi
-      pi update "npm:$1" >/dev/null 2>&1 \
-        && say "$1 updated" || say "$1 update failed" ;;
     # Only a pin behind this plugin. A newer pin is the user's choice, and an
     # absent or unpinned ACStack is apply's business.
     pi-acstack)
@@ -4106,7 +4103,13 @@ upgrade_one() {  # upgrade_one <name>
         return 0
       fi
       upgrade_from_table tuicr ;;
-    *) upgrade_from_table "$1" ;;
+    *) pi_npm_package "$1" || { upgrade_from_table "$1"; return; }
+      if pi_npm_pin "$1"; then
+        say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
+        return 0
+      fi
+      pi update "npm:$1" >/dev/null 2>&1 \
+        && say "$1 updated" || say "$1 update failed" ;;
   esac
 }
 
@@ -4165,7 +4168,7 @@ case "$ACTION" in
     if have pi || [ "$(cfg_get pi.enabled false)" = "true" ]; then
       echo
       have pi && say "pi: $(installed_version pi)" || say "pi: not installed"
-      for id in npm:pi-subagents "$PI_ACSTACK" "$PI_BILLION" npm:@juicesharp/rpiv-todo npm:pi-plugin-manager npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access npm:pi-lens "$PI_SLASH_ANYWHERE" npm:pi-compact-tools; do
+      for id in "$PI_ACSTACK" $(version_table | awk -F'\t' '$2=="pi" && $3=="npm" && $1!="pi"{print "npm:"$1}'); do
         src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
       done
       [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \
