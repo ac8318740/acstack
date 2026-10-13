@@ -3520,6 +3520,79 @@ find_pi() {
   have pi || ! have npm || PATH="$PATH:$(npm prefix -g 2>/dev/null)/bin"
 }
 
+
+# Pi's bundled TUI does not always receive Windows Terminal paste as plain
+# text. Through Herdr and ConPTY it can arrive as Win32 input records such as
+# ESC[13;28;13;1;0;1_. Patch the installed bundle after install or update.
+patch_pi_win32_paste() {
+  have pi || return 0
+  local pi_bin pi_real root chunks
+  pi_bin=$(command -v pi) || return 0
+  pi_real=$(readlink -f "$pi_bin" 2>/dev/null || printf '%s' "$pi_bin")
+  case "$pi_real" in
+    */dist/bundle/cli.js) root=${pi_real%/dist/bundle/cli.js} ;;
+    *)
+      root="${pi_real%/bin/pi}/lib/node_modules/@earendil-works/pi-coding-agent"
+      if [ ! -d "$root/dist/bundle/chunks" ]; then
+        have npm || { say "pi: npm not on PATH, so Win32 paste patch was skipped"; return 0; }
+        root="$(npm root -g 2>/dev/null)/@earendil-works/pi-coding-agent"
+      fi
+      ;;
+  esac
+  chunks="$root/dist/bundle/chunks"
+  [ -d "$chunks" ] || { say "pi: bundle chunks not found, so Win32 paste patch was skipped"; return 0; }
+  SPECHUB_PI_CHUNKS="$chunks" py <<'PI_PATCH_PY'
+import os, pathlib
+chunks = pathlib.Path(os.environ["SPECHUB_PI_CHUNKS"])
+target = None
+for p in chunks.glob("*.js"):
+    try:
+        s = p.read_text()
+    except (OSError, UnicodeDecodeError):
+        continue
+    if "function decodePrintableKey(data)" in s and "handlePaste(pastedText)" in s:
+        target = p
+        break
+if target is None:
+    print("  pi: TUI bundle not found, so Win32 paste patch was skipped")
+    raise SystemExit
+s = target.read_text()
+changed = False
+repls = [
+('function isKeyRelease(data){return data.includes("\\x1B[200~")?!1:!!(data.includes(":3u")||data.includes(":3~")||data.includes(":3A")||data.includes(":3B")||data.includes(":3C")||data.includes(":3D")||data.includes(":3H")||data.includes(":3F"))}',
+ 'function isKeyRelease(data){let win32=parseWin32InputRecord(data);if(win32)return!win32.keyDown;return data.includes("\\x1B[200~")?!1:!!(data.includes(":3u")||data.includes(":3~")||data.includes(":3A")||data.includes(":3B")||data.includes(":3C")||data.includes(":3D")||data.includes(":3H")||data.includes(":3F"))}'),
+('function parseModifyOtherKeysSequence(data){let match=data.match(/^\\x1b\\[27;(\\d+);(\\d+)~$/);if(!match)return null;let modValue=parseInt(match[1],10);return{codepoint:parseInt(match[2],10),modifier:modValue-1}}',
+ 'function parseModifyOtherKeysSequence(data){let match=data.match(/^\\x1b\\[27;(\\d+);(\\d+)~$/);if(!match)return null;let modValue=parseInt(match[1],10);return{codepoint:parseInt(match[2],10),modifier:modValue-1}}function parseWin32InputRecord(data){let match=data.match(/^\\x1b\\[(\\d+);(\\d+);(-?\\d+);([01]);(\\d+);(\\d+)_$/);if(!match)return null;let virtualKey=Number.parseInt(match[1],10),scanCode=Number.parseInt(match[2],10),codepoint=Number.parseInt(match[3],10),keyDown=match[4]==="1",controlState=Number.parseInt(match[5],10),modifier=0;if((controlState&16)!==0)modifier|=MODIFIERS.shift;if((controlState&(1|2))!==0)modifier|=MODIFIERS.alt;if((controlState&(4|8))!==0)modifier|=MODIFIERS.ctrl;if((controlState&32)!==0)modifier|=128;if((controlState&128)!==0)modifier|=64;return{virtualKey,scanCode,codepoint,keyDown,modifier}}'),
+('function parseKey(data){let kitty=parseKittySequence(data);',
+ 'function parseKey(data){let win32=parseWin32InputRecord(data);if(win32){_lastEventType=win32.keyDown?"press":"release";if(!win32.keyDown)return;let codepoint=win32.codepoint;if(win32.virtualKey===46)codepoint=FUNCTIONAL_CODEPOINTS.delete;else if(win32.virtualKey===45)codepoint=FUNCTIONAL_CODEPOINTS.insert;else if(win32.virtualKey===33)codepoint=FUNCTIONAL_CODEPOINTS.pageUp;else if(win32.virtualKey===34)codepoint=FUNCTIONAL_CODEPOINTS.pageDown;else if(win32.virtualKey===35)codepoint=FUNCTIONAL_CODEPOINTS.end;else if(win32.virtualKey===36)codepoint=FUNCTIONAL_CODEPOINTS.home;else if(win32.virtualKey===37)codepoint=ARROW_CODEPOINTS.left;else if(win32.virtualKey===38)codepoint=ARROW_CODEPOINTS.up;else if(win32.virtualKey===39)codepoint=ARROW_CODEPOINTS.right;else if(win32.virtualKey===40)codepoint=ARROW_CODEPOINTS.down;else if(win32.virtualKey===8)codepoint=CODEPOINTS.backspace;else if(win32.virtualKey===9)codepoint=CODEPOINTS.tab;else if(win32.virtualKey===13)codepoint=CODEPOINTS.enter;else if(win32.virtualKey===27)codepoint=CODEPOINTS.escape;return formatParsedKey(codepoint,win32.modifier)}let kitty=parseKittySequence(data);'),
+('function decodeModifyOtherKeysPrintable(data){let parsed=parseModifyOtherKeysSequence(data);if(!(!parsed||(parsed.modifier&~LOCK_MASK&~MODIFIERS.shift)!==0)&&!(!Number.isFinite(parsed.codepoint)||parsed.codepoint<32))try{return String.fromCodePoint(parsed.codepoint)}catch{return}}function decodePrintableKey(data){return decodeKittyPrintable(data)??decodeModifyOtherKeysPrintable(data)}',
+ 'function decodeModifyOtherKeysPrintable(data){let parsed=parseModifyOtherKeysSequence(data);if(!(!parsed||(parsed.modifier&~LOCK_MASK&~MODIFIERS.shift)!==0)&&!(!Number.isFinite(parsed.codepoint)||parsed.codepoint<32))try{return String.fromCodePoint(parsed.codepoint)}catch{return}}function decodeWin32Printable(data){let parsed=parseWin32InputRecord(data);if(!parsed||!parsed.keyDown)return;let modifier=parsed.modifier&~LOCK_MASK;if((modifier&(MODIFIERS.ctrl|MODIFIERS.alt|MODIFIERS.super))!==0)return;if(!Number.isFinite(parsed.codepoint)||parsed.codepoint<32)return;try{return String.fromCodePoint(parsed.codepoint)}catch{return}}function decodePrintableKey(data){return decodeKittyPrintable(data)??decodeModifyOtherKeysPrintable(data)??decodeWin32Printable(data)}'),
+('let decodedText=pastedText.replace(/\\x1b\\[(\\d+);5u/g,(match,code)=>{let cp=Number(code);return cp>=97&&cp<=122?String.fromCharCode(cp-96):cp>=65&&cp<=90?String.fromCharCode(cp-64):match}),filteredText=this.normalizeText(decodedText).split("").filter(char=>char===`\n`||char.charCodeAt(0)>=32).join("");',
+ 'let decodedText=pastedText.replace(/\\x1b\\[(\\d+);(\\d+);(-?\\d+);([01]);(\\d+);(\\d+)_/g,(match,vk,sc,uc,kd)=>{if(kd!=="1")return "";let cp=Number(uc),key=Number(vk);if(key===13||cp===13)return `\n`;if(cp>=32)try{return String.fromCodePoint(cp)}catch{return ""}return ""}).replace(/\\x1b\\[(\\d+);5u/g,(match,code)=>{let cp=Number(code);return cp>=97&&cp<=122?String.fromCharCode(cp-96):cp>=65&&cp<=90?String.fromCharCode(cp-64):match}),filteredText=this.normalizeText(decodedText).split("").filter(char=>char===`\n`||char.charCodeAt(0)>=32).join("");')]
+missing = []
+for old, new in repls:
+    if new in s:
+        continue
+    if old not in s:
+        missing.append(old[:80])
+        continue
+    s = s.replace(old, new, 1)
+    changed = True
+if missing:
+    print("  pi: Win32 paste patch did not match this Pi bundle")
+    raise SystemExit
+if changed:
+    try:
+        target.write_text(s)
+    except OSError as exc:
+        print(f"  pi: could not patch {target} ({exc})")
+        raise SystemExit
+    print("  pi: Win32 paste patch applied")
+else:
+    print("  pi: Win32 paste patch already applied")
+PI_PATCH_PY
+}
+
 # The ACStack version running this script, which is the one pi should pin.
 acstack_version() {
   json_field "$(dirname "$0")/../../.claude-plugin/plugin.json" version
@@ -3670,6 +3743,8 @@ apply_pi() {
     return 0
   fi
 
+  patch_pi_win32_paste
+
   # ACStack cannot launch a subagent on pi without pi-subagents.
   pi_add npm:pi-subagents npm:pi-subagents
   if [ "$(cfg_get pi.todo true)" = "true" ]; then
@@ -3749,6 +3824,7 @@ apply_pi() {
   pi_state merge "$PI_KEYBINDINGS" keybindings '{"app.message.dequeue": "ctrl+enter"}'
   pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": "eager"}'
   pi_state md write
+  patch_pi_win32_paste
 
   # Logging in is interactive and stores a credential, so it stays the user's.
   [ -f "$PI_DIR/auth.json" ] || say "pi: not logged in yet. Run pi, then /login"
@@ -3991,8 +4067,12 @@ upgrade_one() {  # upgrade_one <name>
     harlequin) uv tool upgrade harlequin >/dev/null 2>&1 \
                  && say "harlequin upgraded" || say "harlequin upgrade failed" ;;
     # With no target, pi update updates pi itself and no package.
-    pi)        pi update >/dev/null 2>&1 \
-                 && say "pi updated" || say "pi update failed" ;;
+    pi)        if pi update >/dev/null 2>&1; then
+                 say "pi updated"
+                 patch_pi_win32_paste
+               else
+                 say "pi update failed"
+               fi ;;
     pi-subagents|pi-compact-tools|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
       if pi_npm_pin "$1"; then
         say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"

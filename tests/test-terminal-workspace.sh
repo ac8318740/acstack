@@ -4341,6 +4341,7 @@ echo "pi $*" >> "$HOME/pi.log"
 S="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/settings.json"
 case "$1" in
   --version) echo 1.1.0 ;;
+  update) ;;
   install|remove) python3 - "$S" "$1" "$2" <<'PY'
 import json, os, sys
 p, op, src = sys.argv[1:]
@@ -4368,8 +4369,16 @@ cat > "$ISTUB/npm" <<NPMSTUB
 #!/usr/bin/env bash
 echo "npm \$*" >> "\$HOME/npm.log"
 case "\$1" in
-  install) cp "$ISTUB/pi.installed" "$INPM/bin/pi"; chmod +x "$INPM/bin/pi" ;;
+  install)
+    cp "$ISTUB/pi.installed" "$INPM/bin/pi"; chmod +x "$INPM/bin/pi"
+    mkdir -p "$INPM/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/chunks"
+    cat > "$INPM/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/chunks/chunk-test.js" <<'CHUNK'
+function isKeyRelease(data){return data.includes("\x1B[200~")?!1:!!(data.includes(":3u")||data.includes(":3~")||data.includes(":3A")||data.includes(":3B")||data.includes(":3C")||data.includes(":3D")||data.includes(":3H")||data.includes(":3F"))}function parseModifyOtherKeysSequence(data){let match=data.match(/^\x1b\[27;(\d+);(\d+)~$/);if(!match)return null;let modValue=parseInt(match[1],10);return{codepoint:parseInt(match[2],10),modifier:modValue-1}}function parseKey(data){let kitty=parseKittySequence(data);return kitty}function decodeModifyOtherKeysPrintable(data){let parsed=parseModifyOtherKeysSequence(data);if(!(!parsed||(parsed.modifier&~LOCK_MASK&~MODIFIERS.shift)!==0)&&!(!Number.isFinite(parsed.codepoint)||parsed.codepoint<32))try{return String.fromCodePoint(parsed.codepoint)}catch{return}}function decodePrintableKey(data){return decodeKittyPrintable(data)??decodeModifyOtherKeysPrintable(data)}class E{handlePaste(pastedText){let decodedText=pastedText.replace(/\x1b\[(\d+);5u/g,(match,code)=>{let cp=Number(code);return cp>=97&&cp<=122?String.fromCharCode(cp-96):cp>=65&&cp<=90?String.fromCharCode(cp-64):match}),filteredText=this.normalizeText(decodedText).split("").filter(char=>char===\`
+\`||char.charCodeAt(0)>=32).join("");}}
+CHUNK
+    ;;
   prefix)  echo "$INPM" ;;
+  root)    echo "$INPM/lib/node_modules" ;;
 esac
 NPMSTUB
 cat > "$ISTUB/claude" <<'CLAUDESTUB'
@@ -4532,6 +4541,12 @@ if [ "$PI_APPLY" = "1" ]; then
     ok "apply writes the agentic-retro extension and tells the user to log in"
   else
     no "apply writes the agentic-retro extension and tells the user to log in (said: $(flat "$out"))"
+  fi
+  ICHUNK="$INPM/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/chunks/chunk-test.js"
+  if grep -q 'parseWin32InputRecord' "$ICHUNK"      && grep -q 'decodeWin32Printable' "$ICHUNK"      && grep -q 'vk,sc,uc,kd' "$ICHUNK"; then
+    ok "apply patches pi Win32 paste handling"
+  else
+    no "apply patches pi Win32 paste handling (said: $(flat "$out"), chunk: $(flat "$(cat "$ICHUNK" 2>/dev/null)"))"
   fi
 
   # Re-applying changes nothing: no install call, and every file byte for byte.
