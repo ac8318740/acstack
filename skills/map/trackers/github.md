@@ -29,14 +29,14 @@ GitHub remote.
 Create every label at materialisation, in one pass:
 
 ```bash
-kinds=$(~/.claude/spechub/bin/spechub node kinds) &&
+kinds=$(~/.claude/acstack/bin/acstack node kinds) &&
 for l in "map:<name>" fog claimed afk pinned root-node \
          $(echo "$kinds" | sed 's/^/kind:/'); do
   gh label create "$l" 2>/dev/null || true
 done
 ```
 
-The CLI owns the set of kinds. The loop reads that set from `spechub node
+The CLI owns the set of kinds. The loop reads that set from `acstack node
 kinds`, so a kind added to the code reaches this loop with no edit here. A
 second copy written out by hand would go stale in silence, since `|| true`
 swallows every failure the loop meets.
@@ -160,8 +160,8 @@ The CLI runs both queries from one `list` pipe:
 ```bash
 issues=$(gh issue list --label "map:<name>" --state all --limit 500 \
   --json number,title,body,state,stateReason,labels,url)
-echo "$issues" | ~/.claude/spechub/bin/spechub node frontier --stdin [--mode hitl|afk] [--json]
-echo "$issues" | ~/.claude/spechub/bin/spechub node walk --stdin [--full] [--json] [--visuals]
+echo "$issues" | ~/.claude/acstack/bin/acstack node frontier --stdin [--mode hitl|afk] [--json]
+echo "$issues" | ~/.claude/acstack/bin/acstack node walk --stdin [--full] [--json] [--visuals]
 ```
 
 `--map` refuses on this backend. The map is not on disk, so a `--map` read

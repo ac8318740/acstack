@@ -4,7 +4,7 @@
 //
 // Unlike open-designer, this runs on every `npm run build`, not only before a
 // publish. The CLI reads its own package.json at runtime to answer
-// `spechub --version`, so the plugin copy has to carry the right number too -
+// `acstack --version`, so the plugin copy has to carry the right number too -
 // not just the npm tarball.
 
 import { readFileSync, writeFileSync } from 'node:fs';

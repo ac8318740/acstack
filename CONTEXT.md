@@ -1,6 +1,6 @@
 # Glossary
 
-**acknowledgement** – The receiver's ACCEPT or DECLINE, with a one-line reason, recorded by running `spechub handoff ack`. It is what lets the sender report the work as the receiver's.
+**acknowledgement** – The receiver's ACCEPT or DECLINE, with a one-line reason, recorded by running `acstack handoff ack`. It is what lets the sender report the work as the receiver's.
 
 **arming** – Clicking the Playwriter extension's icon on a browser tab to attach it to the **relay** – third-party extension behaviour that nothing can automate. A **bridge** that is otherwise healthy stays unusable until someone arms a tab by hand.
 
@@ -16,9 +16,9 @@ The bridge lets an agent drive a real browser over the Chrome DevTools Protocol 
 
 **child session** – A subagent or a teammate, launched by another agent rather than by a person. It runs inside the **lead session**'s own process and shares that session's id, so no environment variable separates the two. A child reports its state to the lead, and never writes what the lead owns.
 
-**design gate** – The optional checks impeccable adds to spechub's pipeline when `workflow.design_review` is true. The detector runs inside task-checker, then an audit and a polish pass run before frontend-verifier.
+**design gate** – The optional checks impeccable adds to acstack's pipeline when `workflow.design_review` is true. The detector runs inside task-checker, then an audit and a polish pass run before frontend-verifier.
 
-**dev setup** – The machine-level tools a SpecHub session runs inside. It names the orchestrator that hosts terminal panes and git worktrees. It also names the browser-verification modes that work on the machine, plus optional extras such as publishing the dev server to a private network.
+**dev setup** – The machine-level tools an ACStack session runs inside. It names the orchestrator that hosts terminal panes and git worktrees. It also names the browser-verification modes that work on the machine, plus optional extras such as publishing the dev server to a private network.
 
 A host declares its dev setup, and a project does not.
 
@@ -26,17 +26,17 @@ A host declares its dev setup, and a project does not.
 
 **engaged** – A handoff watcher outcome: the receiving agent has not acknowledged, but has read the handoff file or started using work tools. The work is underway. Never relaunch it elsewhere.
 
-**generated block** – The rendered map that `spechub node diagram` writes, bounded by the `<!-- spechub:diagram -->` markers. `node read` and `node walk` strip it from their human-readable output, and `--visuals` puts it back – see ADR 0014. A marker inside a fenced code block is prose about the markers, never a block.
+**generated block** – The rendered map that `acstack node diagram` writes, bounded by the `<!-- acstack:diagram -->` markers. `node read` and `node walk` strip it from their human-readable output, and `--visuals` puts it back – see ADR 0014. A marker inside a fenced code block is prose about the markers, never a block.
 
 **hand-drawn diagram** – A diagram a person or an agent wrote into a node body by hand, outside the **generated block** markers. It is the explanation the node exists to give, so nothing strips it.
 
-**host** – One developer machine, as distinct from the project it works in. The SpecHub global config declares its dev setup, including which orchestrators the developer installed.
+**host** – One developer machine, as distinct from the project it works in. The ACStack global config declares its dev setup, including which orchestrators the developer installed.
 
-**lead session** – The session a person talks to, at the top of the agent tree. It alone hands work over or compacts, because it alone owns the context-pressure quiet marker and the `spechub/HANDOFF.md` anchor. A **child session** finds out it is not the lead by looking for its own transcript – see ADR 0007.
+**lead session** – The session a person talks to, at the top of the agent tree. It alone hands work over or compacts, because it alone owns the context-pressure quiet marker and the `acstack/HANDOFF.md` anchor. A **child session** finds out it is not the lead by looking for its own transcript – see ADR 0007.
 
 **opener** – A small HTTP service on the user's laptop. It stores a page rendered on a development virtual machine and serves it on an address only the laptop can reach (the loopback interface). It hands that address to the user's default browser, so a person sees the page – see **bridge** for the agent's route instead.
 
-**opener token** – A shared secret that guards the **opener**. `register-tasks.ps1` generates it on the laptop and copies it to `~/.config/spechub/opener.token` on each development virtual machine. Every request the machine sends carries the token, and the opener answers HTTP 401 without it.
+**opener token** – A shared secret that guards the **opener**. `register-tasks.ps1` generates it on the laptop and copies it to `~/.config/acstack/opener.token` on each development virtual machine. Every request the machine sends carries the token, and the opener answers HTTP 401 without it.
 
 **orchestrator** – A tool that hosts agent terminal panes and git worktrees. Herdr and Orca are the two, and one host can run both at once.
 
@@ -44,7 +44,7 @@ A host declares its dev setup, and a project does not.
 
 **reverse tunnel** – An SSH forward that lets a development virtual machine reach a port on the user's laptop. The laptop opens it, not the machine. `tunnel.ps1` holds one per machine for the **bridge**, and a second per machine for the **opener**.
 
-**route** – The single named answer to "how does this machine reach a browser", decided in one place and printed by `spechub-open --why`. Every script asks for the route instead of working it out again.
+**route** – The single named answer to "how does this machine reach a browser", decided in one place and printed by `acstack-open --why`. Every script asks for the route instead of working it out again.
 
 **stale acknowledgement** – A `<handoff-file>.ack` sidecar written before the round the watcher is watching, reported as `staleAck`. A handoff file outlives the round that produced it, so the previous target's answer is still lying beside it. The watcher never counts one, and always reports it, so nobody calls a handoff unacknowledged while an answer sits on disk.
 

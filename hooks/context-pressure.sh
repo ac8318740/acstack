@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# SpecHub context-pressure nudge (Stop / SessionStart hook).
+# ACStack context-pressure nudge (Stop / SessionStart hook).
 #
 # Measures how much context the session has consumed and, past a threshold,
-# blocks the stop with a short message telling the agent to consider handing
-# the work over before context runs out.
+# blocks the stop with a short continuity-versus-freshness checkpoint before
+# context runs out.
 #
 # Contract: JSON payload on stdin, JSON (or nothing) on stdout, nothing on
 # stderr, ALWAYS exit 0. A hook that errors or writes junk to stdout breaks the
@@ -40,7 +40,7 @@
 #   nudge when it crosses each rung rather than on every single stop.
 #
 #   The default rungs are workflow.handoff.nudge_warn and nudge_severe from
-#   spechub/project.yaml (defaulting to 200000 / 500000), and then one rung
+#   acstack/project.yaml (defaulting to 200000 / 500000), and then one rung
 #   every workflow.handoff.nudge_step tokens (default 100000) above the last
 #   one. Setting workflow.handoff.context_thresholds replaces the default rungs
 #   entirely with the listed ones - written either block style (one "- item"
@@ -62,8 +62,8 @@
 #
 # Per-session state:
 #
-#   State lives in SPECHUB_CONTEXT_PRESSURE_DIR, defaulting to a
-#   spechub-context-pressure directory under TMPDIR (or /tmp), created when it
+#   State lives in ACSTACK_CONTEXT_PRESSURE_DIR, defaulting to a
+#   acstack-context-pressure directory under TMPDIR (or /tmp), created when it
 #   is missing. The session key is the payload's session_id, falling back to the
 #   transcript's basename without its .jsonl suffix. Two files per key:
 #
@@ -96,12 +96,12 @@ command -v python3 >/dev/null 2>&1 || exit 0
 # Capture the hook payload from stdin before running python. The heredoc below
 # becomes python's stdin (the program source), so the payload must travel via an
 # env var, not sys.stdin.
-SPECHUB_HOOK_INPUT="$(cat)"
-export SPECHUB_HOOK_INPUT
+ACSTACK_HOOK_INPUT="$(cat)"
+export ACSTACK_HOOK_INPUT
 
 # Resolve the state directory here so python only has to read one variable.
-SPECHUB_CONTEXT_PRESSURE_DIR="${SPECHUB_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/spechub-context-pressure}"
-export SPECHUB_CONTEXT_PRESSURE_DIR
+ACSTACK_CONTEXT_PRESSURE_DIR="${ACSTACK_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/acstack-context-pressure}"
+export ACSTACK_CONTEXT_PRESSURE_DIR
 
 # stderr goes nowhere: a hook that writes to stderr is noise at best, and a
 # traceback from an unforeseen payload must never reach the user. Every failure
@@ -127,16 +127,15 @@ WINDOW_DEFAULT = 1000000
 SMALL_WINDOW_MODEL = re.compile(r"haiku|-4-\d|-4\b")
 
 # The agency clause is the load-bearing instruction, and it is identical
-# across tiers: handing over or carrying on is the agent's own call, and the
-# question tool is for the case where it genuinely cannot tell. Only the head
-# above it differs, and only in how hard it leans towards handing over - so a
-# severe nudge never halts an unattended run that the agent could have
-# resolved itself.
+# across tiers: continuity or freshness is the agent's own call. The question
+# tool is for the case where it genuinely cannot tell. Only the head above it
+# differs, and only in urgency, so a severe nudge never halts an unattended run
+# that the agent could have resolved itself.
 AGENCY = (
     "The call is yours. If you have a strong view either way, act on it "
-    "without asking. Either hand over, or say in one line what you found "
-    "and carry on. Ask the user with the host's question tool if you don't "
-    "know if handing off or continuing in this session would be better."
+    "without asking. Either keep continuity in this session, or choose "
+    "freshness with /acstack:handoff. Ask the user with the host's question "
+    "tool if you don't know which route would make the work go better."
 )
 
 # The standing-agreement clause settles the one case the agent cannot read
@@ -145,7 +144,8 @@ AGENCY = (
 STANDING_AGREEMENT = (
     "If you are partway through a long run of tasks and the user already "
     "agreed to a handoff earlier in this session, including in a handoff "
-    "or compaction summary you resumed from, hand over without asking."
+    "or compaction summary you resumed from, use /acstack:handoff without "
+    "asking again."
 )
 
 # Shared tail appended after each tier's head: the agency clause, the
@@ -155,8 +155,8 @@ STANDING_AGREEMENT = (
 DECIDE_TAIL = (
     AGENCY
     + " " + STANDING_AGREEMENT
-    + " If you do ask and the user would rather keep going, drop it for now"
-    + " and raise the handoff again once the current run of work wraps up."
+    + " If you do ask and the user chooses continuity, drop it for now"
+    + " and revisit freshness once the current run of work wraps up."
 )
 
 
@@ -166,7 +166,7 @@ def bail():
 
 
 try:
-    data = json.loads(os.environ.get("SPECHUB_HOOK_INPUT", ""))
+    data = json.loads(os.environ.get("ACSTACK_HOOK_INPUT", ""))
 except Exception:
     bail()
 
@@ -187,7 +187,7 @@ if _stop_hook_active is True or (
 
 # --- state directory and session key ---------------------------------------
 
-state_dir = os.environ.get("SPECHUB_CONTEXT_PRESSURE_DIR", "").strip()
+state_dir = os.environ.get("ACSTACK_CONTEXT_PRESSURE_DIR", "").strip()
 if not state_dir:
     bail()
 
@@ -361,7 +361,7 @@ def read_config():
         "context_thresholds": None,
     }
     try:
-        with open(os.path.join("spechub", "project.yaml"), encoding="utf-8", errors="replace") as f:
+        with open(os.path.join("acstack", "project.yaml"), encoding="utf-8", errors="replace") as f:
             lines = f.read().split("\n")
     except OSError:
         return cfg
@@ -545,32 +545,35 @@ except Exception:
 
 # --- the nudge -------------------------------------------------------------
 
-# Inside herdr the handoff skill can open a fresh session; outside it, staying
-# in this session across a compaction is the only option available.
-if os.environ.get("HERDR_ENV") == "1":
-    route = "the handoff skill"
-else:
-    route = "the compact-and-continue skill"
-
 used = "{:,}".format(tokens)
 limit = "{:,}".format(rung)
+large_context = context_window() >= WINDOW_1M
+continuity = (
+    "Continuity: if your working context is useful, keep going in this same "
+    "session"
+)
+if large_context:
+    continuity += " and rely on billion-context"
+continuity += ", with ACP compression as an in-place option if the host offers it."
+freshness = (
+    "Freshness: if a fresh context window or an independent read would help "
+    "more, use /acstack:handoff."
+)
 
 if rung >= severe_at:
     head = (
         "Context check (urgent): this session has used about {used} tokens, "
-        "past the {limit} severe mark, so it is close to the wall. Handing "
-        "the work over with {route} is usually right this late, and starting "
-        "something new rarely is. Finishing what you are already on can be "
-        "the better call though: wrap it up and there may be nothing left "
-        "worth handing over. If you do put it to the user, say plainly that "
-        "context is nearly gone so they can decide quickly."
-    ).format(used=used, limit=limit, route=route)
+        "past the {limit} severe mark, so it is close to the wall. Treat high "
+        "context as a continuity-versus-freshness checkpoint. {continuity} "
+        "{freshness} If you ask the user, say plainly that context is nearly "
+        "gone so they can decide quickly."
+    ).format(used=used, limit=limit, continuity=continuity, freshness=freshness)
 else:
     head = (
         "Context check: this session has used about {used} tokens, past the "
-        "{limit} mark. Decide whether now is a good moment to hand the work "
-        "over with {route}."
-    ).format(used=used, limit=limit, route=route)
+        "{limit} mark. Treat high context as a continuity-versus-freshness "
+        "checkpoint. {continuity} {freshness}"
+    ).format(used=used, limit=limit, continuity=continuity, freshness=freshness)
 
 reason = head + " " + DECIDE_TAIL
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SpecHub host setup: install Orca as a headless server for this user.
+# ACStack host setup: install Orca as a headless server for this user.
 #
 # Orca is an agent integrated development environment. This script installs it
 # as a background service that serves its interface over the network, so a

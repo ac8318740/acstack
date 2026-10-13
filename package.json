@@ -1,8 +1,8 @@
 {
-  "name": "spechub",
-  "version": "0.43.0",
-  "private": true,
-  "description": "Spec-driven TDD workflow for pi: skills, the orchestrator prompt, and the test-writer, task-executor, task-checker and frontend-verifier subagents.",
+  "name": "acstack",
+  "version": "0.47.0",
+  "private": false,
+  "description": "Agentic coding stack with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,9 +10,31 @@
   },
   "keywords": [
     "pi-package",
-    "spechub",
+    "acstack",
     "tdd",
-    "spec-driven"
+    "agentic-coding",
+    "agent-orchestration"
+  ],
+  "bin": {
+    "acstack": "./cli/bin/acstack.js"
+  },
+  "files": [
+    ".claude-plugin/",
+    "agents/",
+    "assets/",
+    "cli/bin/",
+    "cli/dist/",
+    "cli/package.json",
+    "cli/README.md",
+    "docs/",
+    "hooks/",
+    "orchestrator/",
+    "output-styles/",
+    "pi/",
+    "profiles/",
+    "skills/",
+    "THIRD_PARTY_NOTICES",
+    "TROUBLESHOOTING.md"
   ],
   "pi": {
     "extensions": [

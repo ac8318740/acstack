@@ -9,7 +9,7 @@ import {
   CLAUDE_LOCAL_SETTINGS_FILE,
   CLAUDE_SETTINGS_FILE,
   domainMapFile,
-  SPECHUB_OUTPUT_STYLE,
+  ACSTACK_OUTPUT_STYLE,
   VERIFICATION_KNOWLEDGE_FILE,
 } from '../lib/constants.js';
 import {
@@ -46,7 +46,7 @@ import { readYaml } from '../lib/utils.js';
 import type { LoadedProject } from './config.js';
 
 /**
- * What `spechub config check` reports: the numbered checks, and the exit code
+ * What `acstack config check` reports: the numbered checks, and the exit code
  * they add up to.
  *
  * `LoadedProject` is the one thing that crosses back to `config.ts`, and it
@@ -85,7 +85,7 @@ const OUTCOME_LABELS: Readonly<Record<CheckOutcome, string>> = {
 };
 
 /**
- * Collects the numbered checks `spechub config check` reports, and the two
+ * Collects the numbered checks `acstack config check` reports, and the two
  * facts that decide its exit code: whether anything required is unset (which
  * outranks everything, because nothing else can be trusted until it is set)
  * and whether anything else failed.
@@ -176,7 +176,7 @@ export function checkRequiredAxes(
       const note = isBrowserAxis(key) ? why : '';
       report.missing(
         id,
-        `${key} is unset${note} - set it with \`spechub config set ${key} <value>\``
+        `${key} is unset${note} - set it with \`acstack config set ${key} <value>\``
       );
     }
   }
@@ -652,10 +652,10 @@ export function checkProjectFiles(report: CheckReport, loaded: LoadedProject): v
   report.heading("This project's files and design tools");
 
   if (!loaded.root) {
-    // Nothing here is this directory's business: without spechub/ there is no
+    // Nothing here is this directory's business: without acstack/ there is no
     // map to want and no frontend to configure. One line saying so beats a
     // column of failures about files a non-project was never going to have.
-    report.line('info', 'no-project', 'No SpecHub project here, so there are no project files to check');
+    report.line('info', 'no-project', 'No ACStack project here, so there are no project files to check');
     return;
   }
 
@@ -697,7 +697,7 @@ export function checkImpeccable(report: CheckReport): void {
   // The registry states a version too, and it goes unread on purpose: it
   // records what was installed, so printing it here would name a version the
   // user may no longer have. `impeccableVersionNote` is the same sentence
-  // `spechub design-gate` warns with, so the two surfaces cannot drift.
+  // `acstack design-gate` warns with, so the two surfaces cannot drift.
   const note = impeccableVersionNote(found.version);
   if (note !== null) {
     report.line('info', id, note);
@@ -773,7 +773,7 @@ export function checkOutputStyle(report: CheckReport, root: string): void {
     const style = outputStyleOf(read.value);
     if (style === null) continue;
     report.line(
-      style === SPECHUB_OUTPUT_STYLE ? 'pass' : 'info',
+      style === ACSTACK_OUTPUT_STYLE ? 'pass' : 'info',
       id,
       `outputStyle is ${style}, selected by ${file.label}`
     );

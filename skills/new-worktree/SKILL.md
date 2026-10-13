@@ -38,8 +38,8 @@ Always fetch first, then branch off the remote ref.
 A worktree orchestrator is the tool that owns worktrees and the panes working in them – herdr, Orca, or nothing at all. Which one is in play is not something to guess at from environment variables. A sibling script works it out:
 
 ```bash
-SPECHUB_ROOT=$(cd -- "$(dirname -- "$(readlink -f "$HOME/.claude/spechub/bin/spechub")")/../.." && pwd)
-"$SPECHUB_ROOT/skills/new-worktree/detect-orchestrator.sh"
+ACSTACK_ROOT=$(cd -- "$(dirname -- "$(readlink -f "$HOME/.claude/acstack/bin/acstack")")/../.." && pwd)
+"$ACSTACK_ROOT/skills/new-worktree/detect-orchestrator.sh"
 ```
 
 That invariant CLI symlink is the only way to reach the plugin's own root. The SessionStart hook maintains it, and re-creates it every time an agent session starts. Do not shorten the path and do not reach for `$CLAUDE_PLUGIN_ROOT`; the plugin deliberately does not depend on env vars propagating into subshells.
@@ -57,7 +57,7 @@ warning=<one line, empty when there is nothing to say>
 
 The script takes one optional argument: the checkout to examine. A checkout is one git worktree directory. The script examines the current directory when you pass nothing.
 
-- `declared_herdr` – whether the user has herdr installed on this host, recorded in the SpecHub global config under `host.orchestrators.herdr`. `unset` means nobody has declared herdr on this host yet.
+- `declared_herdr` – whether the user has herdr installed on this host, recorded in the ACStack global config under `host.orchestrators.herdr`. `unset` means nobody has declared herdr on this host yet.
 - `declared_orca` – the same yes-or-no answer for Orca, recorded under `host.orchestrators.orca`. The two are independent: a host can have both installed, one, or neither, so one answer says nothing about the other. Both `false` is how a host says it has no orchestrator at all.
 - `detected` – which orchestrator is actually hosting this session, read from the environment markers an orchestrator injects into the terminals it opens.
 - `active` – the branch to run.

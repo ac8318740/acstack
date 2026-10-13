@@ -427,8 +427,8 @@ echo "Case 11: project.root and project.has_frontend"
 
 new_case
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/spechub"
-printf 'frontend:\n  framework: react\n' > "$CWD_DIR/spechub/project.yaml"
+mkdir -p "$CWD_DIR/acstack"
+printf 'frontend:\n  framework: react\n' > "$CWD_DIR/acstack/project.yaml"
 EXPECTED_ROOT="$(git -C "$CWD_DIR" rev-parse --show-toplevel)"
 run_detect
 check "root matches the git repo top-level"           'field_is ".project.root" "'"$EXPECTED_ROOT"'"'
@@ -436,15 +436,15 @@ check "top-level frontend key -> has_frontend true"     'field_is ".project.has_
 
 new_case
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/spechub"
-printf 'name: backend-only\n' > "$CWD_DIR/spechub/project.yaml"
+mkdir -p "$CWD_DIR/acstack"
+printf 'name: backend-only\n' > "$CWD_DIR/acstack/project.yaml"
 run_detect
 check "no frontend key -> has_frontend false"            'field_is ".project.has_frontend" "false"'
 
 new_case
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/spechub"
-printf 'workflow:\n  frontend: true\n' > "$CWD_DIR/spechub/project.yaml"
+mkdir -p "$CWD_DIR/acstack"
+printf 'workflow:\n  frontend: true\n' > "$CWD_DIR/acstack/project.yaml"
 run_detect
 check "indented frontend key (not column 0) -> has_frontend false" 'field_is ".project.has_frontend" "false"'
 
@@ -456,8 +456,8 @@ check "root still resolves when no project.yaml"          '[ "$(jval ".project.r
 
 new_case
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/spechub"
-printf 'frontend:\n  framework: vue\n' > "$CWD_DIR/spechub/project.yaml"
+mkdir -p "$CWD_DIR/acstack"
+printf 'frontend:\n  framework: vue\n' > "$CWD_DIR/acstack/project.yaml"
 mkdir -p "$CWD_DIR/nested/deeper"
 EXPECTED_ROOT="$(git -C "$CWD_DIR" rev-parse --show-toplevel)"
 CWD_DIR="$CWD_DIR/nested/deeper"
@@ -481,8 +481,8 @@ fake_systemctl "$BIN" active
 mkdir -p "$HOME_DIR/.claude"
 printf 'orca hooks\n' > "$HOME_DIR/.claude/settings.json"
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/spechub"
-printf 'frontend:\n  framework: react\n' > "$CWD_DIR/spechub/project.yaml"
+mkdir -p "$CWD_DIR/acstack"
+printf 'frontend:\n  framework: react\n' > "$CWD_DIR/acstack/project.yaml"
 ENV_EXTRA=(DISPLAY=":0")
 BEFORE_HOME="$(snapshot_dir "$HOME_DIR")"
 BEFORE_CWD="$(snapshot_dir "$CWD_DIR")"

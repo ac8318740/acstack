@@ -46,14 +46,14 @@ an obvious choice buries the ones that matter.
 ```markdown
 # One invariant path for the command line tool
 
-Every skill calls the command line tool for SpecHub as
-`~/.claude/spechub/bin/spechub`. The SessionStart hook repoints that symlink
+Every skill calls the command line tool for ACStack as
+`~/.claude/acstack/bin/acstack`. The SessionStart hook repoints that symlink
 at the copy inside the current plugin cache. A version bump moves the target.
 No skill file changes.
 
 ## Considered options
 
-A bare `spechub` command reads the user's shell PATH. A subshell, a fresh
+A bare `acstack` command reads the user's shell PATH. A subshell, a fresh
 agent context and a continuous integration run each start without that PATH.
 
 ## Consequences
@@ -81,8 +81,8 @@ If the decision fixed what a word means – picked between competing names,
 sharpened a fuzzy term, coined one – record it:
 
 - **Cross-domain terms** go in `CONTEXT.md` at the repo root.
-- **Domain terms** go in `spechub/specs/<domain>/CONTEXT.md`, beside that
-  domain's `spec.md`. Find the domain in `spechub/domain-map.yaml`.
+- **Domain terms** go in `acstack/specs/<domain>/CONTEXT.md`, beside that
+  domain's `spec.md`. Find the domain in `acstack/domain-map.yaml`.
 
 - Create both files lazily; there is no index file –
   `domain-map.yaml` already lists every domain.

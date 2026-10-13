@@ -1,6 +1,6 @@
 # Setup: first run
 
-`SKILL.md` decides when to read this file: Step 2 found no `spechub/project.yaml`, so the first-run path runs Steps 3 to 6 from here.
+`SKILL.md` decides when to read this file: Step 2 found no `acstack/project.yaml`, so the first-run path runs Steps 3 to 6 from here.
 
 The file keeps its schema on both paths, so nothing migrates. `docs/config-reference.md`
 lists every key it can hold.
@@ -90,13 +90,13 @@ paths reach Step 10 through the health check.
 
 ## Step 6: Write the config
 
-1. Create the `spechub/` directory.
-2. Write `spechub/project.yaml` from the profile and the answers.
+1. Create the `acstack/` directory.
+2. Write `acstack/project.yaml` from the profile and the answers.
 3. Leave the project CLAUDE.md alone. The SessionStart hook loads the
    orchestrator instructions.
 
 4. Remove a legacy `@import` line from the project CLAUDE.md, if one is there.
-   It points at `.../plugins/cache/ac8318740-plugins/spechub/<version>/CLAUDE.md`.
+   It points at `.../plugins/cache/ac8318740-plugins/acstack/<version>/CLAUDE.md`.
 
 Then go to Step 7. Everything a fresh project still lacks shows up there as a
 failing row.

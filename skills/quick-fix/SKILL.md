@@ -92,7 +92,7 @@ Follow the standard pipeline:
 
 ## Step 6: Verify
 
-Run build verification using commands from `spechub/project.yaml`:
+Run build verification using commands from `acstack/project.yaml`:
 
 ```bash
 # Run the project's configured test, lint, and typecheck commands

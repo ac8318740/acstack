@@ -22,7 +22,7 @@ What it reports, and what each field is evidence for:
 | `orca_topology.serve_unit_active` | A user-level service named exactly `orca` is running, which is the shape of a machine serving Orca to a viewer elsewhere. The name is an assumption: whatever provisions the server picks it, and nothing pins it yet. A unit installed under any other name reads here as "no server". The topology recommendation below then comes out `local` when this machine has Orca, and stays empty when it does not |
 | `claude_settings.orca_hooks_present` | `~/.claude/settings.json` mentions Orca somewhere. The match is a loose, case-insensitive search for that word anywhere in the file, so an unrelated path or permission entry containing it counts too – this is evidence that Orca has wired its hooks in, not proof |
 | `claude_settings.backup_exists` | `~/.claude/settings.json.bak` exists |
-| `project.root`, `project.has_frontend` | The git repository the current directory sits in, and whether its `spechub/project.yaml` configures a frontend |
+| `project.root`, `project.has_frontend` | The git repository the current directory sits in, and whether its `acstack/project.yaml` configures a frontend |
 
 Several sections also carry a `recommended` field. That is the script's
 mechanical reading of the evidence above it and nothing more. It is a starting
@@ -122,13 +122,13 @@ So read it as a floor, not as the whole answer:
 - `project.has_frontend` is true – ask with no escape. The modes have to be
   declared.
 
-- It is false, or there is no SpecHub project in the current directory at all –
+- It is false, or there is no ACStack project in the current directory at all –
     still ask. The next project opened on this machine may well have a frontend,
     and this skill runs once per machine.
 
     Add a "Decide later" option, and state the consequence plainly. The three
     `host.browser.*` axes stay unset. The health check
-    `~/.claude/spechub/bin/spechub config check` then fails the first time
+    `~/.claude/acstack/bin/acstack config check` then fails the first time
     anyone runs it in a project that has a frontend.
 
 ## Step 3: The optional axes

@@ -17,7 +17,7 @@ You verify that implemented tasks actually work and are accessible to users. You
 
 ## Project configuration
 
-Read `spechub/project.yaml` for project-specific settings:
+Read `acstack/project.yaml` for project-specific settings:
 
 - `commands.test` – how to run tests
 - `commands.test_collect` – how to count tests (for baseline)
@@ -56,7 +56,7 @@ Run the build, lint and typecheck commands from project.yaml. Allow no errors.
 
 **What `workflow.tdd.strict` changes here**
 
-Read the key in `spechub/project.yaml`. It names the order the first two phases
+Read the key in `acstack/project.yaml`. It names the order the first two phases
 ran in.
 
 Under `true` the test-writer ran first, so the task's new tests failed before
@@ -188,7 +188,7 @@ This is where most failures hide. Verify the complete chain:
 
 **The changed frontend file list**
 
-Section 5.5 runs only when `spechub/project.yaml` configures `frontend`.
+Section 5.5 runs only when `acstack/project.yaml` configures `frontend`.
 `frontend.directory` names the directory. It defaults to `frontend/` when the
 key states nothing.
 
@@ -232,7 +232,7 @@ browser.
 Check the design gate before you run the detector:
 
 ```bash
-~/.claude/spechub/bin/spechub design-gate
+~/.claude/acstack/bin/acstack design-gate
 ```
 
 The command prints `on` and exits 0 when the gate is on. It prints
@@ -293,7 +293,7 @@ advisory run failed under any other exit code. Continue the checklist.
 
 ### 7. Spec correction (fix it when you see it)
 
-While verifying, read the living spec for the affected domain(s) in `spechub/specs/*/spec.md`. If any FR contradicts what you verified:
+While verifying, read the living spec for the affected domain(s) in `acstack/specs/*/spec.md`. If any FR contradicts what you verified:
 
 - **Wrong behavior** -> update the FR to match the code
 - **Missing requirement** -> add it

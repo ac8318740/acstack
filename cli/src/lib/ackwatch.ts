@@ -1,7 +1,7 @@
 // Acknowledgement watching: did the agent we handed work to actually pick it up?
 //
 // A handoff is delivered as a cross-session message. The target answers in one
-// of two places: it runs `spechub handoff ack`, which writes a sidecar beside
+// of two places: it runs `acstack handoff ack`, which writes a sidecar beside
 // the handoff file, or it speaks into its own transcript – the JSONL file
 // Claude Code appends one record per line to. This module reads both and
 // reports what the target did, said, or failed to say.
@@ -39,7 +39,7 @@ export type WatchOutcome = Exclude<AnalyzeOutcome, 'pending'> | 'timeout';
 
 /**
  * Where an acknowledgement came from. `cli` is the ack sidecar, written by
- * `spechub handoff ack`; `text` is the transcript fallback, matched on a
+ * `acstack handoff ack`; `text` is the transcript fallback, matched on a
  * leading keyword.
  */
 export type AckVia = 'cli' | 'text';

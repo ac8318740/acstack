@@ -1,13 +1,13 @@
 # The diagram renderer takes nodes in and never calls gh
 
-`spechub node diagram` reads nodes and writes mermaid. It reads them from disk for a named map, or as JSON on stdin. It makes no network call and needs no authentication.
+`acstack node diagram` reads nodes and writes mermaid. It reads them from disk for a named map, or as JSON on stdin. It makes no network call and needs no authentication.
 
 On the GitHub backend the agent runs the pipe itself:
 
 ```bash
 gh issue list --label "map:<name>" --state all --limit 500 \
   --json number,title,body,state,stateReason,labels,url \
-  | spechub node diagram --stdin
+  | acstack node diagram --stdin
 ```
 
 ## Considered options

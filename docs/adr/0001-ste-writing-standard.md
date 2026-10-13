@@ -12,5 +12,5 @@ We reject the "add voice" advice common in anti-AI-writing guides. Someone with 
 ## Consequences
 
 - The standard lives in one skill; every other skill points at it. Plugin prose must itself comply, so a sweep follows.
-- A deterministic lint, `spechub lint-prose`, checks what a grep can check. It warns and never blocks, because sentence-length heuristics misfire in tables and code.
+- A deterministic lint, `acstack lint-prose`, checks what a grep can check. It warns and never blocks, because sentence-length heuristics misfire in tables and code.
 - The ASD-STE100 dictionary requires a license, so the plugin does not reproduce it; it ships its own short vocabulary table instead.

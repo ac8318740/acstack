@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Generate Codex subagent definitions from the SpecHub agent markdown.
+// Generate Codex subagent definitions from the ACStack agent markdown.
 //
 // agents/<name>.md  ->  agents/codex/<name>.toml
 //

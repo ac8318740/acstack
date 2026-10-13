@@ -45,11 +45,11 @@ For each planned commit:
 
 **This step is non-negotiable.** After drafting the commit message but BEFORE creating the commit, spec sync runs automatically.
 
-Read `spechub/project.yaml` – if `workflow.spec_sync` is `true` (or not explicitly `false`), run spec sync:
+Read `acstack/project.yaml` – if `workflow.spec_sync` is `true` (or not explicitly `false`), run spec sync:
 
-1. Read `spechub/domain-map.yaml` (if exists)
+1. Read `acstack/domain-map.yaml` (if exists)
 2. Map staged files to spec domains
-3. For each affected domain where `spechub/specs/[domain]/spec.md` exists:
+3. For each affected domain where `acstack/specs/[domain]/spec.md` exists:
     - Analyze what the staged changes add, modify, or remove
     - Generate lightweight ADDED/MODIFIED/REMOVED entries
     - Update the domain's spec.md
@@ -62,21 +62,21 @@ Read `spechub/project.yaml` – if `workflow.spec_sync` is `true` (or not explic
 **Skip spec sync ONLY when:**
 
 - `workflow.spec_sync` is explicitly `false` in project.yaml
-- No `spechub/domain-map.yaml` exists
+- No `acstack/domain-map.yaml` exists
 - Changed files don't match any domain
 - Changes are docs/config only (no behavioral changes)
 - No spec.md exists for affected domains (don't create from scratch here)
 
 **Those conditions govern the living specs only.** The `DESIGN.md` refresh
 answers to the design gate alone. Run Step 2 of the `sync` skill whenever
-`~/.claude/spechub/bin/spechub design-gate` exits 0, even when spec sync skips.
+`~/.claude/acstack/bin/acstack design-gate` exits 0, even when spec sync skips.
 
 ## Step 5: Stage and Commit
 
 1. Stage files according to scope
 2. Do NOT stage sensitive files (.env, credentials, secrets)
 3. Run `git diff --cached --name-only -- '*.md'` to list the staged Markdown files
-4. Run `~/.claude/spechub/bin/spechub lint-prose <files>` on that list
+4. Run `~/.claude/acstack/bin/acstack lint-prose <files>` on that list
 5. Show the lint output to the user
 6. Create the commit with the drafted message and no `Co-Authored-By` trailer
 7. Use HEREDOC format for commit message

@@ -1,6 +1,6 @@
 ---
 name: grilling
-description: Interview technique for settling open decisions in rounds. A round asks the whole frontier – every question whose prerequisites are settled – numbered, each with a recommended answer, then recomputes and repeats. Use whenever decisions need a human and requirements are foggy, with or without a map. Called by /spechub:map for charting and frontier work; also usable directly in conversation.
+description: Interview technique for settling open decisions in rounds. A round asks the whole frontier – every question whose prerequisites are settled – numbered, each with a recommended answer, then recomputes and repeats. Use whenever decisions need a human and requirements are foggy, with or without a map. Called by /acstack:map for charting and frontier work; also usable directly in conversation.
 ---
 
 # Grilling
@@ -17,7 +17,7 @@ nodes, meaning the ones a human must answer rather than an agent.
 
 On the files backend:
 
-`~/.claude/spechub/bin/spechub node frontier --map <name> --mode hitl`
+`~/.claude/acstack/bin/acstack node frontier --map <name> --mode hitl`
 
 The map skill's `trackers/` docs declare other backends. Same structure
 either way – the only difference is whether the frontier outlives the
@@ -37,8 +37,8 @@ session.
    the question – behaviour, timing, output, or performance. If it could,
    dispatch a subagent to build a throwaway prototype instead of asking the
    user:
-    - The subagent builds it in `/tmp/spechub-proto/<node-id>/`, or
-      `/tmp/spechub-proto/<short-slug>/` with no map
+    - The subagent builds it in `/tmp/acstack-proto/<node-id>/`, or
+      `/tmp/acstack-proto/<short-slug>/` with no map
     - It imports repo code by absolute path, and never creates a prototype
       file inside the repo
     - It returns the answer and its evidence, then deletes the folder
@@ -64,7 +64,7 @@ session.
 
 ## Presentation
 
-`workflow.grilling.questions` in `spechub/project.yaml` picks the mode:
+`workflow.grilling.questions` in `acstack/project.yaml` picks the mode:
 
 | Value            | Behaviour                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------ |
@@ -101,7 +101,7 @@ When the questions are map nodes, each answer is a resolution – all through
 the tracker's `update` and `create` operations:
 
 1. Append the answer to the node body under `## Answer`. Mark the node
-   resolved. On the files backend, one `spechub node update` call does both.
+   resolved. On the files backend, one `acstack node update` call does both.
 
     Write the answer per the `writing` skill.
 
@@ -125,7 +125,7 @@ belong in git:
 ```markdown
 ## Answer
 
-Map nodes stay out of git. `spechub/maps/` goes in `.gitignore`, because a
+Map nodes stay out of git. `acstack/maps/` goes in `.gitignore`, because a
 node is working state that the map throws away once it clears.
 
 The durable output is the living specs, the architecture decision records and

@@ -19,7 +19,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARNESS="${SCRIPT_DIR}/pi-extension-harness.mjs"
-CHECKS=50
+CHECKS=69
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -38,12 +38,12 @@ fi
 
 mkdir -p "$WORK/home" "$WORK/tmp" "$WORK/projects"
 
-# A PATH with node and the basics, and no spechub, so the human symlink is ours
+# A PATH with node and the basics, and no acstack, so the human symlink is ours
 # to create.
 node_dir="$(dirname "$(command -v node)")"
 out="$(
   HOME="$WORK/home" TMPDIR="$WORK/tmp" PATH="${node_dir}:/usr/bin:/bin" \
-    SPECHUB_TEST_WORK="$WORK/projects" PI_CODING_AGENT_DIR= SPECHUB_CONTEXT_PRESSURE_DIR= HERDR_ENV= \
+    ACSTACK_TEST_WORK="$WORK/projects" PI_CODING_AGENT_DIR= ACSTACK_CONTEXT_PRESSURE_DIR= HERDR_ENV= \
     node --no-warnings "$HARNESS" 2>&1
 )"
 status=$?

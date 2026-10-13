@@ -33,7 +33,7 @@ INERT_PATHS=(
   "tests/**"
   ".github/**"
   ".claude/**"
-  "spechub/**"
+  "acstack/**"
 )
 
 MANIFEST=".claude-plugin/plugin.json"

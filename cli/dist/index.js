@@ -1,4 +1,4 @@
-import { createRequire as __spechubCreateRequire } from 'module'; const require = __spechubCreateRequire(import.meta.url);
+import { createRequire as __acstackCreateRequire } from 'module'; const require = __acstackCreateRequire(import.meta.url);
 var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
@@ -3983,25 +3983,25 @@ var init_source = __esm({
 // src/lib/constants.ts
 import { join as join2 } from "node:path";
 import { homedir } from "node:os";
-function spechubFile(name, root) {
-  const relative2 = join2(SPECHUB_DIR, name);
+function acstackFile(name, root) {
+  const relative2 = join2(ACSTACK_DIR, name);
   return root === void 0 ? relative2 : join2(root, relative2);
 }
 function projectFile(root) {
-  return spechubFile(PROJECT_FILE, root);
+  return acstackFile(PROJECT_FILE, root);
 }
 function domainMapFile(root) {
-  return spechubFile(DOMAIN_MAP_FILE, root);
+  return acstackFile(DOMAIN_MAP_FILE, root);
 }
 function claudeConfigRoot() {
   const stated = process.env.CLAUDE_CONFIG_DIR;
   return stated ? stated : join2(homedir(), CLAUDE_DIR);
 }
-var SPECHUB_DIR, CHANGES_DIR, MAPS_DIR, SPECS_DIR, ARCHIVE_DIR, PROJECT_FILE, DOMAIN_MAP_FILE, PROFILES_DIR, AGENT_BROWSER_JSON_FILE, VERIFICATION_KNOWLEDGE_FILE, AGENT_BROWSER_BIN, CLAUDE_DIR, CLAUDE_SETTINGS_FILE, CLAUDE_LOCAL_SETTINGS_FILE, SPECHUB_OUTPUT_STYLE, VOCABULARY_PATH, GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_FILE, GLOBAL_DATA_DIR;
+var ACSTACK_DIR, CHANGES_DIR, MAPS_DIR, SPECS_DIR, ARCHIVE_DIR, PROJECT_FILE, DOMAIN_MAP_FILE, PROFILES_DIR, AGENT_BROWSER_JSON_FILE, VERIFICATION_KNOWLEDGE_FILE, AGENT_BROWSER_BIN, CLAUDE_DIR, CLAUDE_SETTINGS_FILE, CLAUDE_LOCAL_SETTINGS_FILE, ACSTACK_OUTPUT_STYLE, VOCABULARY_PATH, GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_FILE, GLOBAL_DATA_DIR;
 var init_constants = __esm({
   "src/lib/constants.ts"() {
     "use strict";
-    SPECHUB_DIR = "spechub";
+    ACSTACK_DIR = "acstack";
     CHANGES_DIR = "changes";
     MAPS_DIR = "maps";
     SPECS_DIR = "specs";
@@ -4015,16 +4015,16 @@ var init_constants = __esm({
     CLAUDE_DIR = ".claude";
     CLAUDE_SETTINGS_FILE = "settings.json";
     CLAUDE_LOCAL_SETTINGS_FILE = "settings.local.json";
-    SPECHUB_OUTPUT_STYLE = "spechub:ac-writing-style";
+    ACSTACK_OUTPUT_STYLE = "acstack:ac-writing-style";
     VOCABULARY_PATH = join2("skills", "writing", "vocabulary.md");
     GLOBAL_CONFIG_DIR = join2(
       process.env.XDG_CONFIG_HOME ?? join2(homedir(), ".config"),
-      "spechub"
+      "acstack"
     );
     GLOBAL_CONFIG_FILE = join2(GLOBAL_CONFIG_DIR, "config.json");
     GLOBAL_DATA_DIR = join2(
       process.env.XDG_DATA_HOME ?? join2(homedir(), ".local", "share"),
-      "spechub"
+      "acstack"
     );
   }
 });
@@ -11344,7 +11344,7 @@ function findUp(startDir, marker) {
   }
 }
 function findProjectRoot(from = process.cwd()) {
-  return findUp(from, SPECHUB_DIR);
+  return findUp(from, ACSTACK_DIR);
 }
 function findPluginRoot(startDir = import.meta.dirname) {
   const fromEnv = process.env.CLAUDE_PLUGIN_ROOT;
@@ -11383,17 +11383,17 @@ function readMarkdown(path) {
   return readFileSync2(path, "utf-8");
 }
 function listChanges(root) {
-  const dir = join4(root, SPECHUB_DIR, CHANGES_DIR);
+  const dir = join4(root, ACSTACK_DIR, CHANGES_DIR);
   if (!existsSync2(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== ARCHIVE_DIR).map((e) => e.name);
 }
 function listSpecs(root) {
-  const dir = join4(root, SPECHUB_DIR, SPECS_DIR);
+  const dir = join4(root, ACSTACK_DIR, SPECS_DIR);
   if (!existsSync2(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
 }
 function requireProject(root) {
-  if (!root) fail("Not in a SpecHub project. Run `/spechub:setup` first.");
+  if (!root) fail("Not in an ACStack project. Run `/acstack:setup` first.");
 }
 function inProject(action) {
   return (...args) => {
@@ -11461,8 +11461,8 @@ var init_utils = __esm({
     NAP_MS = 5;
     CHUNK_BYTES = 64 * 1024;
     DEFAULT_STDIN_SILENCE_MS = 3e4;
-    STDIN_SILENCE_ENV = "SPECHUB_STDIN_SILENCE_MS";
-    TTY_REFUSAL = "nothing is piped into stdin - stdin is a terminal. Pipe the input in, as in `gh issue list --json ... | spechub ...`.";
+    STDIN_SILENCE_ENV = "ACSTACK_STDIN_SILENCE_MS";
+    TTY_REFUSAL = "nothing is piped into stdin - stdin is a terminal. Pipe the input in, as in `gh issue list --json ... | acstack ...`.";
   }
 });
 
@@ -11480,7 +11480,7 @@ function register(program3) {
       const items = [];
       if (showSpecs) {
         for (const name of listSpecs(root)) {
-          const specDir = join5(root, SPECHUB_DIR, SPECS_DIR, name);
+          const specDir = join5(root, ACSTACK_DIR, SPECS_DIR, name);
           const specFile = join5(specDir, "spec.md");
           items.push({
             name,
@@ -11491,7 +11491,7 @@ function register(program3) {
         }
       } else {
         for (const name of listChanges(root)) {
-          const changeDir = join5(root, SPECHUB_DIR, CHANGES_DIR, name);
+          const changeDir = join5(root, ACSTACK_DIR, CHANGES_DIR, name);
           const artifacts = existsSync3(changeDir) ? readdirSync2(changeDir).filter((f) => f.endsWith(".md")).map((f) => f.replace(".md", "")) : [];
           items.push({
             name,
@@ -11550,8 +11550,8 @@ function register2(program3) {
         console.error(source_default.red("Provide a change or spec name."));
         process.exit(1);
       }
-      const changeDir = join6(root, SPECHUB_DIR, CHANGES_DIR, name);
-      const specDir = join6(root, SPECHUB_DIR, SPECS_DIR, name);
+      const changeDir = join6(root, ACSTACK_DIR, CHANGES_DIR, name);
+      const specDir = join6(root, ACSTACK_DIR, SPECS_DIR, name);
       let type;
       let targetDir;
       if (opts.type === "spec" || !opts.type && !existsSync4(changeDir) && existsSync4(specDir)) {
@@ -11627,22 +11627,22 @@ function register3(program3) {
         for (const c of changes) {
           console.log(`  ${c}`);
         }
-        console.log(source_default.dim("\nRun: spechub archive <name>"));
+        console.log(source_default.dim("\nRun: acstack archive <name>"));
         return;
       }
-      const changeDir = join7(root, SPECHUB_DIR, CHANGES_DIR, name);
+      const changeDir = join7(root, ACSTACK_DIR, CHANGES_DIR, name);
       if (!existsSync5(changeDir)) {
         console.error(source_default.red(`Change '${name}' not found.`));
         process.exit(1);
       }
       const archiveName = `${formatDate()}-${name}`;
-      const archiveDir = join7(root, SPECHUB_DIR, CHANGES_DIR, ARCHIVE_DIR, archiveName);
-      ensureDir(join7(root, SPECHUB_DIR, CHANGES_DIR, ARCHIVE_DIR));
+      const archiveDir = join7(root, ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR, archiveName);
+      ensureDir(join7(root, ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR));
       cpSync(changeDir, archiveDir, { recursive: true });
       rmSync(changeDir, { recursive: true });
       console.log(source_default.green(`Archived: ${name}`));
-      console.log(`  From: ${SPECHUB_DIR}/${CHANGES_DIR}/${name}/`);
-      console.log(`  To:   ${SPECHUB_DIR}/${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
+      console.log(`  From: ${ACSTACK_DIR}/${CHANGES_DIR}/${name}/`);
+      console.log(`  To:   ${ACSTACK_DIR}/${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
       if (!opts.skipSpecs) {
         console.log(source_default.dim("\nRemember to update living specs if needed."));
       }
@@ -11793,7 +11793,7 @@ var init_global_config = __esm({
       { key: "host.browser.headless", kind: "boolean", required: true },
       { key: "host.browser.local", kind: "boolean", required: true },
       { key: "host.preview.tailscale_serve", kind: "boolean", required: false },
-      // Whether this machine runs the optional terminal workspace. SpecHub works
+      // Whether this machine runs the optional terminal workspace. ACStack works
       // without it, so it is never required. It is recorded all the same, because
       // an unset axis and a declined one look identical otherwise, and setup would
       // ask again on every project.
@@ -16602,7 +16602,7 @@ function bareId(reference) {
   return reference.trim().replace(/^#/, "");
 }
 function mapDir(root, map) {
-  return join9(root, SPECHUB_DIR, MAPS_DIR, map);
+  return join9(root, ACSTACK_DIR, MAPS_DIR, map);
 }
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50).replace(/-+$/, "") || "node";
@@ -17420,8 +17420,8 @@ var init_diagram = __esm({
   "src/lib/diagram.ts"() {
     "use strict";
     init_nodes();
-    DIAGRAM_START = "<!-- spechub:diagram -->";
-    DIAGRAM_END = "<!-- /spechub:diagram -->";
+    DIAGRAM_START = "<!-- acstack:diagram -->";
+    DIAGRAM_END = "<!-- /acstack:diagram -->";
     FENCE_LINE = /^ {0,3}(`{3,}|~{3,})(.*)$/;
     SHAPES = {
       destination: ['{{"', '"}}'],
@@ -17700,7 +17700,7 @@ function readBody(body, bodyFile) {
 function refuseGithubMap(root, map, stdinRoute) {
   const tracked = getProjectKey(projectFile(root), TRACKER_KEY);
   if (tracked.status !== "set" || tracked.value !== "github") return;
-  const route = stdinRoute ? `Pipe the map in instead: ${GH_ISSUE_LIST} | spechub node ${stdinRoute} --stdin.` : "Work the issue through gh, not this command.";
+  const route = stdinRoute ? `Pipe the map in instead: ${GH_ISSUE_LIST} | acstack node ${stdinRoute} --stdin.` : "Work the issue through gh, not this command.";
   fail(`Map '${map}' lives in GitHub issues - ${TRACKER_KEY} is github. ${route}`);
 }
 function storedNodes(root, map) {
@@ -17935,7 +17935,7 @@ function registerKinds(nodeCmd) {
 }
 function register4(program3) {
   const nodeCmd = program3.command("node").description(
-    "Map nodes: small markdown records, one file each, under spechub/maps/<name>/.\nStatus: fog (not yet stated precisely), open (ready), claimed (being worked),\nresolved (settled), out-of-scope (dropped)."
+    "Map nodes: small markdown records, one file each, under acstack/maps/<name>/.\nStatus: fog (not yet stated precisely), open (ready), claimed (being worked),\nresolved (settled), out-of-scope (dropped)."
   );
   registerCreate(nodeCmd);
   registerRead(nodeCmd);
@@ -18041,11 +18041,11 @@ function impeccableLauncher(installPath) {
 }
 function impeccableVersionNote(version) {
   if (version === null) {
-    return `${IMPECCABLE_PLUGIN} is installed, and its manifest states no version to read - SpecHub expects major ${IMPECCABLE_MIN_MAJOR} or later`;
+    return `${IMPECCABLE_PLUGIN} is installed, and its manifest states no version to read - ACStack expects major ${IMPECCABLE_MIN_MAJOR} or later`;
   }
   const major = majorVersion(version);
   if (major !== null && major >= IMPECCABLE_MIN_MAJOR) return null;
-  return `${IMPECCABLE_PLUGIN} ${version} is installed, and SpecHub expects major ${IMPECCABLE_MIN_MAJOR} or later`;
+  return `${IMPECCABLE_PLUGIN} ${version} is installed, and ACStack expects major ${IMPECCABLE_MIN_MAJOR} or later`;
 }
 var IMPECCABLE_PLUGIN, IMPECCABLE_MIN_MAJOR;
 var init_impeccable = __esm({
@@ -18134,7 +18134,7 @@ function checkRequiredAxes(report, config, project) {
       const note = isBrowserAxis(key) ? why : "";
       report.missing(
         id,
-        `${key} is unset${note} - set it with \`spechub config set ${key} <value>\``
+        `${key} is unset${note} - set it with \`acstack config set ${key} <value>\``
       );
     }
   }
@@ -18396,7 +18396,7 @@ function reportFrontendVerificationFlag(report, enabled) {
 function checkProjectFiles(report, loaded) {
   report.heading("This project's files and design tools");
   if (!loaded.root) {
-    report.line("info", "no-project", "No SpecHub project here, so there are no project files to check");
+    report.line("info", "no-project", "No ACStack project here, so there are no project files to check");
     return;
   }
   checkDomainMap(report, loaded.root, loaded.workflow.specSync);
@@ -18458,7 +18458,7 @@ function checkOutputStyle(report, root) {
     const style = outputStyleOf(read.value);
     if (style === null) continue;
     report.line(
-      style === SPECHUB_OUTPUT_STYLE ? "pass" : "info",
+      style === ACSTACK_OUTPUT_STYLE ? "pass" : "info",
       id,
       `outputStyle is ${style}, selected by ${file.label}`
     );
@@ -18614,7 +18614,7 @@ var init_config_show = __esm({
     init_global_config();
     init_host_status();
     init_host_probe();
-    NO_PROJECT_LINE = source_default.dim("No SpecHub project here.");
+    NO_PROJECT_LINE = source_default.dim("No ACStack project here.");
     AXIS_KEY_WIDTH = Math.max(...HOST_AXES.map((axis) => axis.key.length));
     PROJECT_LABEL_WIDTH = 20;
   }
@@ -18679,15 +18679,15 @@ function loadProject() {
 function browserModeProblemMessage(problem) {
   switch (problem.kind) {
     case "no-project":
-      return "No SpecHub project here, so there is no frontend to drive a browser for - run `/spechub:setup` in the project you want to set up.";
+      return "No ACStack project here, so there is no frontend to drive a browser for - run `/acstack:setup` in the project you want to set up.";
     case "no-frontend":
-      return "This project configures no frontend, so it drives no browser - run `/spechub:setup` if it should have one.";
+      return "This project configures no frontend, so it drives no browser - run `/acstack:setup` if it should have one.";
     case "host-undescribed":
-      return `This host has not been described yet: none of ${BROWSER_AXIS_LIST} is set - run \`/spechub:host\` to describe this machine.`;
+      return `This host has not been described yet: none of ${BROWSER_AXIS_LIST} is set - run \`/acstack:host\` to describe this machine.`;
     case "host-declares-none":
-      return `This host declares no browser mode available: every one of ${BROWSER_AXIS_LIST} it sets is false - run \`/spechub:host\` to declare one this machine can actually provide.`;
+      return `This host declares no browser mode available: every one of ${BROWSER_AXIS_LIST} it sets is false - run \`/acstack:host\` to declare one this machine can actually provide.`;
     case "fallback-forbidden":
-      return `This project prefers the ${problem.preferred} browser mode, which this host does not declare available, and it sets frontend.browser.fallback to "${FALLBACK_FORBIDDEN}" - so ${problem.available} may not stand in. Set ${BROWSER_AXIS_KEYS[problem.preferred]} to true with \`/spechub:host\`, or change this project's frontend.browser.fallback.`;
+      return `This project prefers the ${problem.preferred} browser mode, which this host does not declare available, and it sets frontend.browser.fallback to "${FALLBACK_FORBIDDEN}" - so ${problem.available} may not stand in. Set ${BROWSER_AXIS_KEYS[problem.preferred]} to true with \`/acstack:host\`, or change this project's frontend.browser.fallback.`;
   }
 }
 function browserModeReason(resolved) {
@@ -18730,15 +18730,15 @@ function projectFileFor(key, use) {
     switch (use) {
       case "set":
         throw new ConfigValidationError(
-          `There is no SpecHub project here, so ${key} has nowhere to go. Run /spechub:setup first.`
+          `There is no ACStack project here, so ${key} has nowhere to go. Run /acstack:setup first.`
         );
       case "get":
         throw new ConfigValidationError(
-          `There is no SpecHub project here, so ${key} has no value to read. Run /spechub:setup first.`
+          `There is no ACStack project here, so ${key} has no value to read. Run /acstack:setup first.`
         );
       case "unset":
         throw new ConfigValidationError(
-          `There is no SpecHub project here, so ${key} has nothing to remove. Run /spechub:setup first.`
+          `There is no ACStack project here, so ${key} has nothing to remove. Run /acstack:setup first.`
         );
     }
   }
@@ -18916,7 +18916,7 @@ function register5(program3) {
   });
   configCmd.command("set").description("Set a config value").argument("<key>", "config key").argument("<value>", "config value").addHelpText(
     "after",
-    "\nReference: docs/dev-setups.md for the host.* axes, docs/config-reference.md for the spechub/project.yaml keys.\n"
+    "\nReference: docs/dev-setups.md for the host.* axes, docs/config-reference.md for the acstack/project.yaml keys.\n"
   ).action((key, value) => {
     reportingUserErrors(() => {
       if (isHostKey(key)) setHostKey(key, value);
@@ -19011,7 +19011,7 @@ var init_design_gate = __esm({
     init_project_config();
     init_project();
     init_utils();
-    REASON_NO_PROJECT = "no spechub project here";
+    REASON_NO_PROJECT = "no acstack project here";
     REASON_KEY_FALSE = `${DESIGN_REVIEW_KEY} is false`;
     REASON_NOT_INSTALLED = `${IMPECCABLE_PLUGIN} is not installed`;
     UNKNOWN_VERSION = "unknown";
@@ -25901,7 +25901,7 @@ function resolveVersion(startDir) {
 }
 
 // src/index.ts
-var program2 = new Command().name("spechub").description("CLI for spec-driven development").version(resolveVersion(import.meta.dirname));
+var program2 = new Command().name("acstack").description("CLI for the ACStack agentic coding stack").version(resolveVersion(import.meta.dirname));
 var commands = await Promise.all([
   Promise.resolve().then(() => (init_list(), list_exports)),
   Promise.resolve().then(() => (init_show(), show_exports)),
@@ -25918,14 +25918,14 @@ for (const mod of commands) {
 }
 program2.addHelpText(
   "after",
-  "\nAny other subcommand runs `spechub-<name>` from your PATH, the way git\ndoes. The terminal workspace installs several: md, diff, dash, tab."
+  "\nAny other subcommand runs `acstack-<name>` from your PATH, the way git\ndoes. The terminal workspace installs several: md, diff, dash, tab."
 );
 var first = process.argv[2];
 var known = new Set(
   program2.commands.flatMap((c) => [c.name(), ...c.aliases()])
 );
 if (first && !first.startsWith("-") && !known.has(first)) {
-  const result = spawnSync2(`spechub-${first}`, process.argv.slice(3), {
+  const result = spawnSync2(`acstack-${first}`, process.argv.slice(3), {
     stdio: "inherit"
   });
   const failedToSpawn = result.error !== void 0 && "code" in result.error;

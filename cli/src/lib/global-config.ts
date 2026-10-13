@@ -42,7 +42,7 @@ export const HOST_AXES: readonly HostAxis[] = [
   { key: 'host.browser.headless', kind: 'boolean', required: true },
   { key: 'host.browser.local', kind: 'boolean', required: true },
   { key: 'host.preview.tailscale_serve', kind: 'boolean', required: false },
-  // Whether this machine runs the optional terminal workspace. SpecHub works
+  // Whether this machine runs the optional terminal workspace. ACStack works
   // without it, so it is never required. It is recorded all the same, because
   // an unset axis and a declined one look identical otherwise, and setup would
   // ask again on every project.

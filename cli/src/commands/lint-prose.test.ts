@@ -19,7 +19,7 @@ import type { Finding } from '../lib/prose.js';
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), 'spechub-lint-prose-'));
+  root = mkdtempSync(join(tmpdir(), 'acstack-lint-prose-'));
 });
 
 afterEach(() => {
@@ -298,7 +298,7 @@ describe('findUp', () => {
     mkdirSync(join(root, 'lonely', 'nested'), { recursive: true });
 
     expect(
-      findUp(join(root, 'lonely', 'nested'), 'spechub-test-marker-that-does-not-exist.xyz')
+      findUp(join(root, 'lonely', 'nested'), 'acstack-test-marker-that-does-not-exist.xyz')
     ).toBeNull();
   });
 

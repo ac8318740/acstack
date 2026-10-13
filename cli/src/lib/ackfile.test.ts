@@ -33,7 +33,7 @@ let sidecar: string;
 let originalSessionId: string | undefined;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), 'spechub-ackfile-'));
+  dir = mkdtempSync(join(tmpdir(), 'acstack-ackfile-'));
   handoffFile = join(dir, 'handoff-2026-08-23.md');
   sidecar = handoffFile + '.ack';
   writeFileSync(handoffFile, '# Handoff\n\nPick this up.\n');

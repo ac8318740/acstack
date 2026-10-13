@@ -6,7 +6,7 @@
 # short-circuit, transcript discovery, the "last qualifying assistant record
 # wins" scan rule (with sidechain skipping and malformed-line tolerance),
 # threshold defaults and project.yaml overrides, the required flat JSON output
-# shape, the HERDR_ENV-conditional wording, and the always-exit-0 contract.
+# shape, the continuity-versus-freshness wording, and the always-exit-0 contract.
 #
 # Only a session's own Stop is ever nudged. A SubagentStop is a silent no-op
 # whatever it carries: neither a plain subagent nor an in-process teammate can
@@ -15,7 +15,7 @@
 #
 # It also covers the threshold ladder: the hook fires at most once per rung per
 # session, remembering the last rung it fired in a per-session state file under
-# SPECHUB_CONTEXT_PRESSURE_DIR. That covers the default rungs (warn, severe,
+# ACSTACK_CONTEXT_PRESSURE_DIR. That covers the default rungs (warn, severe,
 # then every nudge_step above severe), an explicit context_thresholds ladder in
 # project.yaml (block and flow style, absolute and percentage rungs), the
 # context window a percentage resolves against, and the .quiet silence marker
@@ -56,7 +56,7 @@ echo ""
 # Fixture / assertion helpers
 # ---------------------------------------------------------------------------
 
-# Enter a fresh, isolated cwd for one case (the hook reads spechub/project.yaml
+# Enter a fresh, isolated cwd for one case (the hook reads acstack/project.yaml
 # relative to cwd, so each case gets its own directory to avoid bleed).
 enter_case() {
   CASE_DIR="$WORK/case_$1"
@@ -67,7 +67,7 @@ enter_case() {
 
 # --- ladder state isolation -------------------------------------------------
 # The hook keeps per-session ladder state (the last threshold rung it fired) in
-# SPECHUB_CONTEXT_PRESSURE_DIR, and fires at most once per rung per session.
+# ACSTACK_CONTEXT_PRESSURE_DIR, and fires at most once per rung per session.
 # Runs that share a state directory therefore silence each other, so by default
 # every run_hook call gets its OWN fresh state directory: each such run stands
 # for a first stop in a session that has never been nudged. Cases that exercise
@@ -157,18 +157,18 @@ ladder_step() {
   run_hook "$(stop_payload_session "$T" "$SID")" -u HERDR_ENV
 }
 
-# Write spechub/project.yaml (relative to cwd) from stdin, for the cases whose
+# Write acstack/project.yaml (relative to cwd) from stdin, for the cases whose
 # config is richer than mk_config's two thresholds.
 mk_config_raw() {
-  mkdir -p spechub
-  cat > spechub/project.yaml
+  mkdir -p acstack
+  cat > acstack/project.yaml
 }
 
-# Write spechub/project.yaml (relative to cwd) with threshold overrides.
+# Write acstack/project.yaml (relative to cwd) with threshold overrides.
 mk_config() {
   local warn="$1" severe="$2"
-  mkdir -p spechub
-  cat > spechub/project.yaml <<EOF
+  mkdir -p acstack
+  cat > acstack/project.yaml <<EOF
 workflow:
   handoff:
     nudge_warn: $warn
@@ -231,7 +231,7 @@ session_start_payload() {
 # Run the hook. $1 = JSON payload, remaining args = env assignments/flags for
 # `env` (e.g. HERDR_ENV=1, or -u HERDR_ENV to unset it). Sets OUT and RC.
 #
-# SPECHUB_CONTEXT_PRESSURE_DIR is always set, so a test can never touch the
+# ACSTACK_CONTEXT_PRESSURE_DIR is always set, so a test can never touch the
 # real state directory under TMPDIR. Unless the case pinned one with
 # use_state_dir, each run gets a fresh directory: the hook fires once per
 # threshold rung per session, so runs sharing state would otherwise silence
@@ -244,7 +244,7 @@ run_hook() {
     STATE_SEQ=$((STATE_SEQ + 1))
     dir="$WORK/state_$STATE_SEQ"
   fi
-  OUT="$(printf '%s' "$payload" | env "$@" SPECHUB_CONTEXT_PRESSURE_DIR="$dir" bash "$HOOK" 2>"$WORK/stderr.log")"
+  OUT="$(printf '%s' "$payload" | env "$@" ACSTACK_CONTEXT_PRESSURE_DIR="$dir" bash "$HOOK" 2>"$WORK/stderr.log")"
   RC=$?
   ERR="$(cat "$WORK/stderr.log" 2>/dev/null)"
   if [ -n "$ERR" ]; then
@@ -273,10 +273,10 @@ reads_severe() {
 is_silent() {
   local out="$1"
   [ -z "$out" ] && return 0
-  SPECHUB_TEST_OUT="$out" python3 -c '
+  ACSTACK_TEST_OUT="$out" python3 -c '
 import json, os, sys
 try:
-    d = json.loads(os.environ["SPECHUB_TEST_OUT"])
+    d = json.loads(os.environ["ACSTACK_TEST_OUT"])
 except Exception:
     sys.exit(1)
 sys.exit(0 if "decision" not in d else 1)
@@ -288,9 +288,9 @@ sys.exit(0 if "decision" not in d else 1)
 is_block_shape() {
   local out="$1"
   [ -z "$out" ] && return 1
-  SPECHUB_TEST_OUT="$out" python3 -c '
+  ACSTACK_TEST_OUT="$out" python3 -c '
 import json, os
-d = json.loads(os.environ["SPECHUB_TEST_OUT"])
+d = json.loads(os.environ["ACSTACK_TEST_OUT"])
 assert d.get("decision") == "block"
 assert isinstance(d.get("reason"), str) and d["reason"].strip()
 for forbidden in ("hookSpecificOutput", "additionalContext", "systemMessage"):
@@ -301,10 +301,10 @@ for forbidden in ("hookSpecificOutput", "additionalContext", "systemMessage"):
 # Print the "reason" field of a block-shaped JSON string (empty on failure).
 reason_of() {
   local out="$1"
-  SPECHUB_TEST_OUT="$out" python3 -c '
+  ACSTACK_TEST_OUT="$out" python3 -c '
 import json, os
 try:
-    d = json.loads(os.environ["SPECHUB_TEST_OUT"])
+    d = json.loads(os.environ["ACSTACK_TEST_OUT"])
     print(d.get("reason", ""))
 except Exception:
     print("")
@@ -315,9 +315,9 @@ except Exception:
 is_valid_json() {
   local out="$1"
   [ -z "$out" ] && return 0
-  SPECHUB_TEST_OUT="$out" python3 -c '
+  ACSTACK_TEST_OUT="$out" python3 -c '
 import json, os
-json.loads(os.environ["SPECHUB_TEST_OUT"])
+json.loads(os.environ["ACSTACK_TEST_OUT"])
 ' 2>/dev/null
 }
 
@@ -335,10 +335,10 @@ check "hooks/context-pressure.sh passes bash -n" 'bash -n "$HOOK" 2>/dev/null'
 # teammate, so registering it there would only burn a process on every agent
 # that finishes.
 echo "Case 1: hooks.json registers context-pressure.sh under Stop and SessionStart, not SubagentStop"
-HOOKS_JSON_CHECK="$(SPECHUB_HOOKS_JSON="$HOOKS_JSON" python3 -c '
+HOOKS_JSON_CHECK="$(ACSTACK_HOOKS_JSON="$HOOKS_JSON" python3 -c '
 import json, os
 
-path = os.environ["SPECHUB_HOOKS_JSON"]
+path = os.environ["ACSTACK_HOOKS_JSON"]
 try:
     with open(path, encoding="utf-8") as f:
         data = json.load(f)
@@ -399,7 +399,7 @@ check "silent below default warn"  'is_silent "$OUT"'
 check "exit code 0"                '[ "$RC" -eq 0 ]'
 
 # ---------------------------------------------------------------------------
-# Case 5: usage at warn level (defaults) -> block, warn text, HERDR_ENV wording
+# Case 5: usage at warn level (defaults) -> block, continuity/freshness text
 # ---------------------------------------------------------------------------
 echo "Case 5: usage at warn level (default thresholds) -> block, warn text"
 enter_case 5
@@ -413,8 +413,10 @@ check "exit code 0 (warn, no HERDR_ENV)"     '[ "$RC_WARN_NO_HERDR" -eq 0 ]'
 check "stdout is valid JSON"                 'is_valid_json "$WARN_OUT"'
 check "block shape, no forbidden keys"       'is_block_shape "$WARN_OUT"'
 WARN_REASON_NO_HERDR="$(reason_of "$WARN_OUT")"
-check "mentions compact-and-continue without HERDR_ENV"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "compact-and-continue"'
-check "does not tell the agent to hand off unilaterally, but to ask/confirm"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qiE "ask|confirm"'
+check "warn nudge frames high context as continuity versus freshness"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "continuity" && printf %s "$WARN_REASON_NO_HERDR" | grep -qi "freshness"'
+check "warn continuity route says to continue in the same session when working context is useful"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qiE "same session|this session" && printf %s "$WARN_REASON_NO_HERDR" | grep -qi "working context"'
+check "warn freshness route names /acstack:handoff"  'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "/acstack:handoff"'
+check "warn nudge outside HERDR does not default to compact-and-continue"  '! printf %s "$WARN_REASON_NO_HERDR" | grep -qi "compact-and-continue"'
 
 run_hook "$(stop_payload "$T" false)" HERDR_ENV=1
 RC_WARN_HERDR="$RC"
@@ -461,7 +463,10 @@ SEVERE_REASON="$(reason_of "$SEVERE_OUT")"
 check "severe reason text is non-empty"           '[ -n "$SEVERE_REASON" ]'
 check "severe text differs from warn text"        '[ "$SEVERE_REASON" != "$WARN_REASON_NO_HERDR" ]'
 check "severe text reads more urgent than warn"   'printf %s "$SEVERE_REASON" | grep -qiE "severe|critical|urgent|immediately"'
-check "mentions compact-and-continue without HERDR_ENV"  'printf %s "$SEVERE_REASON" | grep -qi "compact-and-continue"'
+check "severe nudge frames high context as continuity versus freshness"  'printf %s "$SEVERE_REASON" | grep -qi "continuity" && printf %s "$SEVERE_REASON" | grep -qi "freshness"'
+check "severe continuity route says to continue in the same session when working context is useful"  'printf %s "$SEVERE_REASON" | grep -qiE "same session|this session" && printf %s "$SEVERE_REASON" | grep -qi "working context"'
+check "severe freshness route names /acstack:handoff"  'printf %s "$SEVERE_REASON" | grep -qi "/acstack:handoff"'
+check "severe nudge outside HERDR does not default to compact-and-continue"  '! printf %s "$SEVERE_REASON" | grep -qi "compact-and-continue"'
 
 # Boundary: usage exactly equal to the default nudge_severe (500000) must
 # read as severe -- "at or above severe" is >=, not >.
@@ -661,7 +666,7 @@ for pair in "warn-no-herdr:$RC_WARN_NO_HERDR" "warn-herdr:$RC_WARN_HERDR" "sever
 done
 
 # ---------------------------------------------------------------------------
-# Case 14: per-session state lives under SPECHUB_CONTEXT_PRESSURE_DIR
+# Case 14: per-session state lives under ACSTACK_CONTEXT_PRESSURE_DIR
 # ---------------------------------------------------------------------------
 echo "Case 14: per-session state directory"
 enter_case 14
@@ -1393,26 +1398,10 @@ check "and records rung 200000 again"  '[ "$(last_rung "$STATE" "$SID")" = "2000
 fresh_state_dir
 
 # ---------------------------------------------------------------------------
-# Case 32: the nudge text names the route it wants the agent to take
+# Case 32: the nudge text frames the route choice as continuity versus freshness
 # ---------------------------------------------------------------------------
-echo "Case 32: nudge text points at the question tool and the wrap-up moment"
+echo "Case 32: nudge text frames continuity versus freshness routes"
 LADDER_REASON="$(reason_of "$LADDER_OUT")"
-check "warn nudge tells the agent to use the question tool"    'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "question tool"'
-check "severe nudge tells the agent to use the question tool"  'printf %s "$SEVERE_REASON" | grep -qi "question tool"'
-check "ladder nudge tells the agent to use the question tool"  'printf %s "$LADDER_REASON" | grep -qi "question tool"'
-check "warn nudge says to wait until the current run of work wraps up"    'printf %s "$WARN_REASON_NO_HERDR" | grep -qi "once the current run of work wraps up"'
-check "severe nudge says to wait until the current run of work wraps up"  'printf %s "$SEVERE_REASON" | grep -qi "once the current run of work wraps up"'
-
-# ---------------------------------------------------------------------------
-# Case 32b: every tier leaves the decision to the agent
-#
-# The question tool is the fallback for an agent that cannot tell, never a
-# standing order. A tier that reinstated "ask the user and let them choose"
-# would still name the question tool and still pass the checks above, so the
-# agency clause is asserted on its own: an unattended run must be able to
-# resolve a nudge without a person.
-# ---------------------------------------------------------------------------
-echo "Case 32b: every tier leaves the handoff decision to the agent"
 for tier in WARN SEVERE LADDER; do
   case "$tier" in
     WARN)   TIER_REASON="$WARN_REASON_NO_HERDR" ;;
@@ -1420,16 +1409,23 @@ for tier in WARN SEVERE LADDER; do
     LADDER) TIER_REASON="$LADDER_REASON" ;;
   esac
   export TIER_REASON
+  check "$tier nudge names continuity"  'printf %s "$TIER_REASON" | grep -qi "continuity"'
+  check "$tier nudge names freshness"   'printf %s "$TIER_REASON" | grep -qi "freshness"'
+  check "$tier nudge says useful working context favours continuing here"  'printf %s "$TIER_REASON" | grep -qi "working context" && printf %s "$TIER_REASON" | grep -qiE "same session|this session"'
+  check "$tier nudge says fresh context or an independent read favours handoff"  'printf %s "$TIER_REASON" | grep -qiE "fresh context|independent read" && printf %s "$TIER_REASON" | grep -qi "/acstack:handoff"'
+  check "$tier nudge outside HERDR does not name compact-and-continue"  '! printf %s "$TIER_REASON" | grep -qi "compact-and-continue"'
   check "$tier nudge gives the agent the call"          'printf %s "$TIER_REASON" | grep -qi "the call is yours"'
   check "$tier nudge lets a strong view act unasked"    'printf %s "$TIER_REASON" | grep -qi "act on it without asking"'
   check "$tier nudge makes the ask conditional"         'printf %s "$TIER_REASON" | grep -qi "if you don.t know"'
   check "$tier nudge never orders an unconditional ask" '! printf %s "$TIER_REASON" | grep -qiE "ask the user first|do not decide that alone|let them choose"'
 done
 
-# Severe recommends handing over, but an agent one step from the finish line
-# has nothing worth handing over. Assert the exception survives, so a future
-# edit cannot harden the recommendation back into an order.
-check "severe nudge still allows finishing work in flight"  'printf %s "$SEVERE_REASON" | grep -qi "finishing what you are already on"'
+# A billion-context model makes the continuity route available enough to name it.
+T_BILLION="$CASE_DIR/billion-context.jsonl"
+mk_transcript "$T_BILLION" "$(user_line)" "$(usage_line_model 250000 "claude-opus-4-8[1m]")"
+run_hook "$(stop_payload "$T_BILLION" false)" -u HERDR_ENV
+BILLION_REASON="$(reason_of "$OUT")"
+check "continuity route names billion-context when the model exposes a large context window"  'printf %s "$BILLION_REASON" | grep -qi "billion-context"'
 
 # ---------------------------------------------------------------------------
 # Case 33: nothing in this suite made the hook write to stderr

@@ -1,6 +1,6 @@
 # A labelled workflow fast-forwards main to dev, and nobody merges
 
-SpecHub promotes `dev` to `main` by fast-forward. Open a pull request with base
+ACStack promotes `dev` to `main` by fast-forward. Open a pull request with base
 `main` and head `dev`. Review it, then add the `promote-to-main` label.
 `.github/workflows/promote.yml` checks six preconditions and moves
 `refs/heads/main` to the commit the pull request carries.

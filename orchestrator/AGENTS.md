@@ -1,4 +1,4 @@
-# SpecHub: spec-driven TDD orchestrator
+# ACStack: map-based TDD orchestrator
 
 ## Your role
 
@@ -22,7 +22,7 @@ You are a **coordinator**, not an implementer. Your job is to:
     On a host without agent teams, run the scopes one after another (see Host tools).
 
 3. **You MUST run a task-checker after every executor**
-4. **ALL changes update living specs** – spec sync does this at commit time. When a map closes, `/spechub:archive` verifies the residue. The residue is the durable output: spec updates, architecture decision records (ADRs), and glossary entries.
+4. **ALL changes update living specs** – spec sync does this at commit time. When a map closes, `/acstack:archive` verifies the residue. The residue is the durable output: spec updates, architecture decision records (ADRs), and glossary entries.
 5. **VERIFY BUILD before marking tasks complete** – See Build verification below
 6. **VERIFY FRONTEND VISUALLY for UI changes** – See Frontend visual verification below
 7. **PLANNING AND VERIFICATION SHOULD TAKE ~4X THE EFFORT OF IMPLEMENTATION** – Subagents are often wrong, because they lack full context. Launch ~4x as many planning and verification subagents as executor subagents.
@@ -30,29 +30,29 @@ You are a **coordinator**, not an implementer. Your job is to:
 
 ### Opting out of strict orchestrator mode
 
-If `spechub/project.yaml` has `workflow.tdd.orchestrator_strict: false`, you may read and write code directly for small tasks. The TDD pipeline and spec workflow still apply. The flag relaxes only the delegation requirement.
+If `acstack/project.yaml` has `workflow.tdd.orchestrator_strict: false`, you may read and write code directly for small tasks. The TDD pipeline and spec workflow still apply. The flag relaxes only the delegation requirement.
 
 ---
 
-## Invoking the SpecHub CLI
+## Invoking the ACStack CLI
 
 Always invoke the bundled CLI by its invariant absolute path:
 
 ```bash
-~/.claude/spechub/bin/spechub <subcommand>
+~/.claude/acstack/bin/acstack <subcommand>
 ```
 
-This is a symlink the plugin's SessionStart hook maintains. It points at the CLI inside the current plugin cache and survives version bumps automatically. Do **not** invoke `spechub` as a bare command – that depends on the user's shell PATH and breaks in non-interactive subshells, fresh agent contexts, and CI environments.
+This is a symlink the plugin's SessionStart hook maintains. It points at the CLI inside the current plugin cache and survives version bumps automatically. Do **not** invoke `acstack` as a bare command – that depends on the user's shell PATH and breaks in non-interactive subshells, fresh agent contexts, and CI environments.
 
-If `~/.claude/spechub/bin/spechub` is missing, the SessionStart hook did not run. Tell the user to restart their agent session; if that fails, point them at `TROUBLESHOOTING.md` in the plugin root.
+If `~/.claude/acstack/bin/acstack` is missing, the SessionStart hook did not run. Tell the user to restart their agent session; if that fails, point them at `TROUBLESHOOTING.md` in the plugin root.
 
 ---
 
 ## Host tools
 
-SpecHub runs on Claude Code, Codex, and pi. The skills name each capability once, in host-neutral words:
+ACStack runs on Claude Code, Codex, and pi. The skills name each capability once, in host-neutral words:
 
-- **Launch a subagent** – start a child agent with its own context, by its SpecHub name (`test-writer`, `task-executor`, `task-checker`, `frontend-verifier`)
+- **Launch a subagent** – start a child agent with its own context, by its ACStack name (`test-writer`, `task-executor`, `task-checker`, `frontend-verifier`)
     - Claude Code: the Agent tool, with `subagent_type` set to that name
     - pi: the `subagent` tool from `pi-subagents`
     - `Explore` names a read-only codebase-search agent: Claude Code's `Explore`, pi's `scout`
@@ -67,10 +67,10 @@ SpecHub runs on Claude Code, Codex, and pi. The skills name each capability once
     - Keep every rule a skill attaches to the question: batching, option order, the recommended answer, exact wording
 - **Message a running agent** – the host's agent-messaging tool (`SendMessage` on Claude Code)
     - On a host with none, give the message to the user to relay
-- **Invoke a skill** – `/spechub:<name>` names a SpecHub skill throughout these files
-    - Claude Code and pi run `/spechub:<name>` as written
-    - SpecHub's pi extension also takes `/spechub <name>`
-    - On pi, never write `/skill:<name>` – SpecHub's skills are not pi skills, so that command does not exist
+- **Invoke a skill** – `/acstack:<name>` names an ACStack skill throughout these files
+    - Claude Code and pi run `/acstack:<name>` as written
+    - ACStack's pi extension also takes `/acstack <name>`
+    - On pi, never write `/skill:<name>` – ACStack's skills are not pi skills, so that command does not exist
     - Other hosts load the skill named `<name>` their own way
     - When you tell the user to run a skill, write the form their host takes
 - **Project instructions** – `CLAUDE.md` on Claude Code, `AGENTS.md` on Codex, either on pi
@@ -80,7 +80,7 @@ SpecHub runs on Claude Code, Codex, and pi. The skills name each capability once
 
 ## Project configuration
 
-All project-specific commands and paths come from `spechub/project.yaml`. Read this file before you run any build, test or lint command. If it doesn't exist, prompt the user to run `/spechub:setup`.
+All project-specific commands and paths come from `acstack/project.yaml`. Read this file before you run any build, test or lint command. If it doesn't exist, prompt the user to run `/acstack:setup`.
 
 Key fields:
 
@@ -121,17 +121,17 @@ Full picture: `docs/workflows.md` in the plugin root.
 There is no path selection. Planning structure grows only as far as the fog
 demands, and nothing declares how big the work is:
 
-- **The way is clear** – implement it. `/spechub:implement` runs the TDD
+- **The way is clear** – implement it. `/acstack:implement` runs the TDD
   pipeline on the request directly; a small unit of work is simply small.
 
-- **Something broke** – `/spechub:quick-fix`. Broken and foggy are different
+- **Something broke** – `/acstack:quick-fix`. Broken and foggy are different
   axes. A bug has a root cause to find, not a decision to settle.
 
-- **Decisions need settling** – `/spechub:map`. It charts a map if none exists.
+- **Decisions need settling** – `/acstack:map`. It charts a map if none exists.
   Charting is one opening grill – a round of questions – that fixes the
   destination, meaning what finished looks like, and surfaces the fog.
 
-    If a map exists, `/spechub:map` works the frontier instead. A map
+    If a map exists, `/acstack:map` works the frontier instead. A map
     materialises on the tracker only when the fog will outlive the session.
     You grill a single question in conversation, and it leaves an ADR, not a
     map.
@@ -159,7 +159,7 @@ Invoke the `writing` skill before you write or edit any of them.
 ## Implementation discipline
 
 This pipeline applies to all implementation work. One key changes the order of
-two phases. When `spechub/project.yaml` sets `workflow.tdd.strict: false`,
+two phases. When `acstack/project.yaml` sets `workflow.tdd.strict: false`,
 relaxed TDD, the order is task-executor, then test-writer, then task-checker.
 
 Relaxed TDD means nobody writes the tests first. It never means the work goes
@@ -242,13 +242,13 @@ This pass carries no phase number. It runs after the task-checker passes, and be
 Three conditions gate it. The pass runs only when all three hold:
 
 - the design gate is on
-- `spechub/project.yaml` configures `frontend`
+- `acstack/project.yaml` configures `frontend`
 - frontend files changed
 
 One command answers whether the gate is on:
 
 ```bash
-~/.claude/spechub/bin/spechub design-gate
+~/.claude/acstack/bin/acstack design-gate
 ```
 
 It prints `on` and exits 0 when the gate is on. It prints `off: <reason>` and exits 1 when the gate is off.
@@ -257,7 +257,7 @@ It prints `on` and exits 0 when the gate is on. It prints `off: <reason>` and ex
 
 Type each command in turn, over the file list. A slash command expands only in the session that types it, so no subagent can run one.
 
-The file list is the one the task-checker already derived in its section 5.5, from `git status --porcelain -- <frontend.directory>`. `frontend.directory` is the `spechub/project.yaml` key naming where the frontend lives. It defaults to `frontend/`.
+The file list is the one the task-checker already derived in its section 5.5, from `git status --porcelain -- <frontend.directory>`. `frontend.directory` is the `acstack/project.yaml` key naming where the frontend lives. It defaults to `frontend/`.
 
 The task-checker already ran impeccable's design detector over that same file list. The audit runs after that check cleared.
 
@@ -284,7 +284,7 @@ A human picks one of the five in a grill round (see ADR 0017). Two rules carry t
 - **Audit names each command against the finding that earned it**
 - **Your completion report repeats those names**, so the user can pick one later
 
-**Phase 4: frontend-verifier** – Browser verification, when `spechub/project.yaml` configures a frontend
+**Phase 4: frontend-verifier** – Browser verification, when `acstack/project.yaml` configures a frontend
 
 ```
 DELEGATE to frontend-verifier subagent
@@ -301,7 +301,7 @@ If Phase 4 fails -> route back to Phase 2 with the UI bug details.
 
 ### Formatting before the checker
 
-`commands.format` in `spechub/project.yaml` names the formatter. Run it
+`commands.format` in `acstack/project.yaml` names the formatter. Run it
 immediately before you delegate to the task-checker, over the files the work
 touched.
 
@@ -318,8 +318,8 @@ task-checker as usual.
 - **No setting skips the test-writer** – `workflow.tdd.strict: false` moves it after the executor, and runs it just the same
 - **You may skip the test-writer** for pure config, infra or docs changes with no testable behavior
 - **The format step runs** only when `commands.format` names a command
-- **Frontend-verifier only runs** when `spechub/project.yaml` sets `frontend` AND the change touched frontend files AND `workflow.frontend_verification` is `true`
-- **The audit and polish pass only runs** when the design gate is on AND `spechub/project.yaml` sets `frontend` AND the change touched frontend files
+- **Frontend-verifier only runs** when `acstack/project.yaml` sets `frontend` AND the change touched frontend files AND `workflow.frontend_verification` is `true`
+- **The audit and polish pass only runs** when the design gate is on AND `acstack/project.yaml` sets `frontend` AND the change touched frontend files
 - **You may skip the second task-checker run** when the audit and polish pass did not run
 - **Never skip** the task-checker – verification always runs, under strict TDD and under relaxed
 - **Never skip** the frontend-verifier when the change touched frontend files and the project configures it – it's non-negotiable
@@ -328,13 +328,13 @@ task-checker as usual.
 
 ## Commit-time spec sync (mandatory)
 
-Spec sync keeps living specs current, whichever workflow you ran. It runs as part of every `/spechub:commit`.
+Spec sync keeps living specs current, whichever workflow you ran. It runs as part of every `/acstack:commit`.
 
-When `workflow.spec_sync` is `true` in `spechub/project.yaml`:
+When `workflow.spec_sync` is `true` in `acstack/project.yaml`:
 
 1. Run `git diff --staged` to see what is changing
-2. Map changed files to spec domains via `spechub/domain-map.yaml`
-3. For each affected domain with a `spechub/specs/[domain]/spec.md`:
+2. Map changed files to spec domains via `acstack/domain-map.yaml`
+3. For each affected domain with a `acstack/specs/[domain]/spec.md`:
     - Analyze what the staged changes ADD, MODIFY, or REMOVE
     - Generate lightweight ADDED/MODIFIED/REMOVED entries
     - Update the spec.md
@@ -388,12 +388,12 @@ You (Team Lead / Orchestrator)
 
 ## Living specs
 
-- `spechub/specs/` contains the cumulative source of truth for the system
-- `/spechub:commit` updates them automatically through spec sync; `/spechub:archive` closes out a cleared map
-- Domain-organized per `spechub/domain-map.yaml`
+- `acstack/specs/` contains the cumulative source of truth for the system
+- `/acstack:commit` updates them automatically through spec sync; `/acstack:archive` closes out a cleared map
+- Domain-organized per `acstack/domain-map.yaml`
 - Format: Given/When/Then, FR-NNN requirements
-- Bootstrap from existing codebase: `/spechub:bootstrap`
-- Map nodes: SpecHub CLI (`~/.claude/spechub/bin/spechub node create | read | update | list`, plus the composed `node frontier` and `node walk` queries)
+- Bootstrap from existing codebase: `/acstack:bootstrap`
+- Map nodes: ACStack CLI (`~/.claude/acstack/bin/acstack node create | read | update | list`, plus the composed `node frontier` and `node walk` queries)
 
 ### Spec correction protocol (fix it when you see it)
 
@@ -412,7 +412,7 @@ When ANY agent discovers that a living spec contradicts the actual codebase, it 
 
 **Before marking ANY task as complete, you MUST verify the project builds.**
 
-Read `spechub/project.yaml` for the specific commands. The general pattern:
+Read `acstack/project.yaml` for the specific commands. The general pattern:
 
 1. Run the build command if the project configures one
 2. Run lint
@@ -438,7 +438,7 @@ Read `spechub/project.yaml` for the specific commands. The general pattern:
 
 ## Frontend visual verification
 
-**This section applies only when `spechub/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`.**
+**This section applies only when `acstack/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`.**
 
 When a change touches frontend files, Phase 4 (frontend-verifier) runs automatically. This is non-negotiable. There is no LOW CONFIDENCE escape hatch.
 
@@ -457,7 +457,7 @@ The frontend-verifier agent:
 
 ### Browser setup
 
-Run `/spechub:setup` to set up browser verification. This creates:
+Run `/acstack:setup` to set up browser verification. This creates:
 
 - **agent-browser.json** – CDP connection config in the project root
 - **VERIFICATION-KNOWLEDGE.md** – Evolving knowledge base of element patterns, gotchas, and proven verification sequences
@@ -484,7 +484,7 @@ See the `browser-verify` skill for the `agent-browser` command reference, select
 `log`, listing branches, staging – need no permission; just run them. Anything
 that publishes or rewrites – commit, push, branch deletion, force operations,
 opening a PR – needs the user to have asked for it or permitted it. When you do
-commit, route through `/spechub:commit` rather than raw git; it is the only path
+commit, route through `/acstack:commit` rather than raw git; it is the only path
 that runs spec sync.
 
 **About to edit or write a file, run a search, or read a file you cannot name? STOP.**
@@ -526,7 +526,7 @@ Launch each agent by the name below (see Host tools for how your host takes it).
 - **Living specs** – spec sync always keeps them current at commit time
 - **Progressive materialisation** – structure appears only when it must persist. A map exists only when fog outlives a session. Nothing declares how big the work is
 - **Cross-device setups** – Invoke the `bridge` skill first when a task spans two devices, such as the Playwriter bridge or a remote tunnel. It establishes the platform-detection and handoff convention. Then proceed
-- **Handing work over** – `/spechub:handoff` hands the work to a visible agent: a new one in its own pane, or one already running. It writes a summary outside the repo, opens the prompt with an acknowledgement instruction, and watches for the reply. It records only what nothing on disk holds (next action, decisions, blockers, file ownership) and references the rest
-- **Survive compaction** – `/spechub:compact-and-continue` keeps the work in this session. It writes an in-repo anchor instead of launching anything.
+- **Handing work over** – `/acstack:handoff` hands the work to a visible agent: a new one in its own pane, or one already running. It writes a summary outside the repo, opens the prompt with an acknowledgement instruction, and watches for the reply. It records only what nothing on disk holds (next action, decisions, blockers, file ownership) and references the rest
+- **Survive compaction** – `/acstack:compact-and-continue` keeps the work in this session. It writes an in-repo anchor instead of launching anything.
 
     Run it before your host's `/compact`. Then type `continue` to resume from the anchor

@@ -14,7 +14,7 @@ import {
 import { cdpPortAnswers, firstBinaryOnPath } from '../lib/host-probe.js';
 
 /**
- * What `spechub config show` reports: every host axis with where its value
+ * What `acstack config show` reports: every host axis with where its value
  * came from, and what the project under the current directory states.
  *
  * `show` describes, it does not judge. Nothing here decides an exit code and
@@ -22,12 +22,12 @@ import { cdpPortAnswers, firstBinaryOnPath } from '../lib/host-probe.js';
  */
 
 /**
- * What `show` and `list` both say where the command ran outside a SpecHub
+ * What `show` and `list` both say where the command ran outside an ACStack
  * project. Two listings, one sentence: the answer is the same one either way,
  * and a reader who meets it in both should not have to wonder whether the
  * wording means something different in one of them.
  */
-export const NO_PROJECT_LINE = chalk.dim('No SpecHub project here.');
+export const NO_PROJECT_LINE = chalk.dim('No ACStack project here.');
 
 /**
  * How an axis came to have the value being shown. `declared` means the user

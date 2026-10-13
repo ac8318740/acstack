@@ -1,11 +1,11 @@
 # Reading a node hides its generated diagram
 
-`spechub node read` and `spechub node walk` strip generated blocks from their
+`acstack node read` and `acstack node walk` strip generated blocks from their
 human-readable output, and `--visuals` puts them back. `--json` always carries
 the whole body.
 
 A generated block repeats what the map already holds. An agent that can call
-`spechub node frontier` gets those facts on demand, so a picture of them in
+`acstack node frontier` gets those facts on demand, so a picture of them in
 every read spends the context twice.
 
 ## Considered options

@@ -1,11 +1,11 @@
-# Migrating to SpecHub 0.8.0
+# Migrating to ACStack 0.8.0
 
 *Delete one `@import` line from your project `CLAUDE.md`, and nothing else.*
 
 A project initialized before version 0.8.0 holds a line like this in its `CLAUDE.md`:
 
 ```
-@import /home/<user>/.claude/plugins/cache/ac8318740-plugins/spechub/<version>/CLAUDE.md
+@import /home/<user>/.claude/plugins/cache/ac8318740-plugins/acstack/<version>/CLAUDE.md
 ```
 
 As of 0.8.0 a SessionStart hook loads the orchestrator instructions, and it always resolves to the currently installed plugin version.
@@ -22,7 +22,7 @@ As of 0.8.0 a SessionStart hook loads the orchestrator instructions, and it alwa
 ## 2. What to do
 
 1. Open your project's `CLAUDE.md`.
-2. Remove any line matching `@import .../plugins/cache/ac8318740-plugins/spechub/<version>/CLAUDE.md`.
+2. Remove any line matching `@import .../plugins/cache/ac8318740-plugins/acstack/<version>/CLAUDE.md`.
 3. Save the file.
 
-The hook loads SpecHub's orchestrator instructions next time you start a session in that project. Nothing else changes.
+The hook loads ACStack's orchestrator instructions next time you start a session in that project. Nothing else changes.

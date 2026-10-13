@@ -1,7 +1,7 @@
 # Relaxed TDD
 
 This file holds what changes in step 5 of `SKILL.md` when
-`spechub/project.yaml` sets `workflow.tdd.strict: false`. Read it only then.
+`acstack/project.yaml` sets `workflow.tdd.strict: false`. Read it only then.
 
 `workflow.tdd.strict: false`, relaxed TDD, runs step 2 before step 1. It
 skips nothing. Relaxed TDD means nobody writes the tests first, and the

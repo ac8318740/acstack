@@ -1,6 +1,6 @@
-# Working on SpecHub
+# Working on ACStack
 
-This is the SpecHub plugin's own repository. If you are here, you are
+This is the ACStack plugin's own repository. If you are here, you are
 **developing the plugin**, not using it.
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) first. It covers the plugin layout, the
@@ -10,9 +10,9 @@ CLI build discipline, the release process, and the writing standards.
 
 | Path | What it is |
 |---|---|
-| `orchestrator/AGENTS.md` | What SpecHub tells an agent **using** the plugin – shipped to users, not guidance for you |
+| `orchestrator/AGENTS.md` | What ACStack tells an agent **using** the plugin – shipped to users, not guidance for you |
 | `skills/`, `agents/` | Skills and subagent definitions the plugin ships |
-| `cli/` | The `spechub` CLI. `dist/` is committed – see CONTRIBUTING |
+| `cli/` | The `acstack` CLI. `dist/` is committed – see CONTRIBUTING |
 | `hooks/` | SessionStart wiring: CLI symlinks and orchestrator injection |
 | `docs/`, `assets/` | Documentation and installable helper scripts |
 

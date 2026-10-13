@@ -1,11 +1,11 @@
 # Domain Map: maps source paths to spec domains
-# Read by spec sync, /spechub:archive, /spechub:bootstrap
+# Read by spec sync, /acstack:archive, /acstack:bootstrap
 
 domains:
   skills:
     paths:
       - skills/
-    description: The workflow skills – the prose instructions an agent follows for each SpecHub command and model-invoked technique
+    description: The workflow skills – the prose instructions an agent follows for each ACStack command and model-invoked technique
   agents:
     paths:
       - agents/
@@ -13,7 +13,7 @@ domains:
   cli:
     paths:
       - cli/src/
-    description: The bundled spechub CLI – map nodes, project config, init and archive commands
+    description: The bundled acstack CLI – map nodes, project config, init and archive commands
   hooks:
     paths:
       - hooks/

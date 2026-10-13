@@ -8,7 +8,7 @@ Read this file when the user declared herdr installed in Step 2.
 ### When you declared herdr installed
 
 **Write the managed block.** herdr keeps its config at
-`~/.config/herdr/config.toml`. SpecHub needs one setting in that file: the
+`~/.config/herdr/config.toml`. ACStack needs one setting in that file: the
 directory herdr creates worktrees under. Offer to write it.
 
 The installer is `install-herdr-block.sh`, beside this file, and Step 1 in
@@ -31,10 +31,10 @@ a real answer, and nothing runs. On approval, run the same command with
 This is the block it writes, and it writes nothing else:
 
 ```
-# >>> spechub terminal-workspace >>>
+# >>> acstack terminal-workspace >>>
 [worktrees]
 directory = "~/.herdr/worktrees"
-# <<< spechub terminal-workspace <<<
+# <<< acstack terminal-workspace <<<
 ```
 
 It creates the file when the file is absent. It appends the block when the block
@@ -60,16 +60,16 @@ managed block and nothing else. The block tells herdr to put worktrees under
 setting they depend on.
 
 The rest of a herdr setup is personal taste. This skill installs none of it: the
-keymap, the popup key bindings, the `spechub.herdr-numbers` plugin, and the
-`spechub-*` helper binaries in `~/.local/bin`.
+keymap, the popup key bindings, the `acstack.herdr-numbers` plugin, and the
+`acstack-*` helper binaries in `~/.local/bin`.
 
-Copy your own if you want them. Nothing in SpecHub needs any of them.
+Copy your own if you want them. Nothing in ACStack needs any of them.
 
 **The terminal-workspace skill writes the same block, wider.**
 `assets/terminal-workspace/setup.sh apply` fences `[keys]`, one
 `[[keys.command]]` per binding, and `[worktrees]` between these same two
 markers. It takes the directory from `herdr.worktrees_directory` in
-`~/.config/spechub/terminal-workspace.yaml`. A machine that has run it needs
+`~/.config/acstack/terminal-workspace.yaml`. A machine that has run it needs
 nothing from this installer.
 
 The installer therefore leaves that block alone. It reports the step as skipped

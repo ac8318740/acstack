@@ -27,7 +27,7 @@ fresh, and never with a value already used in this session:
 <!-- lead-check: tests/test-skill-gates.sh extracts and runs the block below -->
 
 ```bash
-n=spechub-whoami-<nonce>
+n=acstack-whoami-<nonce>
 s="${CLAUDE_CODE_SESSION_ID:-none}"
 p="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
 case "${PI_SESSION_FILE:-}" in
@@ -54,7 +54,7 @@ its answer looks wrong. It says why a child must stop, and what it checks.
 ## First: is this yours to invoke?
 
 If the user asked for a handoff, proceed. If you invoke it on your own
-initiative, first read `workflow.handoff.self_invoke` from `spechub/project.yaml`.
+initiative, first read `workflow.handoff.self_invoke` from `acstack/project.yaml`.
 
 If it is `false`, stop. Tell the user a handoff looks warranted and why. Ask
 permission.
@@ -99,11 +99,11 @@ it should run the command.
 
 | Do not write it down        | The receiving agent gets it from                                                  |
 | --------------------------- | --------------------------------------------------------------------------------- |
-| Map state and reading order | `~/.claude/spechub/bin/spechub node walk --map <name>` (reading order of the map)  |
-| What can be worked next     | `~/.claude/spechub/bin/spechub node frontier --map <name>` (what is workable now)  |
+| Map state and reading order | `~/.claude/acstack/bin/acstack node walk --map <name>` (reading order of the map)  |
+| What can be worked next     | `~/.claude/acstack/bin/acstack node frontier --map <name>` (what is workable now)  |
 | Files in flight             | `git status --short` and `git diff`                                                |
 | Test baseline, last result  | `.test-baseline`, then run the suite                                               |
-| What the code does          | the living specs in `spechub/specs/`                                               |
+| What the code does          | the living specs in `acstack/specs/`                                               |
 
 On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
 map skill's `trackers/github.md`.
@@ -142,7 +142,7 @@ writing. Reference where a secret lives, not its value. This is not optional.
 
 Write the handoff to the OS temporary directory, never the workspace – it is
 conversation content, not project state, and must not be committable. Name it
-`$TMPDIR/spechub-handoff-<slug>-<timestamp>.md` (`/tmp` when `$TMPDIR` holds
+`$TMPDIR/acstack-handoff-<slug>-<timestamp>.md` (`/tmp` when `$TMPDIR` holds
 nothing), where `<slug>` names the work and `<timestamp>` stops two handoffs
 colliding.
 
@@ -150,10 +150,10 @@ Its first line, above every heading, repeats the acknowledgement requirement
 verbatim, with `<this-file>` replaced by the file's own path:
 
 ```text
-Acknowledge before any other tool call. Run ~/.claude/spechub/bin/spechub handoff ack accept --file <this-file> "<one-line reason>", or ack decline --file <this-file> "<one-line reason>". The command writes <this-file>.ack, which the sender watches.
+Acknowledge before any other tool call. Run ~/.claude/acstack/bin/acstack handoff ack accept --file <this-file> "<one-line reason>", or ack decline --file <this-file> "<one-line reason>". The command writes <this-file>.ack, which the sender watches.
 ```
 
-This temp file is not `spechub/HANDOFF.md`, the `compact-and-continue` anchor.
+This temp file is not `acstack/HANDOFF.md`, the `compact-and-continue` anchor.
 Never put this line into that anchor, which has to start with `---` frontmatter.
 
 Head the rest with the same skeleton the `compact-and-continue` anchor uses. The
@@ -182,7 +182,7 @@ tab, or as a `--bg` session. Reading the handoff file is the one tool call
 allowed before the ack command. Every other tool call – a command, an edit, a
 subagent – leaves the acknowledgement still owed.
 
-> Before any other tool call, acknowledge this handoff by running ~/.claude/spechub/bin/spechub handoff ack accept --file <handoff-file> "<one-line reason>", or ack decline --file <handoff-file> "<one-line reason>". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. Then continue that work.
+> Before any other tool call, acknowledge this handoff by running ~/.claude/acstack/bin/acstack handoff ack accept --file <handoff-file> "<one-line reason>", or ack decline --file <handoff-file> "<one-line reason>". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. Then continue that work.
 
 **Agent already running** – one reached by cross-session message. Its variant
 of the opener is in [`running-agent.md`](running-agent.md).
@@ -204,7 +204,7 @@ Read [`watch.md`](watch.md) first, for the pre-launch snapshot, then one of:
 Do not eyeball transcripts. The CLI watches for you:
 
 ```bash
-~/.claude/spechub/bin/spechub handoff watch --file <handoff-file> \
+~/.claude/acstack/bin/acstack handoff watch --file <handoff-file> \
   --session-id <id> --cwd <dir> --token <token> --turns <n>
 ```
 
@@ -223,7 +223,7 @@ hook reads it and stays silent for the rest of this session. The work has
 already moved on, so there is nothing left to nudge about:
 
 ```bash
-d="${SPECHUB_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/spechub-context-pressure}"
+d="${ACSTACK_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/acstack-context-pressure}"
 sid="${CLAUDE_CODE_SESSION_ID:-${PI_SESSION_ID:-}}"; [ -n "$sid" ] && mkdir -p "$d" && : > "$d/$sid.quiet" || true
 ```
 

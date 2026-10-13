@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# SpecHub host setup: tell herdr where to put its worktrees.
+# ACStack host setup: tell herdr where to put its worktrees.
 #
 # herdr is the terminal workspace this project drives agents from. It makes a
 # git worktree per unit of work, and where those worktrees land is one setting
 # in ~/.config/herdr/config.toml. This script writes that one setting and
 # nothing else, inside a fenced block it owns:
 #
-#   # >>> spechub terminal-workspace >>>
+#   # >>> acstack terminal-workspace >>>
 #   [worktrees]
 #   directory = "~/.herdr/worktrees"
-#   # <<< spechub terminal-workspace <<<
+#   # <<< acstack terminal-workspace <<<
 #
 # The fence is what makes the script safe to run twice, and safe to run against
 # a file somebody has been editing by hand. Every line outside the block
@@ -49,8 +49,8 @@ TOTAL=1
 # These four strings are the contract. The markers are matched on whole lines,
 # exactly, so a line that merely mentions one of them is ordinary content.
 
-BLOCK_START='# >>> spechub terminal-workspace >>>'
-BLOCK_END='# <<< spechub terminal-workspace <<<'
+BLOCK_START='# >>> acstack terminal-workspace >>>'
+BLOCK_END='# <<< acstack terminal-workspace <<<'
 BLOCK_TABLE='[worktrees]'
 # shellcheck disable=SC2088  # the literal "~/" is what gets written into config.toml; herdr expands it
 DEFAULT_WORKTREE_DIR='~/.herdr/worktrees'
@@ -82,8 +82,8 @@ this script edits a file you may have written by hand.
 
 Only the fenced block between the markers
 
-  # >>> spechub terminal-workspace >>>
-  # <<< spechub terminal-workspace <<<
+  # >>> acstack terminal-workspace >>>
+  # <<< acstack terminal-workspace <<<
 
 is ever written. Everything else in the file is preserved exactly, in order.
 
@@ -312,13 +312,13 @@ if [ -f "$CONFIG" ]; then
   N_END="$(count_words "$END_LINES")"
 
   if [ "$N_START" -gt 1 ] || [ "$N_END" -gt 1 ]; then
-    err "$CONFIG holds more than one spechub terminal-workspace block."
+    err "$CONFIG holds more than one acstack terminal-workspace block."
     err "start markers on line(s): ${START_LINES:-none}"
     err "end markers on line(s): ${END_LINES:-none}"
     refuse "leave exactly one block in place and run this again. Nothing has been changed."
   fi
   if [ "$N_START" -ne "$N_END" ]; then
-    err "$CONFIG has a spechub terminal-workspace fence that does not pair up:"
+    err "$CONFIG has an acstack terminal-workspace fence that does not pair up:"
     err "start markers on line(s): ${START_LINES:-none}"
     err "end markers on line(s): ${END_LINES:-none}"
     refuse "repair the fence by hand and run this again. Nothing has been changed."
@@ -327,7 +327,7 @@ if [ -f "$CONFIG" ]; then
   scan_config "$CONFIG"
 
   if [ "$UNTERMINATED" -eq 1 ]; then
-    refuse "$CONFIG opens a spechub terminal-workspace block on line ${START_LINES:-?}and never closes it. Repair it by hand and run this again. Nothing has been changed."
+    refuse "$CONFIG opens an acstack terminal-workspace block on line ${START_LINES:-?}and never closes it. Repair it by hand and run this again. Nothing has been changed."
   fi
   if [ -n "$UNMANAGED_LINES" ]; then
     err "$CONFIG already defines a $BLOCK_TABLE table on line(s): $UNMANAGED_LINES"
@@ -348,7 +348,7 @@ if [ -f "$CONFIG" ]; then
         err "$CONFIG holds a block between these markers that this script did not write."
         err "Besides $BLOCK_TABLE that block defines: $FOREIGN_TABLES"
         err "terminal-workspace setup.sh writes that block, and it carries the keymap and the popup key bindings. Replacing it with the four lines this script writes would delete all of it."
-        err "setup.sh writes $BLOCK_TABLE itself, from herdr.worktrees_directory in ~/.config/spechub/terminal-workspace.yaml."
+        err "setup.sh writes $BLOCK_TABLE itself, from herdr.worktrees_directory in ~/.config/acstack/terminal-workspace.yaml."
         refuse "set the directory there and run terminal-workspace setup.sh apply instead. Nothing has been changed."
       fi
     else

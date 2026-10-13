@@ -59,7 +59,7 @@ git status --short
 git log --oneline -3  # recent context
 ```
 
-Read `spechub/project.yaml` to understand the project's directory layout, commands, and conventions.
+Read `acstack/project.yaml` to understand the project's directory layout, commands, and conventions.
 
 Categorize changed files into scopes using the project configuration:
 
@@ -80,9 +80,9 @@ Do NOT hardcode conventions – discover them fresh each time.
 
 ```
 Read the living specs relevant to this change:
-- Check spechub/specs/ directory listing
+- Check acstack/specs/ directory listing
 - Read spec.md files for domains touched by the changed files
-  (use spechub/domain-map.yaml to map files -> domains)
+  (use acstack/domain-map.yaml to map files -> domains)
 - Extract documented conventions, patterns, and requirements (FR-NNN entries)
 Report: list of project conventions and patterns relevant to these changes.
 ```
@@ -166,7 +166,7 @@ For each finding, report:
 **Prose lint on changed Markdown:**
 
 ```bash
-~/.claude/spechub/bin/spechub lint-prose <changed .md files>
+~/.claude/acstack/bin/acstack lint-prose <changed .md files>
 ```
 
 Run the lint on the changed Markdown files, and on nothing else. Skip the command when no Markdown file changed, because it exits 1 with no paths.

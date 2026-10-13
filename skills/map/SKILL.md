@@ -17,7 +17,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Tracker
 
 Nodes live behind a pluggable tracker. A backend declares four operations –
-create, read, update, list. SpecHub builds everything else from those four:
+create, read, update, list. ACStack builds everything else from those four:
 frontier, claim, resolve and walk.
 
 Two backends ship, each declared in this skill's directory:
@@ -27,7 +27,7 @@ Two backends ship, each declared in this skill's directory:
 | GitHub issues | `trackers/github.md` | first choice when `gh` holds a login for the repo's GitHub remote |
 | Files | `trackers/files.md` | the fallback – no auth, offline, any remote |
 
-`workflow.maps.tracker` in `spechub/project.yaml` (`github` or `files`) records
+`workflow.maps.tracker` in `acstack/project.yaml` (`github` or `files`) records
 the project's choice. If the key names a backend, read the matching doc and use
 its operations. If the key is absent, pick at materialisation time – the moment
 you first write the map's nodes down.
@@ -38,7 +38,7 @@ choice with the user. Then write the key, so later sessions need not re-decide.
 ## Which mode
 
 One command runs two modes, and what already exists picks between them. Check
-the configured tracker for existing maps – `ls spechub/maps/` on the files
+the configured tracker for existing maps – `ls acstack/maps/` on the files
 backend, `gh label list --search "map:" --json name` on GitHub.
 
 If `$ARGUMENTS` names a map, or exactly one exists, work its frontier – the
@@ -58,7 +58,7 @@ effort. Nothing declares which.
 
 2. **Load the frontend branch on a frontend destination.** `frontend.md`
    beside this skill holds five more rules. Read it when the destination
-   touches `frontend.directory`, the path in `spechub/project.yaml` where the
+   touches `frontend.directory`, the path in `acstack/project.yaml` where the
    frontend lives. Every other map skips it.
 
 3. **Open with a breadth-first grill.** Work the conversation frontier in
@@ -93,7 +93,7 @@ operation. First the root:
 
 ```bash
 # files backend – github.md has the equivalent
-~/.claude/spechub/bin/spechub node create --map <name> --title "<destination>" \
+~/.claude/acstack/bin/acstack node create --map <name> --title "<destination>" \
   --kind destination --label "<at most four words>" \
   --body "<the destination, as settled>"
 ```
@@ -148,7 +148,7 @@ operation. First the root:
   diagrams below. A parent draws its subtree, so nothing can draw one earlier.
   The root is a parent too, and it draws the whole map.
 
-- On the files backend, suggest adding `spechub/maps/` to `.gitignore`
+- On the files backend, suggest adding `acstack/maps/` to `.gitignore`
   (`trackers/files.md` gives the reason).
 
 ## Working the frontier
@@ -160,7 +160,7 @@ Before step 1, copy the bold title of each numbered step below into your todo
 list word for word, ahead of any task-specific items. A step you skip stays in
 the list, marked `skip: <reason>`.
 
-1. **Orient.** The packaging walk (`spechub node walk --map <name>`) – the root
+1. **Orient.** The packaging walk (`acstack node walk --map <name>`) – the root
    and pinned nodes in full, everything else gisted, meaning title and status
    only. Zoom in with `node read <id>` when a gist matters – it drops the
    generated diagram blocks, and `--visuals` puts them back. Do not load
@@ -171,7 +171,7 @@ the list, marked `skip: <reason>`.
     forever. If a claim exists and you know of no session working it, ask the
     user and release it (`--status open`).
 
-2. **Query the frontier.** `spechub node frontier --map <name>` – open nodes
+2. **Query the frontier.** `acstack node frontier --map <name>` – open nodes
    with no unresolved blockers, shallowest provenance depth first, number
    only as a tiebreak. Provenance depth is how many `answers` links separate
    a node from the root, so the broadest questions come first. The query never
@@ -185,7 +185,7 @@ the list, marked `skip: <reason>`.
      when independent. Research goes to `Explore` subagents, with the findings
      written into the resolution.
 
-     Implementation work follows `/spechub:implement`'s procedure – it owns
+     Implementation work follows `/acstack:implement`'s procedure – it owns
      the claim-execute-resolve flow, the explorer dispatch, and the TDD
      pipeline. Do not restate that flow here. Invoke it.
 
@@ -194,8 +194,8 @@ the list, marked `skip: <reason>`.
    `update`:
 
    ```bash
-   ~/.claude/spechub/bin/spechub node update <id> --map <name> --status claimed
-   ~/.claude/spechub/bin/spechub node update <id> --map <name> --status resolved \
+   ~/.claude/acstack/bin/acstack node update <id> --map <name> --status claimed
+   ~/.claude/acstack/bin/acstack node update <id> --map <name> --status resolved \
      --append-body "## Answer
 
    <what was decided or done, and why>"

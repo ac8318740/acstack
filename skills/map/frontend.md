@@ -4,7 +4,7 @@ A map whose destination changes the frontend carries five rules that no other
 map loads, and this file holds all five.
 
 `SKILL.md` decides when to read this file. The destination has to touch
-`frontend.directory`, the path in `spechub/project.yaml` where the frontend
+`frontend.directory`, the path in `acstack/project.yaml` where the frontend
 lives.
 
 Two plugins appear in the rules below.
@@ -13,7 +13,7 @@ Two plugins appear in the rules below.
   design rules
 - **open-designer** writes a design a human can look at before anyone builds it
 
-SpecHub needs neither. Each rule below says which plugin it needs, and what
+ACStack needs neither. Each rule below says which plugin it needs, and what
 happens when that plugin is absent.
 
 The diagram names the direction questions, meaning the ones a finished design
@@ -36,7 +36,7 @@ flowchart TD
 
 `PRODUCT.md` is impeccable's product brief. It states the product's users, its
 purpose, and its positioning. impeccable's `init` playbook writes it, and
-SpecHub never writes it.
+ACStack never writes it.
 
 - **Read it before the opening grill** when the file exists, and read it for
   framing alone
@@ -57,7 +57,7 @@ Every frontend destination surfaces the same questions, and impeccable already
 wrote them. Charting copies them into `hitl` question nodes during the opening
 grill. A `hitl` node is one a human answers.
 
-**SpecHub never runs `/impeccable shape`.** It copies the questions. That is
+**ACStack never runs `/impeccable shape`.** It copies the questions. That is
 what keeps the map working when impeccable is absent. This rule needs no
 plugin installed.
 
@@ -82,7 +82,7 @@ impeccable asks it only when a material decision is still open.
 
 **The visual world** adds one more question. It comes from impeccable's
 `new-work.md` rather than from `shape.md`, because impeccable resolves the
-design direction in a later phase. SpecHub words the question itself, since
+design direction in a later phase. ACStack words the question itself, since
 impeccable does not state it as one line.
 
 - Does this screen inherit the product's existing visual world, extend it, or
@@ -188,11 +188,11 @@ Every resolved work node that changed the frontend gets one `hitl` node that
 critiques the shipped screen.
 
 **This rule needs the design gate on.** The design gate is the set of design
-checks impeccable adds to SpecHub's pipeline. One command answers whether it is
+checks impeccable adds to ACStack's pipeline. One command answers whether it is
 on.
 
 ```bash
-~/.claude/spechub/bin/spechub design-gate
+~/.claude/acstack/bin/acstack design-gate
 ```
 
 It prints `on` and exits 0, or prints `off: <reason>` and exits 1. On `off`,

@@ -9,7 +9,7 @@ The design review is two plugins working on the frontend:
 - **open-designer** writes a design you can look at before anyone builds it
 - **impeccable** reviews a UI change against the product's own design rules
 
-SpecHub needs neither, so this step offers and never assumes.
+ACStack needs neither, so this step offers and never assumes.
 
 Ask it only of a project with a frontend. The health check in Step 7 reports a
 `frontend-verification` row for those projects and for no others, so no such row
@@ -18,7 +18,7 @@ means no frontend. Go to Step 14.
 Read what this project already decided:
 
 ```bash
-~/.claude/spechub/bin/spechub config get workflow.design_review
+~/.claude/acstack/bin/acstack config get workflow.design_review
 ```
 
 On exit 0 the user has already answered, either way. Say nothing and go to
@@ -29,12 +29,12 @@ the key. Do not ask, and do not try to write the key. Say this instead, then go
 to Step 14:
 
 ```
-The spechub CLI on this machine predates workflow.design_review, so I cannot
+The acstack CLI on this machine predates workflow.design_review, so I cannot
 record an answer. Restart your agent session to relink the CLI, then run
-/spechub:setup again.
+/acstack:setup again.
 ```
 
-The SessionStart hook repoints `~/.claude/spechub/bin/spechub` at every start,
+The SessionStart hook repoints `~/.claude/acstack/bin/acstack` at every start,
 so a restart is the whole fix.
 
 On exit 2 nobody has answered yet. Ask once:
@@ -45,7 +45,7 @@ On exit 2 nobody has answered yet. Ask once:
   "header": "Design",
   "options": [
     {"label": "Yes", "description": "You then install two plugins: open-designer, which writes a design you can look at before anyone builds it, and impeccable, which reviews a UI change against the product's design rules. Both are reversible."},
-    {"label": "No", "description": "Leave this project as it is. Nothing in SpecHub needs either plugin, and setup never asks again."}
+    {"label": "No", "description": "Leave this project as it is. Nothing in ACStack needs either plugin, and setup never asks again."}
   ]
 }
 ```
@@ -53,7 +53,7 @@ On exit 2 nobody has answered yet. Ask once:
 Write the answer, whichever way it went:
 
 ```bash
-~/.claude/spechub/bin/spechub config set workflow.design_review true   # or false
+~/.claude/acstack/bin/acstack config set workflow.design_review true   # or false
 ```
 
 Write it before doing anything else. The answer is the user's, and two plugins
@@ -87,8 +87,8 @@ Three things this step never does:
 - It never copies a file out of impeccable. Setup names the plugin and stops
   there.
 
-`spechub config check` grows an `impeccable` row once the user installs the
-plugin, so a later `/spechub:setup` run confirms the install landed.
+`acstack config check` grows an `impeccable` row once the user installs the
+plugin, so a later `/acstack:setup` run confirms the install landed.
 
 On **No**, go straight to Step 14. Name neither plugin again, and do not ask
 again.

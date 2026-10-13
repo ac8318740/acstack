@@ -32,7 +32,7 @@ fresh, and never with a value already used in this session:
 <!-- lead-check: tests/test-skill-gates.sh extracts and runs the block below -->
 
 ```bash
-n=spechub-whoami-<nonce>
+n=acstack-whoami-<nonce>
 s="${CLAUDE_CODE_SESSION_ID:-none}"
 p="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/projects"
 case "${PI_SESSION_FILE:-}" in
@@ -55,7 +55,7 @@ instead – in your final message, or through your host's agent-messaging tool
 or compacts.
 
 A child session would write the lead's quiet marker and the shared
-`spechub/HANDOFF.md` anchor. Both belong to the lead alone.
+`acstack/HANDOFF.md` anchor. Both belong to the lead alone.
 
 Five facts sit behind that command, measured on Claude Code 2.1.241. Each one
 names a way the command has already been got wrong:
@@ -96,11 +96,11 @@ something by running a command, it should run the command.
 
 | Do not write it down        | The resumed session gets it from                                                 |
 | --------------------------- | -------------------------------------------------------------------------------- |
-| Map state and reading order | `~/.claude/spechub/bin/spechub node walk --map <name>` (reading order of the map) |
-| What can be worked next     | `~/.claude/spechub/bin/spechub node frontier --map <name>` (what is workable now) |
+| Map state and reading order | `~/.claude/acstack/bin/acstack node walk --map <name>` (reading order of the map) |
+| What can be worked next     | `~/.claude/acstack/bin/acstack node frontier --map <name>` (what is workable now) |
 | Files in flight             | `git status --short` and `git diff`                                               |
 | Test baseline, last result  | `.test-baseline`, then run the suite                                              |
-| What the code does          | the living specs in `spechub/specs/`                                              |
+| What the code does          | the living specs in `acstack/specs/`                                              |
 
 On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
 map skill's `trackers/github.md`.
@@ -141,7 +141,7 @@ not optional.
 
 ## Write the anchor
 
-Write `spechub/HANDOFF.md`. The frontmatter is **mandatory and machine-read**.
+Write `acstack/HANDOFF.md`. The frontmatter is **mandatory and machine-read**.
 The hook ignores any file without the marker, so it never touches a user's own
 unrelated `HANDOFF.md`.
 
@@ -153,11 +153,11 @@ Set `created` to the current time, in ISO 8601 UTC. The title repeats the
 
 ```markdown
 ---
-spechub_handoff: 1
+acstack_handoff: 1
 map: tracker-backend
 created: 2026-08-22T14:05:00Z
 ---
-# SpecHub handoff – tracker-backend
+# ACStack handoff – tracker-backend
 
 ## Next action
 Fix the two `node frontier` cases in `cli/src/lib/frontier.test.ts` that fail
@@ -181,7 +181,7 @@ on a map with no resolved nodes.
 - record-context – node 14 settled a term the glossary does not hold yet
 
 ## References
-- Map state: `~/.claude/spechub/bin/spechub node walk` and `~/.claude/spechub/bin/spechub node frontier`
+- Map state: `~/.claude/acstack/bin/acstack node walk` and `~/.claude/acstack/bin/acstack node frontier`
 - Files in flight: `git status --short`
 ```
 
@@ -192,7 +192,7 @@ reads the marker and stays silent for the rest of this session. You have
 already arranged the compaction, so the hook has nothing left to nudge about:
 
 ```bash
-d="${SPECHUB_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/spechub-context-pressure}"
+d="${ACSTACK_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/acstack-context-pressure}"
 sid="${CLAUDE_CODE_SESSION_ID:-${PI_SESSION_ID:-}}"; [ -n "$sid" ] && mkdir -p "$d" && : > "$d/$sid.quiet" || true
 ```
 
@@ -216,7 +216,7 @@ note.
 Tell them to run that `/compact` line, then to type `continue`. The hook
 re-injects the anchor and retires it, so the anchor never loads twice.
 
-`spechub/HANDOFF.md` is transient working state. If `.gitignore` does not cover
+`acstack/HANDOFF.md` is transient working state. If `.gitignore` does not cover
 it, say so. The file holds conversation content, so nobody should commit it.
 
 ## Notes
@@ -229,8 +229,8 @@ it, say so. The file holds conversation content, so nobody should commit it.
     skill moves the work to a genuinely new session
 
 - **Consume-once.** The hook retires the anchor as it injects it, moving it to
-  `spechub/handoffs/<map>/<created>.md` (legacy
-  `spechub/changes/<name>/handoffs/` when that directory still exists).
+  `acstack/handoffs/<map>/<created>.md` (legacy
+  `acstack/changes/<name>/handoffs/` when that directory still exists).
   Collisions get a `-2` suffix
 
 - **Subagents and teammates have isolated context.** This protects the

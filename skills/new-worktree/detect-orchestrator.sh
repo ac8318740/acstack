@@ -4,7 +4,7 @@
 # Three facts and what they add up to, reported as six key=value lines on stdout:
 #
 #   declared_herdr – whether this host says it has herdr installed, as recorded
-#                    in the SpecHub global config under host.orchestrators.herdr.
+#                    in the ACStack global config under host.orchestrators.herdr.
 #                    One of true, false, unset.
 #   declared_orca  – the same for host.orchestrators.orca.
 #   detected       – which orchestrator is actually HOSTING this Claude session,
@@ -54,7 +54,7 @@ warn_orca=""
 # The invariant absolute path the SessionStart hook maintains. Invoked by full
 # path on purpose: PATH is not reliable inside a fresh agent subshell.
 # Defaulted because set -u would abort on a stripped HOME, printing nothing.
-cli="${HOME:-}/.claude/spechub/bin/spechub"
+cli="${HOME:-}/.claude/acstack/bin/acstack"
 
 # Ask the CLI for one orchestrator key. Sets axis_value (true, false or unset)
 # and axis_warning (empty when there was nothing wrong). $1 is the config key,
@@ -80,10 +80,10 @@ read_axis() {
         # Success plus nothing said is not the same as the unset code below, so
         # it gets its own sentence – quoting an empty value back at the reader
         # would look like a bug report rather than an explanation.
-        axis_warning="The SpecHub command line tool returned an empty answer when asked for ${key}, so whether this host has ${name} is not known."
+        axis_warning="The ACStack command line tool returned an empty answer when asked for ${key}, so whether this host has ${name} is not known."
         ;;
       *)
-        axis_warning="The SpecHub global config records ${key} as \"${value}\", which is neither true nor false, so whether this host has ${name} is not known."
+        axis_warning="The ACStack global config records ${key} as \"${value}\", which is neither true nor false, so whether this host has ${name} is not known."
         ;;
     esac
   elif [ "$code" -eq 2 ]; then
@@ -91,7 +91,7 @@ read_axis() {
     # orchestrator is a normal state, so it is not worth a warning by itself.
     :
   else
-    axis_warning="The SpecHub command line tool failed when asked for ${key}, so whether this host has ${name} could not be read."
+    axis_warning="The ACStack command line tool failed when asked for ${key}, so whether this host has ${name} could not be read."
   fi
 }
 
@@ -101,7 +101,7 @@ read_axis() {
 if [ -z "${HOME:-}" ]; then
   # A path quoted back from an empty HOME would start at the filesystem root
   # and read as a bug, so this case names the missing home instead.
-  warning="The SpecHub command line tool could not be looked for because this session has no home directory set, so this host's declared orchestrators could not be read; restarting Claude Code from a normal shell gives it one."
+  warning="The ACStack command line tool could not be looked for because this session has no home directory set, so this host's declared orchestrators could not be read; restarting Claude Code from a normal shell gives it one."
 elif [ ! -f "$cli" ] || [ ! -x "$cli" ]; then
   # Missing, not a file, or non-executable are the same problem to the user,
   # and the same fix: the SessionStart hook re-creates the symlink on the next
@@ -112,7 +112,7 @@ elif [ ! -f "$cli" ] || [ ! -x "$cli" ]; then
   # output contract. Strip line breaks for the sentence only; the real $cli is
   # what gets tested and run above.
   cli_shown="$(printf '%s' "$cli" | tr -d '\n\r')"
-  warning="The SpecHub command line tool could not be run at ${cli_shown}, so this host's declared orchestrators could not be read; restarting Claude Code re-creates it."
+  warning="The ACStack command line tool could not be run at ${cli_shown}, so this host's declared orchestrators could not be read; restarting Claude Code re-creates it."
 else
   read_axis "host.orchestrators.herdr" "herdr"
   declared_herdr="$axis_value"
@@ -299,21 +299,21 @@ if [ -z "$warning" ] && [ "$detected" != "none" ]; then
   #
   # A declaration of false and a missing declaration are different situations,
   # so they get different sentences. False means the user already answered in
-  # /spechub:host and said it is not installed, so telling them to declare it
+  # /acstack:host and said it is not installed, so telling them to declare it
   # would send them back to a question they answered; what they need to hear is
   # that their answer disagrees with what is hosting them. Unset means nothing
   # has been answered yet.
   if [ "$detected" = "herdr" ] && [ "$declared_herdr" != "true" ]; then
     if [ "$declared_herdr" = "false" ]; then
-      warning="herdr is hosting this session even though this host declares herdr is not installed; the declaration looks wrong, so run /spechub:host to correct it."
+      warning="herdr is hosting this session even though this host declares herdr is not installed; the declaration looks wrong, so run /acstack:host to correct it."
     else
-      warning="herdr is hosting this session but nothing has been declared for herdr on this host; run /spechub:host to declare it."
+      warning="herdr is hosting this session but nothing has been declared for herdr on this host; run /acstack:host to declare it."
     fi
   elif [ "$detected" = "orca" ] && [ "$declared_orca" != "true" ]; then
     if [ "$declared_orca" = "false" ]; then
-      warning="orca is hosting this session even though this host declares orca is not installed; the declaration looks wrong, so run /spechub:host to correct it."
+      warning="orca is hosting this session even though this host declares orca is not installed; the declaration looks wrong, so run /acstack:host to correct it."
     else
-      warning="orca is hosting this session but nothing has been declared for orca on this host; run /spechub:host to declare it."
+      warning="orca is hosting this session but nothing has been declared for orca on this host; run /acstack:host to declare it."
     fi
   fi
 fi

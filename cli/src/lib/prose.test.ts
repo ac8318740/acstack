@@ -21,7 +21,7 @@ function paragraphOf(n: number): string {
 
 describe('parseVocabulary', () => {
   const markdown = `<!--
-\`spechub lint-prose\` reads this layout. Ignore this comment entirely.
+\`acstack lint-prose\` reads this layout. Ignore this comment entirely.
 -->
 
 # Vocabulary
@@ -85,7 +85,7 @@ describe('parseVocabulary', () => {
   it('skips the header row and the separator row, and ignores text outside the tables', () => {
     expect(entries.some((e) => e.avoid === 'avoid')).toBe(false);
     expect(entries.some((e) => e.avoid === '---')).toBe(false);
-    expect(entries.some((e) => e.avoid.includes('spechub lint-prose'))).toBe(false);
+    expect(entries.some((e) => e.avoid.includes('acstack lint-prose'))).toBe(false);
     expect(entries).toHaveLength(6);
   });
 

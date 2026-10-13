@@ -4,7 +4,7 @@ The `Write:` and `Not:` pair for each rule in `SKILL.md`, except rules 3 and 11,
 
 ### 1. Cap a descriptive sentence at 25 words, and an instruction at 20 words (ASD-STE100)
 
-- Write: The SessionStart hook creates the symlink at `~/.claude/spechub/bin/spechub`.
+- Write: The SessionStart hook creates the symlink at `~/.claude/acstack/bin/acstack`.
 - Not: The SessionStart hook, which runs whenever a session begins and which the plugin installs for you, is responsible for creating the symlink that points at the CLI inside the current plugin cache.
 
 ### 2. Give each sentence one instruction (ASD-STE100)
@@ -32,8 +32,8 @@ The `Write:` and `Not:` pair for each rule in `SKILL.md`, except rules 3 and 11,
 - Write: Work the frontier, the nodes ready to work now.
 - Not: Work the frontier, the unblocked open nodes the tracker returns.
 
-- Write: define `map` and `node`, then say what `/spechub:map` does
-- Not: say what `/spechub:map` does, then define `map` in the next subsection
+- Write: define `map` and `node`, then say what `/acstack:map` does
+- Not: say what `/acstack:map` does, then define `map` in the next subsection
 
 ### 8. Spell out an abbreviation at first use
 
@@ -103,8 +103,8 @@ The `Write:` and `Not:` pair for each rule in `SKILL.md`, except rules 3 and 11,
 
 ### 22. Name the thing a pronoun stands for
 
-- Write: Only `/spechub:map` creates a map.
-- Not: Only `/spechub:map` creates one.
+- Write: Only `/acstack:map` creates a map.
+- Not: Only `/acstack:map` creates one.
 
 ### 23. Write for a developer who has never seen this repository
 
@@ -116,7 +116,7 @@ The `Write:` and `Not:` pair for each rule in `SKILL.md`, except rules 3 and 11,
 
 ### 24. State what you checked, and when
 
-- Write: `spechub lint-prose` does not exist yet, as of 2026-08-22.
+- Write: `acstack lint-prose` does not exist yet, as of 2026-08-22.
 - Not: My knowledge has a cutoff, so this may have changed since.
 
 ### 25. Connect clauses with a period or a comma, and set an aside off with an en dash
@@ -140,7 +140,7 @@ The `Write:` and `Not:` pair for each rule in `SKILL.md`, except rules 3 and 11,
 ### 28. Bold a single term for emphasis
 
 - Write: **fog** names whatever nobody can state precisely yet.
-- Not: **SpecHub** ships a **CLI** that **many** skills call.
+- Not: **ACStack** ships a **CLI** that **many** skills call.
 
 ### 29. Carry the meaning in words
 

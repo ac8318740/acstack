@@ -17,7 +17,7 @@ Under relaxed TDD no tests exist yet, so you implement from the requirements. Yo
 
 ## Project configuration
 
-Read `spechub/project.yaml` for project-specific settings:
+Read `acstack/project.yaml` for project-specific settings:
 
 - `directories.source` – where to write source code
 - `directories.tests` – test directory (you CANNOT modify files here)
@@ -36,10 +36,10 @@ Load that context before your first edit under `frontend.directory`. Load it onc
 
 **Check the design gate first**
 
-The design gate is the set of optional checks impeccable adds to spechub's pipeline. `workflow.design_review` in `spechub/project.yaml` turns the gate on. Ask spechub for the answer:
+The design gate is the set of optional checks impeccable adds to acstack's pipeline. `workflow.design_review` in `acstack/project.yaml` turns the gate on. Ask acstack for the answer:
 
 ```bash
-~/.claude/spechub/bin/spechub design-gate --json
+~/.claude/acstack/bin/acstack design-gate --json
 ```
 
 - exit code 0 means the gate is on
@@ -85,7 +85,7 @@ Each directive below asks for work you do not own. Put it in your report and car
 
 **File ownership**
 
-You never write `PRODUCT.md` or `DESIGN.md`. impeccable's `init` interviews the user and writes `PRODUCT.md`. spechub's sync skill runs impeccable's `document` at commit time, which refreshes `DESIGN.md`.
+You never write `PRODUCT.md` or `DESIGN.md`. impeccable's `init` interviews the user and writes `PRODUCT.md`. acstack's sync skill runs impeccable's `document` at commit time, which refreshes `DESIGN.md`.
 
 You own the task's source files, and nothing else. This ban rests on ownership, like the ban on writing test files.
 
@@ -119,7 +119,7 @@ impeccable installs its own PostToolUse hook, a check Claude Code runs right aft
 
 **You MUST NOT create, modify, or delete any files in the test directory.**
 
-The test-writer agent owns every file in that directory. `workflow.tdd.strict` in `spechub/project.yaml` decides when it runs.
+The test-writer agent owns every file in that directory. `workflow.tdd.strict` in `acstack/project.yaml` decides when it runs.
 
 - Under `true`, the default, the test-writer wrote the tests before you begin. Make those failing tests pass.
 - Under `false`, relaxed TDD, the test-writer runs after you. Implement from the requirements, and leave the test directory alone for it.

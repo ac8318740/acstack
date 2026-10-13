@@ -1,5 +1,5 @@
 /**
- * `spechub design-gate` - one call that answers whether the design gate is on.
+ * `acstack design-gate` - one call that answers whether the design gate is on.
  *
  * Every skill and agent that gates on a design review needs the same answer,
  * and the answer lives in two places: `workflow.design_review` in the
@@ -30,7 +30,7 @@ import { join, dirname, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CLI_BIN = join(__dirname, '..', '..', 'bin', 'spechub.js');
+const CLI_BIN = join(__dirname, '..', '..', 'bin', 'acstack.js');
 
 // ---------------------------------------------------------------------
 // Fixtures
@@ -38,16 +38,16 @@ const CLI_BIN = join(__dirname, '..', '..', 'bin', 'spechub.js');
 // These are a deliberate copy of the ones `config.test.ts` uses for the
 // impeccable row, not an import from it. Both files describe the same two
 // files on disk, and both files write them as literals rather than deriving
-// them from anything in this repository - a fixture that asked SpecHub for
-// the shape of Claude Code's registry would agree with SpecHub even when
-// SpecHub is wrong. Sharing them later is fine; sharing them with the
+// them from anything in this repository - a fixture that asked ACStack for
+// the shape of Claude Code's registry would agree with ACStack even when
+// ACStack is wrong. Sharing them later is fine; sharing them with the
 // implementation never is.
 // ---------------------------------------------------------------------
 
 let xdgConfigHome: string;
 
 beforeEach(() => {
-  xdgConfigHome = mkdtempSync(join(tmpdir(), 'spechub-design-gate-xdg-'));
+  xdgConfigHome = mkdtempSync(join(tmpdir(), 'acstack-design-gate-xdg-'));
 });
 
 afterEach(() => {
@@ -80,14 +80,14 @@ function runCli(
 
 /** An empty directory to use as PATH when a test wants NOTHING resolvable. */
 function emptyPathDir(): string {
-  return mkdtempSync(join(tmpdir(), 'spechub-empty-path-'));
+  return mkdtempSync(join(tmpdir(), 'acstack-empty-path-'));
 }
 
-/** A temp project root whose `spechub/project.yaml` holds `yaml`. */
+/** A temp project root whose `acstack/project.yaml` holds `yaml`. */
 function makeProject(yaml: string): string {
-  const root = mkdtempSync(join(tmpdir(), 'spechub-project-'));
-  mkdirSync(join(root, 'spechub'), { recursive: true });
-  writeFileSync(join(root, 'spechub', 'project.yaml'), yaml);
+  const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
+  mkdirSync(join(root, 'acstack'), { recursive: true });
+  writeFileSync(join(root, 'acstack', 'project.yaml'), yaml);
   return root;
 }
 
@@ -106,21 +106,21 @@ function silentProject(): string {
   return makeProject('name: design-gate-project\n');
 }
 
-/** A directory with no `spechub/` in it or above it. */
+/** A directory with no `acstack/` in it or above it. */
 function noProjectDir(): string {
-  return mkdtempSync(join(tmpdir(), 'spechub-no-project-'));
+  return mkdtempSync(join(tmpdir(), 'acstack-no-project-'));
 }
 
 /** An isolated HOME, so a read of `~/.claude` sees only what a test wrote. */
 function fakeHome(): string {
-  return mkdtempSync(join(tmpdir(), 'spechub-home-'));
+  return mkdtempSync(join(tmpdir(), 'acstack-home-'));
 }
 
 /** The plugin this command reports on, spelled as its manifest spells it. */
 const IMPECCABLE_PLUGIN = 'impeccable';
 
 /**
- * The major version SpecHub expects of an installed impeccable.
+ * The major version ACStack expects of an installed impeccable.
  *
  * Asserted by value: what counts as new enough is the whole content of the
  * warn-or-stay-quiet decision, so deriving it from the implementation would
@@ -161,7 +161,7 @@ function installImpeccable(root: string, opts: ImpeccableInstall): string {
         ? { name: IMPECCABLE_PLUGIN }
         : { name: IMPECCABLE_PLUGIN, version: opts.manifestVersion ?? opts.registryVersion };
 
-  const installPath = mkdtempSync(join(tmpdir(), 'spechub-plugin-install-'));
+  const installPath = mkdtempSync(join(tmpdir(), 'acstack-plugin-install-'));
   if (manifest !== null) {
     mkdirSync(join(installPath, '.claude-plugin'), { recursive: true });
     writeFileSync(
@@ -225,7 +225,7 @@ function homeWithImpeccable(opts: ImpeccableInstall): string {
  * Where impeccable's launcher lives inside an install path.
  *
  * The segments are written out here rather than imported, because this path is
- * impeccable's layout and not SpecHub's: a constant shared with the
+ * impeccable's layout and not ACStack's: a constant shared with the
  * implementation would agree with whatever the implementation joined.
  */
 function launcherPath(installPath: string): string {
@@ -233,7 +233,7 @@ function launcherPath(installPath: string): string {
 }
 
 /**
- * Run `spechub design-gate` in `cwd`, against an isolated HOME and a PATH
+ * Run `acstack design-gate` in `cwd`, against an isolated HOME and a PATH
  * holding only what the test asked for.
  *
  * `CLAUDE_CONFIG_DIR` is emptied for the same reason HOME is replaced: Claude
@@ -273,8 +273,8 @@ function lines(text: string): string[] {
  * that would distinguish reading a file from starting a process.
  */
 function tattlingBin(name: string): { dir: string; marker: string } {
-  const dir = mkdtempSync(join(tmpdir(), 'spechub-fake-bin-'));
-  const marker = join(mkdtempSync(join(tmpdir(), 'spechub-marker-')), `${name}-ran`);
+  const dir = mkdtempSync(join(tmpdir(), 'acstack-fake-bin-'));
+  const marker = join(mkdtempSync(join(tmpdir(), 'acstack-marker-')), `${name}-ran`);
   const file = join(dir, name);
   writeFileSync(file, `#!/bin/sh\necho ran > '${marker}'\nexit 0\n`);
   chmodSync(file, 0o755);
@@ -291,7 +291,7 @@ function tattlingBin(name: string): { dir: string; marker: string } {
  */
 function plantLauncher(installPath: string): string {
   const launcher = launcherPath(installPath);
-  const marker = join(mkdtempSync(join(tmpdir(), 'spechub-marker-')), 'launcher-ran');
+  const marker = join(mkdtempSync(join(tmpdir(), 'acstack-marker-')), 'launcher-ran');
   mkdirSync(dirname(launcher), { recursive: true });
   writeFileSync(launcher, `#!/bin/sh\necho ran > '${marker}'\nexit 0\n`);
   chmodSync(launcher, 0o755);
@@ -311,7 +311,7 @@ function parseGateJson(stdout: string): DesignGateJson {
 }
 
 /** The exact reason strings, asserted by value because a caller reads them. */
-const REASON_NO_PROJECT = 'no spechub project here';
+const REASON_NO_PROJECT = 'no acstack project here';
 const REASON_KEY_FALSE = 'workflow.design_review is false';
 const REASON_NOT_INSTALLED = 'impeccable is not installed';
 
@@ -319,7 +319,7 @@ const REASON_NOT_INSTALLED = 'impeccable is not installed';
 const NEW_ENOUGH = '4.2.0';
 const TOO_OLD = '3.9.0';
 
-describe('spechub design-gate', () => {
+describe('acstack design-gate', () => {
   // -------------------------------------------------------------------
   // The gate is on
   //
@@ -437,7 +437,7 @@ describe('spechub design-gate', () => {
       const home = fakeHome();
       writeRegistry(join(home, '.claude'), {
         'document-skills@anthropic-agent-skills': {
-          installPath: mkdtempSync(join(tmpdir(), 'spechub-other-plugin-')),
+          installPath: mkdtempSync(join(tmpdir(), 'acstack-other-plugin-')),
           version: '1.0.0',
         },
       });
@@ -509,7 +509,7 @@ describe('spechub design-gate', () => {
   // -------------------------------------------------------------------
   // The version warning
   //
-  // SpecHub expects impeccable at major 4 or later. The expectation is worth
+  // ACStack expects impeccable at major 4 or later. The expectation is worth
   // saying out loud and worth nothing more: it goes to stderr, where a
   // caller reading stdout never sees it, and it leaves the answer alone.
   // -------------------------------------------------------------------
@@ -520,7 +520,7 @@ describe('spechub design-gate', () => {
         home: homeWithImpeccable({ registryVersion: TOO_OLD }),
       });
 
-      // Both halves of the answer: what is installed, and what SpecHub wanted.
+      // Both halves of the answer: what is installed, and what ACStack wanted.
       // Naming only one leaves the reader to go and look the other up.
       expect(result.stderr).toContain(TOO_OLD);
       expect(result.stderr).toContain(IMPECCABLE_MIN_MAJOR);
@@ -801,7 +801,7 @@ describe('spechub design-gate', () => {
   // -------------------------------------------------------------------
   describe('where the installed plugins are read from', () => {
     it('reads CLAUDE_CONFIG_DIR when it is set, not ~/.claude', () => {
-      const configDir = mkdtempSync(join(tmpdir(), 'spechub-claude-config-'));
+      const configDir = mkdtempSync(join(tmpdir(), 'acstack-claude-config-'));
       installImpeccable(configDir, { registryVersion: NEW_ENOUGH });
 
       const result = runGate({
@@ -817,7 +817,7 @@ describe('spechub design-gate', () => {
     it('reads CLAUDE_CONFIG_DIR instead of ~/.claude when both hold an install', () => {
       // Not "as well as": the variable moves the config root, so a HOME
       // install is not a second place to look.
-      const configDir = mkdtempSync(join(tmpdir(), 'spechub-claude-config-'));
+      const configDir = mkdtempSync(join(tmpdir(), 'acstack-claude-config-'));
       installImpeccable(configDir, { registryVersion: TOO_OLD });
 
       const result = runGate({
@@ -955,7 +955,7 @@ describe('spechub design-gate', () => {
         // The registry and the settings file are two halves of one config
         // root. Reading one from the variable and the other from HOME would
         // answer from two machines' worth of state at once.
-        const configDir = mkdtempSync(join(tmpdir(), 'spechub-claude-config-'));
+        const configDir = mkdtempSync(join(tmpdir(), 'acstack-claude-config-'));
         installImpeccable(configDir, { registryVersion: NEW_ENOUGH, marketplace: MARKETPLACE });
         writeSettings(configDir, enabledPluginsBody({ [PLUGIN_KEY]: false }));
 
@@ -970,7 +970,7 @@ describe('spechub design-gate', () => {
       });
 
       it('ignores ~/.claude/settings.json when CLAUDE_CONFIG_DIR is set', () => {
-        const configDir = mkdtempSync(join(tmpdir(), 'spechub-claude-config-'));
+        const configDir = mkdtempSync(join(tmpdir(), 'acstack-claude-config-'));
         installImpeccable(configDir, { registryVersion: NEW_ENOUGH, marketplace: MARKETPLACE });
 
         const result = runGate({
@@ -1046,11 +1046,11 @@ describe('spechub design-gate', () => {
     it('answers with no global config file on disk at all', () => {
       // The host axes live in the global config, and an undeclared axis is
       // what makes `config check` exit 2. This command reads none of it, so a
-      // machine that never ran `spechub config set` still gets an answer.
+      // machine that never ran `acstack config set` still gets an answer.
       const result = runGate({
         cwd: gatedProject(),
         home: homeWithImpeccable({ registryVersion: NEW_ENOUGH }),
-        env: { XDG_CONFIG_HOME: mkdtempSync(join(tmpdir(), 'spechub-empty-xdg-')) },
+        env: { XDG_CONFIG_HOME: mkdtempSync(join(tmpdir(), 'acstack-empty-xdg-')) },
       });
 
       expect(lines(result.stdout)).toEqual(['on']);
@@ -1081,7 +1081,7 @@ describe('spechub design-gate', () => {
   // A command a skill is told to run has to be a command a person can find.
   // -------------------------------------------------------------------
   describe('discoverability', () => {
-    it('is listed in spechub --help', () => {
+    it('is listed in acstack --help', () => {
       const result = runCli(['--help'], { path: [emptyPathDir()] });
 
       expect(result.stdout).toContain('design-gate');

@@ -1,6 +1,6 @@
 ---
 name: terminal-workspace
-description: "Install and configure the optional terminal workspace, which runs several coding agents side by side in one terminal. It installs five tools the user drives – herdr, gh-dash, diffnav, lazygit and harlequin – plus five that support them, two helpers of SpecHub's own, and the pi coding agent with SpecHub installed into it. One YAML file holds every config. Use when the user asks to set up parallel agents in the terminal, or mentions herdr, gh-dash, diffnav, yazi, harlequin or pi. Use it too when the user wants agents that keep running after they close the terminal, or asks to turn any of these on or off. Every component toggles on its own, and every change is reversible."
+description: "Install and configure the optional terminal workspace, which runs several coding agents side by side in one terminal. It installs five tools the user drives – herdr, gh-dash, diffnav, lazygit and harlequin – plus five that support them, two helpers of ACStack's own, and the pi coding agent with ACStack installed into it. One YAML file holds every config. Use when the user asks to set up parallel agents in the terminal, or mentions herdr, gh-dash, diffnav, yazi, harlequin or pi. Use it too when the user wants agents that keep running after they close the terminal, or asks to turn any of these on or off. Every component toggles on its own, and every change is reversible."
 argument-hint: "[status | apply | outdated | upgrade [tool...] | disable <component> | uninstall]"
 disable-model-invocation: true
 ---
@@ -22,12 +22,12 @@ This skill installs herdr, a terminal multiplexer that keeps sessions alive
 after a disconnect. It adds the tools that read diffs, pull requests and files
 around it, and writes every config from one YAML file.
 
-SpecHub does not need any of this. Offer it, do not assume it.
+ACStack does not need any of this. Offer it, do not assume it.
 
 ```mermaid
 flowchart TD
     IN["Twelve components, one YAML file<br/>(machine-level, not per-project)"] --> ST["See what this machine has<br/>(setup.sh status)"]
-    ST --> CF["Copy the config, walk the choices<br/>(~/.config/spechub/terminal-workspace.yaml)"]
+    ST --> CF["Copy the config, walk the choices<br/>(~/.config/acstack/terminal-workspace.yaml)"]
     CF --> AP["Install binaries, write the keys<br/>(setup.sh apply)"]
     AP --> Q{"How does the user reach<br/>this machine?"}
     Q -->|"an SSH shell"| KB["Free the keys the emulator swallows<br/>(client-keybindings.md)"]
@@ -58,7 +58,7 @@ flowchart TD
 
 This is **machine-level, not per-project**. It installs binaries and writes
 keybindings for the user account, so it does not belong in
-`spechub/project.yaml`.
+`acstack/project.yaml`.
 
 Count components when you mean config keys, and tools when you mean binaries.
 The config holds twelve component sections, plus an `enabled` master switch
@@ -66,8 +66,8 @@ above them. Eleven of those sections install thirteen tools between them:
 
 - Five tools the user drives day to day: herdr, gh-dash, diffnav, lazygit and harlequin. tuicr joins them once a review starts
 - Five tools that support them: delta, tuicr, yazi, mermaid-ascii and glow
-- Two helpers of SpecHub's own: spechub-md, and the spechub-clip and spechub-open pair
-- The pi coding agent, with SpecHub and pi-subagents installed into it
+- Two helpers of ACStack's own: acstack-md, and the acstack-clip and acstack-open pair
+- The pi coding agent, with ACStack and pi-subagents installed into it
 
 The twelfth, `neovim`, installs nothing. It writes one file into a neovim config
 the user already has. `neovim` and `pi` both start off, because each writes into a config the user built.
@@ -76,7 +76,7 @@ Read [`components.md`](components.md) when the user asks what a component does, 
 
 The two files this skill works with:
 
-- **Config**: `~/.config/spechub/terminal-workspace.yaml`, copied from `assets/terminal-workspace/config.example.yaml`
+- **Config**: `~/.config/acstack/terminal-workspace.yaml`, copied from `assets/terminal-workspace/config.example.yaml`
 - **Script**: `assets/terminal-workspace/setup.sh` in this plugin
 
 The keys, on one page: [docs/terminal-workspace-keys.md](../../docs/terminal-workspace-keys.md).
@@ -98,7 +98,7 @@ Run the script from the plugin directory. Resolve the path rather than
 guessing it:
 
 ```bash
-PLUGIN=$(dirname "$(dirname "$(dirname "$(readlink -f ~/.claude/spechub/bin/spechub)")")")
+PLUGIN=$(dirname "$(dirname "$(dirname "$(readlink -f ~/.claude/acstack/bin/acstack)")")")
 SETUP="$PLUGIN/assets/terminal-workspace/setup.sh"
 bash "$SETUP" status
 ```
@@ -111,8 +111,8 @@ It reports three things.
 
 Which binaries this machine has. Which components the config enables. Whether
 the herdr config still holds the managed block, meaning the region between the
-`# >>> spechub terminal-workspace >>>` and
-`# <<< spechub terminal-workspace <<<` comment lines that `apply` writes.
+`# >>> acstack terminal-workspace >>>` and
+`# <<< acstack terminal-workspace <<<` comment lines that `apply` writes.
 
 Its last lines say where a copy and an open will land on this machine. Section
 7 reads them.
@@ -124,7 +124,7 @@ Its last lines say where a copy and an open will land on this machine. Section
 Copy the example config before the first `apply`:
 
 ```bash
-cp "$(dirname "$SETUP")/config.example.yaml" ~/.config/spechub/terminal-workspace.yaml
+cp "$(dirname "$SETUP")/config.example.yaml" ~/.config/acstack/terminal-workspace.yaml
 ```
 
 Then read [`config-choices.md`](config-choices.md) and ask about the settings it lists, in its order.
@@ -151,9 +151,9 @@ The master switch comes first. With `enabled: false` at the top of the config,
 
 *Marked regions only. Whatever the user wrote outside them survives every re-apply.*
 
-- Every edit sits between `# >>> spechub terminal-workspace >>>` and `# <<< spechub terminal-workspace <<<` markers. Hand-written config around them survives, and re-applying replaces only the managed region
+- Every edit sits between `# >>> acstack terminal-workspace >>>` and `# <<< acstack terminal-workspace <<<` markers. Hand-written config around them survives, and re-applying replaces only the managed region
 - The herdr config carries up to five managed regions, one each inside `[keys]`, `[ui]`, `[theme]` and `[ui.toast]`, plus one at the end for `[[keys.command]]` and `[worktrees]`
-    - A key inside a marked region is spechub's, whatever table it sits in
+    - A key inside a marked region is acstack's, whatever table it sits in
     - A table gets a region only when the config names a value for it
     - So a user who asks for no theme keeps the one they wrote
 - `apply` replaces a value the user set by hand on a key it manages, rather than joining it

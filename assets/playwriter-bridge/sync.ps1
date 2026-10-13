@@ -4,7 +4,7 @@
 # a location that does not track the plugin version. A plugin auto-update
 # refreshes the cache but never reaches those deployed copies, and a running
 # tunnel.ps1 will not pick up a new script without a restart. This script
-# closes that gap: it is invoked by the SpecHub SessionStart hook, compares
+# closes that gap: it is invoked by the ACStack SessionStart hook, compares
 # each deployed script against the cache by content hash, copies the ones that
 # changed, rebuilds launcher.exe when its source changed, and restarts only the
 # affected tasks.
@@ -94,7 +94,7 @@ function Stop-BridgeTaskTree {
         Get-CimInstance Win32_Process -Filter "ParentProcessId=$($p.ProcessId)" -ErrorAction SilentlyContinue |
             ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
         Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
-        Write-Host "spechub bridge: reaped surviving $Name process (PID $($p.ProcessId))"
+        Write-Host "acstack bridge: reaped surviving $Name process (PID $($p.ProcessId))"
     }
 }
 
@@ -108,7 +108,7 @@ foreach ($f in $files) {
 
 if ($changed.Count -eq 0) { exit 0 }
 
-Write-Host "spechub bridge: $($changed.Count) script(s) changed in the plugin cache: $($changed -join ', ')"
+Write-Host "acstack bridge: $($changed.Count) script(s) changed in the plugin cache: $($changed -join ', ')"
 
 # Concurrency guard: two Claude Code sessions can start near-simultaneously and
 # both pass the hash gate above, then race on copy/rebuild/stop-start. A system
@@ -117,7 +117,7 @@ Write-Host "spechub bridge: $($changed.Count) script(s) changed in the plugin ca
 # without the guard rather than crashing the hook.
 $mutex = $null
 try {
-    $mutex = New-Object System.Threading.Mutex($false, 'Global\spechub-bridge-sync')
+    $mutex = New-Object System.Threading.Mutex($false, 'Global\acstack-bridge-sync')
 } catch {
     $mutex = $null
 }
@@ -125,7 +125,7 @@ if ($mutex) {
     $haveLock = $false
     try { $haveLock = $mutex.WaitOne(2000) } catch { $haveLock = $false }
     if (-not $haveLock) {
-        Write-Host "spechub bridge: another session is already syncing - skipping."
+        Write-Host "acstack bridge: another session is already syncing - skipping."
         $mutex.Dispose()
         exit 0
     }
@@ -178,7 +178,7 @@ foreach ($f in $changed) {
         Copy-Item -Path (Join-Path $cacheDir $f) -Destination (Join-Path $ScriptsDir $f) -Force -ErrorAction Stop
         $copied += $f
     } catch {
-        Write-Host "spechub bridge: copy FAILED for $f ($($_.Exception.Message)). Leaving its task as-is."
+        Write-Host "acstack bridge: copy FAILED for $f ($($_.Exception.Message)). Leaving its task as-is."
     }
 }
 
@@ -227,14 +227,14 @@ if ($launcherChanged) {
     try {
         & (Join-Path $ScriptsDir 'build-launcher.ps1') | Out-Null
         if (Test-Path (Join-Path $ScriptsDir 'launcher.exe')) {
-            Write-Host "spechub bridge: rebuilt launcher.exe"
+            Write-Host "acstack bridge: rebuilt launcher.exe"
         } else {
             $rebuildOk = $false
-            Write-Host "spechub bridge: launcher rebuild produced no launcher.exe."
+            Write-Host "acstack bridge: launcher rebuild produced no launcher.exe."
         }
     } catch {
         $rebuildOk = $false
-        Write-Host "spechub bridge: launcher rebuild FAILED ($($_.Exception.Message))."
+        Write-Host "acstack bridge: launcher rebuild FAILED ($($_.Exception.Message))."
     }
 } elseif (($changed -contains 'launcher-src.cs') -and -not ($copied -contains 'launcher-src.cs')) {
     # launcher-src.cs changed but the copy failed: the deployed source is stale
@@ -247,7 +247,7 @@ if ($launcherChanged) {
 # against a broken or missing exe and leave the bridge down. Skip the restart
 # loop, surface a loud actionable message, and leave the tasks stopped.
 if (-not $rebuildOk) {
-    Write-Host "spechub bridge: launcher.exe is NOT in a known-good state - skipping all task restarts. Run build-launcher.ps1 manually, then start the Playwriter-* tasks."
+    Write-Host "acstack bridge: launcher.exe is NOT in a known-good state - skipping all task restarts. Run build-launcher.ps1 manually, then start the Playwriter-* tasks."
     exit 0
 }
 
@@ -256,7 +256,7 @@ if (-not $rebuildOk) {
 foreach ($name in $restartList) {
     Stop-BridgeTaskTree -Name $name
     Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
-    Write-Host "spechub bridge: restarted $name"
+    Write-Host "acstack bridge: restarted $name"
 }
 
 exit 0

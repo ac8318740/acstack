@@ -1,7 +1,7 @@
 {
-  "name": "spechub-cli",
-  "version": "0.43.0",
-  "description": "CLI for spec-driven development with SpecHub",
+  "name": "acstack-cli",
+  "version": "0.47.0",
+  "description": "CLI for the ACStack agentic coding stack",
   "type": "module",
   "license": "MIT",
   "author": {
@@ -13,7 +13,7 @@
     "directory": "cli"
   },
   "bin": {
-    "spechub": "./bin/spechub.js"
+    "acstack": "./bin/acstack.js"
   },
   "files": [
     "dist/index.js",
@@ -29,7 +29,7 @@
     "dev": "node build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src/",
-    "test": "vitest run",
+    "test": "vitest run --pool=vmThreads",
     "prepublishOnly": "npm run build",
     "sync-version": "node scripts/sync-version.mjs"
   },
@@ -49,8 +49,8 @@
   },
   "homepage": "https://github.com/ac8318740/spechub/tree/main/cli",
   "keywords": [
-    "spec-driven",
-    "spec",
+    "agentic-coding",
+    "acstack",
     "planning",
     "agent",
     "claude",

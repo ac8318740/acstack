@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SpecHub terminal workspace setup.
+# ACStack terminal workspace setup.
 #   setup.sh status     what is installed and enabled
 #   setup.sh apply      install and configure everything enabled in the config
 #   setup.sh outdated   what has a newer version, and what components are new
@@ -11,36 +11,39 @@
 # around it survives.
 set -uo pipefail
 
-CFG="${SPECHUB_TW_CONFIG:-$HOME/.config/spechub/terminal-workspace.yaml}"
-BIN="${SPECHUB_TW_BIN:-$HOME/.local/bin}"
+CFG="${ACSTACK_TW_CONFIG:-$HOME/.config/acstack/terminal-workspace.yaml}"
+BIN="${ACSTACK_TW_BIN:-$HOME/.local/bin}"
 # Everything installs into $BIN, and the config steps then ask `have <tool>`
 # whether it worked. On a fresh machine $BIN is not on PATH yet, so without
 # this every tool installs and every config step is skipped.
 # herdr's own installer always targets ~/.local/bin, which is only the same
-# as $BIN when SPECHUB_TW_BIN is left alone. Cover both.
+# as $BIN when ACSTACK_TW_BIN is left alone. Cover both.
 PATH="$BIN:$HOME/.local/bin:$PATH"
 HERDR_CFG="$HOME/.config/herdr/config.toml"
 GHDASH_CFG="$HOME/.config/gh-dash/config.yml"
 # LazyVim loads every file under lua/plugins, so a file of our own is a
 # complete plugin spec. Nothing of the user's is edited to install it.
-NVIM_PLUGIN="$HOME/.config/nvim/lua/plugins/spechub.lua"
-NVIM_MARK="Written by spechub terminal-workspace"
-BEGIN="# >>> spechub terminal-workspace >>>"
-END="# <<< spechub terminal-workspace <<<"
+NVIM_PLUGIN="$HOME/.config/nvim/lua/plugins/acstack.lua"
+NVIM_MARK="Written by acstack terminal-workspace"
+BEGIN="# >>> acstack terminal-workspace >>>"
+END="# <<< acstack terminal-workspace <<<"
 # pi keeps every config file under one agent directory, and honours an
 # override for it.
 PI_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 PI_SETTINGS="$PI_DIR/settings.json"
+PI_KEYBINDINGS="$PI_DIR/keybindings.json"
 PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 # agentic-retro install-pi picks its own directory, from $PI_HOME rather than
 # pi's override, so look where it writes.
 PI_RETRO_EXT="${PI_HOME:-$HOME/.pi}/agent/extensions/agentic-retro.ts"
-PI_SPECHUB="git:github.com/ac8318740/spechub"
+PI_ACSTACK="npm:acstack"
+PI_BILLION="npm:billion-context"
+PI_SLASH_ANYWHERE="npm:pi-slash-anywhere"
 # A line starting with # is a heading in markdown, and the model reads it. An
 # HTML comment carries the same marker and renders as nothing.
-PI_MD_BEGIN="<!-- >>> spechub terminal-workspace >>> -->"
-PI_MD_END="<!-- <<< spechub terminal-workspace <<< -->"
-PI_DELEGATION="When a SpecHub skill or the SpecHub orchestrator says to launch a subagent, you may delegate to it."
+PI_MD_BEGIN="<!-- >>> acstack terminal-workspace >>> -->"
+PI_MD_END="<!-- <<< acstack terminal-workspace <<< -->"
+PI_DELEGATION="When an ACStack skill or the ACStack orchestrator says to launch a subagent, you may delegate to it."
 ACTION="${1:-status}"
 
 have() { command -v "$1" >/dev/null 2>&1; }
@@ -69,10 +72,10 @@ py() { python3 - "$@"; }
 # Reads one dotted path. require_yaml runs first, so a fallback here means
 # the key is absent, never that yaml failed to import.
 cfg_get() {  # cfg_get <dotted.path> <default>
-  SPECHUB_CFG="$CFG" py "$1" "${2:-}" <<'PY'
+  ACSTACK_CFG="$CFG" py "$1" "${2:-}" <<'PY'
 import os, sys
 import yaml
-p = os.environ["SPECHUB_CFG"]
+p = os.environ["ACSTACK_CFG"]
 if not os.path.isfile(p):
     print(sys.argv[2]); raise SystemExit
 d = yaml.safe_load(open(p)) or {}
@@ -101,10 +104,10 @@ PI_OWNED="$(dirname "$CFG")/terminal-workspace.pi.json"
 # Reads a yaml list into one item per line. cfg_get prints a python list repr
 # for a list value, which no caller can use.
 cfg_get_list() {  # cfg_get_list <dotted.path> <space-separated default>
-  SPECHUB_CFG="$CFG" py "$1" "${2:-}" <<'PY'
+  ACSTACK_CFG="$CFG" py "$1" "${2:-}" <<'PY'
 import os, sys
 import yaml
-p = os.environ["SPECHUB_CFG"]
+p = os.environ["ACSTACK_CFG"]
 d = (yaml.safe_load(open(p)) or {}) if os.path.isfile(p) else {}
 for k in sys.argv[1].split("."):
     d = d.get(k) if isinstance(d, dict) else None
@@ -119,7 +122,7 @@ PY
 write_stamp() {
   [ -f "$EXAMPLE" ] || return 0
   mkdir -p "$(dirname "$STAMP")"
-  { echo "# written by spechub terminal-workspace apply, do not edit"
+  { echo "# written by acstack terminal-workspace apply, do not edit"
     py "$EXAMPLE" <<'PY'
 import sys
 import yaml
@@ -142,10 +145,10 @@ install_binary() {  # install_binary <name> <repo> <asset-match>
   # the heredoc and python then reads an empty stdin.
   json=$(curl -sSf "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null)
   [ -z "$json" ] && { say "$name: could not reach the GitHub release API"; return 1; }
-  url=$(SPECHUB_JSON="$json" py "$match" <<'PY'
+  url=$(ACSTACK_JSON="$json" py "$match" <<'PY'
 import json, os, sys
 try:
-    d = json.loads(os.environ["SPECHUB_JSON"])
+    d = json.loads(os.environ["ACSTACK_JSON"])
 except ValueError:
     raise SystemExit
 for a in d.get("assets", []):
@@ -181,15 +184,15 @@ write_helpers() {
   mkdir -p "$BIN"
   # Helpers this script used to write and no longer does. Upgrading otherwise
   # leaves them on PATH, shadowing nothing but confusing everything.
-  rm -f "$BIN"/spechub-files "$BIN"/spechub-files-tab \
-        "$BIN"/spechub-yazi-tab "$BIN"/spechub-tab "$BIN"/spechub-renumber
-  cat > "$BIN/spechub-diff" <<'H'
+  rm -f "$BIN"/acstack-files "$BIN"/acstack-files-tab \
+        "$BIN"/acstack-yazi-tab "$BIN"/acstack-tab "$BIN"/acstack-renumber
+  cat > "$BIN/acstack-diff" <<'H'
 #!/usr/bin/env bash
 # Show a git diff in diffnav, with a banner naming what is being compared.
 #
-#   spechub-diff        this branch against dev, committed work only (alt+f)
-#   spechub-diff pick   choose the comparison from a menu (alt+x)
-#   spechub-diff auto   first non-empty of working tree, staged, last commit
+#   acstack-diff        this branch against dev, committed work only (alt+f)
+#   acstack-diff pick   choose the comparison from a menu (alt+x)
+#   acstack-diff auto   first non-empty of working tree, staged, last commit
 #
 # Every launch prepends a COMPARING block to the diff. diffnav renders whatever
 # precedes the first "diff --git" line, which is how git show's commit header
@@ -197,13 +200,13 @@ write_helpers() {
 #
 # diffnav's "o" key opens the file under the cursor with $EDITOR, in diffnav's
 # own pane. That pane is a herdr popup for alt+f and alt+x, and a popup cannot
-# host a second full-screen app, so the editor never draws there. spechub-edit
+# host a second full-screen app, so the editor never draws there. acstack-edit
 # gives the file its own herdr tab instead, and both diff keys then match.
 set -uo pipefail
-if command -v spechub-edit >/dev/null 2>&1; then
-  case "${EDITOR:-}" in *spechub-edit) EDITOR=nvim ;; esac   # never nest
-  export SPECHUB_EDIT_EDITOR="${EDITOR:-nvim}"
-  export EDITOR=spechub-edit
+if command -v acstack-edit >/dev/null 2>&1; then
+  case "${EDITOR:-}" in *acstack-edit) EDITOR=nvim ;; esac   # never nest
+  export ACSTACK_EDIT_EDITOR="${EDITOR:-nvim}"
+  export EDITOR=acstack-edit
 fi
 pick_checkout() {
   # herdr groups worktrees as <root>/<repo>/<branch-slug>, so a pane often
@@ -260,16 +263,16 @@ tip() {  # tip <ref> -> "1b298bd . 4 hours ago . Merge pull request ..."
 # So the file goes, not the diff. Any file whose patch holds a line over the
 # limit is dropped and named in the banner, and the rest is drawn as usual.
 # 20000 is far above any line a person writes and far below where delta gives
-# out. Raise or lower it with SPECHUB_DIFF_LINE_LIMIT.
+# out. Raise or lower it with ACSTACK_DIFF_LINE_LIMIT.
 LINE_LIMIT_DEFAULT=20000
-LINE_LIMIT="${SPECHUB_DIFF_LINE_LIMIT:-$LINE_LIMIT_DEFAULT}"
+LINE_LIMIT="${ACSTACK_DIFF_LINE_LIMIT:-$LINE_LIMIT_DEFAULT}"
 # awk compares a length against whatever this holds. Hand it "abc" and every
 # comparison is a string comparison that is never true, so the guard turns
 # itself off and the abort comes back with nothing on screen to explain it.
 # Hand it 0 and every file is dropped instead. Refuse both, out loud.
 case "$LINE_LIMIT" in
   ''|0|*[!0-9]*)
-    echo "spechub-diff: SPECHUB_DIFF_LINE_LIMIT is \"$LINE_LIMIT\", which is not a" >&2
+    echo "acstack-diff: ACSTACK_DIFF_LINE_LIMIT is \"$LINE_LIMIT\", which is not a" >&2
     echo "  positive whole number. Using $LINE_LIMIT_DEFAULT." >&2
     LINE_LIMIT=$LINE_LIMIT_DEFAULT ;;
 esac
@@ -450,22 +453,22 @@ case "${1:-}" in
   "")   default_compare ;;
   pick) pick ;;
   auto) auto ;;
-  *)    echo "usage: spechub-diff [pick|auto]"; exit 2 ;;
+  *)    echo "usage: acstack-diff [pick|auto]"; exit 2 ;;
 esac
 H
-  chmod +x "$BIN/spechub-diff"
+  chmod +x "$BIN/acstack-diff"
 
-  cat > "$BIN/spechub-dash" <<'H'
+  cat > "$BIN/acstack-dash" <<'H'
 #!/usr/bin/env bash
-# gh-dash with a section for the repo you are standing in. Installed by spechub.
+# gh-dash with a section for the repo you are standing in. Installed by acstack.
 set -uo pipefail
 # Every action gh-dash takes shells out to gh and discards its stderr, so a
-# refusal from GitHub reaches you as "exit status 1" for two seconds. spechub-gh
+# refusal from GitHub reaches you as "exit status 1" for two seconds. acstack-gh
 # goes in front of the real gh under that name and speaks the refusal aloud.
 # Its directory holds nothing else, so nothing else on PATH is shadowed.
 SHIM="$(mktemp -d)"; GEN=""
 trap 'rm -rf "$SHIM"; rm -f "$GEN"' EXIT
-ln -s "$(command -v spechub-gh)" "$SHIM/gh" 2>/dev/null && export PATH="$SHIM:$PATH"
+ln -s "$(command -v acstack-gh)" "$SHIM/gh" 2>/dev/null && export PATH="$SHIM:$PATH"
 BASE="$HOME/.config/gh-dash/config.yml"
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)"
 # Not exec, so the trap above still gets to clean up after the dashboard.
@@ -482,22 +485,22 @@ yaml.safe_dump(cfg, open(sys.argv[2], "w"), sort_keys=False)
 PY
 gh dash --config "$GEN" "$@"
 H
-  chmod +x "$BIN/spechub-dash"
+  chmod +x "$BIN/acstack-dash"
 
-  cat > "$BIN/spechub-db" <<'H'
+  cat > "$BIN/acstack-db" <<'H'
 #!/usr/bin/env bash
 # Open harlequin, the SQL editor, on one of your connection profiles.
 #
-#   spechub-db            one profile launches straight in, more than one opens a menu
-#   spechub-db <profile>  that profile, no menu
+#   acstack-db            one profile launches straight in, more than one opens a menu
+#   acstack-db <profile>  that profile, no menu
 #
 # Profiles live in a TOML file of your own. This writes a starter the first
-# time and never touches it again. Installed by spechub.
+# time and never touches it again. Installed by acstack.
 set -uo pipefail
 # apply rewrites this line from harlequin.config_path. What ships here is the
 # default, so the helper is right even on a machine nothing rewrote it on.
-DB_CFG_DEFAULT="~/.config/spechub/harlequin.toml"  # spechub:config_path
-CFG="${SPECHUB_DB_CONFIG:-$DB_CFG_DEFAULT}"
+DB_CFG_DEFAULT="~/.config/acstack/harlequin.toml"  # acstack:config_path
+CFG="${ACSTACK_DB_CONFIG:-$DB_CFG_DEFAULT}"
 # A human writes ~ for home, and a human writes this config. Expanding it here
 # rather than at write time keeps the helper right on a machine whose HOME is
 # not the one apply ran under.
@@ -512,7 +515,7 @@ command -v harlequin >/dev/null 2>&1 || {
 if [ ! -f "$CFG" ]; then
   mkdir -p "$(dirname "$CFG")"
   cat > "$CFG" <<'T'
-# harlequin connection profiles. spechub wrote this once and will not write it
+# harlequin connection profiles. acstack wrote this once and will not write it
 # again. Edit it freely.
 default_profile = "local"
 
@@ -562,7 +565,7 @@ esac
 
 command -v fzf >/dev/null 2>&1 || {
   echo "fzf is not installed, so there is no menu. Naming a profile still works:"
-  printf '%s\n' "$rows" | cut -f1 | sed 's/.*/  spechub-db "&"/'
+  printf '%s\n' "$rows" | cut -f1 | sed 's/.*/  acstack-db "&"/'
   exit 1; }
 
 choice=$(printf '%s\n' "$rows" \
@@ -572,25 +575,25 @@ choice=$(printf '%s\n' "$rows" \
 [ -n "$choice" ] || exit 0
 launch "$choice"
 H
-  chmod +x "$BIN/spechub-db"
+  chmod +x "$BIN/acstack-db"
   # The one helper with a path in the config, so the one write that is not a
   # heredoc on its own. The line above already holds the default, so this
   # carries nothing but a value the user chose.
-  SPECHUB_DB_CFG="$(cfg_get harlequin.config_path "~/.config/spechub/harlequin.toml")" \
-    py "$BIN/spechub-db" <<'PY'
+  ACSTACK_DB_CFG="$(cfg_get harlequin.config_path "~/.config/acstack/harlequin.toml")" \
+    py "$BIN/acstack-db" <<'PY'
 import os, re, sys
 # A bash single-quoted literal, so a path with a space or a quote in it reaches
 # the helper as one word rather than as shell syntax.
-v = "'" + os.environ["SPECHUB_DB_CFG"].replace("'", "'\\''") + "'"
+v = "'" + os.environ["ACSTACK_DB_CFG"].replace("'", "'\\''") + "'"
 p = sys.argv[1]
 t = open(p).read()
-t, n = re.subn(r"(?m)^DB_CFG_DEFAULT=.*# spechub:config_path$",
-               lambda m: "DB_CFG_DEFAULT=" + v + "  # spechub:config_path", t)
+t, n = re.subn(r"(?m)^DB_CFG_DEFAULT=.*# acstack:config_path$",
+               lambda m: "DB_CFG_DEFAULT=" + v + "  # acstack:config_path", t)
 if n:
     open(p, "w").write(t)
 PY
 
-  cat > "$BIN/spechub-gh" <<'H'
+  cat > "$BIN/acstack-gh" <<'H'
 #!/usr/bin/env bash
 # gh, plus the reason a pull request action failed.
 #
@@ -600,15 +603,15 @@ PY
 # own pull request is the everyday case: GitHub always refuses that, and the
 # dashboard looks like it simply ignored the keypress.
 #
-# spechub-dash links this into a directory of its own at the front of $PATH
+# acstack-dash links this into a directory of its own at the front of $PATH
 # under the name gh, so gh-dash finds it first. Everything is handed to the real
 # gh untouched and its exit code is returned as-is; the only thing added is a
 # notification when an action fails, because a suspended TUI cannot print for
-# us. Installed by spechub.
+# us. Installed by acstack.
 set -uo pipefail
 
 # The real gh is the first one on $PATH that is not this script under another
-# name. Comparing what each resolves to sees through both the link spechub-dash
+# name. Comparing what each resolves to sees through both the link acstack-dash
 # makes and a plain copy of this file.
 ME="$(readlink -f "$0")"
 REAL=""
@@ -617,7 +620,7 @@ while IFS= read -r dir; do
   [ "$(readlink -f "$dir/gh")" = "$ME" ] && continue
   REAL="$dir/gh"; break
 done < <(printf '%s\n' "${PATH//:/$'\n'}")
-[ -n "$REAL" ] || { echo "spechub-gh: no gh on \$PATH besides this shim" >&2; exit 127; }
+[ -n "$REAL" ] || { echo "acstack-gh: no gh on \$PATH besides this shim" >&2; exit 127; }
 
 # The dashboard is not an action: it owns the terminal for as long as it runs.
 [ "${1:-}" = "dash" ] && exec "$REAL" "$@"
@@ -628,7 +631,7 @@ RC=$?
 cat "$ERR" >&2
 
 # Only what a dashboard key fires. gh's own plumbing - repo view, api, auth -
-# fails for reasons a notification cannot help with, and spechub-dash asks gh
+# fails for reasons a notification cannot help with, and acstack-dash asks gh
 # which repository this is before the dashboard has even started.
 case "${1:-}" in pr|issue) ;; *) exit $RC ;; esac
 [ "$RC" -eq 0 ] && exit 0
@@ -639,47 +642,47 @@ command -v herdr >/dev/null 2>&1 \
   && herdr notification show "gh ${1:-} ${2:-} failed" --body "$MSG" >/dev/null 2>&1
 exit $RC
 H
-  chmod +x "$BIN/spechub-gh"
+  chmod +x "$BIN/acstack-gh"
 
-  cat > "$BIN/spechub-md" <<'H'
+  cat > "$BIN/acstack-md" <<'H'
 #!/usr/bin/env bash
 # Read a markdown file in the terminal with its mermaid diagrams drawn as text.
 #
-#   spechub-md FILE.md              render to the terminal
-#   spechub-md --preview FILE.md    render into a preview pane: width from
+#   acstack-md FILE.md              render to the terminal
+#   acstack-md --preview FILE.md    render into a preview pane: width from
 #                                   $COLUMNS, straight to stdout, no pager
-#   spechub-md --numbered FILE.md   the source instead, line numbers down the
+#   acstack-md --numbered FILE.md   the source instead, line numbers down the
 #                                   left, for quoting a line back in a review
-#   spechub-md --toggle-line-numbers  flip which of the two --preview shows
-#   spechub-md --diagram N FILE.md  one diagram alone, with horizontal scroll
-#   spechub-md --serve FILE.md      serve it for a real browser, print the link
-#   spechub-md --html FILE.md       print that same page as one HTML document
-#   spechub-md --browser FILE.md    open it in the browser you are sitting at
+#   acstack-md --toggle-line-numbers  flip which of the two --preview shows
+#   acstack-md --diagram N FILE.md  one diagram alone, with horizontal scroll
+#   acstack-md --serve FILE.md      serve it for a real browser, print the link
+#   acstack-md --html FILE.md       print that same page as one HTML document
+#   acstack-md --browser FILE.md    open it in the browser you are sitting at
 #
 # While reading, b opens the page in that browser and # switches between the
-# rendered document and its source with line numbers. $SPECHUB_MD_BROWSER_KEY
-# and $SPECHUB_MD_LINE_NUMBERS_KEY move them.
+# rendered document and its source with line numbers. $ACSTACK_MD_BROWSER_KEY
+# and $ACSTACK_MD_LINE_NUMBERS_KEY move them.
 #
 # Text, not images, is deliberate: herdr emits the kitty graphics protocol and
 # no terminal reachable from Windows or Android renders that, and e-ink panels
-# render text far better than bitmaps anyway. Installed by spechub.
+# render text far better than bitmaps anyway. Installed by acstack.
 set -uo pipefail
 
-PORT="${SPECHUB_MD_PORT:-6419}"
+PORT="${ACSTACK_MD_PORT:-6419}"
 # Named rather than inherited from an ambient $AGENT_BROWSER_CDP, for the
-# reason spechub-open gives at its own bridge branch: leaning on the ambient
+# reason acstack-open gives at its own bridge branch: leaning on the ambient
 # one launches a headless Chrome nobody can see and calls it success.
-BRIDGE="${SPECHUB_BRIDGE_URL:-http://127.0.0.1:19988}"
-OPENER="${SPECHUB_OPENER_URL:-http://127.0.0.1:19989}"
+BRIDGE="${ACSTACK_BRIDGE_URL:-http://127.0.0.1:19988}"
+OPENER="${ACSTACK_OPENER_URL:-http://127.0.0.1:19989}"
 # The opener refuses anything without this, so its absence is the same as the
 # opener being down - which is exactly how the route probe treats it.
-OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/spechub/opener.token"
+OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/acstack/opener.token"
 SERVE=0; ONLY=0; PREVIEW=0; HTML=0; BROWSER=0; NUMBERED=0; TOGGLE=0
-usage() { echo "usage: spechub-md [--preview] [--numbered] [--toggle-line-numbers] [--diagram N] [--serve|--html|--browser] FILE.md" >&2; exit 1; }
+usage() { echo "usage: acstack-md [--preview] [--numbered] [--toggle-line-numbers] [--diagram N] [--serve|--html|--browser] FILE.md" >&2; exit 1; }
 # The preview pane and the key that flips it are two processes that never meet,
 # so the choice between the rendered view and the source lives in a file both
 # of them can find. One name, defined once, is what keeps them agreeing.
-LINE_NUMBER_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/spechub/md-line-numbers"
+LINE_NUMBER_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/acstack/md-line-numbers"
 # A loop rather than a fixed order, so --preview composes with --diagram and
 # a caller can pass them either way round.
 while [ $# -gt 0 ]; do
@@ -701,13 +704,13 @@ done
 if [ "$TOGGLE" = "1" ]; then
   if [ -e "$LINE_NUMBER_FLAG" ]; then
     rm -f "$LINE_NUMBER_FLAG"
-    echo "spechub-md: markdown previews render again"
+    echo "acstack-md: markdown previews render again"
   else
     # A machine that has never had a state directory is every machine the
     # first time, so make it rather than fail on it.
     mkdir -p "$(dirname "$LINE_NUMBER_FLAG")" && : > "$LINE_NUMBER_FLAG" \
-      || { echo "spechub-md: could not write $LINE_NUMBER_FLAG" >&2; exit 1; }
-    echo "spechub-md: markdown previews show source with line numbers"
+      || { echo "acstack-md: could not write $LINE_NUMBER_FLAG" >&2; exit 1; }
+    echo "acstack-md: markdown previews show source with line numbers"
   fi
   exit 0
 fi
@@ -715,14 +718,14 @@ fi
 # does this end up - so at most one can be true. A preview pane is somewhere to
 # read, not somewhere to run a server or hand a document out of.
 if [ $((SERVE + PREVIEW + HTML + BROWSER)) -gt 1 ]; then
-  echo "spechub-md: --preview, --serve, --html and --browser do different things - pick one" >&2
+  echo "acstack-md: --preview, --serve, --html and --browser do different things - pick one" >&2
   exit 1
 fi
 # --numbered answers a different question - which of the two views - so it
 # composes with --preview and with nothing else. The others all want the
 # rendered document, and numbered source is not one.
 if [ "$NUMBERED" = "1" ] && [ $((SERVE + HTML + BROWSER)) -gt 0 ]; then
-  echo "spechub-md: --numbered prints the source, so --serve, --html and --browser have nothing to render" >&2
+  echo "acstack-md: --numbered prints the source, so --serve, --html and --browser have nothing to render" >&2
   exit 1
 fi
 # The flag is what the file manager's key flips, and the pane is the only
@@ -737,7 +740,7 @@ fi
 if [ "$PREVIEW" = "1" ] && [ "$ONLY" = "0" ] && [ -e "$LINE_NUMBER_FLAG" ]; then NUMBERED=1; fi
 # Node labels set a diagram's width, so padding cannot rescue a wide one.
 # Tightening still buys roughly a third of the height back.
-PAD="${SPECHUB_MD_PAD:--x 2 -y 2}"
+PAD="${ACSTACK_MD_PAD:--x 2 -y 2}"
 # A caller that exports COLUMNS means it, so it wins outright. tput reads
 # COLUMNS too, ahead of terminfo, but that is a side effect worth naming
 # rather than resting on - it goes when TERM is unset and tput fails.
@@ -749,7 +752,7 @@ esac
 FILE="${1:-}"
 [ -n "$FILE" ] && [ -f "$FILE" ] || usage
 # One place to clean up, so no exit path leaks a temp file.
-trap "rm -f /tmp/spechub-md.$$.md /tmp/spechub-md-out.$$.md /tmp/spechub-md-art.$$.* /tmp/spechub-md-keys.$$" EXIT
+trap "rm -f /tmp/acstack-md.$$.md /tmp/acstack-md-out.$$.md /tmp/acstack-md-art.$$.* /tmp/acstack-md-keys.$$" EXIT
 
 # Wanting a document in a browser happens while reading it, so the key belongs
 # in the pager rather than before or after one.
@@ -761,14 +764,14 @@ trap "rm -f /tmp/spechub-md.$$.md /tmp/spechub-md-out.$$.md /tmp/spechub-md-art.
 # "A" is 65, a value less never returns of its own accord. Nothing has to be
 # passed through the binding, because this script already knows the file.
 BROWSE_STATUS=65
-BROWSE_KEY="${SPECHUB_MD_BROWSER_KEY:-b}"
+BROWSE_KEY="${ACSTACK_MD_BROWSER_KEY:-b}"
 # The same trick a second time, for the other thing a reader wants mid-document.
 # Wanting a line number happens while reading too - that is the moment you are
 # about to quote one - and by then the file list with its own binding is not in
 # front of you. So the key means the same thing in both places.
 NUMBER_STATUS=66
-NUMBER_KEY="${SPECHUB_MD_LINE_NUMBERS_KEY:-#}"
-KEYS="/tmp/spechub-md-keys.$$"
+NUMBER_KEY="${ACSTACK_MD_LINE_NUMBERS_KEY:-#}"
+KEYS="/tmp/acstack-md-keys.$$"
 
 # A preview pane cannot page, so the same render goes straight to stdout.
 emit() {
@@ -819,18 +822,18 @@ emit() {
 # the marker into a line a person can read and put the drawing back under it.
 # Both output paths run this: without it the marker reaches the reader raw.
 splice() {
-  SPECHUB_PID=$$ SPECHUB_PREVIEW="$PREVIEW" python3 - "$1" <<'PY'
+  ACSTACK_PID=$$ ACSTACK_PREVIEW="$PREVIEW" python3 - "$1" <<'PY'
 import os, pathlib, re, sys
 f = pathlib.Path(sys.argv[1])
-pid = os.environ["SPECHUB_PID"]
-preview = os.environ.get("SPECHUB_PREVIEW") == "1"
+pid = os.environ["ACSTACK_PID"]
+preview = os.environ.get("ACSTACK_PREVIEW") == "1"
 lines = []
 for line in f.read_text().split("\n"):
-    m = re.search(r"\x00SPECHUBART(\d+)\x00", line)
+    m = re.search(r"\x00ACSTACKART(\d+)\x00", line)
     if not m:
         lines.append(line); continue
-    art = pathlib.Path(f"/tmp/spechub-md-art.{pid}.{m.group(1)}")
-    lines.append(re.sub(r"\x00SPECHUBART\d+\x00", f"Diagram {m.group(1)}:", line))
+    art = pathlib.Path(f"/tmp/acstack-md-art.{pid}.{m.group(1)}")
+    lines.append(re.sub(r"\x00ACSTACKART\d+\x00", f"Diagram {m.group(1)}:", line))
     if art.exists():
         # Art too wide for the pane would spill past it, so a preview pane
         # keeps the placeholder and leaves the drawing to a full-width read.
@@ -862,20 +865,20 @@ numbered() {  # numbered <file> -> stdout
 }
 
 if [ "$NUMBERED" = "1" ]; then
-  numbered "$FILE" > /tmp/spechub-md.$$.md
+  numbered "$FILE" > /tmp/acstack-md.$$.md
   # -S chops rather than wraps, so the arrow keys pan across a long line
   # instead of the gutter losing its column. emit sends a pane straight to
   # stdout and keeps the browser key working in the pager, both unchanged.
-  emit /tmp/spechub-md.$$.md less -SR
+  emit /tmp/acstack-md.$$.md less -SR
   exit 0
 fi
 
 # --browser names a destination rather than a rendering: work out where the
-# browser actually is, then pick the delivery that reaches it. spechub-open
+# browser actually is, then pick the delivery that reaches it. acstack-open
 # already answers that question for URLs, so ask it rather than deciding the
 # same thing twice and drifting from it later.
 if [ "$BROWSER" = "1" ]; then
-  case "$(command -v spechub-open >/dev/null 2>&1 && spechub-open --why 2>/dev/null)" in
+  case "$(command -v acstack-open >/dev/null 2>&1 && acstack-open --why 2>/dev/null)" in
     opener)
       # The opener stores the document on the laptop and serves it to the
       # browser there, so the page still works once this machine stops
@@ -885,7 +888,7 @@ if [ "$BROWSER" = "1" ]; then
       # because a path may hold anything a URL cannot.
       tok=$(cat "$OPENER_TOKEN" 2>/dev/null || true)
       if [ -z "$tok" ]; then
-        echo "spechub-md: no opener token at $OPENER_TOKEN." >&2
+        echo "acstack-md: no opener token at $OPENER_TOKEN." >&2
         echo "  run register-tasks.ps1 on the laptop to install one." >&2
         exit 1
       fi
@@ -895,20 +898,20 @@ if [ "$BROWSER" = "1" ]; then
       # Vendored mermaid, uploaded once so diagrams draw without reaching a
       # CDN. Best effort throughout: the opener redirects to the CDN when it
       # has no copy, so a failure here costs nothing but an outbound fetch.
-      vendored="$HOME/.local/share/spechub/mermaid.min.js"
+      vendored="$HOME/.local/share/acstack/mermaid.min.js"
       # tr, because whitespace inside JSON carries no meaning and a match that
       # depends on its absence is a match waiting to break. Same reasoning as
-      # spechub-open's /json/list check.
-      if [ -s "$vendored" ] && ! curl -fsS -m 3 -H "X-Spechub-Token: $tok" \
+      # acstack-open's /json/list check.
+      if [ -s "$vendored" ] && ! curl -fsS -m 3 -H "X-ACStack-Token: $tok" \
            "$OPENER/health" 2>/dev/null | tr -d '[:space:]' | grep -q '"mermaid":true'; then
-        curl -fsS -m 60 -X POST -H "X-Spechub-Token: $tok" \
+        curl -fsS -m 60 -X POST -H "X-ACStack-Token: $tok" \
           --data-binary "@$vendored" "$OPENER/asset/mermaid.js" >/dev/null 2>&1 || true
       fi
       # The opener answers with what it did, and that answer is what success
       # means - it says whether a tab was opened or a live one reused. An exit
       # status of 0 is not a page that arrived.
-      answer=$(SPECHUB_MD_OPENER=1 "$0" --html "$FILE" \
-        | curl -fsS -m 60 -X POST -H "X-Spechub-Token: $tok" \
+      answer=$(ACSTACK_MD_OPENER=1 "$0" --html "$FILE" \
+        | curl -fsS -m 60 -X POST -H "X-ACStack-Token: $tok" \
             -H 'Content-Type: text/html; charset=utf-8' --data-binary @- \
             "$OPENER/doc?key=$key&title=$(printf '%s' "$name" | hex)" 2>/dev/null \
         | tr -d '[:space:]')
@@ -920,8 +923,8 @@ if [ "$BROWSER" = "1" ]; then
           printf '%s is on screen in the browser on your machine\n' "$name" >&2
           exit 0 ;;
       esac
-      echo "spechub-md: the opener did not confirm the page reached a browser." >&2
-      echo "  check it is up:  spechub-open --why" >&2
+      echo "acstack-md: the opener did not confirm the page reached a browser." >&2
+      echo "  check it is up:  acstack-open --why" >&2
       exit 1
       ;;
     bridge)
@@ -947,7 +950,7 @@ if [ "$BROWSER" = "1" ]; then
       # document being replaced has the same origin. So the armed tab is left
       # exactly as it was, and this writes into a new one.
       #
-      # The default session deliberately, as spechub-open explains: the relay
+      # The default session deliberately, as acstack-open explains: the relay
       # takes one CDP client at a time, so a session of our own could not
       # connect while an agent holds it.
       #
@@ -979,9 +982,9 @@ if [ "$BROWSER" = "1" ]; then
       esac
       # Serving instead would print a link the laptop resolves to its own
       # localhost, which is a wrong answer dressed as a working one.
-      echo "spechub-md: the bridge answered but is not holding the page." >&2
+      echo "acstack-md: the bridge answered but is not holding the page." >&2
       echo "  the document goes to the tab the Playwriter extension is armed on." >&2
-      echo "  check something is still armed:  spechub-open --why" >&2
+      echo "  check something is still armed:  acstack-open --why" >&2
       exit 1
       ;;
   esac
@@ -994,13 +997,13 @@ if [ "$SERVE" = "1" ] || [ "$HTML" = "1" ]; then
   # One program, two ways out: --serve keeps answering with the document,
   # --html hands it over once and stops. Same renderer either way, so the two
   # cannot drift into disagreeing about what the page looks like.
-  MODE=serve; NAME=spechub-md-serve
-  if [ "$HTML" = "1" ]; then MODE=html; NAME=spechub-md-html; fi
+  MODE=serve; NAME=acstack-md-serve
+  if [ "$HTML" = "1" ]; then MODE=html; NAME=acstack-md-html; fi
   # A document bound for the opener on the laptop is handed over once, like
   # --html, but it does end up behind a server - the opener's. So it wants the
   # relative mermaid src that --html cannot use. Internal: set by the --browser
   # dispatch below, never by a caller.
-  if [ "${SPECHUB_MD_OPENER:-0}" = "1" ] && [ "$HTML" = "1" ]; then MODE=opener; fi
+  if [ "${ACSTACK_MD_OPENER:-0}" = "1" ] && [ "$HTML" = "1" ]; then MODE=opener; fi
   # exec -a names the process. Without it a running server is just "python3 -"
   # and there is nothing sensible to pkill.
   exec -a "$NAME" python3 - "$FILE" "$PORT" "$MODE" <<'PY'
@@ -1008,10 +1011,10 @@ import html, http.server, pathlib, re, socketserver, sys
 try:
     import markdown
 except ImportError:
-    sys.exit("spechub-md: needs the python markdown package: pip install --user markdown")
+    sys.exit("acstack-md: needs the python markdown package: pip install --user markdown")
 
 src, port, MODE = pathlib.Path(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
-VENDOR = pathlib.Path.home() / ".local/share/spechub/mermaid.min.js"
+VENDOR = pathlib.Path.home() / ".local/share/acstack/mermaid.min.js"
 
 CSS = """*{box-sizing:border-box}body{max-width:54rem;margin:0 auto;padding:2rem 1.25rem;
 font:16px/1.65 -apple-system,Segoe UI,system-ui,sans-serif;color:#1a1a1a;background:#fff}
@@ -1097,10 +1100,10 @@ except OSError as e:
     pid, cmd = holder(port)
     msg = [f"port {port} is busy: {e}"]
     if pid:
-        mine = "spechub-md-serve" in cmd or "spechub-md" in cmd
+        mine = "acstack-md-serve" in cmd or "acstack-md" in cmd
         msg.append(f"  held by pid {pid}: {cmd[:90]}")
         msg.append(f"  stop it with:  kill {pid}" if mine else
-                   f"  not spechub-md. use another port:  SPECHUB_MD_PORT=<n> spechub-md --serve ...")
+                   f"  not acstack-md. use another port:  ACSTACK_MD_PORT=<n> acstack-md --serve ...")
     else:
         msg.append("  could not identify the holder. try:  ss -ltnp | grep " + str(port))
     sys.exit("\n".join(msg))
@@ -1117,9 +1120,9 @@ fi
 
 
 # Terminal render: swap each mermaid fence for its text drawing, then page it.
-SPECHUB_COLS="$COLS" SPECHUB_PAD="$PAD" SPECHUB_ONLY="$ONLY" SPECHUB_RUN="$$" \
-SPECHUB_PREVIEW="$PREVIEW" \
-python3 - "$FILE" <<'PY' > /tmp/spechub-md.$$.md 2>/dev/null
+ACSTACK_COLS="$COLS" ACSTACK_PAD="$PAD" ACSTACK_ONLY="$ONLY" ACSTACK_RUN="$$" \
+ACSTACK_PREVIEW="$PREVIEW" \
+python3 - "$FILE" <<'PY' > /tmp/acstack-md.$$.md 2>/dev/null
 import os, pathlib, re, shlex, shutil, subprocess, sys, tempfile
 text = pathlib.Path(sys.argv[1]).read_text()
 # "$HOME/..." rather than the absolute path: shorter, and unlike ~'/x y'
@@ -1129,10 +1132,10 @@ _home = str(pathlib.Path.home())
 SELF = ('"$HOME' + _raw[len(_home):].replace('"', '\\"') + '"'
         if _raw.startswith(_home) else shlex.quote(_raw))
 have = shutil.which("mermaid-ascii")
-COLS = int(os.environ.get("SPECHUB_COLS") or 80)
-PAD = (os.environ.get("SPECHUB_PAD") or "").split()
-ONLY = int(os.environ.get("SPECHUB_ONLY") or 0)
-PREVIEW = os.environ.get("SPECHUB_PREVIEW") == "1"
+COLS = int(os.environ.get("ACSTACK_COLS") or 80)
+PAD = (os.environ.get("ACSTACK_PAD") or "").split()
+ONLY = int(os.environ.get("ACSTACK_ONLY") or 0)
+PREVIEW = os.environ.get("ACSTACK_PREVIEW") == "1"
 # glow indents and pads a fenced block, so the art has less room than the pane.
 BUDGET = max(20, COLS - 6)
 seen = 0
@@ -1190,15 +1193,15 @@ def repl(m):
         # glow wraps whatever it renders, and wrapped box-drawing art is
         # noise. Emit a marker instead and splice the raw art back in after
         # glow has run, so prose wraps to the pane and the diagram does not.
-        run = os.environ.get("SPECHUB_RUN") or str(os.getpid())
+        run = os.environ.get("ACSTACK_RUN") or str(os.getpid())
         # /tmp, not gettempdir(): the shell trap and the splicer both look
         # there, and a stray $TMPDIR would hide the art from either.
-        art_path = pathlib.Path(f"/tmp/spechub-md-art.{run}.{n}")
+        art_path = pathlib.Path(f"/tmp/acstack-md-art.{run}.{n}")
         art_path.write_text(art + "\n")
         # The arrow keys belong to the pager. A preview pane has none, and
         # opening the file is what draws the diagram there.
         hint = "open it full width" if PREVIEW else "pans sideways with the arrow keys"
-        return f"\n```\n\x00SPECHUBART{n}\x00 {width} cols, {hint}\n```"
+        return f"\n```\n\x00ACSTACKART{n}\x00 {width} cols, {hint}\n```"
     return "```\n" + art + "\n```"
 
 out = re.sub(r"```mermaid\n(.*?)```", repl, text, flags=re.S)
@@ -1211,18 +1214,18 @@ PY
 
 if [ "$ONLY" != "0" ]; then
   # -S chops instead of wrapping: arrow keys scroll sideways.
-  emit /tmp/spechub-md.$$.md less -SR
+  emit /tmp/acstack-md.$$.md less -SR
 elif command -v glow >/dev/null 2>&1; then
   # glow drops all styling when stdout is not a terminal, and its output has
   # to be captured to splice the diagrams into, so it runs under a pty.
-  SPECHUB_COLS="$COLS" SPECHUB_STYLE="${SPECHUB_MD_STYLE:-}" \
-    python3 - /tmp/spechub-md.$$.md /tmp/spechub-md-out.$$.md <<'PY'
+  ACSTACK_COLS="$COLS" ACSTACK_STYLE="${ACSTACK_MD_STYLE:-}" \
+    python3 - /tmp/acstack-md.$$.md /tmp/acstack-md-out.$$.md <<'PY'
 import fcntl, os, pathlib, pty, re, struct, subprocess, sys, termios
 src, dst = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
-cols = int(os.environ.get("SPECHUB_COLS") or 80)
+cols = int(os.environ.get("ACSTACK_COLS") or 80)
 # Leave glow on "auto": under a pty it picks its full palette. Pinning a
 # named style here gives a noticeably flatter one.
-style = os.environ.get("SPECHUB_STYLE") or ""
+style = os.environ.get("ACSTACK_STYLE") or ""
 
 cmd = ["glow", "-w", str(cols - 2)] + (["--style", style] if style else []) + [str(src)]
 master, slave = pty.openpty()
@@ -1248,40 +1251,40 @@ text = re.sub(r"\x1b\][01][01];\?(\x07|\x1b\\)", "", text)
 text = re.sub(r"\x1b\[6n", "", text)
 dst.write_text(text)
 PY
-  splice /tmp/spechub-md-out.$$.md
-  emit /tmp/spechub-md-out.$$.md ${PAGER:-less -SR}
+  splice /tmp/acstack-md-out.$$.md
+  emit /tmp/acstack-md-out.$$.md ${PAGER:-less -SR}
 else
-  splice /tmp/spechub-md.$$.md
-  emit /tmp/spechub-md.$$.md ${PAGER:-less -R}
+  splice /tmp/acstack-md.$$.md
+  emit /tmp/acstack-md.$$.md ${PAGER:-less -R}
 fi
 H
-  chmod +x "$BIN/spechub-md"
+  chmod +x "$BIN/acstack-md"
 
-  cat > "$BIN/spechub-view" <<'H'
+  cat > "$BIN/acstack-view" <<'H'
 #!/usr/bin/env bash
 # View one file, picked by what the file is.
 #
-#   spechub-view README.md      rendered markdown, mermaid diagrams included
-#   spechub-view src/main.rs    yazi, opened with the cursor on that file
+#   acstack-view README.md      rendered markdown, mermaid diagrams included
+#   acstack-view src/main.rs    yazi, opened with the cursor on that file
 #
 # tuicr's <leader>v hands us the file under its cursor. Everything this
 # dispatches to is a terminal program, so `q` hands the screen back to tuicr
 # the same way a terminal editor does - which is the whole reason the choice
 # lives in a script rather than in tuicr: changing it is an edit, not a
 # rebuild.
-# Installed by spechub.
+# Installed by acstack.
 set -uo pipefail
 
 FILE="${1:-}"
-[ -n "$FILE" ] || { echo "usage: spechub-view <file>" >&2; exit 2; }
-[ -e "$FILE" ] || { echo "spechub-view: no such file: $FILE" >&2; exit 1; }
+[ -n "$FILE" ] || { echo "usage: acstack-view <file>" >&2; exit 2; }
+[ -e "$FILE" ] || { echo "acstack-view: no such file: $FILE" >&2; exit 1; }
 
-# Markdown is worth rendering rather than listing: spechub-md draws mermaid
+# Markdown is worth rendering rather than listing: acstack-md draws mermaid
 # diagrams as text, and offers --serve for a browser when a diagram needs to
 # be rendered properly.
 case "$FILE" in
   *.md|*.MD|*.markdown|*.Markdown|*.mdown|*.mkd)
-    command -v spechub-md >/dev/null 2>&1 && exec spechub-md "$FILE"
+    command -v acstack-md >/dev/null 2>&1 && exec acstack-md "$FILE"
     ;;
 esac
 
@@ -1292,30 +1295,30 @@ command -v yazi >/dev/null 2>&1 && exec yazi "$FILE"
 # Neither installed: a pager still beats nothing, and -R keeps any colour.
 exec ${PAGER:-less -R} "$FILE"
 H
-  chmod +x "$BIN/spechub-view"
+  chmod +x "$BIN/acstack-view"
 
-  cat > "$BIN/spechub-popup" <<'H'
+  cat > "$BIN/acstack-popup" <<'H'
 #!/bin/sh
 # Run a herdr popup's command with this folder first on PATH.
 #
-#   spechub-popup <command> [args...]
+#   acstack-popup <command> [args...]
 #
 # herdr runs a popup with its server's environment, not a login shell. A
 # server started by `herdr --remote` has the sshd default PATH, which lacks
 # this folder, so a bare popup target exits 127. apply calls this helper by
 # absolute path, and it finds its folder from $0. herdr and harlequin always
 # link into ~/.local/bin, so that goes on PATH too. The target and every tool
-# it starts then resolve whatever PATH the server has. Installed by spechub.
+# it starts then resolve whatever PATH the server has. Installed by acstack.
 PATH="$(dirname "$0"):$HOME/.local/bin:$PATH"; export PATH
 exec "$@"
 H
-  chmod +x "$BIN/spechub-popup"
+  chmod +x "$BIN/acstack-popup"
 
-  cat > "$BIN/spechub-herdr-tab" <<'H'
+  cat > "$BIN/acstack-herdr-tab" <<'H'
 #!/usr/bin/env bash
 # Run a command in a new herdr tab, beside the pane the key was pressed in.
 #
-#   spechub-herdr-tab <label> <command> [args...]
+#   acstack-herdr-tab <label> <command> [args...]
 #
 # herdr has no type = "tab" custom command, and its tab.create API launches a
 # shell rather than a command, so the tab is created first and the command
@@ -1325,11 +1328,11 @@ H
 # type = "shell" binding runs detached with none of them set, and reading the
 # environment sent every one of these commands off to run with no terminal.
 # Asked without that environment, herdr reports the focused pane, which is
-# exactly the one the key was pressed in. Installed by spechub.
+# exactly the one the key was pressed in. Installed by acstack.
 set -uo pipefail
 
-label="${1:?usage: spechub-herdr-tab <label> <command> [args...]}"; shift
-[ $# -gt 0 ] || { echo "spechub-herdr-tab: no command given" >&2; exit 1; }
+label="${1:?usage: acstack-herdr-tab <label> <command> [args...]}"; shift
+[ $# -gt 0 ] || { echo "acstack-herdr-tab: no command given" >&2; exit 1; }
 
 command -v herdr >/dev/null 2>&1 || exec "$@"
 
@@ -1362,13 +1365,13 @@ printf -v cmd '%q ' "$@"
 disown 2>/dev/null || true
 exit 0
 H
-  chmod +x "$BIN/spechub-herdr-tab"
+  chmod +x "$BIN/acstack-herdr-tab"
 
-  cat > "$BIN/spechub-edit" <<'H'
+  cat > "$BIN/acstack-edit" <<'H'
 #!/usr/bin/env bash
 # Open one file in its own herdr tab, for tools that shell out to $EDITOR.
 #
-#   spechub-edit <file>
+#   acstack-edit <file>
 #
 # diffnav's "o" key runs $EDITOR inside diffnav's own pane. For alt+f and alt+x
 # that pane is a herdr popup, and a popup cannot host a second full-screen app,
@@ -1376,24 +1379,24 @@ H
 # herdr tab and returns at once, which leaves the diff untouched behind the
 # popup. Close the popup to reach the tab.
 #
-# SPECHUB_EDIT_EDITOR names the real editor: whatever set this script as
+# ACSTACK_EDIT_EDITOR names the real editor: whatever set this script as
 # $EDITOR has already taken that variable.
 #
-# spechub-herdr-tab does the work. It finds the pane behind the popup, creates
+# acstack-herdr-tab does the work. It finds the pane behind the popup, creates
 # the tab, and runs the editor in it, and it runs the editor in place when
-# there is no herdr to ask. Installed by spechub.
+# there is no herdr to ask. Installed by acstack.
 set -uo pipefail
 
-ED="${SPECHUB_EDIT_EDITOR:-nvim}"
-case "$ED" in *spechub-edit) ED=nvim ;; esac   # never call itself
-FILE="${1:?usage: spechub-edit <file>}"
+ED="${ACSTACK_EDIT_EDITOR:-nvim}"
+case "$ED" in *acstack-edit) ED=nvim ;; esac   # never call itself
+FILE="${1:?usage: acstack-edit <file>}"
 
-command -v spechub-herdr-tab >/dev/null 2>&1 || exec "$ED" "$FILE"
-exec spechub-herdr-tab "$(basename "$FILE")" "$ED" "$FILE"
+command -v acstack-herdr-tab >/dev/null 2>&1 || exec "$ED" "$FILE"
+exec acstack-herdr-tab "$(basename "$FILE")" "$ED" "$FILE"
 H
-  chmod +x "$BIN/spechub-edit"
+  chmod +x "$BIN/acstack-edit"
 
-  cat > "$BIN/spechub-herdr-renumber" <<'H'
+  cat > "$BIN/acstack-herdr-renumber" <<'H'
 #!/usr/bin/env python3
 """Make the herdr sidebar numbers match prefix+1..9.
 
@@ -1405,7 +1408,7 @@ numbers you read stop being the numbers you press.
 
 This rewrites the stored order to match the grouped order, so both agree again.
 Run it after adding or removing a worktree. Safe to run repeatedly. Installed
-by spechub.
+by acstack.
 """
 import json
 import os
@@ -1426,7 +1429,7 @@ def call(method, params=None):
         conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         conn.connect(socket_path())
     except OSError as err:
-        sys.exit(f"spechub-herdr-renumber: no herdr server at {socket_path()} ({err})")
+        sys.exit(f"acstack-herdr-renumber: no herdr server at {socket_path()} ({err})")
     with conn:
         conn.sendall((json.dumps({"id": "renumber", "method": method,
                                   "params": params or {}}) + "\n").encode())
@@ -1438,10 +1441,10 @@ def call(method, params=None):
             buf += chunk
     lines = buf.decode().strip().splitlines()
     if not lines:
-        sys.exit(f"spechub-herdr-renumber: herdr closed the connection during {method}")
+        sys.exit(f"acstack-herdr-renumber: herdr closed the connection during {method}")
     reply = json.loads(lines[0])
     if "error" in reply:
-        sys.exit(f"spechub-herdr-renumber: {method} failed: {reply['error']}")
+        sys.exit(f"acstack-herdr-renumber: {method} failed: {reply['error']}")
     return reply
 
 
@@ -1488,15 +1491,15 @@ def main():
 if __name__ == "__main__":
     main()
 H
-  chmod +x "$BIN/spechub-herdr-renumber"
+  chmod +x "$BIN/acstack-herdr-renumber"
 
-  cat > "$BIN/spechub-clip" <<'H'
+  cat > "$BIN/acstack-clip" <<'H'
 #!/usr/bin/env bash
 # Put text on the clipboard of the machine your terminal is on.
 #
-#   spechub-clip "text"      copy the arguments
-#   ... | spechub-clip       copy stdin
-#   spechub-clip --out       print what was copied last
+#   acstack-clip "text"      copy the arguments
+#   ... | acstack-clip       copy stdin
+#   acstack-clip --out       print what was copied last
 #
 # A VM reached over SSH has no display and no clipboard of its own, so
 # xclip and friends have nothing to talk to. OSC 52 is the escape sequence
@@ -1506,10 +1509,10 @@ H
 # terminal is hosting it.
 #
 # Reading back is not symmetrical. Windows Terminal refuses OSC 52 reads on
-# purpose, so --out replays a local cache instead. Installed by spechub.
+# purpose, so --out replays a local cache instead. Installed by acstack.
 set -uo pipefail
 
-CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/spechub/clipboard"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/acstack/clipboard"
 
 # A real clipboard beats an escape sequence when one exists. Anything sitting
 # in this script's own directory is skipped, so the xclip shim installed
@@ -1537,7 +1540,7 @@ if [ "${1:-}" = "--out" ] || [ "${1:-}" = "-o" ]; then
       esac
     done
   fi
-  [ -f "$CACHE" ] || { echo "spechub-clip: nothing copied yet" >&2; exit 1; }
+  [ -f "$CACHE" ] || { echo "acstack-clip: nothing copied yet" >&2; exit 1; }
   cat "$CACHE"
   exit 0
 fi
@@ -1564,7 +1567,7 @@ b64="$(printf '%s' "$text" | base64 | tr -d '\n')"
 # of anything in this path. Past it the sequence is dropped without a word,
 # so say so rather than report a copy that did not happen.
 if [ ${#b64} -gt 74994 ]; then
-  echo "spechub-clip: too large for the terminal clipboard (${#b64} bytes encoded)" >&2
+  echo "acstack-clip: too large for the terminal clipboard (${#b64} bytes encoded)" >&2
   exit 1
 fi
 
@@ -1580,14 +1583,14 @@ fi
 if { printf '%s' "$esc" > /dev/tty; } 2>/dev/null; then exit 0; fi
 printf '%s' "$esc" >&2
 H
-  chmod +x "$BIN/spechub-clip"
+  chmod +x "$BIN/acstack-clip"
 
-  cat > "$BIN/spechub-open" <<'H'
+  cat > "$BIN/acstack-open" <<'H'
 #!/usr/bin/env bash
 # Open a URL from a machine that has no browser of its own.
 #
-#   spechub-open https://github.com/owner/repo/pull/1
-#   spechub-open --why      which route this machine will take, without taking it
+#   acstack-open https://github.com/owner/repo/pull/1
+#   acstack-open --why      which route this machine will take, without taking it
 #
 # gh-dash binds o to this. It is bound as a keybinding rather than left to
 # $BROWSER because gh-dash runs $BROWSER with its output discarded and the
@@ -1598,23 +1601,23 @@ H
 # In order: an explicit override, a desktop on this machine, WSL, the opener
 # service on the laptop, the Playwriter bridge to Chrome on the laptop, and
 # last a link you can click.
-# Installed by spechub.
+# Installed by acstack.
 set -uo pipefail
 
-LOG="${XDG_CACHE_HOME:-$HOME/.cache}/spechub/open.log"
+LOG="${XDG_CACHE_HOME:-$HOME/.cache}/acstack/open.log"
 # An ambient $AGENT_BROWSER_CDP is a hint, never the thing we rely on. See
 # the bridge branch below for what happened when it was.
-BRIDGE="${SPECHUB_BRIDGE_URL:-${AGENT_BROWSER_CDP:-http://127.0.0.1:19988}}"
-OPENER="${SPECHUB_OPENER_URL:-http://127.0.0.1:19989}"
+BRIDGE="${ACSTACK_BRIDGE_URL:-${AGENT_BROWSER_CDP:-http://127.0.0.1:19988}}"
+OPENER="${ACSTACK_OPENER_URL:-http://127.0.0.1:19989}"
 # The opener refuses anything without this, so its absence is the same as the
 # opener being down - which is exactly how the route probe treats it.
-OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/spechub/opener.token"
+OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/acstack/opener.token"
 
 WHY=0
 [ "${1:-}" = "--why" ] && { WHY=1; shift; }
 URL="${1:-}"
 [ -n "$URL" ] || [ "$WHY" = 1 ] \
-  || { echo "usage: spechub-open [--why] <url>" >&2; exit 2; }
+  || { echo "usage: acstack-open [--why] <url>" >&2; exit 2; }
 
 log() {  # the only record of what happened when the caller discards output
   mkdir -p "$(dirname "$LOG")"
@@ -1651,7 +1654,7 @@ has_tty() { { : > /dev/tty; } 2>/dev/null; }
 # session is already running - so a perfectly healthy bridge still fell
 # through to the link route. Asking the relay is both safer and correct.
 bridge_attached() {
-  [ "${SPECHUB_OPEN_BRIDGE:-auto}" != "off" ] || return 1
+  [ "${ACSTACK_OPEN_BRIDGE:-auto}" != "off" ] || return 1
   # agent-browser has to exist to take the route, but is never run to decide
   # it: deciding must cost one round trip, not a browser launch.
   command -v agent-browser >/dev/null 2>&1 || return 1
@@ -1674,17 +1677,17 @@ bridge_attached() {
 # probe carries the token and the route is only taken if that round trip
 # answered.
 opener_ready() {
-  [ "${SPECHUB_OPEN_OPENER:-auto}" != "off" ] || return 1
+  [ "${ACSTACK_OPEN_OPENER:-auto}" != "off" ] || return 1
   local tok
   tok=$(cat "$OPENER_TOKEN" 2>/dev/null) || return 1
   [ -n "$tok" ] || return 1
   # Seconds, not tens of them - someone just pressed a key and is watching.
-  curl -fsS --connect-timeout 1 -m 2 -H "X-Spechub-Token: $tok" \
+  curl -fsS --connect-timeout 1 -m 2 -H "X-ACStack-Token: $tok" \
     "$OPENER/health" >/dev/null 2>&1
 }
 
 route() {  # the route this machine will take, decided without taking it
-  [ -n "${SPECHUB_OPEN_CMD:-}" ] && { echo "command"; return; }
+  [ -n "${ACSTACK_OPEN_CMD:-}" ] && { echo "command"; return; }
   [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ] && command -v xdg-open >/dev/null 2>&1 \
     && { echo "xdg-open"; return; }
   local opener
@@ -1708,7 +1711,7 @@ route() {  # the route this machine will take, decided without taking it
 # on the next line covers terminals that ignore OSC 8, and the clipboard
 # copy covers not wanting to click at all.
 link_screen() {
-  printf '%s' "$URL" | spechub-clip
+  printf '%s' "$URL" | acstack-clip
   {
     printf '\n  Open on GitHub\n\n  '
     printf '\033]8;;%s\033\\%s\033]8;;\033\\\n' "$URL" "$URL"
@@ -1724,8 +1727,8 @@ ROUTE="$(route)"
 
 case "$ROUTE" in
   command)
-    log "override: $SPECHUB_OPEN_CMD $URL"
-    exec ${SPECHUB_OPEN_CMD} "$URL"
+    log "override: $ACSTACK_OPEN_CMD $URL"
+    exec ${ACSTACK_OPEN_CMD} "$URL"
     ;;
   xdg-open)
     # $BROWSER is cleared first: xdg-open reads it too, and $BROWSER may well
@@ -1756,7 +1759,7 @@ case "$ROUTE" in
       *'"'*|*'\\'*) tok="" ;;
     esac
     if [ -n "$tok" ] && curl -fsS --connect-timeout 2 -m 10 -X POST \
-         -H "X-Spechub-Token: $tok" -H 'Content-Type: application/json' \
+         -H "X-ACStack-Token: $tok" -H 'Content-Type: application/json' \
          --data "$(printf '{"url":"%s"}' "$URL")" \
          "$OPENER/open" 2>/dev/null | tr -d '[:space:]' | grep -q '"opened":true'; then
       log "opener $OPENER: $URL"
@@ -1774,7 +1777,7 @@ case "$ROUTE" in
     # The default session, deliberately: the relay takes one CDP client at a
     # time, so a session of our own cannot connect while an agent holds it.
     # That also means the new tab becomes the active one for any agent
-    # driving that browser. SPECHUB_OPEN_BRIDGE=off trades the one-key open
+    # driving that browser. ACSTACK_OPEN_BRIDGE=off trades the one-key open
     # for never touching it.
     if timeout 20 agent-browser --cdp "$BRIDGE" tab new >/dev/null 2>&1 \
        && timeout 30 agent-browser --cdp "$BRIDGE" open "$URL" >/dev/null 2>&1; then
@@ -1792,7 +1795,7 @@ esac
 # paste from the browser on the machine you are sitting at, which beats
 # nothing, but report failure anyway: a silent success here is what left
 # gh-dash saying "Opened in browser" about a page that never opened.
-if printf '%s' "$URL" | spechub-clip; then
+if printf '%s' "$URL" | acstack-clip; then
   log "copied, not opened: $URL"
   note "URL copied, not opened" "No browser reachable from here. Paste: $URL"
   exit 3
@@ -1801,15 +1804,15 @@ log "no route: $URL"
 note "Cannot open URL" "$URL"
 exit 1
 H
-  chmod +x "$BIN/spechub-open"
+  chmod +x "$BIN/acstack-open"
 
-  cat > "$BIN/spechub-bridge" <<'H'
+  cat > "$BIN/acstack-bridge" <<'H'
 #!/usr/bin/env bash
 # Look at the Playwriter bridge from the dev machine, and fix it where that is
 # possible from here.
 #
-#   spechub-bridge status        what is up, on both machines
-#   spechub-bridge fix [what]    restart relay | tunnel | both (default both)
+#   acstack-bridge status        what is up, on both machines
+#   acstack-bridge fix [what]    restart relay | tunnel | both (default both)
 #
 # Restarting either is a Windows scheduled task, so this machine cannot do it
 # directly. It asks the opener, which runs over there and can. When the opener
@@ -1818,13 +1821,13 @@ H
 #
 # What it still cannot do is arm the extension. That is a click inside a
 # third-party extension and nothing on either machine can press it.
-# Installed by spechub.
+# Installed by acstack.
 set -uo pipefail
 
-BRIDGE="${SPECHUB_BRIDGE_URL:-http://127.0.0.1:19988}"
-OPENER="${SPECHUB_OPENER_URL:-http://127.0.0.1:19989}"
-OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/spechub/opener.token"
-FREE_PORT="${SPECHUB_FREE_PORT:-$HOME/.claude/spechub/bin/vm-free-port.sh}"
+BRIDGE="${ACSTACK_BRIDGE_URL:-http://127.0.0.1:19988}"
+OPENER="${ACSTACK_OPENER_URL:-http://127.0.0.1:19989}"
+OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/acstack/opener.token"
+FREE_PORT="${ACSTACK_FREE_PORT:-$HOME/.claude/acstack/bin/vm-free-port.sh}"
 
 CMD="${1:-status}"
 WHAT="${2:-both}"
@@ -1837,7 +1840,7 @@ clear_port() {  # clear_port <port> - let go of a forward this machine still hol
   # task on the laptop then fails exactly the way it failed before, because
   # nothing here let go of the port. So this runs first.
   #
-  # The clearer ships with spechub and may simply not be installed on a machine
+  # The clearer ships with acstack and may simply not be installed on a machine
   # that got the terminal workspace some other way. Worth saying, but not a
   # reason to refuse the restart, which may be all that was needed.
   if [ ! -f "$FREE_PORT" ]; then
@@ -1854,7 +1857,7 @@ clear_port() {  # clear_port <port> - let go of a forward this machine still hol
   # the flag, does not recognise the argument, and exits 64 - the usage code,
   # which is not "the port is stuck" and is not worth a retry without the flag.
   local older="is older than this branch, so it cannot free $1 on request."
-  local fix="Update spechub on this machine to refresh it. Asking for the restart anyway."
+  local fix="Update acstack on this machine to refresh it. Asking for the restart anyway."
   if ! grep -q -- '--port' "$FREE_PORT" 2>/dev/null; then
     echo "$FREE_PORT $older It has no --port support at all. $fix" >&2
     return 0
@@ -1872,10 +1875,10 @@ opener_call() {  # opener_call <method> <path> [data]
   local t; t=$(tok) || return 1
   [ -n "$t" ] || return 1
   if [ "$1" = "POST" ]; then
-    curl -fsS --connect-timeout 2 -m 40 -X POST -H "X-Spechub-Token: $t" \
+    curl -fsS --connect-timeout 2 -m 40 -X POST -H "X-ACStack-Token: $t" \
       -H 'Content-Type: application/json' --data "${3:-{\}}" "$OPENER$2" 2>/dev/null
   else
-    curl -fsS --connect-timeout 2 -m 10 -H "X-Spechub-Token: $t" "$OPENER$2" 2>/dev/null
+    curl -fsS --connect-timeout 2 -m 10 -H "X-ACStack-Token: $t" "$OPENER$2" 2>/dev/null
   fi
 }
 
@@ -1936,12 +1939,12 @@ case "$CMD" in
     else
       echo "tasks:   unknown - the opener is the only way to see them from here"
     fi
-    echo "route:   $(spechub-open --why 2>/dev/null || echo unknown)"
+    echo "route:   $(acstack-open --why 2>/dev/null || echo unknown)"
     ;;
   fix)
     case "$WHAT" in
       relay|tunnel|both) ;;
-      *) echo "usage: spechub-bridge fix [relay|tunnel|both]" >&2; exit 2 ;;
+      *) echo "usage: acstack-bridge fix [relay|tunnel|both]" >&2; exit 2 ;;
     esac
     # A tunnel restart is the only case where a port here is in the way. Both
     # ports get cleared, because the opener's 19989 is forwarded by its own task
@@ -1985,23 +1988,23 @@ case "$CMD" in
     exit 1
     ;;
   *)
-    echo "usage: spechub-bridge [status|fix [relay|tunnel|both]]" >&2
+    echo "usage: acstack-bridge [status|fix [relay|tunnel|both]]" >&2
     exit 2
     ;;
 esac
 H
-  chmod +x "$BIN/spechub-bridge"
+  chmod +x "$BIN/acstack-bridge"
 
-  say "helpers written: spechub-diff, spechub-dash, spechub-db, spechub-md, spechub-view"
-  say "remote helpers written: spechub-clip, spechub-open, spechub-bridge"
-  say "herdr helpers written: spechub-popup, spechub-herdr-tab, spechub-herdr-renumber, spechub-edit"
+  say "helpers written: acstack-diff, acstack-dash, acstack-db, acstack-md, acstack-view"
+  say "remote helpers written: acstack-clip, acstack-open, acstack-bridge"
+  say "herdr helpers written: acstack-popup, acstack-herdr-tab, acstack-herdr-renumber, acstack-edit"
 }
 
 apply_herdr() {
   have herdr || { say "herdr not installed, skipping keymap"; return 0; }
-  # Every popup runs through spechub-popup. disable reaches here without
+  # Every popup runs through acstack-popup. disable reaches here without
   # apply, so after an upgrade the helper may not exist yet.
-  [ -x "$BIN/spechub-popup" ] || write_helpers
+  [ -x "$BIN/acstack-popup" ] || write_helpers
   mkdir -p "$(dirname "$HERDR_CFG")"; touch "$HERDR_CFG"
   local mod wt diffkey dashkey filekey filetabkey difftabkey dashtabkey
   local pickkey picktabkey gitkey gittabkey dbkey dbtabkey scrollbars
@@ -2045,34 +2048,34 @@ apply_herdr() {
   [ "$(cfg_get lazygit.enabled true)" = "true" ] || { gitkey=""; gittabkey=""; }
   [ "$(cfg_get harlequin.enabled true)" = "true" ] || { dbkey=""; dbtabkey=""; }
 
-  SPECHUB_ARGS="$mod|$wt|$diffkey|$dashkey|$filekey|$filetabkey|$difftabkey|$dashtabkey|$pickkey|$picktabkey|$gitkey|$gittabkey|$dbkey|$dbtabkey|$scrollbars|$theme|$themeauto|$themelight|$toast|$labels|$panelsort|$BEGIN|$END" SPECHUB_BIN="$BIN" py "$HERDR_CFG" <<'PY'
+  ACSTACK_ARGS="$mod|$wt|$diffkey|$dashkey|$filekey|$filetabkey|$difftabkey|$dashtabkey|$pickkey|$picktabkey|$gitkey|$gittabkey|$dbkey|$dbtabkey|$scrollbars|$theme|$themeauto|$themelight|$toast|$labels|$panelsort|$BEGIN|$END" ACSTACK_BIN="$BIN" py "$HERDR_CFG" <<'PY'
 import os, re, sys
 path = sys.argv[1]
 # herdr runs a popup with its server's PATH, which can lack $BIN. Each popup
-# goes through spechub-popup by absolute path, which puts $BIN back on PATH.
-popup = os.path.join(os.environ["SPECHUB_BIN"], "spechub-popup")
+# goes through acstack-popup by absolute path, which puts $BIN back on PATH.
+popup = os.path.join(os.environ["ACSTACK_BIN"], "acstack-popup")
 (mod, wt, diffkey, dashkey, filekey, filetabkey, difftabkey, dashtabkey,
  pickkey, picktabkey, gitkey, gittabkey, dbkey, dbtabkey, scrollbars,
  theme, themeauto, themelight, toast, labels, panelsort,
- begin, end) = os.environ["SPECHUB_ARGS"].split("|")
+ begin, end) = os.environ["ACSTACK_ARGS"].split("|")
 
 # key, command, description, herdr custom-command type, popup size.
 # type "shell" takes no size: herdr rejects width/height on a non-popup.
 CUSTOM = [
-    (diffkey,    "spechub-diff",                  "diff: branch vs dev", "popup", "90%"),
-    (difftabkey, "spechub-herdr-tab diff spechub-diff", "diff: branch vs dev (tab)", "shell", None),
-    (pickkey,    "spechub-diff pick",             "diff: pick what to compare", "popup", "90%"),
-    (picktabkey, "spechub-herdr-tab diffpick spechub-diff pick",
+    (diffkey,    "acstack-diff",                  "diff: branch vs dev", "popup", "90%"),
+    (difftabkey, "acstack-herdr-tab diff acstack-diff", "diff: branch vs dev (tab)", "shell", None),
+    (pickkey,    "acstack-diff pick",             "diff: pick what to compare", "popup", "90%"),
+    (picktabkey, "acstack-herdr-tab diffpick acstack-diff pick",
                                                   "diff: pick what to compare (tab)", "shell", None),
-    (dashkey,    "spechub-dash",                  "PR dashboard",       "popup", "95%"),
-    (dashtabkey, "spechub-herdr-tab dash spechub-dash", "PR dashboard (tab)", "shell", None),
+    (dashkey,    "acstack-dash",                  "PR dashboard",       "popup", "95%"),
+    (dashtabkey, "acstack-herdr-tab dash acstack-dash", "PR dashboard (tab)", "shell", None),
     (filekey,    "yazi",                          "file tree",          "popup", "95%"),
-    (filetabkey, "spechub-herdr-tab yazi yazi",         "file tree (tab)",    "shell", None),
+    (filetabkey, "acstack-herdr-tab yazi yazi",         "file tree (tab)",    "shell", None),
     (gitkey,     "lazygit",                       "git: stage, commit, push", "popup", "90%"),
-    (gittabkey,  "spechub-herdr-tab lazygit lazygit",
+    (gittabkey,  "acstack-herdr-tab lazygit lazygit",
                                                   "git: stage, commit, push (tab)", "shell", None),
-    (dbkey,      "spechub-db",                    "db: harlequin SQL editor", "popup", "90%"),
-    (dbtabkey,   "spechub-herdr-tab harlequin spechub-db",
+    (dbkey,      "acstack-db",                    "db: harlequin SQL editor", "popup", "90%"),
+    (dbtabkey,   "acstack-herdr-tab harlequin acstack-db",
                                                   "db: harlequin SQL editor (tab)", "shell", None),
 ]
 
@@ -2321,7 +2324,7 @@ build_tuicr_fork() {
   local url branch dir
   url=$(cfg_get tuicr.fork "https://github.com/ac8318740/tuicr")
   branch=$(cfg_get tuicr.fork_branch "local/daily")
-  dir="${SPECHUB_TUICR_SRC:-$HOME/tuicr}"
+  dir="${ACSTACK_TUICR_SRC:-$HOME/tuicr}"
   if [ -d "$dir/.git" ]; then
     git -C "$dir" fetch --quiet --all 2>/dev/null
     git -C "$dir" checkout --quiet "$branch" 2>/dev/null || { say "tuicr: no branch $branch in $dir"; return 1; }
@@ -2360,11 +2363,11 @@ apply_tuicr() {
   mkdir -p "$HOME/.config/tuicr"
   # show_file_line_stats and file_list_width only exist in the fork build.
   # Writing them against a stock release makes tuicr warn on every start.
-  SPECHUB_ARGS="$from_fork|$(cfg_get tuicr.file_list_width 30)|$(cfg_get tuicr.show_file_line_stats true)|$(cfg_get tuicr.appearance "")|$BEGIN|$END" \
+  ACSTACK_ARGS="$from_fork|$(cfg_get tuicr.file_list_width 30)|$(cfg_get tuicr.show_file_line_stats true)|$(cfg_get tuicr.appearance "")|$BEGIN|$END" \
     py "$HOME/.config/tuicr/config.toml" <<'PY'
 import os, re, sys
 path = sys.argv[1]
-from_fork, width, stats, appearance, begin, end = os.environ["SPECHUB_ARGS"].split("|")
+from_fork, width, stats, appearance, begin, end = os.environ["ACSTACK_ARGS"].split("|")
 text = open(path).read() if os.path.isfile(path) else ""
 text = re.sub(re.escape(begin) + r".*?" + re.escape(end) + r"\n?", "", text, flags=re.S)
 
@@ -2373,7 +2376,7 @@ managed = set()
 if from_fork == "true":
     block += [
         "# These two keys exist only in the fork build. See the tuicr section",
-        "# of ~/.config/spechub/terminal-workspace.yaml.",
+        "# of ~/.config/acstack/terminal-workspace.yaml.",
         f"show_file_line_stats = {stats}",
         f"file_list_width = {width}",
         "# A local build must not be replaced by a stock release.",
@@ -2389,7 +2392,7 @@ else:
 # terminal. Pinning the value sidesteps the whole detection path.
 if appearance:
     block += ["# Pinned rather than detected. See the tuicr section of",
-              "# ~/.config/spechub/terminal-workspace.yaml.",
+              "# ~/.config/acstack/terminal-workspace.yaml.",
               f'appearance = "{appearance}"']
     managed.add("appearance")
 block.append(end)
@@ -2443,13 +2446,13 @@ apply_herdr_numbers() {
   have herdr || return 0
   [ "$(cfg_get herdr.renumber_plugin true)" = "true" ] || return 0
 
-  local dir="$HOME/.config/spechub/herdr-numbers"
+  local dir="$HOME/.config/acstack/herdr-numbers"
   mkdir -p "$dir"
   # An absolute command: herdr runs argv without a shell and resolves relative
   # commands from the plugin root, not from PATH.
   cat > "$dir/herdr-plugin.toml" <<H
-id = "spechub.herdr-numbers"
-name = "SpecHub workspace numbers"
+id = "acstack.herdr-numbers"
+name = "ACStack workspace numbers"
 version = "1.0.0"
 min_herdr_version = "0.8.0"
 description = "Keep the sidebar numbers matching prefix+1..9"
@@ -2461,31 +2464,31 @@ platforms = ["linux", "macos", "windows"]
 # between the workspace and worktree events costs nothing.
 [[events]]
 on = "workspace.created"
-command = ["$BIN/spechub-herdr-renumber"]
+command = ["$BIN/acstack-herdr-renumber"]
 
 [[events]]
 on = "workspace.closed"
-command = ["$BIN/spechub-herdr-renumber"]
+command = ["$BIN/acstack-herdr-renumber"]
 
 [[events]]
 on = "worktree.created"
-command = ["$BIN/spechub-herdr-renumber"]
+command = ["$BIN/acstack-herdr-renumber"]
 
 [[events]]
 on = "worktree.opened"
-command = ["$BIN/spechub-herdr-renumber"]
+command = ["$BIN/acstack-herdr-renumber"]
 
 [[events]]
 on = "worktree.removed"
-command = ["$BIN/spechub-herdr-renumber"]
+command = ["$BIN/acstack-herdr-renumber"]
 H
 
-  if herdr plugin list 2>/dev/null | grep -q "spechub.herdr-numbers"; then
+  if herdr plugin list 2>/dev/null | grep -q "acstack.herdr-numbers"; then
     say "herdr numbers plugin already linked"
   elif herdr plugin link "$dir" >/dev/null 2>&1; then
     say "herdr numbers plugin linked, sidebar numbers stay aligned"
   else
-    say "herdr plugin link failed; run spechub-herdr-renumber by hand"
+    say "herdr plugin link failed; run acstack-herdr-renumber by hand"
   fi
 }
 
@@ -2497,7 +2500,7 @@ apply_yazi() {
   fi
   have yazi || { say "yazi not installed, skipping config"; return 0; }
 
-  # piper turns any shell command into a previewer, which is how spechub-md
+  # piper turns any shell command into a previewer, which is how acstack-md
   # gets to draw markdown in the preview pane.
   if have ya && ! ya pkg list 2>/dev/null | grep -q "plugins:piper"; then
     ya pkg add yazi-rs/plugins:piper >/dev/null 2>&1 \
@@ -2506,11 +2509,11 @@ apply_yazi() {
   fi
 
   mkdir -p "$HOME/.config/yazi"
-  SPECHUB_ARGS="$(cfg_get yazi.show_hidden true)|$BEGIN|$END" \
+  ACSTACK_ARGS="$(cfg_get yazi.show_hidden true)|$BEGIN|$END" \
     py "$HOME/.config/yazi/yazi.toml" <<'PY'
 import os, re, sys
 path = sys.argv[1]
-hidden, begin, end = os.environ["SPECHUB_ARGS"].split("|")
+hidden, begin, end = os.environ["ACSTACK_ARGS"].split("|")
 text = open(path).read() if os.path.isfile(path) else ""
 # Drop any previous managed region, both to stay idempotent and so what is
 # left to inspect below is exactly the config the user wrote.
@@ -2585,11 +2588,11 @@ if "plugin.prepend_previewers" not in taken:
     parts.append("""
 [[plugin.prepend_previewers]]
 url = "*.md"
-run = 'piper -- COLUMNS=$w spechub-md --preview "$1"'
+run = 'piper -- COLUMNS=$w acstack-md --preview "$1"'
 
 [[plugin.prepend_previewers]]
 url = "*.markdown"
-run = 'piper -- COLUMNS=$w spechub-md --preview "$1"'
+run = 'piper -- COLUMNS=$w acstack-md --preview "$1"'
 """)
 
 if "opener.markdown" not in taken:
@@ -2603,18 +2606,18 @@ if "opener.markdown" not in taken:
 # %s is what yazi substitutes for the files being opened, already quoted. Not
 # "$@": an opener template is run as `sh -c '<run>'` with nothing after it, so
 # $0 is "sh" and $@ is empty - measured on yazi 26.8.15, where "$@" left
-# spechub-md with no file at all and Enter did nothing but print its usage.
+# acstack-md with no file at all and Enter did nothing but print its usage.
 [[opener.markdown]]
-run = 'spechub-md %s'
+run = 'acstack-md %s'
 block = true
-desc = "Read (spechub-md)"
+desc = "Read (acstack-md)"
 
 # Rendered markdown has no line number to quote back in a review, so the same
 # file is also readable as its own source. Second, not first: it answers a
 # narrower question than reading does, and still a readier one than editing.
 # Enter takes the first entry, so O is the key that offers this one.
 [[opener.markdown]]
-run = 'spechub-md --numbered %s'
+run = 'acstack-md --numbered %s'
 block = true
 desc = "Read with line numbers"
 
@@ -2652,11 +2655,11 @@ PY
   case "$written" in *"[[plugin.prepend_previewers]]"*) ;; *)
     say "yazi: your yazi.toml already sets plugin.prepend_previewers, so the"
     say "     markdown previewer was left alone. Add a *.md entry there to"
-    say "     preview markdown with spechub-md." ;;
+    say "     preview markdown with acstack-md." ;;
   esac
   case "$written" in *"[[opener.markdown]]"*) ;; *)
     say "yazi: your yazi.toml already opens markdown its own way, so it was left"
-    say "     alone. Add spechub-md to that opener to read markdown with it." ;;
+    say "     alone. Add acstack-md to that opener to read markdown with it." ;;
   esac
   case "$written" in *"[[open.prepend_rules]]"*) ;; *)
     say "yazi: your yazi.toml already sets open.prepend_rules, so the markdown"
@@ -2672,12 +2675,12 @@ PY
   # [mgr], which is one key that TOML forbids declaring twice. Only the second
   # collides with the entry below, and telling them apart takes the text - both
   # spellings parse to the same list.
-  SPECHUB_ARGS="$(cfg_get yazi.browser_key "b")|$(cfg_get yazi.line_numbers_key "#")|$(cfg_get yazi.download_key "D")|$(cfg_get yazi.download_target "")|$(cfg_get yazi.edit_key "e")|$BEGIN|$END" \
+  ACSTACK_ARGS="$(cfg_get yazi.browser_key "b")|$(cfg_get yazi.line_numbers_key "#")|$(cfg_get yazi.download_key "D")|$(cfg_get yazi.download_target "")|$(cfg_get yazi.edit_key "e")|$BEGIN|$END" \
     py "$HOME/.config/yazi/keymap.toml" <<'PY'
 import os, re, sys
 
 path = sys.argv[1]
-key, numkey, dlkey, dltarget, editkey, begin, end = os.environ["SPECHUB_ARGS"].split("|")
+key, numkey, dlkey, dltarget, editkey, begin, end = os.environ["ACSTACK_ARGS"].split("|")
 text = open(path).read() if os.path.isfile(path) else ""
 # Drop any previous managed region, both to stay idempotent and so what is
 # left to inspect below is exactly the keymap the user wrote.
@@ -2797,7 +2800,7 @@ if not claimed(text):
     parts.append(
         "[[mgr.prepend_keymap]]\n"
         f'on = "{key}"\n'
-        """run = 'shell --block -- spechub-md --browser %h'\n"""
+        """run = 'shell --block -- acstack-md --browser %h'\n"""
         'desc = "Open in the browser you are sitting at"'
     )
     # Flipping the flag changes nothing a reader can see: the pane already
@@ -2811,7 +2814,7 @@ if not claimed(text):
     parts.append(
         "[[mgr.prepend_keymap]]\n"
         f'on = "{numkey}"\n'
-        "run = [ 'shell --block -- spechub-md --toggle-line-numbers', 'peek --force' ]\n"
+        "run = [ 'shell --block -- acstack-md --toggle-line-numbers', 'peek --force' ]\n"
         'desc = "Preview markdown as source with line numbers"'
     )
     # `e` edits, everywhere. tuicr's diff and file tree both put the editor on
@@ -2854,8 +2857,8 @@ PY
   case "$kmwritten" in *prepend_keymap*) ;; *)
     say "yazi: your keymap.toml already sets mgr.prepend_keymap as an inline"
     say "     array, which these bindings cannot sit beside. Add them there"
-    say "     yourself:  shell --block -- spechub-md --browser %h"
-    say "     and:       [ 'shell --block -- spechub-md --toggle-line-numbers', 'peek --force' ]"
+    say "     yourself:  shell --block -- acstack-md --browser %h"
+    say "     and:       [ 'shell --block -- acstack-md --toggle-line-numbers', 'peek --force' ]"
     say "     and:       shell --block -- \${EDITOR:-vi} %h" ;;
   esac
   # The download key is written from the config alone, so it can be wrong in
@@ -2885,7 +2888,7 @@ apply_markdown() {
   install_binary glow charmbracelet/glow Linux_x86_64
   # Vendored so the preview page pulls nothing from a CDN: it works offline,
   # and on a managed laptop there is no third-party fetch to explain.
-  local share="$HOME/.local/share/spechub"
+  local share="$HOME/.local/share/acstack"
   mkdir -p "$share"
   if [ ! -s "$share/mermaid.min.js" ]; then
     curl -fsSL -o "$share/mermaid.min.js" \
@@ -2894,7 +2897,7 @@ apply_markdown() {
       || say "mermaid.js download failed, the preview will fall back to a CDN"
   fi
   python3 -c 'import markdown' 2>/dev/null \
-    || say "spechub-md --serve needs python markdown: pip install --user markdown"
+    || say "acstack-md --serve needs python markdown: pip install --user markdown"
   have chafa || say "optional: apt install chafa, to draw images as text"
 }
 
@@ -2967,7 +2970,7 @@ if not (set(vim.env.DISPLAY) or set(vim.env.WAYLAND_DISPLAY) or set(vim.env.TMUX
     end
   end
   vim.g.clipboard = {
-    name = "OSC 52 (spechub)",
+    name = "OSC 52 (acstack)",
     copy = { ["+"] = copy("+"), ["*"] = copy("*") },
     paste = { ["+"] = paste("+"), ["*"] = paste("*") },
   }
@@ -3100,7 +3103,7 @@ apply_remote() {
   # talk to. Shadowing a working clipboard would be a downgrade. A stand-in
   # this script wrote before is not a real one, wherever it turns up.
   real="$(command -v xclip 2>/dev/null)"
-  if [ -n "$real" ] && ! grep -q "Installed by spechub" "$real" 2>/dev/null; then
+  if [ -n "$real" ] && ! grep -q "Installed by acstack" "$real" 2>/dev/null; then
     say "clipboard: real xclip at $real, stand-in not installed"
     return 0
   fi
@@ -3111,16 +3114,16 @@ apply_remote() {
   cat > "$BIN/xclip" <<'H'
 #!/usr/bin/env bash
 # xclip, for a machine whose clipboard is at the other end of an SSH session.
-# spechub installs this only when no real xclip is present.
+# acstack installs this only when no real xclip is present.
 #
 # It exists for programs that reach for xclip directly instead of offering a
 # setting. gh-dash copies pull request URLs through a Go library that looks
 # only for xclip, xsel, wl-copy and termux-clipboard-set, and gives up when
-# none is on PATH. This puts one there, and spechub-clip sends the text to
+# none is on PATH. This puts one there, and acstack-clip sends the text to
 # the terminal's own clipboard with OSC 52.
 #
 # Hands over to a real xclip if one turns up on PATH with a display to talk
-# to. Remove it with `setup.sh uninstall`. Installed by spechub.
+# to. Remove it with `setup.sh uninstall`. Installed by acstack.
 set -uo pipefail
 
 PATH="$(cd "$(dirname "$0")" 2>/dev/null && pwd):$PATH"
@@ -3136,10 +3139,10 @@ fi
 
 for arg in "$@"; do
   case "$arg" in
-    -o|-out|-output) exec spechub-clip --out ;;
+    -o|-out|-output) exec acstack-clip --out ;;
   esac
 done
-exec spechub-clip
+exec acstack-clip
 H
   chmod +x "$BIN/xclip"
   say "clipboard: xclip stand-in written, copying over OSC 52"
@@ -3185,9 +3188,9 @@ apply_ghdash() {
   have gh || { say "gh not installed, skipping dashboard"; return 0; }
   gh extension list 2>/dev/null | grep -q gh-dash || gh extension install dlvhdr/gh-dash >/dev/null 2>&1
   mkdir -p "$(dirname "$GHDASH_CFG")"
-  SPECHUB_CFG="$CFG" py "$GHDASH_CFG" <<'PY'
+  ACSTACK_CFG="$CFG" py "$GHDASH_CFG" <<'PY'
 import os, sys, yaml
-src, dst = os.environ["SPECHUB_CFG"], sys.argv[1]
+src, dst = os.environ["ACSTACK_CFG"], sys.argv[1]
 # `or {}` on the section as well as the file. A bare "gh_dash:" with nothing
 # under it, which is what commenting the block out leaves behind, parses to
 # None, and every tw.get below then raises AttributeError. apply_ghdash died
@@ -3224,17 +3227,17 @@ kbs = cfg.setdefault("keybindings", {})
 # o built into gh-dash opens through $BROWSER, whose output it discards. That
 # is enough for a machine with a desktop and nothing at all for one without,
 # where the only way to reach a browser is to hand the terminal a link. Take
-# the key so spechub-open gets a terminal to draw on. GH_HOST covers
+# the key so acstack-open gets a terminal to draw on. GH_HOST covers
 # GitHub Enterprise, whose URLs are the same shape on a different host.
 open_key = (tw.get("remote", {}) or {}).get("open_key", "o")
 if open_key:
     host = "https://${GH_HOST:-github.com}"
     prs.append({"key": open_key, "name": "open in browser",
-                "command": f'spechub-open "{host}/{{{{.RepoName}}}}/pull/{{{{.PrNumber}}}}"\n'})
+                "command": f'acstack-open "{host}/{{{{.RepoName}}}}/pull/{{{{.PrNumber}}}}"\n'})
     issues = [k for k in (cfg.get("keybindings", {}) or {}).get("issues", [])
               if k.get("name") not in MANAGED]
     issues.append({"key": open_key, "name": "open in browser",
-                   "command": f'spechub-open "{host}/{{{{.RepoName}}}}/issues/{{{{.IssueNumber}}}}"\n'})
+                   "command": f'acstack-open "{host}/{{{{.RepoName}}}}/issues/{{{{.IssueNumber}}}}"\n'})
     kbs["issues"] = issues
 kbs["prs"] = prs
 if tw.get("page_keys", True):
@@ -3260,12 +3263,12 @@ PY
 #   pin-forget <identity>      drop that record
 #   md write|strip             the delegation block in pi's context file
 pi_state() {
-  SPECHUB_PI_OWNED="$PI_OWNED" SPECHUB_PI_SETTINGS="$PI_SETTINGS" \
-  SPECHUB_PI_DIR="$PI_DIR" SPECHUB_PI_MD="$PI_MD_BEGIN|$PI_MD_END|$PI_DELEGATION" \
+  ACSTACK_PI_OWNED="$PI_OWNED" ACSTACK_PI_SETTINGS="$PI_SETTINGS" \
+  ACSTACK_PI_DIR="$PI_DIR" ACSTACK_PI_MD="$PI_MD_BEGIN|$PI_MD_END|$PI_DELEGATION" \
     py "$@" <<'PY'
 import json, os, re, sys
 
-OWNED = os.environ["SPECHUB_PI_OWNED"]
+OWNED = os.environ["ACSTACK_PI_OWNED"]
 MISSING = object()
 
 def load_owned():
@@ -3310,7 +3313,7 @@ cmd, args = sys.argv[1], sys.argv[2:]
 
 if cmd == "pkg":
     try:
-        pkgs = load_json(os.environ["SPECHUB_PI_SETTINGS"]).get("packages") or []
+        pkgs = load_json(os.environ["ACSTACK_PI_SETTINGS"]).get("packages") or []
     except ValueError:
         raise SystemExit(1)
     for p in pkgs:
@@ -3369,7 +3372,7 @@ if cmd == "merge":
     prior = owned.setdefault(slot + "_prior", {})
     wrote, dropped = [], []
     for key, value in want.items():
-        *parents, leaf = key.split(".")
+        parents, leaf = ([], key) if slot == "keybindings" else (key.split(".")[:-1], key.split(".")[-1])
         node = d
         for p in parents:
             if node.get(p, MISSING) is MISSING and value is not None:
@@ -3429,8 +3432,8 @@ if cmd == "merge":
     raise SystemExit
 
 if cmd == "md":
-    begin, end, line = os.environ["SPECHUB_PI_MD"].split("|")
-    agent_dir = os.environ["SPECHUB_PI_DIR"]
+    begin, end, line = os.environ["ACSTACK_PI_MD"].split("|")
+    agent_dir = os.environ["ACSTACK_PI_DIR"]
     # pi reads one context file from its agent directory, the first of these
     # that exists. A block in any other one would never reach the model.
     names = ["AGENTS.override.md", "AGENTS.md", "AGENTS.MD", "CLAUDE.md", "CLAUDE.MD"]
@@ -3481,10 +3484,10 @@ PY
 # The four personal settings, from the config, as the JSON merge reads them.
 # An empty value releases the key rather than writing an empty one.
 pi_settings_wanted() {
-  SPECHUB_CFG="$CFG" py <<'PY'
+  ACSTACK_CFG="$CFG" py <<'PY'
 import json, os, sys
 import yaml
-p = os.environ["SPECHUB_CFG"]
+p = os.environ["ACSTACK_CFG"]
 c = (yaml.safe_load(open(p)) or {}) if os.path.isfile(p) else {}
 s = ((c.get("pi") or {}).get("settings") or {})
 # config key -> (pi's dotted key, the default config.example.yaml ships, the
@@ -3590,8 +3593,8 @@ else:
 PI_PATCH_PY
 }
 
-# The SpecHub version running this script, which is the one pi should pin.
-spechub_version() {
+# The ACStack version running this script, which is the one pi should pin.
+acstack_version() {
   json_field "$(dirname "$0")/../../.claude-plugin/plugin.json" version
 }
 
@@ -3602,7 +3605,7 @@ pi_add() {  # pi_add <source> <identity>
   cur=$(pi_state pkg "$2")
   if [ -n "$cur" ]; then
     # Unpinned, presence is enough: a pin the user chose stays.
-    case "$1" in *@v*) ;; *) say "pi: $2 already installed"; return 0 ;; esac
+    case "$1" in "$2"@*) ;; *) say "pi: $2 already installed"; return 0 ;; esac
     [ "$cur" = "$1" ] && { say "pi: $1 already installed"; return 0; }
   fi
   if ! pi install "$1" >/dev/null 2>&1; then
@@ -3649,21 +3652,74 @@ pi_drop() {  # pi_drop <identity>
 # A package pi holds at a fixed version, such as npm:pi-subagents@1.0.0.
 pi_npm_pin() {  # pi_npm_pin <name>
   local src
-  case "$1" in pi-subagents|pi-compact-tools) ;; *) return 1 ;; esac
+  version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}' \
+    || return 1
   src=$(pi_state pkg "npm:$1") || return 1
   [ "$src" != "npm:$1" ]
 }
 
 # The pin apply would move to, or nothing when the installed one is current
 # or newer. A newer pin is one the user chose, so it is never moved back.
-pi_spechub_behind() {
+pi_acstack_behind() {
   local cur ver pin
-  ver=$(spechub_version); [ -n "$ver" ] || return 0
-  cur=$(pi_state pkg "$PI_SPECHUB") || return 0
-  case "$cur" in *@v*) pin="${cur##*@v}" ;; *) return 0 ;; esac
+  ver=$(acstack_version); [ -n "$ver" ] || return 0
+  cur=$(pi_state pkg "$PI_ACSTACK") || return 0
+  case "$cur" in "$PI_ACSTACK"@*) pin="${cur##*@}" ;; *) return 0 ;; esac
   [ "$pin" = "$ver" ] && return 0
   [ "$(printf '%s\n%s\n' "$pin" "$ver" | sort -V | tail -1)" = "$ver" ] || return 0
   printf '%s\t%s' "$pin" "$ver"
+}
+
+bili_bin() {
+  if [ -x "$PI_DIR/npm/node_modules/.bin/bili" ]; then
+    printf '%s' "$PI_DIR/npm/node_modules/.bin/bili"
+  elif have bili; then
+    command -v bili
+  else
+    return 1
+  fi
+}
+
+bili_status() {  # bili_status <bin> <client> -> installed|absent|unknown
+  local line
+  line=$("$1" plugin list 2>/dev/null | awk -v c="$2" '$1==c{print; exit}') || true
+  [ -n "$line" ] || { echo unknown; return 0; }
+  case "$line" in *"not installed"*) echo absent ;; *) echo installed ;; esac
+}
+
+bili_client() {  # bili_client install|remove <client>
+  local op="$1" client="$2" bin marker status
+  marker="bili:$client"
+  if [ "$op" = "install" ]; then
+    [ "$client" = "pi" ] || have "$client" || return 0
+    pi_state owns file "$marker" && return 0
+    if bin=$(bili_bin); then
+      status=$(bili_status "$bin" "$client")
+      if [ "$status" = "installed" ]; then
+        say "pi: billion-context already enabled for $client"
+        return 0
+      fi
+      if "$bin" plugin install "$client" >/dev/null 2>&1; then
+        pi_state own file "$marker"
+        say "pi: billion-context enabled for $client"
+      else
+        say "pi: billion-context $client setup failed, run: bili plugin install $client"
+      fi
+    else
+      say "pi: bili command not found, so billion-context $client setup was skipped"
+    fi
+  elif pi_state owns file "$marker"; then
+    if bin=$(bili_bin); then
+      if "$bin" plugin remove "$client" >/dev/null 2>&1; then
+        pi_state disown file "$marker"
+        say "pi: billion-context disabled for $client"
+      else
+        say "pi: billion-context $client removal failed, run: bili plugin remove $client"
+      fi
+    else
+      say "pi: bili command not found, so billion-context $client setup was left installed"
+    fi
+  fi
 }
 
 apply_pi() {
@@ -3689,17 +3745,53 @@ apply_pi() {
 
   patch_pi_win32_paste
 
-  # SpecHub cannot launch a subagent on pi without pi-subagents.
+  # ACStack cannot launch a subagent on pi without pi-subagents.
   pi_add npm:pi-subagents npm:pi-subagents
-  local ver cur; ver=$(spechub_version)
+  if [ "$(cfg_get pi.todo true)" = "true" ]; then
+    pi_add npm:@juicesharp/rpiv-todo npm:@juicesharp/rpiv-todo
+  else
+    pi_drop npm:@juicesharp/rpiv-todo
+  fi
+  if [ "$(cfg_get pi.plugin_manager true)" = "true" ]; then
+    pi_add npm:pi-plugin-manager npm:pi-plugin-manager
+  else
+    pi_drop npm:pi-plugin-manager
+  fi
+  # bili's proxy dies with the session that started it, cutting off every
+  # other Claude Code or Codex session. Keep it in pi; undo older installs.
+  bili_client remove codex
+  bili_client remove claude
+  if [ "$(cfg_get pi.billion_context true)" = "true" ]; then
+    pi_add "$PI_BILLION" "$PI_BILLION"
+    bili_client install pi
+  else
+    bili_client remove pi
+    pi_drop "$PI_BILLION"
+  fi
+  if [ "$(cfg_get pi.question_tool true)" = "true" ]; then
+    pi_add npm:@juicesharp/rpiv-ask-user-question npm:@juicesharp/rpiv-ask-user-question
+  else
+    pi_drop npm:@juicesharp/rpiv-ask-user-question
+  fi
+  if [ "$(cfg_get pi.web_access true)" = "true" ]; then
+    pi_add npm:pi-web-access npm:pi-web-access
+  else
+    pi_drop npm:pi-web-access
+  fi
+  if [ "$(cfg_get pi.slash_anywhere true)" = "true" ]; then
+    pi_add "$PI_SLASH_ANYWHERE" "$PI_SLASH_ANYWHERE"
+  else
+    pi_drop "$PI_SLASH_ANYWHERE"
+  fi
+  local ver cur; ver=$(acstack_version)
   if [ -n "$ver" ]; then
-    if cur=$(pi_state pkg "$PI_SPECHUB") && [ -z "$(pi_spechub_behind)" ]; then
+    if cur=$(pi_state pkg "$PI_ACSTACK") && [ -z "$(pi_acstack_behind)" ]; then
       say "pi: $cur already installed"
     else
-      pi_add "$PI_SPECHUB@v$ver" "$PI_SPECHUB"
+      pi_add "$PI_ACSTACK@$ver" "$PI_ACSTACK"
     fi
   else
-    say "pi: no plugin version beside this script, so SpecHub was not installed into pi"
+    say "pi: no plugin version beside this script, so ACStack was not installed into pi"
   fi
   if [ "$(cfg_get pi.compact_tools true)" = "true" ]; then
     pi_add npm:pi-compact-tools npm:pi-compact-tools
@@ -3729,6 +3821,7 @@ apply_pi() {
   fi
 
   pi_state merge "$PI_SETTINGS" settings "$(pi_settings_wanted)"
+  pi_state merge "$PI_KEYBINDINGS" keybindings '{"app.message.dequeue": "ctrl+enter"}'
   pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": "eager"}'
   pi_state md write
   patch_pi_win32_paste
@@ -3743,9 +3836,18 @@ apply_pi() {
 remove_pi() {
   find_pi
   if pi_state parses "$PI_SETTINGS"; then
-    pi_unpin "$PI_SPECHUB"
-    pi_drop "$PI_SPECHUB"
+    pi_unpin "$PI_ACSTACK"
+    pi_drop "$PI_ACSTACK"
+    bili_client remove codex
+    bili_client remove claude
+    bili_client remove pi
+    pi_drop "$PI_BILLION"
+    pi_drop npm:pi-plugin-manager
+    pi_drop npm:@juicesharp/rpiv-todo
     pi_drop npm:pi-compact-tools
+    pi_drop npm:@juicesharp/rpiv-ask-user-question
+    pi_drop npm:pi-web-access
+    pi_drop "$PI_SLASH_ANYWHERE"
     pi_drop npm:pi-subagents
   else
     say "pi: $PI_SETTINGS does not parse, so its packages were left installed"
@@ -3757,6 +3859,7 @@ remove_pi() {
   fi
   pi_state merge "$PI_SETTINGS" settings \
     '{"hideThinkingBlock": null, "markdown.mermaid": null, "enableInstallTelemetry": null, "theme": null}'
+  pi_state merge "$PI_KEYBINDINGS" keybindings '{"app.message.dequeue": null}'
   pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": null}'
   pi_state md strip
   return 0
@@ -3782,6 +3885,12 @@ gh-dash	gh_dash	ghext	dlvhdr/gh-dash	-
 harlequin	harlequin	pypi	harlequin	-
 pi	pi	npm	@earendil-works/pi-coding-agent	-
 pi-subagents	pi	npm	pi-subagents	-
+billion-context	pi	npm	billion-context	-
+@juicesharp/rpiv-todo	pi	npm	@juicesharp/rpiv-todo	-
+pi-plugin-manager	pi	npm	pi-plugin-manager	-
+@juicesharp/rpiv-ask-user-question	pi	npm	@juicesharp/rpiv-ask-user-question	-
+pi-web-access	pi	npm	pi-web-access	-
+pi-slash-anywhere	pi	npm	pi-slash-anywhere	-
 pi-compact-tools	pi	npm	pi-compact-tools	-
 T
 }
@@ -3814,7 +3923,7 @@ installed_version() {  # installed_version <name> -> a bare version, or nothing
     # 1.1.0
     pi)        find_pi; v=$(pi --version 2>/dev/null | awk '{print $NF}') ;;
     # pi installs npm packages under its own directory, not npm's global one.
-    pi-subagents|pi-compact-tools)
+    pi-subagents|pi-compact-tools|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
                v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
   esac
   printf '%s' "${v#v}"
@@ -3839,7 +3948,7 @@ PY
 }
 
 latest_version() {  # latest_version <source> <reference> -> a version, or nothing
-  [ "${SPECHUB_TW_OFFLINE:-0}" = "1" ] && return 0
+  [ "${ACSTACK_TW_OFFLINE:-0}" = "1" ] && return 0
   local url field tmp v="" tok="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
   local -a auth=()
   case "$1" in
@@ -3883,10 +3992,10 @@ outdated_report() {  # tab-separated rows on stdout, one per finding
     # The row stays until apply installs the component and writes a new stamp.
     # Only the detail moves: once upgrade has appended the block, "not in your
     # config" is false, and a report that says it is stops being worth reading.
-    SPECHUB_STAMP="$STAMP" py "$EXAMPLE" "$CFG" <<'PY'
+    ACSTACK_STAMP="$STAMP" py "$EXAMPLE" "$CFG" <<'PY'
 import os, re, sys
 import yaml
-had = {l.strip() for l in open(os.environ["SPECHUB_STAMP"])
+had = {l.strip() for l in open(os.environ["ACSTACK_STAMP"])
        if l.strip() and not l.startswith("#")}
 mine = open(sys.argv[2]).read() if os.path.isfile(sys.argv[2]) else ""
 for k in (yaml.safe_load(open(sys.argv[1])) or {}):
@@ -3914,19 +4023,19 @@ PY
     [ -n "$inst" ] || continue          # not installed is apply's business, not this one
     latest=$(latest_version "$src" "$ref")
     if [ -z "$latest" ]; then
-      [ "${SPECHUB_TW_OFFLINE:-0}" = "1" ] \
+      [ "${ACSTACK_TW_OFFLINE:-0}" = "1" ] \
         || printf 'unknown\t%s\tcould not reach %s\n' "$name" "$src"
     elif [ "$inst" != "$latest" ]; then
       printf 'stale\t%s\t%s -> %s\n' "$name" "$inst" "$latest"
     fi
   done < <(version_table)
 
-  # The SpecHub package on pi is pinned to a release, so it falls behind the
+  # The ACStack package on pi is pinned to a release, so it falls behind the
   # moment this plugin updates. Both versions are local, so this needs no
   # network and reports even offline.
   if [ "$(cfg_get pi.enabled false)" = "true" ]; then
-    local behind; behind=$(pi_spechub_behind)
-    [ -n "$behind" ] && printf 'stale\tpi-spechub\t%s -> %s\n' "${behind%%$'\t'*}" "${behind#*$'\t'}"
+    local behind; behind=$(pi_acstack_behind)
+    [ -n "$behind" ] && printf 'stale\tpi-acstack\t%s -> %s\n' "${behind%%$'\t'*}" "${behind#*$'\t'}"
   fi
 }
 
@@ -3946,7 +4055,10 @@ upgrade_from_table() {  # upgrade_from_table <name>
 }
 
 upgrade_one() {  # upgrade_one <name>
-  case "$1" in pi*) find_pi ;; esac
+  if [ "$1" = "pi-acstack" ] \
+     || version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}'; then
+    find_pi
+  fi
   case "$1" in
     herdr)     herdr update >/dev/null 2>&1 \
                  && say "herdr updated" || say "herdr update failed" ;;
@@ -3961,7 +4073,7 @@ upgrade_one() {  # upgrade_one <name>
                else
                  say "pi update failed"
                fi ;;
-    pi-subagents|pi-compact-tools)
+    pi-subagents|pi-compact-tools|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
       if pi_npm_pin "$1"; then
         say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
         return 0
@@ -3969,10 +4081,10 @@ upgrade_one() {  # upgrade_one <name>
       pi update "npm:$1" >/dev/null 2>&1 \
         && say "$1 updated" || say "$1 update failed" ;;
     # Only a pin behind this plugin. A newer pin is the user's choice, and an
-    # absent or unpinned SpecHub is apply's business.
-    pi-spechub)
-      [ -n "$(pi_spechub_behind)" ] || { say "pi-spechub: nothing behind this plugin to move"; return 0; }
-      pi_add "$PI_SPECHUB@v$(spechub_version)" "$PI_SPECHUB" ;;
+    # absent or unpinned ACStack is apply's business.
+    pi-acstack)
+      [ -n "$(pi_acstack_behind)" ] || { say "pi-acstack: nothing behind this plugin to move"; return 0; }
+      pi_add "$PI_ACSTACK@$(acstack_version)" "$PI_ACSTACK" ;;
     # Absent from the table, because it has no version flag for outdated to
     # read. Naming it is the only way to refresh it, so the arm it needs is
     # here rather than behind a table lookup that will never find it.
@@ -4027,8 +4139,8 @@ case "$ACTION" in
     # Ask the opener itself rather than repeating its rules here. Two copies
     # of this decision drifting apart is exactly how o came to claim it had
     # opened a page it had not.
-    case "$(spechub-open --why 2>/dev/null)" in
-      command)      say "browser: \$SPECHUB_OPEN_CMD = $SPECHUB_OPEN_CMD" ;;
+    case "$(acstack-open --why 2>/dev/null)" in
+      command)      say "browser: \$ACSTACK_OPEN_CMD = $ACSTACK_OPEN_CMD" ;;
       xdg-open)     say "browser: xdg-open on this machine" ;;
       wslview|wsl-open|explorer.exe)
                     say "browser: the Windows side of this machine" ;;
@@ -4038,15 +4150,15 @@ case "$ACTION" in
       clipboard)    say "browser: none, and no terminal either - o copies and reports failure" ;;
       *)            say "browser: unknown - run apply" ;;
     esac
-    [ -f "$HOME/.cache/spechub/open.log" ] \
-      && say "last open: $(tail -1 "$HOME/.cache/spechub/open.log")"
+    [ -f "$HOME/.cache/acstack/open.log" ] \
+      && say "last open: $(tail -1 "$HOME/.cache/acstack/open.log")"
     # What the pi component set up, read from pi's own files. Shown whenever
     # pi is here or asked for, because a pi installed by hand is still one the
     # user may want to know about.
     if have pi || [ "$(cfg_get pi.enabled false)" = "true" ]; then
       echo
       have pi && say "pi: $(installed_version pi)" || say "pi: not installed"
-      for id in npm:pi-subagents "$PI_SPECHUB" npm:pi-compact-tools; do
+      for id in npm:pi-subagents "$PI_ACSTACK" "$PI_BILLION" npm:@juicesharp/rpiv-todo npm:pi-plugin-manager npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access "$PI_SLASH_ANYWHERE" npm:pi-compact-tools; do
         src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
       done
       [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \
@@ -4090,7 +4202,7 @@ case "$ACTION" in
     fi
     [ "$(cfg_get delta.enabled true)"   = "true" ] && install_binary delta dandavison/delta x86_64-unknown-linux-gnu
     [ "$(cfg_get diffnav.enabled true)" = "true" ] && install_binary diffnav dlvhdr/diffnav Linux_x86_64
-    # fzf drives the comparison picker behind spechub-diff pick.
+    # fzf drives the comparison picker behind acstack-diff pick.
     [ "$(cfg_get diffnav.enabled true)" = "true" ] && install_binary fzf junegunn/fzf linux_amd64
     [ "$(cfg_get lazygit.enabled true)" = "true" ] && install_binary lazygit jesseduffield/lazygit linux_x86_64
     write_helpers
@@ -4142,9 +4254,9 @@ case "$ACTION" in
     # yaml - a round trip through the parser drops every comment the user has.
     printf '%s\n' "$report" | awk -F'\t' '$1=="new"{print $2}' | while read -r comp; do
       [ -n "$comp" ] || continue
-      SPECHUB_COMP="$comp" py "$EXAMPLE" "$CFG" <<'PY'
+      ACSTACK_COMP="$comp" py "$EXAMPLE" "$CFG" <<'PY'
 import os, re, sys
-comp = os.environ["SPECHUB_COMP"]
+comp = os.environ["ACSTACK_COMP"]
 ship = open(sys.argv[1]).read()
 # The block runs from the component's own key to the next top-level key. A
 # top-level key is the only thing that starts in column zero and ends in a
@@ -4199,9 +4311,9 @@ PY
         # Only this component's popup goes away. Rebuild the managed block so
         # the rest of the keymap survives.
         require_yaml
-        SPECHUB_CFG="$CFG" py "$comp" <<'PY'
+        ACSTACK_CFG="$CFG" py "$comp" <<'PY'
 import os, sys, yaml
-p = os.environ["SPECHUB_CFG"]
+p = os.environ["ACSTACK_CFG"]
 c = yaml.safe_load(open(p)) or {}
 c.setdefault(sys.argv[1], {})["enabled"] = False
 yaml.safe_dump(c, open(p, "w"), sort_keys=False)
@@ -4220,30 +4332,30 @@ PY
     ;;
   uninstall)
     "$0" disable herdr; "$0" disable delta; "$0" disable neovim; "$0" disable pi
-    # By prefix, which is why helpers are named spechub-*: anything this
+    # By prefix, which is why helpers are named acstack-*: anything this
     # script ever wrote goes, including helpers retired in an older version.
-    herdr plugin unlink spechub.herdr-numbers >/dev/null 2>&1 || true
-    rm -rf "$HOME/.config/spechub/herdr-numbers"
-    rm -f "$BIN"/spechub-*
+    herdr plugin unlink acstack.herdr-numbers >/dev/null 2>&1 || true
+    rm -rf "$HOME/.config/acstack/herdr-numbers"
+    rm -f "$BIN"/acstack-*
     # The xclip stand-in is the one managed file without the prefix.
-    grep -q "Installed by spechub" "$BIN/xclip" 2>/dev/null && rm -f "$BIN/xclip"
+    grep -q "Installed by acstack" "$BIN/xclip" 2>/dev/null && rm -f "$BIN/xclip"
     # Every file apply leaves a marked region in. Removing the region is the
     # same edit `disable herdr` makes, so whatever the user wrote around it
     # comes through untouched. Left behind, the yazi regions keep routing
-    # markdown at spechub-md, a helper this command has just deleted.
-    SPECHUB_ARGS="$BEGIN|$END" py \
+    # markdown at acstack-md, a helper this command has just deleted.
+    ACSTACK_ARGS="$BEGIN|$END" py \
       "$HOME/.config/tuicr/config.toml" \
       "$HOME/.config/yazi/yazi.toml" \
       "$HOME/.config/yazi/keymap.toml" <<'PY'
 import os, re, sys
-b, e = os.environ["SPECHUB_ARGS"].split("|")
+b, e = os.environ["ACSTACK_ARGS"].split("|")
 for p in sys.argv[1:]:
     if os.path.isfile(p):
         t = open(p).read()
         open(p, "w").write(re.sub(re.escape(b) + r".*?" + re.escape(e) + r"\n?", "", t, flags=re.S))
 PY
     # gh-dash reads YAML that python rewrites whole, so a marker comment never
-    # survives the round trip. What identifies spechub's work there is the name
+    # survives the round trip. What identifies acstack's work there is the name
     # on each keybinding, the same handle apply_ghdash uses to replace its own
     # entries, plus the two page keys it binds. Sections, repo paths and every
     # other keybinding belong to the user and stay.

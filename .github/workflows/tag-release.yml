@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   tag-release:
@@ -43,11 +44,46 @@ jobs:
           fi
           tag="v${new}"
           if git rev-parse -q --verify "refs/tags/${tag}" >/dev/null; then
-            echo "tag-release: ${tag} already exists, nothing to do."
+            echo "tag-release: ${tag} already exists."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${tag}" -m "acstack ${new}"
+            git push origin "refs/tags/${tag}"
+            echo "tag-release: created ${tag}."
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+
+      - name: Install npm with staged publish support
+        run: |
+          npm install -g npm@11.19.0
+          npm --version
+
+      - name: Stage npm release
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          name="$(jq -r '.name' package.json)"
+          version="$(jq -r '.version' package.json)"
+          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
+            echo "::error::NPM_TOKEN is not set. Add an npm automation token as the NPM_TOKEN repository secret."
+            exit 1
+          fi
+          if npm view "${name}@${version}" version >/dev/null 2>&1; then
+            echo "npm: ${name}@${version} already published, nothing to stage."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "${tag}" -m "spechub ${new}"
-          git push origin "refs/tags/${tag}"
-          echo "tag-release: created ${tag}."
+          if npm stage publish . --access public --provenance 2>&1 | tee /tmp/npm-stage.log; then
+            echo "npm: staged ${name}@${version}. Approve it on npmjs.com to publish."
+            exit 0
+          fi
+          if grep -q "Version uniqueness check failed unexpectedly" /tmp/npm-stage.log; then
+            echo "npm: ${name}@${version} appears to be staged already. Approve it on npmjs.com to publish."
+            exit 0
+          fi
+          exit 1

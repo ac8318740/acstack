@@ -1,6 +1,6 @@
 # Terminal workspace keys
 
-The keys worth memorising, and nothing else. Run `/spechub:terminal-workspace` to install what they drive.
+The keys worth memorising, and nothing else. Run `/acstack:terminal-workspace` to install what they drive.
 
 Two layers:
 

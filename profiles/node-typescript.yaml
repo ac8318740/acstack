@@ -1,5 +1,5 @@
-# Node/TypeScript project profile for spechub
-# Used by /spechub:setup to generate spechub/project.yaml
+# Node/TypeScript project profile for acstack
+# Used by /acstack:setup to generate acstack/project.yaml
 
 commands:
   test: "npm test"

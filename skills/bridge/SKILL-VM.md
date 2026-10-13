@@ -125,11 +125,11 @@ differently. Edit the drop-in that set it instead of adding a new one.
 
 ### 5. The SessionStart hook auto-links `vm-free-port.sh`
 
-The SpecHub SessionStart hook links the helper to an invariant path on
+The ACStack SessionStart hook links the helper to an invariant path on
 each Claude Code launch:
 
 ```
-~/.claude/spechub/bin/vm-free-port.sh -> <plugin cache>/assets/playwriter-bridge/vm-free-port.sh
+~/.claude/acstack/bin/vm-free-port.sh -> <plugin cache>/assets/playwriter-bridge/vm-free-port.sh
 ```
 
 Invoke it by that path. The symlink always points at the current plugin
@@ -197,7 +197,7 @@ Either colour gives you the same instruction below.
 Run:
 
 ```bash
-bash ~/.claude/spechub/bin/vm-free-port.sh
+bash ~/.claude/acstack/bin/vm-free-port.sh
 ```
 
 The script walks the situation and either clears the socket or refuses
@@ -269,15 +269,15 @@ restart the scheduled tasks the VM cannot reach.
 See section 9.5, "The opener", of `docs/terminal-workspace.md`.
 
 ```bash
-spechub-bridge status            # both machines' view, including the tasks
-spechub-bridge fix [relay|tunnel|both]
+acstack-bridge status            # both machines' view, including the tasks
+acstack-bridge fix [relay|tunnel|both]
 ```
 
 `fix` reports success only once the relay answers on the VM again. The opener
 can accept a restart request while the bridge is still down. That is why `fix`
 waits for the relay itself, rather than trusting the opener's reply.
 
-When the opener is unreachable too, `spechub-bridge` prints the
+When the opener is unreachable too, `acstack-bridge` prints the
 `VM-SIDE HANDOFF` block for you rather than leaving you to write one.
 
 The opener still does not cover arming. Nothing changes that.
