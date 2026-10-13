@@ -94,8 +94,7 @@ operation. First the root:
 ```bash
 # files backend – github.md has the equivalent
 ~/.claude/acstack/bin/acstack node create --map <name> --title "<destination>" \
-  --kind destination --label "<at most four words>" \
-  --summary "<one plain sentence>" \
+  --kind destination --label "<at most four words>" --summary "<one sentence>" \
   --body "<the destination, as settled>"
 ```
 
@@ -112,15 +111,9 @@ operation. First the root:
 - On GitHub, every node body opens with a header line that encodes its edges.
   `trackers/github.md` holds the format. The files backend writes none.
 
-- Every node carries a `kind` and a `label`, both required. A `label` is the
-  node's short name for a diagram. `trackers/files.md` holds the kinds, the
-  caps, and the contract the CLI enforces.
-
-- Give every `work` node and the destination a `--summary`: one sentence, in
-  plain words, on what the node means for the business. The body stays the
-  technical definition, and alignment packs show both.
-
-  Other kinds may carry a summary too. Only the files backend stores one.
+- Every node carries a required `kind` and `label`, its short diagram name.
+  Work nodes and the destination add a one-sentence business `--summary`.
+  `trackers/files.md` holds the kinds, the caps, and the CLI's contract.
 
 - Every node body carries a diagram, two at most. A childless `notes` node is
   the one exception.
