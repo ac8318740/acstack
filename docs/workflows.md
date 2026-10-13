@@ -1,8 +1,8 @@
-# Mapflow workflows
+# ACStack workflows
 
 *Every request ends the same way, with your specs updated from the diff. What changes is how many questions you settle first.*
 
-Mapflow routes a request down one of three paths. Every path ends at a commit that updates your specs.
+ACStack routes a request down one of three paths. Every path ends at a commit that updates your specs.
 
 - **The path depends on what is in your way**: nothing, a bug, or an unanswered question
 - **A clear request goes straight to the four TDD agents** (see section 4)
@@ -18,10 +18,10 @@ flowchart TD
     Q -->|"open decisions"| M["Map<br/>(chart, then work the frontier)"]
     M -->|"work nodes"| I
     I --> T["Build under TDD<br/>(4-phase pipeline)"]
-    F --> C["Commit<br/>(mapflow:commit)"]
+    F --> C["Commit<br/>(acstack:commit)"]
     T --> C
     C --> Y["Sync specs from the diff<br/>(domain-map.yaml)"]
-    Y --> L[("Living specs<br/>mapflow/specs/")]
+    Y --> L[("Living specs<br/>acstack/specs/")]
     M -->|"every question answered"| A["Archive<br/>(check the decisions landed,<br/>then delete the nodes)"]
     A --> L
 ```
@@ -46,11 +46,11 @@ Section 8 describes this document. No box holds it.
 
 - **A map** is a set of small records called nodes
 - **A node** is one question to settle or one piece of work to do
-- `/mapflow:map` is the entry point for planned work
+- `/acstack:map` is the entry point for planned work
     - It charts a map when none exists, opening with a grill, a round of questions that fixes the destination and surfaces the fog
     - The destination is what finished looks like
     - It works the frontier instead when a map exists
-- Mapflow never sorts requests into sizes
+- ACStack never sorts requests into sizes
     - Nothing picks a different process for a big one
     - There is one path, and only the node count changes
 
@@ -79,13 +79,13 @@ A node carries a `kind`, a `label`, and a `mode` too. Two link types connect the
 
 Every node body carries a diagram, two at most. A childless `notes` node is the one exception.
 
-- A node with children draws its own subtree, rendered by `mapflow node diagram`
+- A node with children draws its own subtree, rendered by `acstack node diagram`
 - Every other node draws what its question or its change touches, drawn by the agent
 - A second mermaid fence under each diagram is its legend, showing only the cues that diagram uses
 - On GitHub every node id in a diagram links to its issue
 - `skills/map/visuals.md` holds the rules
 
-Mapflow works depth out from `answers`. Nobody declares it. The map itself is five queries.
+ACStack works depth out from `answers`. Nobody declares it. The map itself is five queries.
 
 | The question | The query |
 | --- | --- |
@@ -102,7 +102,7 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
     - The first line of every issue body carries all of that node's edges
     - One list call therefore returns the whole graph
     - A sub-issue and a dependency mirror those edges, so GitHub's own interface draws the map
-- Files under `mapflow/maps/<name>/` are the fallback
+- Files under `acstack/maps/<name>/` are the fallback
     - Frontmatter holds the edges, so those files carry no header line
 - Frontier, claim, and resolve build on those four operations
     - No tracker implements them itself
@@ -119,7 +119,7 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
 
 *Forty is a long effort. Nothing declares which.*
 
-- `/mapflow:implement` claims `afk` work nodes from the frontier when a map exists
+- `/acstack:implement` claims `afk` work nodes from the frontier when a map exists
     - It treats the request itself as the work item when none does
     - Either way, parallel explorer subagents run over the relevant code before anyone writes anything
 - The command resolves paths at claim time
@@ -132,10 +132,10 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
 - Progress is a query, not a checkbox file
     - Resuming never means re-reading an effort end to end
 
-`/mapflow:quick-fix` stays separate. A broken thing is a different problem from an unanswered question.
+`/acstack:quick-fix` stays separate. A broken thing is a different problem from an unanswered question.
 
 - A bug has a root cause to find, not a decision to settle
-- `/mapflow:quick-fix` therefore never creates a node
+- `/acstack:quick-fix` therefore never creates a node
 
 ## 3. Asking the questions, and writing the answers down
 
@@ -154,9 +154,9 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
 - **`record-context`** fires when a decision lands
     - It writes an ADR under `docs/adr/` only when the decision is hard to reverse *and* surprising *and* a real trade-off
     - It writes a glossary term when a term got settled, in root `CONTEXT.md` for cross-domain vocabulary
-    - It writes a domain term in `mapflow/specs/<domain>/CONTEXT.md` instead
+    - It writes a domain term in `acstack/specs/<domain>/CONTEXT.md` instead
     - It can write both, or neither
-    - Mapflow generates the ADR index from the files
+    - ACStack generates the ADR index from the files
     - Nobody hand-edits it
 - **`writing`** holds the standard every durable artifact follows: node answers, ADRs, glossary entries, specs and handoffs
     - The words to avoid live in `skills/writing/vocabulary.md`
@@ -201,7 +201,7 @@ Which phases run, and in what order:
 - A FAIL routes back to the executor with the reason
 - Phases 1 and 4 are conditional
     - You can skip test-writer for a config or docs change with no testable behaviour
-    - The frontend-verifier runs under three conditions: `mapflow/project.yaml` configures a frontend, frontend files changed, and verification is on
+    - The frontend-verifier runs under three conditions: `acstack/project.yaml` configures a frontend, frontend files changed, and verification is on
 - `workflow.tdd.strict: false` reverses phase 1 and phase 2
     - The order becomes task-executor, then test-writer, then task-checker
     - It drops no phase
@@ -230,9 +230,9 @@ The format step sits immediately before phase 3.
 
 *Spec sync runs on every commit on every path. It reads the diff. Your specs therefore describe what you built, not what you planned.*
 
-`/mapflow:commit` groups changes into MECE commits. MECE means mutually exclusive and collectively exhaustive: no change appears twice, and no change goes missing. Before writing them it does five things.
+`/acstack:commit` groups changes into MECE commits. MECE means mutually exclusive and collectively exhaustive: no change appears twice, and no change goes missing. Before writing them it does five things.
 
-1. Reads `mapflow/domain-map.yaml` to map each changed file to a domain.
+1. Reads `acstack/domain-map.yaml` to map each changed file to a domain.
 2. Works out what the diff adds, modifies or removes, for each affected domain with a `spec.md`.
 3. Writes those entries into the domain's spec and stages them in the same commit.
 4. Flags source files that match no domain.
@@ -252,37 +252,37 @@ Four cases stop sync.
 - no file matching a domain
 - a change that touches only docs and config
 
-**Without `mapflow/domain-map.yaml` this step does nothing, silently.**
+**Without `acstack/domain-map.yaml` this step does nothing, silently.**
 
-- `/mapflow:setup` generates that file
-- `mapflow config check` reports it as missing on a project set up before that existed
+- `/acstack:setup` generates that file
+- `acstack config check` reports it as missing on a project set up before that existed
 
 ## 6. Archive
 
 *A map is working state, not a record you keep. Archive checks the decisions reached your specs, your decision notes, and your glossary, then deletes the nodes.*
 
-- `/mapflow:archive` checks for a cleared map: empty frontier, no fog, no claims
+- `/acstack:archive` checks for a cleared map: empty frontier, no fog, no claims
 - It spot-checks that the specs, the decision notes and the glossary captured what the effort settled
 - It then disposes of the nodes
     - It deletes them by default
-    - It moves them to `mapflow/archive/<date>-<name>/nodes/` when `workflow.maps.persist` is `true`
+    - It moves them to `acstack/archive/<date>-<name>/nodes/` when `workflow.maps.persist` is `true`
     - Keeping nodes is off by default
     - A kept map is a second copy of every decision
     - The two drift apart
     - On the GitHub tracker there is nothing to dispose
     - A closed issue is already the archive
 - Archive runs either way
-    - The user types `/mapflow:archive`
-    - `/mapflow:map` hands off to it once every node resolves
+    - The user types `/acstack:archive`
+    - `/acstack:map` hands off to it once every node resolves
     - The disposal step then asks you first
-- Legacy `mapflow/changes/` directories from the pre-map workflow still archive the old way
+- Legacy `acstack/changes/` directories from the pre-map workflow still archive the old way
     - An upgrade therefore never strands work
 
 ## 7. Living specs
 
-*What the project keeps. Mapflow deletes a map once every question resolves. `mapflow/specs/` outlives it.*
+*What the project keeps. ACStack deletes a map once every question resolves. `acstack/specs/` outlives it.*
 
-- Specs live at `mapflow/specs/<domain>/spec.md`, organised by the domains in `domain-map.yaml`
+- Specs live at `acstack/specs/<domain>/spec.md`, organised by the domains in `domain-map.yaml`
 - Each spec states numbered functional requirements (`FR-NNN`) in Given, When, Then form
 - They are cumulative
 - They describe only what the code already does
@@ -298,7 +298,7 @@ Two rules keep them honest.
     - Any agent that finds a spec contradicting the code corrects the spec immediately
     - It rewrites wrong behaviour, appends missing requirements, and deletes stale references
 
-`/mapflow:bootstrap` generates the first set from an existing codebase. A project never starts from an empty directory.
+`/acstack:bootstrap` generates the first set from an existing codebase. A project never starts from an empty directory.
 
 ## 8. Where the design record lives
 

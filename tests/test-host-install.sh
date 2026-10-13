@@ -313,13 +313,13 @@ lines_in_order() { # $1=file, rest=substrings
 sha() { sha256sum "$1" 2>/dev/null | cut -d' ' -f1; }
 
 # The managed block, exactly.
-BLOCK_START='# >>> mapflow terminal-workspace >>>'
-BLOCK_END='# <<< mapflow terminal-workspace <<<'
+BLOCK_START='# >>> acstack terminal-workspace >>>'
+BLOCK_END='# <<< acstack terminal-workspace <<<'
 BLOCK_TABLE='[worktrees]'
 BLOCK_DIR_DEFAULT='directory = "~/.herdr/worktrees"'
 EXPECTED_BLOCK="$(printf '%s\n%s\n%s\n%s\n' "$BLOCK_START" "$BLOCK_TABLE" "$BLOCK_DIR_DEFAULT" "$BLOCK_END")"
 
-block_text() { sed -n "/^# >>> mapflow terminal-workspace >>>\$/,/^# <<< mapflow terminal-workspace <<<\$/p" "$1" 2>/dev/null; }
+block_text() { sed -n "/^# >>> acstack terminal-workspace >>>\$/,/^# <<< acstack terminal-workspace <<<\$/p" "$1" 2>/dev/null; }
 block_is_exactly_default() { [ "$(block_text "$1")" = "$EXPECTED_BLOCK" ]; }
 count_in_file() { local n=0; [ -f "$1" ] && n="$(grep -cF -- "$2" "$1")"; printf '%s\n' "${n:-0}"; }
 

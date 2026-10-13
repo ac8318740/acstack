@@ -1,5 +1,5 @@
-# Fullstack Python (backend) + Node/TS (frontend) profile for mapflow
-# Used by /mapflow:setup to generate mapflow/project.yaml
+# Fullstack Python (backend) + Node/TS (frontend) profile for acstack
+# Used by /acstack:setup to generate acstack/project.yaml
 
 commands:
   test: "pytest tests/ --tb=short -x"

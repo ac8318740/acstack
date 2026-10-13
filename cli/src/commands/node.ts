@@ -92,7 +92,7 @@ function readBody(body?: string, bodyFile?: string): string | undefined {
 
 // Where the tracker is named, and the command whose output every --stdin route
 // reads. Both are written once: the refusal that names the key has to name the
-// key `mapflow config set` takes, and every route has to ask gh for the same
+// key `acstack config set` takes, and every route has to ask gh for the same
 // fields the adapter reads.
 const TRACKER_KEY = 'workflow.maps.tracker';
 const GH_ISSUE_LIST = 'gh issue list --json number,title,body,state,stateReason,labels,url';
@@ -100,7 +100,7 @@ const GH_ISSUE_LIST = 'gh issue list --json number,title,body,state,stateReason,
 /**
  * Refuses a `--map` read when the project keeps its maps in GitHub issues.
  *
- * `mapflow/maps/<name>/` is not there on that tracker and never will be, so an
+ * `acstack/maps/<name>/` is not there on that tracker and never will be, so an
  * unguarded read answers out of an empty directory - and an empty map reads as
  * a finished one, which is the one wrong answer nobody goes and checks. A
  * stray directory left over from before the move is still not the map, so this
@@ -114,7 +114,7 @@ function refuseGithubMap(root: string, map: string, stdinRoute?: string): void {
   const tracked = getProjectKey(projectFile(root), TRACKER_KEY);
   if (tracked.status !== 'set' || tracked.value !== 'github') return;
   const route = stdinRoute
-    ? `Pipe the map in instead: ${GH_ISSUE_LIST} | mapflow node ${stdinRoute} --stdin.`
+    ? `Pipe the map in instead: ${GH_ISSUE_LIST} | acstack node ${stdinRoute} --stdin.`
     : 'Work the issue through gh, not this command.';
   fail(`Map '${map}' lives in GitHub issues - ${TRACKER_KEY} is github. ${route}`);
 }
@@ -527,7 +527,7 @@ export function register(program: Command): void {
   const nodeCmd = program
     .command('node')
     .description(
-      'Map nodes: small markdown records, one file each, under mapflow/maps/<name>/.\n' +
+      'Map nodes: small markdown records, one file each, under acstack/maps/<name>/.\n' +
         'Status: fog (not yet stated precisely), open (ready), claimed (being worked),\n' +
         'resolved (settled), out-of-scope (dropped).'
     );

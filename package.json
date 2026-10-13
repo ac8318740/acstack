@@ -1,8 +1,8 @@
 {
-  "name": "mapflow",
-  "version": "0.46.0",
+  "name": "acstack",
+  "version": "0.47.0",
   "private": false,
-  "description": "Map-based agentic coding plugin with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
+  "description": "Agentic coding stack with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -10,13 +10,13 @@
   },
   "keywords": [
     "pi-package",
-    "mapflow",
+    "acstack",
     "tdd",
-    "map-based",
+    "agentic-coding",
     "agent-orchestration"
   ],
   "bin": {
-    "mapflow": "cli/bin/mapflow.js"
+    "acstack": "./cli/bin/acstack.js"
   },
   "files": [
     ".claude-plugin/",
@@ -28,7 +28,6 @@
     "cli/README.md",
     "docs/",
     "hooks/",
-    "mapflow/",
     "orchestrator/",
     "output-styles/",
     "pi/",

@@ -1,6 +1,6 @@
 ---
 name: browser-verify
-description: How to interact with a browser for frontend verification using agent-browser CLI and CDP. ALWAYS use when UI or frontend files are modified and workflow.frontend_verification is true in mapflow/project.yaml. Also use before running agent-browser commands, when element refs go stale, when CDP connection fails, or when verifying UI behavior. Covers all commands (snapshot, screenshot, click, fill, type), element ref strategy, DOM staleness rules, selector priority, and remote/headless/local environment troubleshooting.
+description: How to interact with a browser for frontend verification using agent-browser CLI and CDP. ALWAYS use when UI or frontend files are modified and workflow.frontend_verification is true in acstack/project.yaml. Also use before running agent-browser commands, when element refs go stale, when CDP connection fails, or when verifying UI behavior. Covers all commands (snapshot, screenshot, click, fill, type), element ref strategy, DOM staleness rules, selector priority, and remote/headless/local environment troubleshooting.
 ---
 
 # Browser helpers
@@ -9,11 +9,11 @@ description: How to interact with a browser for frontend verification using agen
 
 This is an operational reference for browser-based verification using the `agent-browser` CLI and Chrome DevTools Protocol (CDP). It covers commands, selector strategy, environment setup, and troubleshooting.
 
-For setup (installing agent-browser, creating config files, scaffolding knowledge base), use `/mapflow:setup`. To audit what a project already has, run `mapflow config check`.
+For setup (installing agent-browser, creating config files, scaffolding knowledge base), use `/acstack:setup`. To audit what a project already has, run `acstack config check`.
 
 ## Project configuration
 
-Read `mapflow/project.yaml` for:
+Read `acstack/project.yaml` for:
 
 - `frontend.directory` – frontend source directory
 - `frontend.dev_server_url` – dev server URL
@@ -27,7 +27,7 @@ Read `mapflow/project.yaml` for:
 The project states a preference. The host states what it can actually provide. One command reads both and returns the answer:
 
 ```bash
-~/.claude/mapflow/bin/mapflow config browser-mode --json
+~/.claude/acstack/bin/acstack config browser-mode --json
 ```
 
 It answers from declared configuration alone. It probes nothing, so it returns at once and always gives the same answer on the same machine.
@@ -52,13 +52,13 @@ Without `--json` it prints the same two facts on one line: the mode, then the re
 
 ### How it decides
 
-The host declares which modes this machine can provide. It does so on three axes in the global config at `~/.config/mapflow/config.json`:
+The host declares which modes this machine can provide. It does so on three axes in the global config at `~/.config/acstack/config.json`:
 
 - `host.browser.remote` – this machine can reach a browser on another machine
 - `host.browser.headless` – this machine can launch headless Chromium
 - `host.browser.local` – this machine has a display for a visible browser
 
-`/mapflow:host` sets them. From there the rules are short:
+`/acstack:host` sets them. From there the rules are short:
 
 1. The project's preferred mode wins when the host declares that mode available.
 2. Otherwise the first mode the host does declare stands in, in the order remote, headless, local.
@@ -71,9 +71,9 @@ The command exits 1, writes one plain-text message to stderr, and prints nothing
 
 Three situations produce it. Each message names the one command that fixes it:
 
-- the project configures no frontend, or there is no Mapflow project here. The message names `/mapflow:setup`
-- this host declares no browser mode available, or nobody has described this host yet. The message names `/mapflow:host`
-- the project forbids a fallback, and this host does not declare the mode it prefers. The message names `/mapflow:host`
+- the project configures no frontend, or there is no ACStack project here. The message names `/acstack:setup`
+- this host declares no browser mode available, or nobody has described this host yet. The message names `/acstack:host`
+- the project forbids a fallback, and this host does not declare the mode it prefers. The message names `/acstack:host`
 
 The frontend-verifier treats exit 1 as a FAIL and reports the message verbatim. It never guesses a mode of its own.
 
@@ -91,7 +91,7 @@ A relay runs on the browser machine and exposes a CDP-shaped endpoint. The Playw
 
 The dev machine reaches the relay through an SSH reverse tunnel.
 
-This section does not decide whether remote mode runs here. `mapflow config browser-mode` decides that, from the project's preference and the host's `host.browser.*` axes together. Run it before you connect.
+This section does not decide whether remote mode runs here. `acstack config browser-mode` decides that, from the project's preference and the host's `host.browser.*` axes together. Run it before you connect.
 
 Once that command returns `remote`, the answer is final. If the bridge is then down, the frontend-verifier reports FAIL with troubleshooting steps. It does not launch headless Chromium instead, because the command already ruled on any stand-in mode.
 
@@ -153,7 +153,7 @@ Use the `bridge` skill for a durable Windows laptop → Linux VM setup: [`../bri
 
 It adds auto-reconnecting scheduled tasks, ssh-agent key persistence, multi-VM tunneling, automated diagnosis (`doctor.ps1`), canonical stop (`stop.ps1`), and VM-side port cleanup (`vm-free-port.sh`). It routes to a Windows runbook or a Linux/VM runbook based on where you are. It also defines the paste-ready handoff format for cross-device work.
 
-The scripts ship under `plugins/mapflow/assets/playwriter-bridge/`.
+The scripts ship under `plugins/acstack/assets/playwriter-bridge/`.
 
 ### Local headless (no display)
 
@@ -224,6 +224,6 @@ The snapshot gives you accessible names and roles automatically. Use these to fi
 
 - **frontend-verifier agent** uses agent-browser for Phase 4 verification – this skill is its reference
 - **task-checker agent** runs the static frontend checks – the `implement` skill runs frontend-verifier as its own step after the checker passes
-- **/mapflow:setup** runs the setup interviews (install, config, knowledge base scaffolding) and offers a fix for each row the health check fails
-- **`mapflow config check`** audits the browser infrastructure and changes nothing
-- **/mapflow:quick-fix** uses agent-browser for visual verification of bug fixes
+- **/acstack:setup** runs the setup interviews (install, config, knowledge base scaffolding) and offers a fix for each row the health check fails
+- **`acstack config check`** audits the browser infrastructure and changes nothing
+- **/acstack:quick-fix** uses agent-browser for visual verification of bug fixes

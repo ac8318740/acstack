@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { claudeConfigRoot, CLAUDE_SETTINGS_FILE } from './constants.js';
 
 /**
- * What Mapflow can learn about another Claude Code plugin, by reading the
+ * What ACStack can learn about another Claude Code plugin, by reading the
  * files Claude Code writes when it installs one and when the user switches one
  * off.
  *

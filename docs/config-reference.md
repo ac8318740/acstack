@@ -1,8 +1,8 @@
 # Project configuration
 
-*Every key in `mapflow/project.yaml`, the values it takes, its default, and what changes when you change it.*
+*Every key in `acstack/project.yaml`, the values it takes, its default, and what changes when you change it.*
 
-One file, `mapflow/project.yaml`, holds every setting that belongs to a project.
+One file, `acstack/project.yaml`, holds every setting that belongs to a project.
 
 - **It names what to run**: the test, build, lint, typecheck, and format commands
 - **It names where to look**: the source and test directories, and the frontend
@@ -13,19 +13,19 @@ One file, `mapflow/project.yaml`, holds every setting that belongs to a project.
 Three terms first.
 
 - **A key** is one dotted path into the file, such as `workflow.tdd.strict`
-- **A default** is what Mapflow does when the file states no value
+- **A default** is what ACStack does when the file states no value
 - **A rung** is one token count at which the context-pressure hook speaks up, asking the session to choose continuity or freshness
 
 ```mermaid
 flowchart TD
-    FILE["mapflow/project.yaml<br/>(written by /mapflow:setup)"] --> WF["workflow.*<br/>switches, maps, handoff"]
+    FILE["acstack/project.yaml<br/>(written by /acstack:setup)"] --> WF["workflow.*<br/>switches, maps, handoff"]
     FILE --> RUN["commands.*, directories.*,<br/>test_markers, venv"]
     FILE --> FE["frontend.*<br/>dev server, browser"]
     WF --> SKILLS["commit, grilling, map,<br/>archive, handoff"]
     WF --> HOOK["hooks/context-pressure.sh"]
     RUN --> AGENTS["orchestrator, test-writer,<br/>task-executor, task-checker"]
     FE --> FV["frontend-verifier"]
-    HOST["~/.config/mapflow/config.json<br/>host.* keys - see dev-setups.md"] --> FV
+    HOST["~/.config/acstack/config.json<br/>host.* keys - see dev-setups.md"] --> FV
 ```
 
 | Step in the diagram | Detail |
@@ -42,13 +42,13 @@ flowchart TD
 
 ## 1. Where the file lives, and what writes it
 
-*The setup skill writes the whole file. To change one key, run `mapflow config set`.*
+*The setup skill writes the whole file. To change one key, run `acstack config set`.*
 
-- `mapflow/project.yaml` sits in the project root, beside `mapflow/domain-map.yaml`
-- `/mapflow:setup` writes it
+- `acstack/project.yaml` sits in the project root, beside `acstack/domain-map.yaml`
+- `/acstack:setup` writes it
     - On a fresh project the skill detects the project type, then writes every key from a profile under `profiles/`
     - On a project that already has the file, the skill leads with the health check and offers a menu of changes
-- `mapflow config set <key> <value>` changes one key without an interview
+- `acstack config set <key> <value>` changes one key without an interview
 - A key the file omits takes the default the tables below give it
     - The `commands`, `directories`, and `frontend` keys have no such default
     - The setup skill copies them from a profile
@@ -58,29 +58,29 @@ Four commands read the file and change nothing.
 
 | Command | What it prints |
 | --- | --- |
-| `mapflow config show` | the profile, the commands, and what the project says about its browser |
-| `mapflow config check` | an audit of the project and the machine, exiting 2 when a required host axis has no value |
-| `mapflow config list` | every key the file states |
-| `mapflow design-gate` | whether a design review runs here, as `on` and exit 0 or one `off: <reason>` line per reason and exit 1 (section 3) |
+| `acstack config show` | the profile, the commands, and what the project says about its browser |
+| `acstack config check` | an audit of the project and the machine, exiting 2 when a required host axis has no value |
+| `acstack config list` | every key the file states |
+| `acstack design-gate` | whether a design review runs here, as `on` and exit 0 or one `off: <reason>` line per reason and exit 1 (section 3) |
 
 ### 1.1. Which file a write lands in
 
 *The key decides, and the key alone.*
 
 - A `host.*` key describes the machine
-    - It goes to the global config at `~/.config/mapflow/config.json`
+    - It goes to the global config at `~/.config/acstack/config.json`
 - Every other key in this document describes the project
-    - It goes to `mapflow/project.yaml`
+    - It goes to `acstack/project.yaml`
 - Section 10 covers the `host.*` keys
-- `mapflow config get <key>` and `mapflow config unset <key>` read the same key table and route the same way
+- `acstack config get <key>` and `acstack config unset <key>` read the same key table and route the same way
 
 ### 1.2. What a command refuses
 
 *Validation happens before either file opens, so a refusal writes nothing.*
 
-- `mapflow config set` refuses a value outside the set a table gives
+- `acstack config set` refuses a value outside the set a table gives
 - It refuses a key neither schema knows, and names the keys it does know
-- It refuses a project key outside a Mapflow project
+- It refuses a project key outside an ACStack project
     - No file is there to hold it
 - It holds a numeric key to the range its reader honours, not merely to being a number
     - A count of turns or of tokens takes a whole number of 0 or more
@@ -88,7 +88,7 @@ Four commands read the file and change nothing.
     - A refusal names the range
     - A value the reader would reject otherwise fails somewhere else entirely, long after the command that accepted it exited 0
 - `get` and `unset` both refuse a key neither schema knows
-- Both refuse a project key outside a Mapflow project
+- Both refuse a project key outside an ACStack project
 
 ### 1.3. What `get` prints, and what it exits
 
@@ -104,7 +104,7 @@ Four commands read the file and change nothing.
 
 ### 1.4. What `unset` leaves behind
 
-*`mapflow config unset` takes the key out. It prunes nothing else.*
+*`acstack config unset` takes the key out. It prunes nothing else.*
 
 - Removing a key the file does not state is not an error
     - The command writes nothing at all
@@ -132,7 +132,7 @@ A write keeps the file as you wrote it. Comments, blank lines, key order, and qu
 - Line endings survive either path
     - The command writes a file that arrived with CRLF back in CRLF
     - Setting one key never rewrites the ending of every line
-- `mapflow config unset` writes the same two ways and checks itself the same way
+- `acstack config unset` writes the same two ways and checks itself the same way
     - It splices the whole line out, indentation and trailing comment included, then compares the data before it keeps that
 
 So the result decides which path a write takes, and never the shape of the key.
@@ -150,11 +150,11 @@ So the result decides which path a write takes, and never the shape of the key.
 
 ### 1.6. Four file shapes that get a decision rather than a crash
 
-*A file Mapflow itself produced always reads back.*
+*A file ACStack itself produced always reads back.*
 
-- A project that holds `mapflow/` and no `project.yaml` gets the file created
+- A project that holds `acstack/` and no `project.yaml` gets the file created
 - A block stating nothing takes a key underneath it, whether the file spells that block as a bare colon, as `null` or as `~`
-    - That is the state `mapflow config unset` leaves behind
+    - That is the state `acstack config unset` leaves behind
         - The tool accepts its own output
 - A document stating nothing at all takes a key too
     - A file holding only `---` works the way an empty file already does
@@ -173,16 +173,16 @@ Three refusals protect a file neither command can handle.
 - Both refuse a document that is a scalar or a list, because no key hangs under either
 - Both name the file and the reason
 
-### 1.7. What `mapflow config list` reports
+### 1.7. What `acstack config list` reports
 
 *The listing answers what the file states, and `get` answers what the schema knows.*
 
 - The listing prints every key the file states, in the file's own order
 - A stated key no schema knows carries `(unknown key)`
-    - `mapflow config get` refuses that key
-    - `mapflow config set` will not write it
+    - `acstack config get` refuses that key
+    - `acstack config set` will not write it
 - A block header holding nothing carries no mark where the schema knows keys under it
-    - `mapflow config unset` leaves that line standing when it removes a block's last key
+    - `acstack config unset` leaves that line standing when it removes a block's last key
     - The tool wrote `workflow:` itself, so the listing does not warn about it
 - A key holding a dot is a key of its own
     - YAML reads `"workflow.spec_sync": true` as one key whose name contains a dot
@@ -199,22 +199,22 @@ Three refusals protect a file neither command can handle.
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `profile` | `node-typescript`, `python`, `fullstack-python` | none | `/mapflow:setup` reads `profiles/<profile>.yaml` for its proposed commands and directories; `mapflow config show` prints the name |
+| `profile` | `node-typescript`, `python`, `fullstack-python` | none | `/acstack:setup` reads `profiles/<profile>.yaml` for its proposed commands and directories; `acstack config show` prints the name |
 
 - The profile decides nothing after setup has run
 - The commands and directories it proposed live in the file as their own keys, and those keys are what every later reader uses
 
 ## 3. workflow: the switches
 
-*Five booleans sit in the block. Each one changes how much discipline Mapflow applies. A sixth key decides how the agent asks you a question.*
+*Five booleans sit in the block. Each one changes how much discipline ACStack applies. A sixth key decides how the agent asks you a question.*
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `workflow.spec_sync` | `true`, `false` | `true` | the `commit` skill runs spec sync before it commits, unless this says `false`; with `false` the living specs under `mapflow/specs/` stop tracking the code |
+| `workflow.spec_sync` | `true`, `false` | `true` | the `commit` skill runs spec sync before it commits, unless this says `false`; with `false` the living specs under `acstack/specs/` stop tracking the code |
 | `workflow.tdd.strict` | `true`, `false` | `true` | `false` runs the task-executor before the test-writer; all three phases still run, and the checker's gate changes with the key |
 | `workflow.tdd.orchestrator_strict` | `true`, `false` | `true` | `false` lets the coordinating session read and write code itself for small tasks, instead of handing every piece to a subagent |
 | `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, and the change touched frontend files |
-| `workflow.design_review` | `true`, `false` | `false` | a design review runs on a UI change only when this is `true`; it needs the impeccable plugin installed and switched on, which `mapflow config check` reports on |
+| `workflow.design_review` | `true`, `false` | `false` | a design review runs on a UI change only when this is `true`; it needs the impeccable plugin installed and switched on, which `acstack config check` reports on |
 
 How a boolean reads:
 
@@ -222,17 +222,17 @@ How a boolean reads:
     - `true`, `yes`, and `on` all read as true
     - `false`, `no`, and `off` all read as false
 - The tables show `true` and `false`
-    - That is what the file holds after `mapflow config set` writes one
+    - That is what the file holds after `acstack config set` writes one
 - `workflow.spec_sync` reads as on unless the file states one of the three false spellings outright
     - The `commit` skill treats a missing key and an explicit `true` the same way
 - `workflow.frontend_verification` reads as off unless the file states one of the three true spellings outright
     - The frontend-verifier is the only reader
     - `orchestrator/AGENTS.md` and the `browser-verify` skill both run it on an explicit `true` alone
     - The defaults block in section 11 shows `true` for this key
-    - That is what `/mapflow:setup` writes for a project with a frontend
+    - That is what `/acstack:setup` writes for a project with a frontend
     - That is what setup writes, and not what an absent key means
 - `workflow.design_review` reads as off unless the file states one of the three true spellings outright
-    - `mapflow design-gate` is the one command that answers whether the gate is on
+    - `acstack design-gate` is the one command that answers whether the gate is on
         - On needs both halves: the key true, and the impeccable plugin installed
             - A plugin set `false` under `enabledPlugins` in `settings.json` counts as not installed
         - It reads this file, the plugin registry, and `settings.json`, runs nothing, and never exits 2
@@ -285,7 +285,7 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
 | `workflow.maps.tracker` | `github`, `files` | none | the `map`, `implement`, and `archive` skills read the matching backend document and use its operations |
-| `workflow.maps.persist` | `true`, `false` | `false` | `true` moves a cleared map's node files to `mapflow/archive/[YYYY-MM-DD]-[name]/nodes/`; `false` deletes `mapflow/maps/<name>/` |
+| `workflow.maps.persist` | `true`, `false` | `false` | `true` moves a cleared map's node files to `acstack/archive/[YYYY-MM-DD]-[name]/nodes/`; `false` deletes `acstack/maps/<name>/` |
 
 - An absent `workflow.maps.tracker` means nobody has chosen yet
     - The `map` skill then picks at the moment it first writes a map's nodes down, confirms the choice with the user, and writes the key
@@ -346,9 +346,9 @@ What the nudge asks the agent to choose:
 
 - Continuity means useful working context stays in the same session
     - A large window can rely on billion-context
-    - ACP compression is an in-place host option, not something Mapflow calls itself
+    - ACP compression is an in-place host option, not something ACStack calls itself
 - Freshness means a fresh context window or independent read would help more
-    - That route is `/mapflow:handoff`
+    - That route is `/acstack:handoff`
 - Severe wording makes the same checkpoint urgent
 - It never halts the run
 - Both tiers close with the same clause
@@ -416,8 +416,8 @@ Three rules decide the window, in order.
 
 *Two files per session hold the state, and a compaction deletes both.*
 
-- The hook keeps both files under `$MAPFLOW_CONTEXT_PRESSURE_DIR`
-    - That defaults to a `mapflow-context-pressure` directory under `TMPDIR`, or under `/tmp`
+- The hook keeps both files under `$ACSTACK_CONTEXT_PRESSURE_DIR`
+    - That defaults to a `acstack-context-pressure` directory under `TMPDIR`, or under `/tmp`
 - The `.last` file holds the rung the hook last spoke for
 - The `.quiet` file is a marker
     - The `handoff` and `compact-and-continue` skills leave it behind when they finish
@@ -437,7 +437,7 @@ Two limits are worth knowing.
         - `200_000` reads as 200,000
     - Exponent and float notation do not
         - `2e5` and `2.0` fall back to the default
-- The hook opens `mapflow/project.yaml` relative to the working directory
+- The hook opens `acstack/project.yaml` relative to the working directory
     - A session running outside the project root therefore gets the defaults, whatever the file says
 
 ## 7. commands, directories, test_markers and venv
@@ -452,7 +452,7 @@ Two limits are worth knowing.
 | `commands.lint` | a shell command, or `null` | from the profile | the pipeline lints with it, usually with a fix flag |
 | `commands.typecheck` | a shell command, or `null` | from the profile | the pipeline type-checks with it |
 | `commands.format` | a shell command, or `null` | from the profile | the pipeline runs it over the files the work touched, immediately before the task-checker; `null` means no format step |
-| `directories.source` | a path | `src/` | where `/mapflow:setup` explores to propose the domain map, and where the pipeline writes source |
+| `directories.source` | a path | `src/` | where `/acstack:setup` explores to propose the domain map, and where the pipeline writes source |
 | `directories.tests` | a path | `tests/` | where the test-writer writes tests, and the one tree the task-executor may not touch |
 | `test_markers.exclude` | comma-separated markers, or `null` | `null` for Node, `slow,integration` for Python | which markers a default test run leaves out, as in `pytest -m` |
 | `venv.activate` | a shell command, or `null` | `null` for Node, `source .venv/bin/activate` for Python | every agent prefixes each command with it when the file states one |
@@ -463,7 +463,7 @@ Two limits are worth knowing.
 - A non-zero exit from `commands.format` gets reported, and never counts as a failed implementation
     - Formatting is not correctness
     - The task-checker runs afterwards, and its own gate decides whether the work passes
-- `mapflow config show` lists a `commands` entry only when its value is a non-empty string
+- `acstack config show` lists a `commands` entry only when its value is a non-empty string
     - A `null`, a number or a nested block does not name a command anyone could run
         - The listing leaves it out
 
@@ -473,7 +473,7 @@ Two limits are worth knowing.
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `frontend` | a block, or `null` | absent | a block makes the project a frontend project: the frontend-verifier becomes eligible, and `mapflow config check` starts asking for the three browser axes and the frontend files |
+| `frontend` | a block, or `null` | absent | a block makes the project a frontend project: the frontend-verifier becomes eligible, and `acstack config check` starts asking for the three browser axes and the frontend files |
 | `frontend.directory` | a path | `frontend/` | where the frontend lives |
 | `frontend.dev_server_url` | a URL | `http://localhost:3000` | the address the frontend-verifier opens |
 | `frontend.dev_server_check` | a shell command | a `curl` of the URL | how the frontend-verifier decides the dev server is up |
@@ -494,7 +494,7 @@ The Chrome DevTools Protocol (CDP) is the wire protocol the verifier drives a br
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `frontend.browser.mode` | `remote`, `headless`, `local` | none | the mode `mapflow config browser-mode` resolves for the frontend-verifier, weighed against the three host axes; it also picks the `cdp_port` default |
+| `frontend.browser.mode` | `remote`, `headless`, `local` | none | the mode `acstack config browser-mode` resolves for the frontend-verifier, weighed against the three host axes; it also picks the `cdp_port` default |
 | `frontend.browser.fallback` | `none`, `remote`, `headless`, `local` | none | only `none` acts: it forbids another mode from standing in when the host does not declare the preferred one |
 | `frontend.browser.cdp_port` | a whole number from 1 to 65535 | `19988` under `mode: remote`, `9555` otherwise | the port the frontend-verifier dials, and the port the `agent-browser-json` row of the check requires `agent-browser.json` to name |
 
@@ -506,9 +506,9 @@ The two defaults come from two different browsers.
 
 The port default applies wherever the CLI needs a number.
 
-- `mapflow config check` holds a project that states no `cdp_port` to the default its mode implies
+- `acstack config check` holds a project that states no `cdp_port` to the default its mode implies
 - It fails when `agent-browser.json` names a different port
-- `mapflow config show` behaves the other way, printing only what the project states
+- `acstack config show` behaves the other way, printing only what the project states
     - "What did the project say" and "which port do we dial" are different questions
 
 Only the literal `none` gives `frontend.browser.fallback` any effect.
@@ -516,7 +516,7 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
 - Every other value, `headless` included, leaves the host's own order alone: remote first, then headless, then local
 - A project that wanted a particular mode would have named it as its `mode`
     - A second mode name here changes nothing
-- The reader ignores any word other than `none`, and `mapflow config set` still holds the key to the four names above
+- The reader ignores any word other than `none`, and `acstack config set` still holds the key to the four names above
     - A typo would read as a fallback the project never asked for
         - The command refuses it rather than storing it
 
@@ -528,19 +528,19 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
     - Claude Code owns it
     - It lives in three settings files
     - `.claude/settings.local.json` wins over `.claude/settings.json`, which in turn wins over `~/.claude/settings.json`
-    - `mapflow config check` reads all three and reports which file selects which style
-    - No Mapflow command writes it, and `mapflow config set` refuses it as a key neither schema knows
-    - `/mapflow:setup` offers to write it for you, and asks first
+    - `acstack config check` reads all three and reports which file selects which style
+    - No ACStack command writes it, and `acstack config set` refuses it as a key neither schema knows
+    - `/acstack:setup` offers to write it for you, and asks first
 - The `host.*` keys are not `project.yaml` keys either
     - They describe the machine rather than the project
     - The same repository opens on several machines with different setups
-    - They live in the global config at `~/.config/mapflow/config.json`
-    - `mapflow config set` is what writes them
+    - They live in the global config at `~/.config/acstack/config.json`
+    - `acstack config set` is what writes them
     - [dev-setups.md](dev-setups.md) documents all nine axes
 
 ## 11. Every default in one block
 
-*What Mapflow does with a `project.yaml` that states none of these keys.*
+*What ACStack does with a `project.yaml` that states none of these keys.*
 
 ```yaml
 workflow:
@@ -550,7 +550,7 @@ workflow:
   tdd:
     strict: true
     orchestrator_strict: true
-  # /mapflow:setup writes true for a project with a frontend.
+  # /acstack:setup writes true for a project with a frontend.
   # An absent key reads as false. Section 3 says why.
   frontend_verification: true
   design_review: false
@@ -568,5 +568,5 @@ workflow:
 ```
 
 - The `commands`, `directories`, `test_markers`, `venv`, and `frontend` blocks have no defaults of their own
-- `/mapflow:setup` copies them from the profile it detects
+- `/acstack:setup` copies them from the profile it detects
 - Section 7 gives the values each profile proposes

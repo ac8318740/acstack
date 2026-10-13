@@ -1,4 +1,4 @@
-﻿# opener.ps1 - Mapflow document opener, with auto-reconnect.
+﻿# opener.ps1 - ACStack document opener, with auto-reconnect.
 #
 # Runs opener.js (Node) in a loop, the same shape relay.ps1 uses for the
 # Playwriter relay. Intended to be invoked through launcher.exe by a scheduled

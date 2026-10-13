@@ -38,15 +38,15 @@ A `frontend-verification` row needs no step of its own. The project configures a
 frontend and has not turned browser verification on. Turn it on:
 
 ```bash
-~/.claude/mapflow/bin/mapflow config set workflow.frontend_verification true
+~/.claude/acstack/bin/acstack config set workflow.frontend_verification true
 ```
 
 `docs/config-reference.md` documents the key.
 
 ### 9a. Generate the domain map
 
-`mapflow/domain-map.yaml` maps source paths to spec domains. Spec sync,
-`/mapflow:archive`, `/mapflow:bootstrap` and `/mapflow:pre-commit-review` all
+`acstack/domain-map.yaml` maps source paths to spec domains. Spec sync,
+`/acstack:archive`, `/acstack:bootstrap` and `/acstack:pre-commit-review` all
 read it. Without it, every path through spec sync skips in silence, and the
 living specs never update.
 
@@ -66,7 +66,7 @@ Guidance for the subagent:
 - Leave tests, config, build files and docs unmapped. Consumers skip a path that
   no domain covers.
 
-If `mapflow/specs/` already holds domain directories, propose those names first
+If `acstack/specs/` already holds domain directories, propose those names first
 and map the paths onto them. Renaming a domain here orphans its `spec.md`.
 
 Print the proposal and confirm it with the question tool (AskUserQuestion on Claude Code). Ask "Use this domain map,
@@ -76,7 +76,7 @@ Then write the file:
 
 ```yaml
 # Domain Map: maps source paths to spec domains
-# Read by spec sync, /mapflow:archive, /mapflow:bootstrap
+# Read by spec sync, /acstack:archive, /acstack:bootstrap
 
 domains:
   <domain-name>:
@@ -87,7 +87,7 @@ domains:
 
 A greenfield project has no code to group. Say so, write the header with one
 commented example under `domains:`, and invent nothing. Tell the user to fill it
-in, or to run `/mapflow:setup` again once there is code to map.
+in, or to run `/acstack:setup` again once there is code to map.
 
 ### 9b. Install the browser driver
 
@@ -106,7 +106,7 @@ This file tells `agent-browser` which port to dial. Write it in the project root
 {"cdp": "<cdp_port>"}
 ```
 
-Take `<cdp_port>` from `frontend.browser.cdp_port` in `mapflow/project.yaml`. With
+Take `<cdp_port>` from `frontend.browser.cdp_port` in `acstack/project.yaml`. With
 no value there, the default is `19988` under `mode: remote` and `9555` otherwise.
 The row fails when the two files name different ports, so change one of them.
 
@@ -143,7 +143,7 @@ Evolving reference for browser-based verification. Updated by the frontend-verif
 
 ### 9e. Offer the writing output style
 
-The plugin ships an output style. Claude Code names it `mapflow:ac-writing-style`.
+The plugin ships an output style. Claude Code names it `acstack:ac-writing-style`.
 It applies the `writing` skill's plain-language rules to every chat reply.
 
 Offer it. Never set it without asking.
@@ -156,7 +156,7 @@ Ask once:
 
 ```json
 {
-  "question": "Apply the mapflow:ac-writing-style output style?",
+  "question": "Apply the acstack:ac-writing-style output style?",
   "options": [
     {"label": "Global (recommended)", "description": "Write outputStyle into ~/.claude/settings.json, so it applies in every project"},
     {"label": "This project only", "description": "Write outputStyle into .claude/settings.local.json, which overrides the global value here"},
@@ -180,7 +180,7 @@ try:
     data = json.loads(f.read_text()) if f.exists() else {}
 except json.JSONDecodeError:
     sys.exit(f"{f}: malformed JSON, aborting")
-data["outputStyle"] = "mapflow:ac-writing-style"
+data["outputStyle"] = "acstack:ac-writing-style"
 f.write_text(json.dumps(data, indent=2) + "\n")
 PY
 ```
