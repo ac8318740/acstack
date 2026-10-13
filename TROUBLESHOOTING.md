@@ -30,7 +30,7 @@ flowchart LR
 Where the plugin lives, and what points at it:
 
 - The plugin lives at `${CLAUDE_PLUGIN_ROOT}` once the user installs it via the marketplace
-- On most installs that resolves to `~/.claude/plugins/cache/spechub/acstack/<version>/`
+- On most installs that resolves to `~/.claude/plugins/cache/ac-agentic-coding/acstack/<version>/`
 - `~/.claude/acstack/bin/acstack` is the **agent-facing** invariant path
     - Every skill and agent in this plugin invokes the CLI through this exact path
     - It does not depend on the user's `PATH`
@@ -51,7 +51,7 @@ Where the plugin lives, and what points at it:
 
 ```bash
 ls -l ~/.claude/acstack/bin/acstack 2>&1
-ls -d ~/.claude/plugins/cache/spechub/acstack/*/ 2>&1
+ls -d ~/.claude/plugins/cache/ac-agentic-coding/acstack/*/ 2>&1
 ```
 
 **Possible causes and fixes**:
@@ -62,9 +62,9 @@ ls -d ~/.claude/plugins/cache/spechub/acstack/*/ 2>&1
     - The hook creates the symlink and prints `acstack: linked agent CLI at ...`
     - Create it by hand if that does not work:
         ```bash
-        ACSTACK_VERSION=$(ls ~/.claude/plugins/cache/spechub/acstack/ | sort -V | tail -1)
+        ACSTACK_VERSION=$(ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/ | sort -V | tail -1)
         mkdir -p ~/.claude/acstack/bin
-        ln -sfn ~/.claude/plugins/cache/spechub/acstack/$ACSTACK_VERSION/cli/bin/acstack.js ~/.claude/acstack/bin/acstack
+        ln -sfn ~/.claude/plugins/cache/ac-agentic-coding/acstack/$ACSTACK_VERSION/cli/bin/acstack.js ~/.claude/acstack/bin/acstack
         ```
 
 - **Plugin cache missing entirely**: the second `ls` returned nothing
@@ -111,8 +111,8 @@ echo "PATH=$PATH" | tr ':' '\n' | grep -F "$HOME/.local/bin" || echo "MISSING"
 **Diagnose**:
 
 ```bash
-ACSTACK_VERSION=$(ls ~/.claude/plugins/cache/spechub/acstack/ | sort -V | tail -1)
-ls ~/.claude/plugins/cache/spechub/acstack/$ACSTACK_VERSION/cli/dist/index.js 2>&1
+ACSTACK_VERSION=$(ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/ | sort -V | tail -1)
+ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/$ACSTACK_VERSION/cli/dist/index.js 2>&1
 ```
 
 **Cause**: the plugin cache holds a version from before the CLI shipped bundled in the repo, meaning before 0.9.2. This should not happen on 0.9.2 or later.
@@ -123,17 +123,17 @@ ls ~/.claude/plugins/cache/spechub/acstack/$ACSTACK_VERSION/cli/dist/index.js 2>
     - Run `/plugin` in Claude Code and reinstall the plugin
     - Or delete the cache directory and let Claude Code repull:
         ```bash
-        rm -rf ~/.claude/plugins/cache/spechub/acstack/<old-version>
+        rm -rf ~/.claude/plugins/cache/ac-agentic-coding/acstack/<old-version>
         ```
 
 - Confirm the user is on plugin version 0.9.2 or later:
     ```bash
-    cat ~/.claude/plugins/cache/spechub/acstack/*/.claude-plugin/plugin.json | grep version
+    cat ~/.claude/plugins/cache/ac-agentic-coding/acstack/*/.claude-plugin/plugin.json | grep version
     ```
 
 - Build the CLI in place as a one-shot, if the user is offline or cannot repull:
     ```bash
-    cd ~/.claude/plugins/cache/spechub/acstack/<version>/cli
+    cd ~/.claude/plugins/cache/ac-agentic-coding/acstack/<version>/cli
     npm install
     npm run build
     ```
@@ -148,7 +148,7 @@ ls ~/.claude/plugins/cache/spechub/acstack/$ACSTACK_VERSION/cli/dist/index.js 2>
 
 ```bash
 readlink ~/.claude/acstack/bin/acstack
-ls ~/.claude/plugins/cache/spechub/acstack/
+ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/
 ```
 
 **Cause**: an older session set the symlink target. The plugin cache now holds a newer version. The SessionStart hook has not relinked it yet.
@@ -159,9 +159,9 @@ ls ~/.claude/plugins/cache/spechub/acstack/
     - The SessionStart hook detects a stale symlink and relinks it, printing `acstack: updated agent CLI at ...`
 - Or relink by hand:
     ```bash
-    NEW=$(ls ~/.claude/plugins/cache/spechub/acstack/ | sort -V | tail -1)
-    ln -sfn ~/.claude/plugins/cache/spechub/acstack/$NEW/cli/bin/acstack.js ~/.claude/acstack/bin/acstack
-    ln -sfn ~/.claude/plugins/cache/spechub/acstack/$NEW/cli/bin/acstack.js ~/.local/bin/acstack
+    NEW=$(ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/ | sort -V | tail -1)
+    ln -sfn ~/.claude/plugins/cache/ac-agentic-coding/acstack/$NEW/cli/bin/acstack.js ~/.claude/acstack/bin/acstack
+    ln -sfn ~/.claude/plugins/cache/ac-agentic-coding/acstack/$NEW/cli/bin/acstack.js ~/.local/bin/acstack
     ```
 
 ---
@@ -173,7 +173,7 @@ ls ~/.claude/plugins/cache/spechub/acstack/
 **Diagnose**:
 
 ```bash
-cat ~/.claude/plugins/cache/spechub/acstack/*/hooks/hooks.json
+cat ~/.claude/plugins/cache/ac-agentic-coding/acstack/*/hooks/hooks.json
 ```
 
 **Cause**: the user has not enabled the plugin, or they have disabled hook execution in their Claude Code settings.
@@ -217,8 +217,8 @@ brew install python3
 The CLI is a normal Node.js ESM package. To validate the install end to end:
 
 ```bash
-ACSTACK_VERSION=$(ls ~/.claude/plugins/cache/spechub/acstack/ | sort -V | tail -1)
-node ~/.claude/plugins/cache/spechub/acstack/$ACSTACK_VERSION/cli/bin/acstack.js --help
+ACSTACK_VERSION=$(ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/ | sort -V | tail -1)
+node ~/.claude/plugins/cache/ac-agentic-coding/acstack/$ACSTACK_VERSION/cli/bin/acstack.js --help
 ```
 
 - If that prints help, the CLI is fine and the issue is the symlink
