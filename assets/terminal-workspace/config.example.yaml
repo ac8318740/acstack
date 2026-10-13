@@ -236,6 +236,19 @@ pi:
   # retro. Needs the agentic-retro plugin installed first, and apply says so
   # when it is not.
   agentic_retro: true
+  # Zentui supplies the accent-rail editor and Starship footer. The footer
+  # format keeps model/provider/thinking visible on the right, including in
+  # compact mode.
+  zentui: true
+  # Hide pi-lens's LSP status footer and diagnostics widget rows.
+  hide_lens_lsp_status: true
+  # Extra pi-lens tools installed onto PATH for ecosystems used across repos.
+  # These are machine-wide, not project dependencies.
+  lens_extra_tools:
+    python: true          # black, mypy, pyright
+    docker: true          # hadolint, Dockerfile language server
+    github_actions: true  # actionlint, zizmor
+    terraform: true       # terraform-ls, tflint, terragrunt
   # Written into ~/.pi/agent/settings.json. Empty leaves pi's own value alone.
   # Every other key in that file stays as you set it, and disable puts back
   # any value of yours that apply replaced.
@@ -247,8 +260,9 @@ pi:
     mermaid: streaming
     # pi's anonymous install and update reporting. Kept off by this setup.
     install_telemetry: false
-    # A pi theme name. "system" takes its colours from the terminal.
-    theme: system
+    # A pi theme name. alex-mid-grey is written by this setup and shades
+    # user messages.
+    theme: alex-mid-grey
 
 neovim:
   # The one component that is off by default, because it writes into a neovim

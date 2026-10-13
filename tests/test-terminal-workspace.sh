@@ -3863,7 +3863,9 @@ TABLE_ROWS=$(sed -n '/^version_table()/,/^}/p' "$SETUP" | sed -n '/<</,/^T$/p' |
 drift=""
 while IFS=$'\t' read -r name _ src repo match; do
   [ "$src" = "github" ] || continue
-  grep -qF "install_binary $name $repo $match" "$SETUP" || drift="$drift $name"
+  grep -qF "install_binary $name $repo $match" "$SETUP" \
+    || grep -qF "install_plain_github_binary $name $repo $match" "$SETUP" \
+    || drift="$drift $name"
 done <<< "$TABLE_ROWS"
 # And the reverse. A tool apply installs but neither the table nor an arm of
 # its own knows about is a tool `upgrade <name>` answers "not a tool this
@@ -3874,7 +3876,7 @@ while read -r name; do
   cut -f1 <<< "$TABLE_ROWS" | grep -qx "$name" && continue
   sed -n '/^upgrade_one()/,/^}/p' "$SETUP" | grep -qE "^ *$name\)" && continue
   unreachable="$unreachable $name"
-done < <(grep -oE 'install_binary [a-z-]+ [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ ' "$SETUP" \
+done < <(grep -oE 'install_(plain_github_)?binary [a-z-]+ [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ ' "$SETUP" \
          | awk '{print $2}' | sort -u)
 if [ -z "$unreachable" ]; then ok "every tool apply installs is one upgrade can reach"
 else no "upgrade cannot reach tools apply installs:$unreachable"; fi
@@ -3922,9 +3924,9 @@ YML
 # reaches no network, which is why it is safe to call where apply is not.
 sed '/^case "$ACTION" in$/,$d' "$SETUP" > "$WORK/setup-funcs.sh"
 (
-  HOME="$CPW/home"
-  ACSTACK_TW_BIN="$CPW/home/.local/bin"
-  ACSTACK_TW_CONFIG="$CPW/home/.config/acstack/terminal-workspace.yaml"
+  export HOME="$CPW/home"
+  export ACSTACK_TW_BIN="$CPW/home/.local/bin"
+  export ACSTACK_TW_CONFIG="$CPW/home/.config/acstack/terminal-workspace.yaml"
   # shellcheck disable=SC1090
   . "$WORK/setup-funcs.sh"
   write_helpers
@@ -4330,6 +4332,7 @@ ISET="$IAGENT/settings.json"
 ISUB="$IAGENT/extensions/subagent/config.json"
 IMD="$IAGENT/AGENTS.md"
 IRETRO="$IAGENT/extensions/agentic-retro.ts"
+ILENS="$IHOME/.pi-lens/config.json"
 ICFG="$IHOME/.config/acstack/terminal-workspace.yaml"
 IVER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   "$ROOT/.claude-plugin/plugin.json")
@@ -4498,10 +4501,11 @@ if [ "$PI_APPLY" = "1" ]; then
      && printf '%s' "$pkgs" | grep -qF '"npm:billion-context"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"' \
-     && printf '%s' "$pkgs" | grep -qF '"npm:pi-slash-anywhere"'; then
-    ok "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere"
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-slash-anywhere"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-zentui"'; then
+    ok "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui"
   else
-    no "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere (packages: $pkgs)"
+    no "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui (packages: $pkgs)"
   fi
   if grep -q '^pi .*billion-context' "$IHOME/pi.log" \
      && grep -q '^bili plugin install pi' "$IHOME/bili.log" 2>/dev/null \
@@ -4514,7 +4518,7 @@ if [ "$PI_APPLY" = "1" ]; then
   if [ "$(jget "$ISET" hideThinkingBlock)" = "true" ] \
      && [ "$(jget "$ISET" markdown.mermaid)" = '"streaming"' ] \
      && [ "$(jget "$ISET" enableInstallTelemetry)" = "false" ] \
-     && [ "$(jget "$ISET" theme)" = '"system"' ]; then
+     && [ "$(jget "$ISET" theme)" = '"alex-mid-grey"' ]; then
     ok "apply writes the four personal settings into settings.json"
   else
     no "apply writes the four personal settings into settings.json ($(flat "$(cat "$ISET")"))"
@@ -4523,6 +4527,16 @@ if [ "$PI_APPLY" = "1" ]; then
     ok "apply binds Pi queued-message restore to ctrl+enter"
   else
     no "apply binds Pi queued-message restore to ctrl+enter ($(flat "$(cat "$IAGENT/keybindings.json" 2>/dev/null)"))"
+  fi
+  if [ "$(jget "$IAGENT/themes/alex-mid-grey.json" name)" = '"alex-mid-grey"' ] \
+     && [ "$(jget "$IAGENT/themes/alex-mid-grey.json" colors.userMessageBg)" = '"userPromptBg"' ] \
+     && [ "$(jget "$IAGENT/zentui.json" components.footer.modelLabel)" = '"id"' ] \
+     && [ "$(jget "$IAGENT/zentui.json" components.extensionStatuses.visibility.pi-lens)" = '"hide"' ] \
+     && [ "$(jget "$ILENS" ui.hideLspStatus)" = "true" ] \
+     && [ "$(jget "$ILENS" widget.visible)" = "false" ]; then
+    ok "apply writes the quiet Zentui, theme and pi-lens UI config"
+  else
+    no "apply writes the quiet Zentui, theme and pi-lens UI config"
   fi
   if [ "$(jget "$ISET" deviceId)" = '"dev-1"' ] && grep -qF '"note": "café"' "$ISET" \
      && [ "$(jget "$ISUB" maxDepth)" = "2" ] && [ "$(jget "$ISUB" toolActivation)" = '"eager"' ]; then
@@ -4550,10 +4564,10 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
 
   # Re-applying changes nothing: no install call, and every file byte for byte.
-  before=$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json")
+  before=$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json" "$IAGENT/zentui.json" "$ILENS" "$IAGENT/themes/alex-mid-grey.json")
   : > "$IHOME/pi.log"; : > "$IHOME/npm.log"; : > "$IHOME/bili.log"
   out=$(iw apply)
-  if [ "$before" = "$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json")" ] \
+  if [ "$before" = "$(cat "$ISET" "$ISUB" "$IMD" "$IAGENT/keybindings.json" "$IAGENT/zentui.json" "$ILENS" "$IAGENT/themes/alex-mid-grey.json")" ] \
      && ! grep -q '^pi install' "$IHOME/pi.log" \
      && ! grep -q '^npm install' "$IHOME/npm.log" \
      && ! grep -q '^bili plugin install' "$IHOME/bili.log"; then
@@ -4569,12 +4583,13 @@ if [ "$PI_APPLY" = "1" ]; then
      && printf '%s' "$out" | grep -qF 'pi package: npm:@juicesharp/rpiv-todo' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-plugin-manager' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-slash-anywhere' \
+     && printf '%s' "$out" | grep -qF 'pi package: npm:pi-zentui' \
      && printf '%s' "$out" | grep -q 'pi delegation line: present' \
      && printf '%s' "$out" | grep -q 'pi toolActivation: eager' \
      && printf '%s' "$out" | grep -q 'pi login: not logged in'; then
-    ok "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere, delegation line, toolActivation and login"
+    ok "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui, delegation line, toolActivation and login"
   else
-    no "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere, delegation line, toolActivation and login (said: $(flat "$out"))"
+    no "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui, delegation line, toolActivation and login (said: $(flat "$out"))"
   fi
   : > "$IAGENT/auth.json"
   out=$(iw status)
@@ -4631,11 +4646,15 @@ if [ "$PI_APPLY" = "1" ]; then
      && [ "$(jget "$ISUB" toolActivation)" = "MISSING" ] && [ "$(jget "$ISUB" maxDepth)" = "2" ] \
      && [ "$(cat "$IMD")" = "$USER_MD" ] && [ ! -e "$IRETRO" ] \
      && [ "$(jget "$ISET" packages)" = "[]" ] \
+     && [ ! -e "$IAGENT/themes/alex-mid-grey.json" ] \
+     && [ "$(jget "$IAGENT/zentui.json" components.footer.modelLabel)" = "MISSING" ] \
+     && [ "$(jget "$ILENS" ui.hideLspStatus)" = "MISSING" ] \
      && [ -x "$INPM/bin/pi" ] \
      && grep -Eq '^pi (remove|uninstall|disable).*billion-context|^pi .*billion-context.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*@juicesharp/rpiv-todo|^pi .*@juicesharp/rpiv-todo.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-plugin-manager|^pi .*pi-plugin-manager.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-slash-anywhere|^pi .*pi-slash-anywhere.*(remove|uninstall|disable)' "$IHOME/pi.log" \
+     && grep -Eq '^pi (remove|uninstall|disable).*pi-zentui|^pi .*pi-zentui.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -q '^bili plugin remove pi' "$IHOME/bili.log" \
      && printf '%s' "$out" | grep -qF 'pi.enabled: false'; then
     ok "disable pi removes its packages, keys, block, extension and billion-context client installs, and keeps the user's own"
@@ -4780,7 +4799,7 @@ if [ "$PI_APPLY" = "1" ]; then
   mid="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation) $(jget_key "$IAGENT/keybindings.json" app.message.dequeue)"
   iw disable pi >/dev/null
   after="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation) $(jget_key "$IAGENT/keybindings.json" app.message.dequeue)"
-  if [ "$mid" = '"system" "streaming" "eager" "ctrl+enter"' ] && [ "$after" = '"dark" "final" "dynamic" "ctrl+r"' ]; then
+  if [ "$mid" = '"alex-mid-grey" "streaming" "eager" "ctrl+enter"' ] && [ "$after" = '"dark" "final" "dynamic" "ctrl+r"' ]; then
     ok "disable puts back the values apply replaced in settings.json, keybindings.json and the subagent config"
   else
     no "disable puts back the values apply replaced (after apply: $mid; after disable: $after)"
