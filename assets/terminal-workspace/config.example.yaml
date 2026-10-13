@@ -225,6 +225,8 @@ pi:
   # pi.settings.install_telemetry, which controls pi's anonymous install and
   # update reporting and stays false in this example.
   web_access: true
+  # pi-slash-anywhere, which lets slash commands run from any prompt.
+  slash_anywhere: true
   # agentic-retro's pi extension, which queues each finished pi session for a
   # retro. Needs the agentic-retro plugin installed first, and apply says so
   # when it is not.

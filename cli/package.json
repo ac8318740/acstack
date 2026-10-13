@@ -1,6 +1,6 @@
 {
   "name": "mapflow-cli",
-  "version": "0.45.5",
+  "version": "0.46.0",
   "description": "CLI for Mapflow map-based AI work orchestration",
   "type": "module",
   "license": "MIT",

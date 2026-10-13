@@ -38,6 +38,7 @@ PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 PI_RETRO_EXT="${PI_HOME:-$HOME/.pi}/agent/extensions/agentic-retro.ts"
 PI_MAPFLOW="npm:mapflow"
 PI_BILLION="npm:billion-context"
+PI_SLASH_ANYWHERE="npm:pi-slash-anywhere"
 # A line starting with # is a heading in markdown, and the model reads it. An
 # HTML comment carries the same marker and renders as nothing.
 PI_MD_BEGIN="<!-- >>> mapflow terminal-workspace >>> -->"
@@ -3702,6 +3703,11 @@ apply_pi() {
   else
     pi_drop npm:pi-web-access
   fi
+  if [ "$(cfg_get pi.slash_anywhere true)" = "true" ]; then
+    pi_add "$PI_SLASH_ANYWHERE" "$PI_SLASH_ANYWHERE"
+  else
+    pi_drop "$PI_SLASH_ANYWHERE"
+  fi
   local ver cur; ver=$(mapflow_version)
   if [ -n "$ver" ]; then
     if cur=$(pi_state pkg "$PI_MAPFLOW") && [ -z "$(pi_mapflow_behind)" ]; then
@@ -3765,6 +3771,7 @@ remove_pi() {
     pi_drop npm:pi-compact-tools
     pi_drop npm:@juicesharp/rpiv-ask-user-question
     pi_drop npm:pi-web-access
+    pi_drop "$PI_SLASH_ANYWHERE"
     pi_drop npm:pi-subagents
   else
     say "pi: $PI_SETTINGS does not parse, so its packages were left installed"
@@ -3807,6 +3814,7 @@ billion-context	pi	npm	billion-context	-
 pi-plugin-manager	pi	npm	pi-plugin-manager	-
 @juicesharp/rpiv-ask-user-question	pi	npm	@juicesharp/rpiv-ask-user-question	-
 pi-web-access	pi	npm	pi-web-access	-
+pi-slash-anywhere	pi	npm	pi-slash-anywhere	-
 pi-compact-tools	pi	npm	pi-compact-tools	-
 T
 }
@@ -3839,7 +3847,7 @@ installed_version() {  # installed_version <name> -> a bare version, or nothing
     # 1.1.0
     pi)        find_pi; v=$(pi --version 2>/dev/null | awk '{print $NF}') ;;
     # pi installs npm packages under its own directory, not npm's global one.
-    pi-subagents|pi-compact-tools|pi-web-access|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
+    pi-subagents|pi-compact-tools|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
                v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
   esac
   printf '%s' "${v#v}"
@@ -3985,7 +3993,7 @@ upgrade_one() {  # upgrade_one <name>
     # With no target, pi update updates pi itself and no package.
     pi)        pi update >/dev/null 2>&1 \
                  && say "pi updated" || say "pi update failed" ;;
-    pi-subagents|pi-compact-tools|pi-web-access|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
+    pi-subagents|pi-compact-tools|pi-web-access|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
       if pi_npm_pin "$1"; then
         say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
         return 0
@@ -4070,7 +4078,7 @@ case "$ACTION" in
     if have pi || [ "$(cfg_get pi.enabled false)" = "true" ]; then
       echo
       have pi && say "pi: $(installed_version pi)" || say "pi: not installed"
-      for id in npm:pi-subagents "$PI_MAPFLOW" "$PI_BILLION" npm:@juicesharp/rpiv-todo npm:pi-plugin-manager npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access npm:pi-compact-tools; do
+      for id in npm:pi-subagents "$PI_MAPFLOW" "$PI_BILLION" npm:@juicesharp/rpiv-todo npm:pi-plugin-manager npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access "$PI_SLASH_ANYWHERE" npm:pi-compact-tools; do
         src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
       done
       [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \

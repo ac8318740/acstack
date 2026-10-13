@@ -4488,10 +4488,11 @@ if [ "$PI_APPLY" = "1" ]; then
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-compact-tools"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:billion-context"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
-     && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"'; then
-    ok "apply installs pi-subagents, Mapflow pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo and pi-plugin-manager"
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-slash-anywhere"'; then
+    ok "apply installs pi-subagents, Mapflow pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere"
   else
-    no "apply installs pi-subagents, Mapflow pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo and pi-plugin-manager (packages: $pkgs)"
+    no "apply installs pi-subagents, Mapflow pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere (packages: $pkgs)"
   fi
   if grep -q '^pi .*billion-context' "$IHOME/pi.log" \
      && grep -q '^bili plugin install pi' "$IHOME/bili.log" 2>/dev/null \
@@ -4552,12 +4553,13 @@ if [ "$PI_APPLY" = "1" ]; then
      && printf '%s' "$out" | grep -qF 'pi package: npm:billion-context' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:@juicesharp/rpiv-todo' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-plugin-manager' \
+     && printf '%s' "$out" | grep -qF 'pi package: npm:pi-slash-anywhere' \
      && printf '%s' "$out" | grep -q 'pi delegation line: present' \
      && printf '%s' "$out" | grep -q 'pi toolActivation: eager' \
      && printf '%s' "$out" | grep -q 'pi login: not logged in'; then
-    ok "status reports pi's version, packages including billion-context, rpiv-todo and pi-plugin-manager, delegation line, toolActivation and login"
+    ok "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere, delegation line, toolActivation and login"
   else
-    no "status reports pi's version, packages including billion-context, rpiv-todo and pi-plugin-manager, delegation line, toolActivation and login (said: $(flat "$out"))"
+    no "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere, delegation line, toolActivation and login (said: $(flat "$out"))"
   fi
   : > "$IAGENT/auth.json"
   out=$(iw status)
@@ -4599,6 +4601,7 @@ if [ "$PI_APPLY" = "1" ]; then
      && grep -Eq '^pi (remove|uninstall|disable).*billion-context|^pi .*billion-context.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*@juicesharp/rpiv-todo|^pi .*@juicesharp/rpiv-todo.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-plugin-manager|^pi .*pi-plugin-manager.*(remove|uninstall|disable)' "$IHOME/pi.log" \
+     && grep -Eq '^pi (remove|uninstall|disable).*pi-slash-anywhere|^pi .*pi-slash-anywhere.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -q '^bili plugin remove pi' "$IHOME/bili.log" \
      && printf '%s' "$out" | grep -qF 'pi.enabled: false'; then
     ok "disable pi removes its packages, keys, block, extension and billion-context client installs, and keeps the user's own"
@@ -4607,9 +4610,9 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
 
   # What the user had before apply stays theirs: their pi-subagents, their
-  # rpiv-todo, their plugin manager, their older Mapflow pin (moved forward,
-  # then put back), and their extension.
-  printf '{\n  "packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo", "npm:pi-plugin-manager", "npm:mapflow@0.1.0"]\n}\n' > "$ISET"
+  # rpiv-todo, their plugin manager, their slash-anywhere package, their older
+  # Mapflow pin (moved forward, then put back), and their extension.
+  printf '{\n  "packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo", "npm:pi-plugin-manager", "npm:pi-slash-anywhere", "npm:mapflow@0.1.0"]\n}\n' > "$ISET"
   echo "// mine" > "$IRETRO"
   out=$(iw apply)
   if jget "$ISET" packages | grep -qF "mapflow@$IVER" && ! jget "$ISET" packages | grep -qF '0.1.0'; then
@@ -4622,6 +4625,7 @@ if [ "$PI_APPLY" = "1" ]; then
   if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"' \
+     && printf '%s' "$pkgs" | grep -qF '"npm:pi-slash-anywhere"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:mapflow@0.1.0"' \
      && ! printf '%s' "$pkgs" | grep -qF 'pi-compact-tools' \
      && [ -f "$IRETRO" ] && [ -x "$INPM/bin/pi" ] \
@@ -4810,38 +4814,44 @@ PY
   printf '%s\n' "$USER_MD" > "$IMD"
 
   # A pinned npm package never moves under pi update, so it is no finding and
-  # upgrade leaves it. billion-context, rpiv-todo and pi-plugin-manager are
-  # covered here too, because they are pi npm packages with the same version,
-  # outdated and upgrade behaviour.
-  printf '{\n  "packages": ["npm:pi-subagents@1.0.0", "npm:billion-context@1.0.0", "npm:@juicesharp/rpiv-todo@1.0.0", "npm:pi-plugin-manager@1.0.0"]\n}\n' > "$ISET"
+  # upgrade leaves it. billion-context, rpiv-todo, pi-plugin-manager and
+  # pi-slash-anywhere are covered here too, because they are pi npm packages
+  # with the same version, outdated and upgrade behaviour.
+  printf '{\n  "packages": ["npm:pi-subagents@1.0.0", "npm:billion-context@1.0.0", "npm:@juicesharp/rpiv-todo@1.0.0", "npm:pi-plugin-manager@1.0.0", "npm:pi-slash-anywhere@1.0.0"]\n}\n' > "$ISET"
   mkdir -p "$IAGENT/npm/node_modules/pi-subagents" "$IAGENT/npm/node_modules/billion-context" \
-           "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo" "$IAGENT/npm/node_modules/pi-plugin-manager"
+           "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo" "$IAGENT/npm/node_modules/pi-plugin-manager" \
+           "$IAGENT/npm/node_modules/pi-slash-anywhere"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-subagents/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/billion-context/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-plugin-manager/package.json"
+  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-slash-anywhere/package.json"
   out=$(iw outdated)
   : > "$IHOME/pi.log"
   up=$(iw upgrade pi-subagents)
   bup=$(iw upgrade billion-context)
   tup=$(iw upgrade @juicesharp/rpiv-todo)
   pup=$(iw upgrade pi-plugin-manager)
+  sup=$(iw upgrade pi-slash-anywhere)
   if printf '%s' "$out" | grep -qF "unknown	pi-subagents	pinned to npm:pi-subagents@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	billion-context	pinned to npm:billion-context@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	@juicesharp/rpiv-todo	pinned to npm:@juicesharp/rpiv-todo@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-plugin-manager	pinned to npm:pi-plugin-manager@1.0.0" \
+     && printf '%s' "$out" | grep -qF "unknown	pi-slash-anywhere	pinned to npm:pi-slash-anywhere@1.0.0" \
      && ! printf '%s' "$out" | grep -q '^stale	pi-subagents' \
      && ! printf '%s' "$out" | grep -q '^stale	billion-context' \
      && ! printf '%s' "$out" | grep -q '^stale	@juicesharp/rpiv-todo' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-plugin-manager' \
+     && ! printf '%s' "$out" | grep -q '^stale	pi-slash-anywhere' \
      && ! grep -q '^pi update' "$IHOME/pi.log" \
      && printf '%s' "$up" | grep -q 'pinned' \
      && printf '%s' "$bup" | grep -q 'pinned' \
      && printf '%s' "$tup" | grep -q 'pinned' \
-     && printf '%s' "$pup" | grep -q 'pinned'; then
-    ok "pinned npm packages including billion-context, rpiv-todo and pi-plugin-manager read as pinned in outdated, and upgrade leaves them"
+     && printf '%s' "$pup" | grep -q 'pinned' \
+     && printf '%s' "$sup" | grep -q 'pinned'; then
+    ok "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them"
   else
-    no "pinned npm packages including billion-context, rpiv-todo and pi-plugin-manager read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); todo upgrade: $(flat "$tup"); plugin manager upgrade: $(flat "$pup"))"
+    no "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); todo upgrade: $(flat "$tup"); plugin manager upgrade: $(flat "$pup"); slash upgrade: $(flat "$sup"))"
   fi
   rm -rf "$IAGENT/npm"
 
@@ -4899,6 +4909,17 @@ if [ "$billion_default" = "True" ] \
   ok "billion-context has a documented default toggle for pi"
 else
   no "billion-context has a documented default toggle for pi"
+fi
+
+slash_default=$(python3 -c 'import yaml,sys; print((yaml.safe_load(open(sys.argv[1]))["pi"] or {}).get("slash_anywhere"))' \
+  "$ROOT/assets/terminal-workspace/config.example.yaml" 2>/dev/null)
+if [ "$slash_default" = "True" ] \
+   && grep -q 'pi-slash-anywhere' "$ROOT/assets/terminal-workspace/config.example.yaml" \
+   && grep -q '`pi.slash_anywhere: false`' "$DOCS" \
+   && grep -q '`pi-slash-anywhere`' "$DOCS"; then
+  ok "pi-slash-anywhere has a documented default toggle for pi"
+else
+  no "pi-slash-anywhere has a documented default toggle for pi"
 fi
 
 
