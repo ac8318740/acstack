@@ -142,9 +142,9 @@ writing. Reference where a secret lives, not its value. This is not optional.
 
 Write the handoff to the OS temporary directory, never the workspace – it is
 conversation content, not project state, and must not be committable. Name it
-`$TMPDIR/acstack-handoff-<slug>-<timestamp>.md` (`/tmp` when `$TMPDIR` holds
-nothing), where `<slug>` names the work and `<timestamp>` stops two handoffs
-colliding.
+`$TMPDIR/acstack-handoff-<slug>-<timestamp>.md` (`/tmp` when `$TMPDIR` is
+empty). Write it with a file tool or a quoted heredoc (`<<'EOF'`). An unquoted
+heredoc runs every backticked command in the text.
 
 Its first line, above every heading, repeats the acknowledgement requirement
 verbatim, with `<this-file>` replaced by the file's own path:
