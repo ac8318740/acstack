@@ -160,18 +160,26 @@ opener, same handoff file path.
 
 Handle this, or the launch hangs silently. A new worktree is a new directory, so
 the launched session asks the user to trust the directory. It then sits at
-`blocked`, while `agent start` has *already* returned success with
-`interactive_ready: true`.
+`blocked`. `agent start` either returns success with `interactive_ready: true`,
+or fails with `agent_not_ready` ("blocked during startup"). Neither means the
+launch failed, and neither means the prompt is running.
 
-Readiness is not proof the prompt is running. So after starting, wait for the
+So after starting, wait for the
 blocked state instead of polling by hand:
 
 ```bash
 herdr agent wait <name> --until blocked --timeout <ms>
 ```
 
-On `blocked`, accept the dialog with `herdr agent send-keys <name> enter`. Then
-re-check by waiting for the session to start working:
+On `blocked`, accept the dialog. Its highlighted default is "No, exit", so a
+bare enter quits Claude and leaves a plain shell. Move to "Yes" first:
+
+```bash
+herdr agent send-keys <name> down
+herdr agent send-keys <name> enter
+```
+
+Then re-check by waiting for the session to start working:
 
 ```bash
 herdr agent wait <name> --until working --timeout <ms>
