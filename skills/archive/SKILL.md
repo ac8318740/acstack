@@ -131,6 +131,9 @@ dispose – closed issues are already the archive.
 Also dispose of `acstack/handoffs/<name>/` if it exists. Consumed handoffs
 hold conversation content and should not outlive the map they served.
 
+Also dispose of `acstack/alignment-packs/<safe-map>/` if it exists. Alignment
+packs are local review artifacts. Step 3 already verified the durable residue.
+
 Delete the map's decision log, `<main checkout>/acstack/.decisions/<name>.tsv`,
 on either tracker. Step 3 already extracted what it held. Leave the directory
 and its `.gitignore` for the next map.

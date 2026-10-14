@@ -109,7 +109,8 @@ the tracker's `update` and `create` operations:
 
 2. Create a node for each new question the answer surfaced, with `answers`
    naming the node that surfaced it. Mark precise questions `open`; mark the
-   rest `fog`.
+   rest `fog`. If fog does not change the alignment artifact, write the
+   evidence or event that reopens it.
 
 3. Invoke the `record-context` skill for each resolution – it decides whether
    the decision earns an ADR, a glossary term, both, or neither.

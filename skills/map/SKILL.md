@@ -20,12 +20,8 @@ Nodes live behind a pluggable tracker. A backend declares four operations –
 create, read, update, list. ACStack builds everything else from those four:
 frontier, claim, resolve and walk.
 
-Two backends ship, each declared in this skill's directory:
-
-| Backend | Doc | When |
-| ------- | --- | ---- |
-| GitHub issues | `trackers/github.md` | first choice when `gh` holds a login for the repo's GitHub remote |
-| Files | `trackers/files.md` | the fallback – no auth, offline, any remote |
+Two backends ship in this skill's directory: `trackers/github.md` for repos
+with GitHub auth, and `trackers/files.md` as the fallback.
 
 `workflow.maps.tracker` in `acstack/project.yaml` (`github` or `files`) records
 the project's choice. If the key names a backend, read the matching doc and use
@@ -34,7 +30,6 @@ you first write the map's nodes down.
 
 Recommend `github` when the repo qualifies, `files` otherwise. Confirm the
 choice with the user. Then write the key, so later sessions need not re-decide.
-
 ## Which mode
 
 One command runs two modes, and what already exists picks between them. Check
@@ -45,10 +40,8 @@ If `$ARGUMENTS` names a map, or exactly one exists, work its frontier – the
 nodes ready to work now. If none exists, chart. If several exist and
 `$ARGUMENTS` does not pick one, ask.
 
-There are no tiers and no complexity judgement.
-
-One question is a small map or no map at all. Fifty questions is a long
-effort. Nothing declares which.
+There are no tiers. One question is a small map or no map. Fifty questions is
+still one map.
 
 ## Charting
 
@@ -71,18 +64,18 @@ effort. Nothing declares which.
    sharp. The test is whether you can *state* the question precisely, not
    whether you can answer it.
 
+5. **Classify fog.** Read `alignment.md`. Blocking fog changes the alignment
+   artifact. Deferred fog does not.
+
 ### Progressive materialisation
 
-The machinery appears only when it has to persist. After the opening grill:
+The machinery appears only when it must persist. After the opening grill:
 
-- **No fog surfaced** – the way was already clear. No map. Say so and proceed
-  to the work.
-
-- **At most one session's worth** – settle it in conversation. Invoke
-  `record-context` on each decision. No map – there is nothing to resume.
-
-- **More than one session's worth** – materialise the map and work the
-  frontier across sessions.
+- **No fog surfaced** – say so and proceed to the work
+- **At most one session's worth** – settle it in conversation and invoke
+  `record-context` on each decision
+- **More than one session's worth** – materialise the map and work the frontier
+  across sessions
 
 The test is mechanical. Will the fog outlive this session?
 
@@ -148,6 +141,8 @@ operation. First the root:
   diagrams below. A parent draws its subtree, so nothing can draw one earlier.
   The root is a parent too, and it draws the whole map.
 
+- Apply `alignment.md` after diagrams are current. Build the artifact, run the
+  review gate, and start implementation only after approval.
 - On the files backend, suggest adding `acstack/maps/` to `.gitignore`
   (`trackers/files.md` gives the reason).
 
@@ -208,10 +203,12 @@ the list, marked `skip: <reason>`.
 5. **After every resolution**, in order:
     - Invoke `record-context`
     - Create nodes for anything the resolution surfaced
+    - Classify new fog by whether it changes the alignment artifact
     - Create the critique node when the resolved node changed the frontend,
       per `frontend.md`
     - Regenerate the diagram on the resolved node's parent (see Regenerating
       diagrams)
+    - Rebuild or rerun the alignment review when the artifact changes
     - Recompute the frontier
 
     The regeneration comes after the new nodes exist. A surfaced node hangs
@@ -238,10 +235,13 @@ diagram).
 
 ## Done
 
-The map clears when the frontier is empty and no fog remains. The durable
-residue is what the map leaves behind – the living specs through commit-time
-sync, the ADRs and glossary entries through `record-context`. You have already
-extracted it along the way.
+The map clears when the frontier is empty and no fog remains. Deferred fog can
+let implementation start, but archive still needs an answer or an out-of-scope
+resolution.
+
+The durable residue is what the map leaves behind – the living specs through
+commit-time sync, the ADRs and glossary entries through `record-context`. You
+have already extracted it along the way.
 
 Report what the map settled. Point at anything the map left `out-of-scope`.
 

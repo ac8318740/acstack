@@ -16,7 +16,7 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: Each item carries a business definition (the node summary, or the body's first paragraph) and a technical definition (the full body)
 - **Then**: ACStack writes `.gitignore` into `acstack/alignment-packs/` unless the project sets `commit_generated_packs`
 - **Given**: A map name holds characters other than letters, digits, `.`, `_` and `-`, or is `.` or `..`
-- **When**: A user runs `acstack map` or `acstack align` with it
+- **When**: A user runs `acstack map` or `acstack align-viewer` with it
 - **Then**: ACStack refuses the name before reading or writing any file
 - **Source**: `cli/src/commands/alignment.ts`, `cli/src/lib/alignment-pack-lifecycle.ts`
 
@@ -42,14 +42,14 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: A folded group shows as one box, and the links it hides merge into one labelled link
 - **Then**: A drawer shows the selected item's business definition, its collapsed technical definition, its links, and its source
 - **Then**: A reviewer can comment on a box, a link, or highlighted text, and the viewer keeps the comments in browser storage per pack version
-- **Given**: A reviewer opens the HTML file directly, not through `acstack align`
+- **Given**: A reviewer opens the HTML file directly, not through `acstack align-viewer`
 - **Then**: The viewer is read-only and names the command that starts a review
 - **Source**: `cli/src/lib/alignment-pack-renderer.ts`, `cli/src/viewer/`, `cli/scripts/build-viewer.mjs`, `docs/adr/0018-alignment-packs-use-local-viewers.md`
 
 ### FR-004: Serve a review and record the decision
 
-- **Description**: The `align` command serves the pack on localhost and records the review the page posts back
-- **Given**: A user runs `acstack align --map <name>`
+- **Description**: The `align-viewer` command serves the pack on localhost and records the review the page posts back
+- **Given**: A user runs `acstack align-viewer --map <name>`
 - **When**: The server starts on `127.0.0.1` port 19990, or `ACSTACK_ALIGN_PORT`
 - **Then**: ACStack prints the URL and, in an SSH session, the `ssh -L` forward to set up, then opens the page through `acstack-open`
 - **Given**: The page posts Approve or Request changes with its one-time token
@@ -61,7 +61,7 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: The server refuses it and records nothing
 - **Given**: A review requests changes with no comments
 - **Then**: ACStack refuses it
-- **Given**: A user runs `acstack align --map <name> --feedback <path>`
+- **Given**: A user runs `acstack align-viewer --map <name> --feedback <path>`
 - **Then**: ACStack records the review from the file without serving the page
 - **Given**: Feedback names a different pack version
 - **Then**: ACStack rejects it and leaves source map files unchanged

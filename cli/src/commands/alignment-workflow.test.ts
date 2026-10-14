@@ -166,10 +166,10 @@ describe('alignment pack workflow', () => {
     );
   });
 
-  it('align serves the pack on localhost, opens it, and records the review the page posts back', async () => {
+  it('align-viewer serves the pack on localhost, opens it, and records the review the page posts back', async () => {
     const opener = writeFakeOpener(root);
     const port = 20000 + Math.floor(Math.random() * 20000);
-    const child = spawn(process.execPath, [CLI_BIN, 'align', '--map', 'demo'], {
+    const child = spawn(process.execPath, [CLI_BIN, 'align-viewer', '--map', 'demo'], {
       cwd: root,
       env: { ...process.env, ACSTACK_ALIGN_PORT: String(port), SSH_CONNECTION: '', PATH: `${opener.binDir}:${process.env.PATH ?? ''}` },
     });
@@ -209,6 +209,13 @@ describe('alignment pack workflow', () => {
     expect(stdout).toContain('Review state: changes-requested');
   });
 
+  it('does not keep align as a review command', () => {
+    const result = runCli(['align', '--map', 'demo'], { cwd: root });
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain("unknown command 'align'");
+  });
+
   it('gives each item a business summary and the full body as its technical definition', () => {
     const result = runCli(['map', '--map', 'demo'], { cwd: root });
 
@@ -239,7 +246,7 @@ describe('alignment pack workflow', () => {
     const feedbackPath = join(root, 'empty.json');
     writeFileSync(feedbackPath, JSON.stringify({ packVersion, reviewState: { approval: { packVersion, status: 'changes-requested' } } }));
 
-    const empty = runCli(['align', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
+    const empty = runCli(['align-viewer', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
     expect(empty.status).toBe(1);
     expect(empty.stderr).toContain('Request changes needs at least one comment.');
     const escape = runCli(['map', '--map', '..'], { cwd: root });
@@ -254,7 +261,7 @@ describe('alignment pack workflow', () => {
     expect(readFileSync(join(root, 'acstack', 'alignment-packs', '.gitignore'), 'utf-8')).toMatch(/^\*$/m);
   });
 
-  it('align records a review from a feedback file and reports review state', () => {
+  it('align-viewer records a review from a feedback file and reports review state', () => {
     const initial = runCli(['map', '--map', 'demo'], { cwd: root });
     expect(initial.status, initial.stderr || initial.stdout).toBe(0);
     const initialPack = alignmentPackArtifacts(root)[0].pack;
@@ -276,7 +283,7 @@ describe('alignment pack workflow', () => {
         2
       )
     );
-    const result = runCli(['align', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
+    const result = runCli(['align-viewer', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
 
     expect(result.status, result.stderr || result.stdout).toBe(0);
     const reviewed = alignmentPackArtifacts(root).at(-1)?.pack;
@@ -290,7 +297,7 @@ describe('alignment pack workflow', () => {
     expect(`${result.stdout}\n${result.stderr}`).toMatch(/approved|review/i);
   });
 
-  it('align turns viewer comments into an agent feedback file', () => {
+  it('align-viewer turns viewer comments into an agent feedback file', () => {
     const initial = runCli(['map', '--map', 'demo'], { cwd: root });
     expect(initial.status, initial.stderr || initial.stdout).toBe(0);
     const { packVersion } = alignmentPackArtifacts(root)[0].pack;
@@ -306,7 +313,7 @@ describe('alignment pack workflow', () => {
       })
     );
 
-    const result = runCli(['align', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
+    const result = runCli(['align-viewer', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
 
     expect(result.status, result.stderr || result.stdout).toBe(0);
     const feedback = readFileSync(join(root, 'acstack', 'alignment-packs', 'demo', 'feedback.md'), 'utf-8');
@@ -315,7 +322,7 @@ describe('alignment pack workflow', () => {
     expect(result.stdout).toContain('1 comment imported.');
   });
 
-  it('align reports mismatched feedback pack versions without mutating source map files', () => {
+  it('align-viewer reports mismatched feedback pack versions without mutating source map files', () => {
     const initial = runCli(['map', '--map', 'demo'], { cwd: root });
     expect(initial.status, initial.stderr || initial.stdout).toBe(0);
     const before = sourceSnapshot(root);
@@ -338,7 +345,7 @@ describe('alignment pack workflow', () => {
       )
     );
 
-    const result = runCli(['align', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
+    const result = runCli(['align-viewer', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
 
     expect(sourceSnapshot(root)).toEqual(before);
     expect(`${result.stdout}\n${result.stderr}`).toMatch(/version/i);
