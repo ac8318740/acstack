@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# gh-dash with a section for the repo you are standing in. Installed by acstack.
+set -uo pipefail
+# Every action gh-dash takes shells out to gh and discards its stderr, so a
+# refusal from GitHub reaches you as "exit status 1" for two seconds. acstack-gh
+# goes in front of the real gh under that name and speaks the refusal aloud.
+# Its directory holds nothing else, so nothing else on PATH is shadowed.
+SHIM="$(mktemp -d)"; GEN=""
+trap 'rm -rf "$SHIM"; rm -f "$GEN"' EXIT
+ln -s "$(command -v acstack-gh)" "$SHIM/gh" 2>/dev/null && export PATH="$SHIM:$PATH"
+BASE="$HOME/.config/gh-dash/config.yml"
+REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)"
+# Not exec, so the trap above still gets to clean up after the dashboard.
+[ -z "$REPO" ] && { gh dash "$@"; exit $?; }
+GEN="$(mktemp)"
+REPO="$REPO" python3 - "$BASE" "$GEN" <<'PY'
+import os, sys, yaml
+cfg = yaml.safe_load(open(sys.argv[1])) or {}
+repo = os.environ["REPO"]; short = repo.split("/")[-1]
+s = [x for x in cfg.get("prSections", []) if x.get("title") != short]
+s.insert(0, {"title": short, "filters": f"repo:{repo} is:open"})
+cfg["prSections"] = s
+yaml.safe_dump(cfg, open(sys.argv[2], "w"), sort_keys=False)
+PY
+gh dash --config "$GEN" "$@"

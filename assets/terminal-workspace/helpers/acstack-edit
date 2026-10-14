@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Open one file in its own herdr tab, for tools that shell out to $EDITOR.
+#
+#   acstack-edit <file>
+#
+# diffnav's "o" key runs $EDITOR inside diffnav's own pane. For alt+f and alt+x
+# that pane is a herdr popup, and a popup cannot host a second full-screen app,
+# so the editor never draws and the key looks dead. This gives the file its own
+# herdr tab and returns at once, which leaves the diff untouched behind the
+# popup. Close the popup to reach the tab.
+#
+# ACSTACK_EDIT_EDITOR names the real editor: whatever set this script as
+# $EDITOR has already taken that variable.
+#
+# acstack-herdr-tab does the work. It finds the pane behind the popup, creates
+# the tab, and runs the editor in it, and it runs the editor in place when
+# there is no herdr to ask. Installed by acstack.
+set -uo pipefail
+
+ED="${ACSTACK_EDIT_EDITOR:-nvim}"
+case "$ED" in *acstack-edit) ED=nvim ;; esac   # never call itself
+FILE="${1:?usage: acstack-edit <file>}"
+
+command -v acstack-herdr-tab >/dev/null 2>&1 || exec "$ED" "$FILE"
+exec acstack-herdr-tab "$(basename "$FILE")" "$ED" "$FILE"

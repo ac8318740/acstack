@@ -61,9 +61,9 @@ Today that is `assets/terminal-workspace/setup.sh`, which installs the optional 
 
 Two rules govern it.
 
-- **Every helper script carries the `acstack-*` prefix and lives in a heredoc inside `setup.sh`**, and never as a separate file
-    - One script to install means one file to keep idempotent
-    - Editing a helper means editing the heredoc
+- **Every helper script carries the `acstack-*` prefix and lives under `assets/terminal-workspace/helpers/`**, installed by `setup.sh`
+    - `setup.sh` remains the entrypoint and sources modules under `assets/terminal-workspace/lib/`
+    - Editing a helper means editing its source file in `helpers/`
     - `uninstall` removes them by that prefix
         - A helper named anything else leaks
 - **Every edit to a user's config sits between the managed markers**, `# >>> acstack terminal-workspace >>>` and `# <<< ... <<<`

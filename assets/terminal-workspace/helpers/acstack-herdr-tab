@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Run a command in a new herdr tab, beside the pane the key was pressed in.
+#
+#   acstack-herdr-tab <label> <command> [args...]
+#
+# herdr has no type = "tab" custom command, and its tab.create API launches a
+# shell rather than a command, so the tab is created first and the command
+# sent into it with `herdr pane run`.
+#
+# The target comes from `herdr pane current`, not from HERDR_* variables: a
+# type = "shell" binding runs detached with none of them set, and reading the
+# environment sent every one of these commands off to run with no terminal.
+# Asked without that environment, herdr reports the focused pane, which is
+# exactly the one the key was pressed in. Installed by acstack.
+set -uo pipefail
+
+label="${1:?usage: acstack-herdr-tab <label> <command> [args...]}"; shift
+[ $# -gt 0 ] || { echo "acstack-herdr-tab: no command given" >&2; exit 1; }
+
+command -v herdr >/dev/null 2>&1 || exec "$@"
+
+cur=$(herdr pane current 2>/dev/null) || exec "$@"
+read -r ws cwd <<<"$(printf '%s' "$cur" | python3 -c '
+import json, sys
+p = json.load(sys.stdin).get("result", {}).get("pane", {})
+print(p.get("workspace_id") or "", p.get("foreground_cwd") or p.get("cwd") or "")
+' 2>/dev/null)"
+[ -n "${ws:-}" ] || exec "$@"
+
+resp=$(herdr tab create --workspace "$ws" ${cwd:+--cwd "$cwd"} --label "$label" --focus 2>/dev/null) \
+  || exec "$@"
+pane=$(printf '%s' "$resp" | python3 -c \
+  'import json,sys; print(json.load(sys.stdin)["result"]["root_pane"]["pane_id"])' 2>/dev/null)
+[ -n "$pane" ] || exec "$@"
+
+# herdr hosts a type = "shell" command in a real pane for as long as the
+# process lives, so anything slow here shows up as a stray terminal in the
+# current tab. Hand the wait to a detached child and return immediately: the
+# host pane then lasts only as long as the tab.create call.
+#
+# The settle is because the new tab's shell may not have drawn its prompt yet.
+# The pty buffers input, so it is belt and braces, not a correctness need.
+#
+# `herdr pane run` hands the string to a shell, so each argument is quoted on
+# the way in. A bare "$*" loses any file path holding a space.
+printf -v cmd '%q ' "$@"
+( sleep 0.3; herdr pane run "$pane" "$cmd" >/dev/null 2>&1 ) </dev/null >/dev/null 2>&1 &
+disown 2>/dev/null || true
+exit 0

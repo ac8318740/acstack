@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# View one file, picked by what the file is.
+#
+#   acstack-view README.md      rendered markdown, mermaid diagrams included
+#   acstack-view src/main.rs    yazi, opened with the cursor on that file
+#
+# tuicr's <leader>v hands us the file under its cursor. Everything this
+# dispatches to is a terminal program, so `q` hands the screen back to tuicr
+# the same way a terminal editor does - which is the whole reason the choice
+# lives in a script rather than in tuicr: changing it is an edit, not a
+# rebuild.
+# Installed by acstack.
+set -uo pipefail
+
+FILE="${1:-}"
+[ -n "$FILE" ] || { echo "usage: acstack-view <file>" >&2; exit 2; }
+[ -e "$FILE" ] || { echo "acstack-view: no such file: $FILE" >&2; exit 1; }
+
+# Markdown is worth rendering rather than listing: acstack-md draws mermaid
+# diagrams as text, and offers --serve for a browser when a diagram needs to
+# be rendered properly.
+case "$FILE" in
+  *.md|*.MD|*.markdown|*.Markdown|*.mdown|*.mkd)
+    command -v acstack-md >/dev/null 2>&1 && exec acstack-md "$FILE"
+    ;;
+esac
+
+# yazi opens on the file's own directory with the cursor on it, so the preview
+# pane shows the file and the tree is right there to move around in.
+command -v yazi >/dev/null 2>&1 && exec yazi "$FILE"
+
+# Neither installed: a pager still beats nothing, and -R keeps any colour.
+exec ${PAGER:-less -R} "$FILE"

@@ -1,0 +1,219 @@
+# A preview pane cannot page, so the same render goes straight to stdout.
+emit() {
+local f="$1" nk rc; shift
+if [ "$PREVIEW" = "1" ]; then cat "$f"; return; fi
+# The binding is a less feature, so only less is handed it. Setting
+# LESSKEYIN for a pager that never reads it is at best noise, and acting on
+# an exit status that pager chose for its own reasons is a bug waiting.
+case "${1:-}" in
+  less|*/less)
+    # b is back-a-page in less. ^B and PageUp both still do that, so this
+    # costs nothing (measured). LESSKEYIN wants less 582 or newer; older
+    # versions ignore it and quietly keep b as it was.
+    #
+    # lesskey reads a line starting with # as a comment, so the key that
+    # means line numbers has to be escaped or the binding is silently
+    # dropped and the key does nothing but ring the bell - measured on less
+    # 590, and how this arrived as a bug report. Only a leading # needs it:
+    # backslash means something of its own to lesskey, and \b would bind
+    # backspace rather than the letter.
+    case "$NUMBER_KEY" in
+      '#'*) nk="\\$NUMBER_KEY" ;;
+      *)    nk="$NUMBER_KEY" ;;
+    esac
+    { printf '#command\n'
+      printf '%s quit A\n' "$BROWSE_KEY"
+      printf '%s quit B\n' "$nk"
+    } > "$KEYS"
+    LESSKEYIN="$KEYS" "$@" "$f"
+    rc=$?
+    if [ "$rc" = "$BROWSE_STATUS" ]; then
+      "$0" --browser "$FILE"
+      exit $?
+    fi
+    if [ "$rc" = "$NUMBER_STATUS" ]; then
+      # One key, both directions: the view you are not in is the one it
+      # takes you to. $FILE is the markdown throughout, never the rendered
+      # temp copy, so either re-read starts from the source again.
+      if [ "$NUMBERED" = "1" ]; then "$0" "$FILE"; else "$0" --numbered "$FILE"; fi
+      exit $?
+    fi
+    ;;
+  *) "$@" "$f" ;;
+esac
+}
+
+# A wide diagram left a marker behind rather than art glow would wrap. Turn
+# the marker into a line a person can read and put the drawing back under it.
+# Both output paths run this: without it the marker reaches the reader raw.
+splice() {
+ACSTACK_PID=$$ ACSTACK_PREVIEW="$PREVIEW" python3 - "$1" <<'PY'
+import os, pathlib, re, sys
+f = pathlib.Path(sys.argv[1])
+pid = os.environ["ACSTACK_PID"]
+preview = os.environ.get("ACSTACK_PREVIEW") == "1"
+lines = []
+for line in f.read_text().split("\n"):
+  m = re.search(r"\x00ACSTACKART(\d+)\x00", line)
+  if not m:
+      lines.append(line); continue
+  art = pathlib.Path(f"/tmp/acstack-md-art.{pid}.{m.group(1)}")
+  lines.append(re.sub(r"\x00ACSTACKART\d+\x00", f"Diagram {m.group(1)}:", line))
+  if art.exists():
+      # Art too wide for the pane would spill past it, so a preview pane
+      # keeps the placeholder and leaves the drawing to a full-width read.
+      if not preview:
+          lines.extend("  " + l for l in art.read_text().splitlines())
+      art.unlink()
+f.write_text("\n".join(lines) + "\n")
+PY
+}
+
+# Rendered markdown has no line numbers, and a reader who wants to quote a
+# line back in a review needs the file's own. The gutter is as wide as the
+# largest number in it, so the source stays on one column whatever the length.
+numbered() {  # numbered <file> -> stdout
+local total width avail
+total=$(awk 'END { print NR }' "$1")
+width=${#total}
+[ "$width" -lt 3 ] && width=3
+if [ "$PREVIEW" = "1" ]; then
+  # A wrapped line makes the gutter lie about which source line you are
+  # looking at, and a pane has no arrow keys to pan with, so it chops.
+  avail=$((COLS - width - 2))
+  [ "$avail" -lt 1 ] && avail=1
+  awk -v w="$width" -v a="$avail" \
+    '{ printf "%" w "d  %s\n", NR, substr($0, 1, a) }' "$1"
+else
+  awk -v w="$width" '{ printf "%" w "d  %s\n", NR, $0 }' "$1"
+fi
+}
+
+
+serve_or_html() {
+if [ "$SERVE" = "1" ] || [ "$HTML" = "1" ]; then
+# One program, two ways out: --serve keeps answering with the document,
+# --html hands it over once and stops. Same renderer either way, so the two
+# cannot drift into disagreeing about what the page looks like.
+MODE=serve; NAME=acstack-md-serve
+if [ "$HTML" = "1" ]; then MODE=html; NAME=acstack-md-html; fi
+# A document bound for the opener on the laptop is handed over once, like
+# --html, but it does end up behind a server - the opener's. So it wants the
+# relative mermaid src that --html cannot use. Internal: set by the --browser
+# dispatch below, never by a caller.
+if [ "${ACSTACK_MD_OPENER:-0}" = "1" ] && [ "$HTML" = "1" ]; then MODE=opener; fi
+# exec -a names the process. Without it a running server is just "python3 -"
+# and there is nothing sensible to pkill.
+exec -a "$NAME" python3 - "$FILE" "$PORT" "$MODE" <<'PY'
+import html, http.server, pathlib, re, socketserver, sys
+try:
+  import markdown
+except ImportError:
+  sys.exit("acstack-md: needs the python markdown package: pip install --user markdown")
+
+src, port, MODE = pathlib.Path(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
+VENDOR = pathlib.Path.home() / ".local/share/acstack/mermaid.min.js"
+
+CSS = """*{box-sizing:border-box}body{max-width:54rem;margin:0 auto;padding:2rem 1.25rem;
+font:16px/1.65 -apple-system,Segoe UI,system-ui,sans-serif;color:#1a1a1a;background:#fff}
+h1,h2,h3{line-height:1.25;margin:2rem 0 .75rem}h1{font-size:1.9rem}h2{font-size:1.45rem}
+code{font:14px/1.5 ui-monospace,Consolas,monospace;background:#f2f2f2;padding:.15em .35em;border-radius:3px}
+pre{background:#f7f7f7;padding:1rem;border-radius:6px;overflow-x:auto}pre code{background:none;padding:0}
+pre.mermaid{background:none;text-align:center}table{border-collapse:collapse;width:100%}
+th,td{border:1px solid #ddd;padding:.4rem .6rem;text-align:left}
+blockquote{margin:1rem 0;padding:.1rem 1rem;border-left:3px solid #ccc;color:#555}
+img{max-width:100%}
+@media(prefers-color-scheme:dark){body{background:#151515;color:#e6e6e6}
+code{background:#242424}pre{background:#1d1d1d}th,td{border-color:#333}
+blockquote{border-color:#444;color:#aaa}}"""
+
+def render():
+  body = markdown.markdown(src.read_text(),
+      extensions=["fenced_code", "tables", "toc", "sane_lists"])
+  # mermaid.js wants <pre class="mermaid">, not a highlighted code block.
+  body = re.sub(r'<pre><code class="language-mermaid">(.*?)</code></pre>',
+                lambda m: '<pre class="mermaid">' + html.unescape(m.group(1)) + "</pre>",
+                body, flags=re.S)
+  # --serve answers for /mermaid.js itself off the vendored copy. A document
+  # standing on its own has no server behind it, so a relative src would be
+  # fetched from whatever host the page ended up on and find nothing there -
+  # it names the CDN instead. Inlining the vendored 3.5MB would make the page
+  # offline-proof and far too big to push through a CDP payload, which is the
+  # whole reason --html exists.
+  # The opener serves the page from the laptop and answers /mermaid.js off
+  # the copy this machine uploaded to it - falling back to the CDN itself if
+  # it has none. So a relative src is right there too, and unlike --serve it
+  # does not depend on this machine having vendored anything.
+  js = ('<script src="/mermaid.js"></script>'
+        if MODE == "opener" or (MODE == "serve" and VENDOR.exists()) else
+        '<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>')
+  return f"""<!doctype html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{html.escape(src.name)}</title><style>{CSS}</style></head><body>
+{body}
+{js}
+<script>mermaid.initialize({{startOnLoad:true,securityLevel:"loose",
+theme:matchMedia("(prefers-color-scheme:dark)").matches?"dark":"default"}});</script>
+</body></html>""".encode()
+
+# Out before the port is ever looked at: a document is not a server, and a
+# caller that only wants the page must not be stopped by a busy 6419.
+if MODE in ("html", "opener"):
+  sys.stdout.buffer.write(render())
+  raise SystemExit
+
+class H(http.server.BaseHTTPRequestHandler):
+  def do_GET(self):
+      if self.path == "/mermaid.js" and VENDOR.exists():
+          body, ctype = VENDOR.read_bytes(), "application/javascript"
+      else:
+          body, ctype = render(), "text/html; charset=utf-8"   # re-read: edits show on reload
+      self.send_response(200)
+      self.send_header("Content-Type", ctype)
+      self.send_header("Content-Length", str(len(body)))
+      self.send_header("Cache-Control", "no-store")
+      self.end_headers()
+      self.wfile.write(body)
+  def log_message(self, *a): pass
+
+socketserver.TCPServer.allow_reuse_address = True
+def holder(port):
+  """pid and command line of whatever is listening, best effort."""
+  import subprocess
+  try:
+      out = subprocess.run(["ss", "-ltnpH", f"sport = :{port}"],
+                           capture_output=True, text=True, timeout=3).stdout
+      pid = re.search(r"pid=(\d+)", out)
+      if not pid:
+          return None, None
+      pid = pid.group(1)
+      cmd = pathlib.Path(f"/proc/{pid}/cmdline").read_bytes().replace(b"\0", b" ").decode()
+      return pid, cmd.strip()
+  except Exception:
+      return None, None
+
+try:
+  srv = socketserver.TCPServer(("127.0.0.1", port), H)
+except OSError as e:
+  pid, cmd = holder(port)
+  msg = [f"port {port} is busy: {e}"]
+  if pid:
+      mine = "acstack-md-serve" in cmd or "acstack-md" in cmd
+      msg.append(f"  held by pid {pid}: {cmd[:90]}")
+      msg.append(f"  stop it with:  kill {pid}" if mine else
+                 f"  not acstack-md. use another port:  ACSTACK_MD_PORT=<n> acstack-md --serve ...")
+  else:
+      msg.append("  could not identify the holder. try:  ss -ltnp | grep " + str(port))
+  sys.exit("\n".join(msg))
+url = f"http://localhost:{port}"
+# OSC 8 makes it ctrl+clickable; the bare URL below covers terminals without it.
+sys.stderr.write(f"\033]8;;{url}\033\\{src.name}\033]8;;\033\\  {url}\n")
+sys.stderr.write("  reload the page after editing. ctrl+C to stop.\n")
+if not VENDOR.exists():
+  sys.stderr.write("  note: mermaid.js not vendored, falling back to CDN\n")
+try: srv.serve_forever()
+except KeyboardInterrupt: pass
+PY
+fi
+
+}

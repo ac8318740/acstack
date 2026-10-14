@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Put text on the clipboard of the machine your terminal is on.
+#
+#   acstack-clip "text"      copy the arguments
+#   ... | acstack-clip       copy stdin
+#   acstack-clip --out       print what was copied last
+#
+# A VM reached over SSH has no display and no clipboard of its own, so
+# xclip and friends have nothing to talk to. OSC 52 is the escape sequence
+# that asks the terminal at the far end - Windows Terminal, iTerm2, kitty -
+# to put text on its own clipboard. It is only bytes in the terminal stream,
+# so it crosses SSH for free, and herdr forwards it from a pane to whatever
+# terminal is hosting it.
+#
+# Reading back is not symmetrical. Windows Terminal refuses OSC 52 reads on
+# purpose, so --out replays a local cache instead. Installed by acstack.
+set -uo pipefail
+
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/acstack/clipboard"
+
+# A real clipboard beats an escape sequence when one exists. Anything sitting
+# in this script's own directory is skipped, so the xclip shim installed
+# beside it can never call back into here in a loop.
+native() {  # native <tool>; prints the path of a real one, if any
+  local tool="$1" self candidate
+  self="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+  while IFS= read -r candidate; do
+    [ "$(cd "$(dirname "$candidate")" 2>/dev/null && pwd)" = "$self" ] && continue
+    printf '%s' "$candidate"; return 0
+  done < <(type -ap "$tool" 2>/dev/null)
+  return 1
+}
+
+has_display() { [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; }
+
+if [ "${1:-}" = "--out" ] || [ "${1:-}" = "-o" ]; then
+  if has_display; then
+    for tool in wl-paste xclip xsel; do
+      real="$(native "$tool")" || continue
+      case "$tool" in
+        wl-paste) exec "$real" --no-newline ;;
+        xclip)    exec "$real" -out -selection clipboard ;;
+        xsel)     exec "$real" --output --clipboard ;;
+      esac
+    done
+  fi
+  [ -f "$CACHE" ] || { echo "acstack-clip: nothing copied yet" >&2; exit 1; }
+  cat "$CACHE"
+  exit 0
+fi
+
+if [ $# -gt 0 ]; then text="$*"; else text="$(cat)"; fi
+
+mkdir -p "$(dirname "$CACHE")"
+printf '%s' "$text" > "$CACHE"
+chmod 600 "$CACHE" 2>/dev/null
+
+if has_display; then
+  for tool in wl-copy xclip xsel; do
+    real="$(native "$tool")" || continue
+    case "$tool" in
+      wl-copy) printf '%s' "$text" | "$real" && exit 0 ;;
+      xclip)   printf '%s' "$text" | "$real" -in -selection clipboard && exit 0 ;;
+      xsel)    printf '%s' "$text" | "$real" --input --clipboard && exit 0 ;;
+    esac
+  done
+fi
+
+b64="$(printf '%s' "$text" | base64 | tr -d '\n')"
+# 74994 bytes is the ceiling tmux puts on an OSC 52 payload, and the lowest
+# of anything in this path. Past it the sequence is dropped without a word,
+# so say so rather than report a copy that did not happen.
+if [ ${#b64} -gt 74994 ]; then
+  echo "acstack-clip: too large for the terminal clipboard (${#b64} bytes encoded)" >&2
+  exit 1
+fi
+
+esc=$'\033]52;c;'"$b64"$'\a'
+# tmux drops escape sequences it does not recognise unless they are wrapped
+# for passthrough. herdr needs no wrapping - it forwards OSC 52 itself.
+if [ -n "${TMUX:-}" ]; then
+  esc=$'\033Ptmux;'"${esc//$'\033'/$'\033\033'}"$'\033\\'
+fi
+
+# The controlling terminal, not stdout. Callers are usually TUIs that have
+# redirected both streams, and OSC 52 has to reach the terminal itself.
+if { printf '%s' "$esc" > /dev/tty; } 2>/dev/null; then exit 0; fi
+printf '%s' "$esc" >&2
