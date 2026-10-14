@@ -7,6 +7,13 @@
 #   setup.sh disable <herdr|delta|diffnav|gh_dash|harlequin|lazygit|neovim|pi|tuicr>
 #   setup.sh uninstall  remove every managed block, keep the binaries
 #
+# Layout map:
+#   config readers and shared helpers
+#   installers and embedded acstack-* helper scripts
+#   per-tool config writers
+#   pi state, pi package, and pi config helpers
+#   version, status, apply, upgrade, disable, and uninstall commands
+#
 # Idempotent. Only ever edits between managed markers, so hand-written config
 # around it survives.
 set -uo pipefail
@@ -37,6 +44,7 @@ PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 # pi's override, so look where it writes.
 PI_RETRO_EXT="${PI_HOME:-$HOME/.pi}/agent/extensions/agentic-retro.ts"
 PI_ACSTACK="npm:acstack"
+PI_ACSTACK_GIT="git:github.com/ac8318740/spechub"
 PI_BILLION="npm:billion-context"
 BILLION_CONFIG="$HOME/.config/billion-context/billion-context.json"
 PI_SLASH_ANYWHERE="npm:pi-slash-anywhere"
@@ -194,10 +202,10 @@ install_plain_github_binary() {  # install_plain_github_binary <name> <repo> <as
   local json url tmp
   json=$(curl -sSf "https://api.github.com/repos/$repo/releases/latest" 2>/dev/null)
   [ -z "$json" ] && { say "$name: could not reach the GitHub release API"; return 1; }
-  url=$(MAPFLOW_JSON="$json" py "$match" <<'PY'
+  url=$(ACSTACK_JSON="$json" py "$match" <<'PY'
 import json, os, sys
 try:
-    d = json.loads(os.environ["MAPFLOW_JSON"])
+    d = json.loads(os.environ["ACSTACK_JSON"])
 except ValueError:
     raise SystemExit
 for a in d.get("assets", []):
@@ -3641,13 +3649,13 @@ JSON
 
 pi_write_theme() {
   if [ -e "$PI_THEME" ] && ! pi_state owns file "$PI_THEME"; then
-    say "pi: $PI_THEME already exists, so the Mapflow theme was left alone"
+    say "pi: $PI_THEME already exists, so the ACStack theme was left alone"
     return 0
   fi
-  MAPFLOW_PI_THEME="$PI_THEME" py <<'PY'
+  ACSTACK_PI_THEME="$PI_THEME" py <<'PY'
 import json, os
 
-target = os.environ["MAPFLOW_PI_THEME"]
+target = os.environ["ACSTACK_PI_THEME"]
 theme = {
     "$schema": "https://pi.dev/schemas/theme.schema.json",
     "name": "alex-mid-grey",
@@ -3739,7 +3747,7 @@ json.dump(theme, open(target, "w"), indent=2, ensure_ascii=False)
 open(target, "a").write("\n")
 PY
   pi_state own file "$PI_THEME"
-  say "pi: Mapflow theme written to $PI_THEME"
+  say "pi: ACStack theme written to $PI_THEME"
 }
 
 # npm installs pi into its global bin, which a fresh shell may not have on
@@ -3877,13 +3885,16 @@ pi_drop() {  # pi_drop <identity>
   pi_state disown pkg "$1"
 }
 
+pi_npm_package() {  # pi_npm_package <name> -> npm package identity, or nothing
+  version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{print "npm:" $4; found=1; exit} END{exit !found}'
+}
+
 # A package pi holds at a fixed version, such as npm:pi-subagents@1.0.0.
 pi_npm_pin() {  # pi_npm_pin <name>
-  local src
-  version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}' \
-    || return 1
-  src=$(pi_state pkg "npm:$1") || return 1
-  [ "$src" != "npm:$1" ]
+  local pkg src
+  pkg=$(pi_npm_package "$1") || return 1
+  src=$(pi_state pkg "$pkg") || return 1
+  [ "$src" != "$pkg" ]
 }
 
 pi_suggest_todo_discipline() {
@@ -4034,6 +4045,10 @@ apply_pi() {
   else
     pi_drop "$PI_SLASH_ANYWHERE"
   fi
+  local old
+  if old=$(pi_state pkg "$PI_ACSTACK_GIT"); then
+    say "pi: $old serves old ACStack skills, run: pi remove $old"
+  fi
   local ver cur; ver=$(acstack_version)
   if [ -n "$ver" ]; then
     if cur=$(pi_state pkg "$PI_ACSTACK") && [ -z "$(pi_acstack_behind)" ]; then
@@ -4132,7 +4147,7 @@ remove_pi() {
   if pi_state owns file "$PI_THEME"; then
     rm -f "$PI_THEME"
     pi_state disown file "$PI_THEME"
-    say "pi: Mapflow theme removed"
+    say "pi: ACStack theme removed"
   fi
   pi_state merge "$PI_KEYBINDINGS" keybindings '{"app.message.dequeue": null}'
   pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": null}'
@@ -4215,8 +4230,9 @@ installed_version() {  # installed_version <name> -> a bare version, or nothing
     # terragrunt version v0.91.2
     terragrunt) v=$(terragrunt --version 2>/dev/null | awk '{print $NF}') ;;
     # pi installs npm packages under its own directory, not npm's global one.
-    pi-subagents|pi-compact-tools|pi-zentui|pi-web-access|pi-lens|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
-               v=$(json_field "$PI_DIR/npm/node_modules/$1/package.json" version) ;;
+    *) if pkg=$(pi_npm_package "$1"); then
+         v=$(json_field "$PI_DIR/npm/node_modules/${pkg#npm:}/package.json" version)
+       fi ;;
   esac
   printf '%s' "${v#v}"
 }
@@ -4308,7 +4324,7 @@ PY
     # pi update never moves a pinned npm source, so a newer release is nothing
     # upgrade could fetch. Say so once instead of reporting it stale forever.
     if pi_npm_pin "$name"; then
-      printf 'unknown\t%s\tpinned to %s in pi, which pi update never moves\n' "$name" "$(pi_state pkg "npm:$name")"
+      printf 'unknown\t%s\tpinned to %s in pi, which pi update never moves\n' "$name" "$(pi_state pkg "$(pi_npm_package "$name")")"
       continue
     fi
     inst=$(installed_version "$name")
@@ -4347,8 +4363,7 @@ upgrade_from_table() {  # upgrade_from_table <name>
 }
 
 upgrade_one() {  # upgrade_one <name>
-  if [ "$1" = "pi-acstack" ] \
-     || version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{found=1} END{exit !found}'; then
+  if [ "$1" = "pi-acstack" ] || pi_npm_package "$1" >/dev/null; then
     find_pi
   fi
   case "$1" in
@@ -4365,13 +4380,6 @@ upgrade_one() {  # upgrade_one <name>
                else
                  say "pi update failed"
                fi ;;
-    pi-subagents|pi-compact-tools|pi-zentui|pi-web-access|pi-lens|pi-slash-anywhere|@juicesharp/rpiv-ask-user-question|billion-context|@juicesharp/rpiv-todo|pi-plugin-manager)
-      if pi_npm_pin "$1"; then
-        say "$1 is pinned to $(pi_state pkg "npm:$1") in pi, which pi update never moves"
-        return 0
-      fi
-      pi update "npm:$1" >/dev/null 2>&1 \
-        && say "$1 updated" || say "$1 update failed" ;;
     # Only a pin behind this plugin. A newer pin is the user's choice, and an
     # absent or unpinned ACStack is apply's business.
     pi-acstack)
@@ -4395,7 +4403,16 @@ upgrade_one() {  # upgrade_one <name>
         return 0
       fi
       upgrade_from_table tuicr ;;
-    *) upgrade_from_table "$1" ;;
+    *) if pkg=$(pi_npm_package "$1"); then
+         if pi_npm_pin "$1"; then
+           say "$1 is pinned to $(pi_state pkg "$pkg") in pi, which pi update never moves"
+           return 0
+         fi
+         pi update "$pkg" >/dev/null 2>&1 \
+           && say "$1 updated" || say "$1 update failed"
+       else
+         upgrade_from_table "$1"
+       fi ;;
   esac
 }
 
@@ -4454,7 +4471,7 @@ case "$ACTION" in
     if have pi || [ "$(cfg_get pi.enabled false)" = "true" ]; then
       echo
       have pi && say "pi: $(installed_version pi)" || say "pi: not installed"
-      for id in npm:pi-subagents "$PI_ACSTACK" "$PI_BILLION" npm:@juicesharp/rpiv-todo npm:pi-plugin-manager npm:@juicesharp/rpiv-ask-user-question npm:pi-web-access npm:pi-lens "$PI_SLASH_ANYWHERE" npm:pi-compact-tools "$PI_ZENTUI"; do
+      for id in "$PI_ACSTACK" $(version_table | awk -F'\t' '$2=="pi" && $3=="npm" && $1!="pi"{print $1}' | while read -r name; do pi_npm_package "$name"; done); do
         src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
       done
       [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \

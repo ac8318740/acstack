@@ -170,15 +170,26 @@ blocked state instead of polling by hand:
 herdr agent wait <name> --until blocked --timeout <ms>
 ```
 
-On `blocked`, accept the dialog with `herdr agent send-keys <name> enter`. Then
-re-check by waiting for the session to start working:
+At the trust dialog, `agent_not_ready` means the session has not reached the
+prompt yet. Wait again or read `herdr agent get <name>` before sending keys.
+A `blocked` result means the trust dialog is ready.
+
+On `blocked`, accept the dialog with:
+
+```bash
+herdr agent send-keys <name> down
+herdr agent send-keys <name> enter
+```
+
+Then re-check by waiting for the session to start working:
 
 ```bash
 herdr agent wait <name> --until working --timeout <ms>
 ```
 
-If either wait times out, read the agent's current state directly with
-`herdr agent get <name>` rather than guessing.
+If either wait times out, or the agent reports `blocked` after the keys, read the
+agent's current state directly with `herdr agent get <name>` rather than
+guessing.
 
 Throughout this section `<name>` is the pane ID instead, whenever the launch
 timed out – see *When `agent start` times out*, above.

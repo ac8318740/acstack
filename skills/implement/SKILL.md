@@ -104,6 +104,11 @@ over the relevant code. Use `Explore` on Claude Code and `scout` on pi.
 Use as many as there are distinct places to look, not a fixed count. Act on
 what they find.
 
+Downstream pipeline subagents start fresh. Pass the source, test, and doc paths
+you already discovered into each test-writer, task-executor, task-checker, audit,
+polish, and verifier prompt. Tell them to read those paths directly instead of
+searching the codebase again.
+
 ### 5. Execute within the claim
 
 The pipeline's state lives inside the claim, not on the node. For each

@@ -146,6 +146,11 @@ conversation content, not project state, and must not be committable. Name it
 nothing), where `<slug>` names the work and `<timestamp>` stops two handoffs
 colliding.
 
+Use a file-writing tool when your harness has one. Otherwise write with a quoted
+heredoc, `<<'EOF'`, so the shell does not expand the handoff text. Never use an
+unquoted heredoc for handoff notes: backticked commands inside the note would run
+while you are only trying to write them down.
+
 Its first line, above every heading, repeats the acknowledgement requirement
 verbatim, with `<this-file>` replaced by the file's own path:
 
