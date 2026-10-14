@@ -11,7 +11,7 @@ import type { ReviewStatus } from '../lib/alignment-packs.js';
 import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alignment-review-protocol.js';
 import { type Annotation, type Draft, diagramId, pack, useStored } from './pack.js';
 
-// Present only when `acstack align` served this page; a file opened directly is read-only.
+// Present only when `acstack align-viewer` served this page; a file opened directly is read-only.
 const REVIEW_TOKEN = document.querySelector<HTMLMetaElement>(`meta[name="${REVIEW_TOKEN_META}"]`)?.content;
 
 // Browsers can refuse clipboard access; the caller then shows the prompt with a Copy button instead.
@@ -173,7 +173,7 @@ function App() {
             </button>
           </div>
         ) : (
-          <span className="hint">Read-only copy. Run acstack align --map {pack.source.map.id} to review.</span>
+          <span className="hint">Read-only copy. Run acstack align-viewer --map {pack.source.map.id} to review.</span>
         )}
       </header>
       <main className="canvas">

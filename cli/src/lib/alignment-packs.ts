@@ -86,7 +86,7 @@ const ApprovalSchema = z
   })
   .strict();
 
-// Shared by the pack and by a review posted back to `acstack align`, so the two cannot drift.
+// Shared by the pack and by a review posted back to `acstack align-viewer`, so the two cannot drift.
 export const ReviewStateSchema = z
   .object({
     approval: ApprovalSchema.optional(),

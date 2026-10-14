@@ -147,7 +147,11 @@ function generatePack(root: string, map: string): { pack: AlignmentPack; path: s
 }
 
 function readFeedback(path: string): Feedback {
-  return FeedbackSchema.parse(JSON.parse(readFileSync(path, 'utf-8')));
+  try {
+    return FeedbackSchema.parse(JSON.parse(readFileSync(path, 'utf-8')));
+  } catch (error) {
+    fail(`Cannot read feedback from ${path}: ${error instanceof Error ? error.message : String(error)}`);
+  }
 }
 
 function importFeedback(pack: AlignmentPack, feedback: Feedback): AlignmentPack {
@@ -181,7 +185,7 @@ async function applyFeedback(root: string, map: string, pack: AlignmentPack, fee
   const prompt =
     reviewed.reviewState.approval?.status === 'approved'
       ? `The alignment review of map "${map}" is approved.${count ? ` Read the ${comments} in ${paths.feedbackMarkdown} as notes.` : ''} Continue the work.`
-      : `The alignment review of map "${map}" requests changes. Read the ${comments} in ${paths.feedbackMarkdown}, update the map to address each one, then run \`acstack align --map ${map}\` so I can review again.`;
+      : `The alignment review of map "${map}" requests changes. Read the ${comments} in ${paths.feedbackMarkdown}, update the map to address each one, then run \`acstack align-viewer --map ${map}\` so I can review again.`;
   if (count) {
     // A review sends every comment it holds, so each one replaces the last.
     writeFileSync(paths.annotationsJsonl, feedback.annotations.map(annotation => `${JSON.stringify(annotation)}\n`).join(''));
@@ -301,8 +305,8 @@ export function register(program: Command): void {
     );
 
   program
-    .command('align')
-    .description('Open an alignment pack for review and record the decision')
+    .command('align-viewer')
+    .description('Open an alignment artifact for review and record the decision')
     .requiredOption('--map <name>', 'map name (files backend)')
     .option('--feedback <path>', 'record a review from a feedback JSON file instead of opening the viewer')
     .action(

@@ -44,6 +44,15 @@ These are the workable nodes: open, unblocked, and containing no decision.
 Pull them regardless of depth – work can hang anywhere, including straight
 off the root.
 
+Before claiming one, check whether the map is ready to build from:
+
+- If any `fog` node changes the alignment artifact, stop and point the user at
+  `/acstack:map`.
+- If `workflow.alignment_packs.approval_gate` is true and no reviewer approved
+  the alignment artifact, stop and point the user at `/acstack:map`.
+- If a `fog` node needs later evidence and does not change the artifact, leave
+  it on the map with its reopening trigger.
+
 If the frontier holds only `hitl` nodes – human in the loop, meaning a
 person must answer them – stop and point the user at `/acstack:map`. Those
 need a human, not a pipeline.
@@ -186,9 +195,11 @@ With no map, skip the tracker write – still invoke `record-context` when a
 decision landed. With a map, then:
 
 - Invoke `record-context` – implementation decisions can earn ADRs too.
-- Create nodes for anything the work surfaced (a question found mid-build is
-  `hitl`, `--answers <this node>`).
-
+- Classify anything the work surfaced:
+    - Agent-clearable fog gets research, tests, or a throwaway prototype.
+    - Design-changing fog becomes a `hitl` node and returns to `/acstack:map`.
+    - Local fog that does not change the artifact stays inside the claim notes.
+- Rebuild or rerun the alignment review when the work changes the artifact.
 - Recompute the frontier – resolutions unblock nodes.
 
 ### 7. Build verification
