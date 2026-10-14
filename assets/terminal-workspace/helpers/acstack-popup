@@ -1,0 +1,13 @@
+#!/bin/sh
+# Run a herdr popup's command with this folder first on PATH.
+#
+#   acstack-popup <command> [args...]
+#
+# herdr runs a popup with its server's environment, not a login shell. A
+# server started by `herdr --remote` has the sshd default PATH, which lacks
+# this folder, so a bare popup target exits 127. apply calls this helper by
+# absolute path, and it finds its folder from $0. herdr and harlequin always
+# link into ~/.local/bin, so that goes on PATH too. The target and every tool
+# it starts then resolve whatever PATH the server has. Installed by acstack.
+PATH="$(dirname "$0"):$HOME/.local/bin:$PATH"; export PATH
+exec "$@"

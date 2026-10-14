@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# xclip, for a machine whose clipboard is at the other end of an SSH session.
+# acstack installs this only when no real xclip is present.
+#
+# It exists for programs that reach for xclip directly instead of offering a
+# setting. gh-dash copies pull request URLs through a Go library that looks
+# only for xclip, xsel, wl-copy and termux-clipboard-set, and gives up when
+# none is on PATH. This puts one there, and acstack-clip sends the text to
+# the terminal's own clipboard with OSC 52.
+#
+# Hands over to a real xclip if one turns up on PATH with a display to talk
+# to. Remove it with `setup.sh uninstall`. Installed by acstack.
+set -uo pipefail
+
+PATH="$(cd "$(dirname "$0")" 2>/dev/null && pwd):$PATH"
+
+# A real xclip, anywhere on PATH except beside this script.
+if [ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]; then
+  self="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
+  while IFS= read -r candidate; do
+    [ "$(cd "$(dirname "$candidate")" 2>/dev/null && pwd)" = "$self" ] && continue
+    exec "$candidate" "$@"
+  done < <(type -ap xclip 2>/dev/null)
+fi
+
+for arg in "$@"; do
+  case "$arg" in
+    -o|-out|-output) exec acstack-clip --out ;;
+  esac
+done
+exec acstack-clip
