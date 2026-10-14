@@ -6,6 +6,7 @@
 # Every check here is offline. herdr is not required, so this runs in CI.
 #
 # Run it:  bash tests/test-terminal-workspace.sh
+# It takes a few minutes.
 # Exit code is 0 when every check passes, 1 otherwise.
 
 set -u
@@ -4757,6 +4758,22 @@ if [ "$PI_APPLY" = "1" ]; then
     ok "apply never moves a newer ACStack pin back"
   else
     no "apply never moves a newer ACStack pin back (packages: $(jget "$ISET" packages))"
+  fi
+  iw disable pi >/dev/null
+
+  # PR #331: the old git install source is not one apply owns. Keep it in
+  # settings.json, and tell the user the exact command that removes it.
+  old_git='git:github.com/ac8318740/spechub@v0.42.0'
+  printf '{\n  "packages": ["%s"]\n}\n' "$old_git" > "$ISET"
+  : > "$IHOME/pi.log"
+  out=$(iw apply)
+  pkgs=$(jget "$ISET" packages)
+  if printf '%s' "$pkgs" | grep -qF "\"$old_git\"" \
+     && ! grep -q "^pi remove $old_git" "$IHOME/pi.log" \
+     && printf '%s' "$out" | grep -qF "run: pi remove $old_git"; then
+    ok "apply warns about the old ACStack git pi package without removing it"
+  else
+    no "apply warns about the old ACStack git pi package without removing it (said: $(flat "$out"); packages: $pkgs; pi: $(flat "$(cat "$IHOME/pi.log")"))"
   fi
   iw disable pi >/dev/null
 

@@ -324,7 +324,11 @@ node scripts/gen-pi-agents.mjs
 *Two layers, two commands.*
 
 - Run `cd cli && npm test` for the CLI tests
+    - The full CLI suite takes a few minutes, mostly in `src/commands/config.test.ts`
+    - To run one file: `cd cli && npm test -- src/lib/diagram.test.ts`
+    - If a test needs isolation, use `--pool=vmThreads`
 - Run `bash tests/run-all.sh` for the hook suites
+    - `tests/test-terminal-workspace.sh` takes a few minutes; allow at least five
 
 ## 6. Releasing
 
