@@ -146,13 +146,12 @@ conversation content, not project state, and must not be committable. Name it
 nothing), where `<slug>` names the work and `<timestamp>` stops two handoffs
 colliding.
 
-Use a file-writing tool when your harness has one. Otherwise write with a quoted
-heredoc, `<<'EOF'`, so the shell does not expand the handoff text. Never use an
-unquoted heredoc for handoff notes: backticked commands inside the note would run
-while you are only trying to write them down.
+Use a file-writing tool when your harness has one. Otherwise use a quoted
+heredoc, `<<'EOF'`, so the shell does not expand the handoff text. An unquoted
+heredoc can run backticked commands inside the note.
 
-Its first line, above every heading, repeats the acknowledgement requirement
-verbatim, with `<this-file>` replaced by the file's own path:
+Its first line repeats the acknowledgement requirement verbatim, with
+`<this-file>` replaced by the file's own path:
 
 ```text
 Acknowledge before any other tool call. Run ~/.claude/acstack/bin/acstack handoff ack accept --file <this-file> "<one-line reason>", or ack decline --file <this-file> "<one-line reason>". The command writes <this-file>.ack, which the sender watches.
@@ -172,22 +171,19 @@ The launch prompt is a **single-line pointer at that file**, never the handoff
 text itself. `herdr agent start` rejects newlines and tabs in its arguments.
 
 ## Every prompt opens with an acknowledgement
-
 Every handoff prompt asks for the command.
 
 There are two prompts, because the two destinations must say different things.
 Use the matching one verbatim, and substitute only the handoff file path.
 
 Each one is a single line. `herdr agent start` rejects newlines and tabs in its
-arguments. So the instruction and the pointer at the handoff file share that one
-line.
+arguments, so the instruction and file pointer share that line.
 
-**Fresh agent** – one launched for this handoff, into a new pane, worktree or
-tab, or as a `--bg` session. Reading the handoff file is the one tool call
-allowed before the ack command. Every other tool call – a command, an edit, a
-subagent – leaves the acknowledgement still owed.
+**Fresh agent** – one launched for this handoff, into a new pane, worktree,
+tab, or `--bg` session. It may read the handoff file before the ack command.
+Every other tool call leaves the acknowledgement still owed.
 
-> Before any other tool call, acknowledge this handoff by running ~/.claude/acstack/bin/acstack handoff ack accept --file <handoff-file> "<one-line reason>", or ack decline --file <handoff-file> "<one-line reason>". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. Then continue that work.
+> Before any other tool call, run ~/.claude/acstack/bin/acstack handoff ack accept --file <handoff-file> "<one-line reason>", or ack decline --file <handoff-file> "<one-line reason>". You may read <handoff-file> first. Then continue that work.
 
 **Agent already running** – one reached by cross-session message. Its variant
 of the opener is in [`running-agent.md`](running-agent.md).
@@ -213,12 +209,11 @@ Do not eyeball transcripts. The CLI watches for you:
   --session-id <id> --cwd <dir> --token <token> --turns <n>
 ```
 
-**Run the watcher in the background.** This session has stopped working on the
-task, but it must not lock up. The user can keep talking to it while the handoff
-lands, and the harness surfaces the watcher's exit on its own. Never sit in a
+**Run the watcher in the background.** The user can keep talking while the
+handoff lands. The harness surfaces the watcher's exit. Never sit in a
 foreground wait.
 
-[`watch.md`](watch.md) gives every flag, `--fresh` among them. When the watcher
+[`watch.md`](watch.md) gives every flag, including `--fresh`. When the watcher
 exits, read [`outcomes.md`](outcomes.md) for what its result means.
 
 ## Silence the context-pressure nudge
