@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# Open harlequin, the SQL editor, on one of your connection profiles.
+#
+#   acstack-db            one profile launches straight in, more than one opens a menu
+#   acstack-db <profile>  that profile, no menu
+#
+# Profiles live in a TOML file of your own. This writes a starter the first
+# time and never touches it again. Installed by acstack.
+set -uo pipefail
+# apply rewrites this line from harlequin.config_path. What ships here is the
+# default, so the helper is right even on a machine nothing rewrote it on.
+DB_CFG_DEFAULT="~/.config/acstack/harlequin.toml"  # acstack:config_path
+CFG="${ACSTACK_DB_CONFIG:-$DB_CFG_DEFAULT}"
+# A human writes ~ for home, and a human writes this config. Expanding it here
+# rather than at write time keeps the helper right on a machine whose HOME is
+# not the one apply ran under.
+case "$CFG" in
+  "~")   CFG="$HOME" ;;
+  "~/"*) CFG="$HOME/${CFG#\~/}" ;;
+esac
+
+command -v harlequin >/dev/null 2>&1 || {
+  echo "harlequin is not installed. Run: setup.sh apply"; exit 1; }
+
+if [ ! -f "$CFG" ]; then
+  mkdir -p "$(dirname "$CFG")"
+  cat > "$CFG" <<'T'
+# harlequin connection profiles. acstack wrote this once and will not write it
+# again. Edit it freely.
+default_profile = "local"
+
+[profiles.local]
+adapter = "postgres"
+conn_str = "postgres://localhost:5432/postgres"
+
+# Snowflake. Take the # marks off and fill in your own account.
+#
+# Put the credentials in ~/.snowflake/connections.toml and name the connection
+# here, rather than writing them into this file.
+#
+# externalbrowser authentication needs a browser on this machine. A dev machine
+# reached over SSH has none, so use a key pair or a password instead.
+#
+# [profiles.snowflake]
+# adapter = "snowflake"
+# connection_name = "default"
+T
+  echo "wrote a starter config at $CFG - edit it to reach your own database"
+fi
+
+launch() { exec harlequin --config-path "$CFG" -P "$1"; }
+[ $# -gt 0 ] && launch "$1"
+
+# Profile names, read with a regex rather than tomllib: tomllib needs python
+# 3.11 and nothing else this script writes has a floor that high. Names are all
+# that is wanted here, and a table header is the one line a regex reads safely.
+rows=$(python3 - "$CFG" <<'PY'
+import re, sys
+text = open(sys.argv[1]).read()
+d = re.search(r'(?m)^\s*default_profile\s*=\s*"([^"]+)"', text)
+default = d.group(1) if d else ""
+for m in re.finditer(r'(?m)^\s*\[profiles\.("?)([^\]"]+)\1\]\s*$', text):
+    name = m.group(2)
+    body = text[m.end():].split("\n[", 1)[0]
+    a = re.search(r'(?m)^\s*adapter\s*=\s*"([^"]+)"', body)
+    mark = "   (default)" if name == default else ""
+    print("%s\t%-24s %-12s%s" % (name, name, a.group(1) if a else "?", mark))
+PY
+)
+count=$(printf '%s\n' "$rows" | grep -c .)
+case "$count" in
+  0) echo "no profiles in $CFG"; exit 1 ;;
+  1) launch "$(printf '%s' "$rows" | cut -f1)" ;;
+esac
+
+command -v fzf >/dev/null 2>&1 || {
+  echo "fzf is not installed, so there is no menu. Naming a profile still works:"
+  printf '%s\n' "$rows" | cut -f1 | sed 's/.*/  acstack-db "&"/'
+  exit 1; }
+
+choice=$(printf '%s\n' "$rows" \
+  | fzf --delimiter=$'\t' --with-nth=2.. --no-multi --cycle \
+        --prompt="db > " --header="harlequin   ·   profile   adapter" \
+  | cut -f1)
+[ -n "$choice" ] || exit 0
+launch "$choice"

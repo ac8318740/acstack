@@ -1,0 +1,401 @@
+#!/usr/bin/env bash
+# Read a markdown file in the terminal with its mermaid diagrams drawn as text.
+#
+#   acstack-md FILE.md              render to the terminal
+#   acstack-md --preview FILE.md    render into a preview pane: width from
+#                                   $COLUMNS, straight to stdout, no pager
+#   acstack-md --numbered FILE.md   the source instead, line numbers down the
+#                                   left, for quoting a line back in a review
+#   acstack-md --toggle-line-numbers  flip which of the two --preview shows
+#   acstack-md --diagram N FILE.md  one diagram alone, with horizontal scroll
+#   acstack-md --serve FILE.md      serve it for a real browser, print the link
+#   acstack-md --html FILE.md       print that same page as one HTML document
+#   acstack-md --browser FILE.md    open it in the browser you are sitting at
+#
+# While reading, b opens the page in that browser and # switches between the
+# rendered document and its source with line numbers. $ACSTACK_MD_BROWSER_KEY
+# and $ACSTACK_MD_LINE_NUMBERS_KEY move them.
+#
+# Text, not images, is deliberate: herdr emits the kitty graphics protocol and
+# no terminal reachable from Windows or Android renders that, and e-ink panels
+# render text far better than bitmaps anyway. Installed by acstack.
+set -uo pipefail
+
+PORT="${ACSTACK_MD_PORT:-6419}"
+# Named rather than inherited from an ambient $AGENT_BROWSER_CDP, for the
+# reason acstack-open gives at its own bridge branch: leaning on the ambient
+# one launches a headless Chrome nobody can see and calls it success.
+BRIDGE="${ACSTACK_BRIDGE_URL:-http://127.0.0.1:19988}"
+OPENER="${ACSTACK_OPENER_URL:-http://127.0.0.1:19989}"
+# The opener refuses anything without this, so its absence is the same as the
+# opener being down - which is exactly how the route probe treats it.
+OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/acstack/opener.token"
+SERVE=0; ONLY=0; PREVIEW=0; HTML=0; BROWSER=0; NUMBERED=0; TOGGLE=0
+usage() { echo "usage: acstack-md [--preview] [--numbered] [--toggle-line-numbers] [--diagram N] [--serve|--html|--browser] FILE.md" >&2; exit 1; }
+# The preview pane and the key that flips it are two processes that never meet,
+# so the choice between the rendered view and the source lives in a file both
+# of them can find. One name, defined once, is what keeps them agreeing.
+LINE_NUMBER_FLAG="${XDG_STATE_HOME:-$HOME/.local/state}/acstack/md-line-numbers"
+# A loop rather than a fixed order, so --preview composes with --diagram and
+# a caller can pass them either way round.
+while [ $# -gt 0 ]; do
+case "$1" in
+  --serve)   SERVE=1; shift ;;
+  --html)    HTML=1; shift ;;
+  --browser) BROWSER=1; shift ;;
+  --preview) PREVIEW=1; shift ;;
+  --numbered) NUMBERED=1; shift ;;
+  --toggle-line-numbers) TOGGLE=1; shift ;;
+  --diagram) ONLY="${2:-1}"; shift; [ $# -gt 0 ] && shift ;;
+  --)        shift; break ;;
+  --*)       usage ;;
+  *)         break ;;
+esac
+done
+# The toggle names no file: it changes what the next preview will draw and has
+# nothing to draw itself. So it answers here, before the file check below.
+if [ "$TOGGLE" = "1" ]; then
+if [ -e "$LINE_NUMBER_FLAG" ]; then
+  rm -f "$LINE_NUMBER_FLAG"
+  echo "acstack-md: markdown previews render again"
+else
+  # A machine that has never had a state directory is every machine the
+  # first time, so make it rather than fail on it.
+  mkdir -p "$(dirname "$LINE_NUMBER_FLAG")" && : > "$LINE_NUMBER_FLAG" \
+    || { echo "acstack-md: could not write $LINE_NUMBER_FLAG" >&2; exit 1; }
+  echo "acstack-md: markdown previews show source with line numbers"
+fi
+exit 0
+fi
+# --preview, --serve and --html are three answers to the same question - where
+# does this end up - so at most one can be true. A preview pane is somewhere to
+# read, not somewhere to run a server or hand a document out of.
+if [ $((SERVE + PREVIEW + HTML + BROWSER)) -gt 1 ]; then
+echo "acstack-md: --preview, --serve, --html and --browser do different things - pick one" >&2
+exit 1
+fi
+# --numbered answers a different question - which of the two views - so it
+# composes with --preview and with nothing else. The others all want the
+# rendered document, and numbered source is not one.
+if [ "$NUMBERED" = "1" ] && [ $((SERVE + HTML + BROWSER)) -gt 0 ]; then
+echo "acstack-md: --numbered prints the source, so --serve, --html and --browser have nothing to render" >&2
+exit 1
+fi
+# The flag is what the file manager's key flips, and the pane is the only
+# place it applies: every other route was asked for a rendered document by
+# name, and the opener menu lists the numbered read as its own entry.
+#
+# --diagram is the exception the pane itself holds. It names one drawing to
+# show, which is a different question from which of the two views the pane is
+# on, and a reader who left the flag set and then asked for a diagram still
+# wants the diagram. So an explicit --diagram outranks the flag. An explicit
+# --numbered still wins over it, for the same reason in the other direction.
+if [ "$PREVIEW" = "1" ] && [ "$ONLY" = "0" ] && [ -e "$LINE_NUMBER_FLAG" ]; then NUMBERED=1; fi
+# Node labels set a diagram's width, so padding cannot rescue a wide one.
+# Tightening still buys roughly a third of the height back.
+PAD="${ACSTACK_MD_PAD:--x 2 -y 2}"
+# A caller that exports COLUMNS means it, so it wins outright. tput reads
+# COLUMNS too, ahead of terminfo, but that is a side effect worth naming
+# rather than resting on - it goes when TERM is unset and tput fails.
+case "${COLUMNS:-}" in
+''|*[!0-9]*) COLS=$(tput cols 2>/dev/null || echo 80) ;;
+*)           COLS="$COLUMNS" ;;
+esac
+[ "$COLS" -gt 0 ] 2>/dev/null || COLS=80
+FILE="${1:-}"
+[ -n "$FILE" ] && [ -f "$FILE" ] || usage
+# One place to clean up, so no exit path leaks a temp file.
+trap "rm -f /tmp/acstack-md.$$.md /tmp/acstack-md-out.$$.md /tmp/acstack-md-art.$$.* /tmp/acstack-md-keys.$$" EXIT
+
+# Wanting a document in a browser happens while reading it, so the key belongs
+# in the pager rather than before or after one.
+#
+# less has no action that runs a fixed command, and its one shell escape
+# expands % to the file it was handed - which here is the rendered temp copy,
+# not the markdown someone asked for. So the key quits instead: lesskey's quit
+# action takes the first character of its extra string as the exit status, and
+# "A" is 65, a value less never returns of its own accord. Nothing has to be
+# passed through the binding, because this script already knows the file.
+BROWSE_STATUS=65
+BROWSE_KEY="${ACSTACK_MD_BROWSER_KEY:-b}"
+# The same trick a second time, for the other thing a reader wants mid-document.
+# Wanting a line number happens while reading too - that is the moment you are
+# about to quote one - and by then the file list with its own binding is not in
+# front of you. So the key means the same thing in both places.
+NUMBER_STATUS=66
+NUMBER_KEY="${ACSTACK_MD_LINE_NUMBERS_KEY:-#}"
+KEYS="/tmp/acstack-md-keys.$$"
+
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "$SCRIPT_DIR/acstack-md-lib"
+
+if [ "$NUMBERED" = "1" ]; then
+numbered "$FILE" > /tmp/acstack-md.$$.md
+# -S chops rather than wraps, so the arrow keys pan across a long line
+# instead of the gutter losing its column. emit sends a pane straight to
+# stdout and keeps the browser key working in the pager, both unchanged.
+emit /tmp/acstack-md.$$.md less -SR
+exit 0
+fi
+
+# --browser names a destination rather than a rendering: work out where the
+# browser actually is, then pick the delivery that reaches it. acstack-open
+# already answers that question for URLs, so ask it rather than deciding the
+# same thing twice and drifting from it later.
+if [ "$BROWSER" = "1" ]; then
+case "$(command -v acstack-open >/dev/null 2>&1 && acstack-open --why 2>/dev/null)" in
+  opener)
+    # The opener stores the document on the laptop and serves it to the
+    # browser there, so the page still works once this machine stops
+    # answering - and a re-render of the same file updates the tab already
+    # showing it instead of stacking up a second one. That reuse is why the
+    # key has to be stable per file: it is the absolute path, hex-encoded
+    # because a path may hold anything a URL cannot.
+    tok=$(cat "$OPENER_TOKEN" 2>/dev/null || true)
+    if [ -z "$tok" ]; then
+      echo "acstack-md: no opener token at $OPENER_TOKEN." >&2
+      echo "  run register-tasks.ps1 on the laptop to install one." >&2
+      exit 1
+    fi
+    hex() { od -An -v -tx1 | tr -d ' \n'; }
+    key=$(printf '%s' "$(cd "$(dirname "$FILE")" && pwd -P)/$(basename "$FILE")" | hex)
+    name=$(basename "$FILE")
+    # Vendored mermaid, uploaded once so diagrams draw without reaching a
+    # CDN. Best effort throughout: the opener redirects to the CDN when it
+    # has no copy, so a failure here costs nothing but an outbound fetch.
+    vendored="$HOME/.local/share/acstack/mermaid.min.js"
+    # tr, because whitespace inside JSON carries no meaning and a match that
+    # depends on its absence is a match waiting to break. Same reasoning as
+    # acstack-open's /json/list check.
+    if [ -s "$vendored" ] && ! curl -fsS -m 3 -H "X-ACStack-Token: $tok" \
+         "$OPENER/health" 2>/dev/null | tr -d '[:space:]' | grep -q '"mermaid":true'; then
+      curl -fsS -m 60 -X POST -H "X-ACStack-Token: $tok" \
+        --data-binary "@$vendored" "$OPENER/asset/mermaid.js" >/dev/null 2>&1 || true
+    fi
+    # The opener answers with what it did, and that answer is what success
+    # means - it says whether a tab was opened or a live one reused. An exit
+    # status of 0 is not a page that arrived.
+    answer=$(ACSTACK_MD_OPENER=1 "$0" --html "$FILE" \
+      | curl -fsS -m 60 -X POST -H "X-ACStack-Token: $tok" \
+          -H 'Content-Type: text/html; charset=utf-8' --data-binary @- \
+          "$OPENER/doc?key=$key&title=$(printf '%s' "$name" | hex)" 2>/dev/null \
+      | tr -d '[:space:]')
+    case "$answer" in
+      *'"reused":true'*)
+        printf '%s updated in the tab already open on your machine\n' "$name" >&2
+        exit 0 ;;
+      *'"opened":true'*)
+        printf '%s is on screen in the browser on your machine\n' "$name" >&2
+        exit 0 ;;
+    esac
+    echo "acstack-md: the opener did not confirm the page reached a browser." >&2
+    echo "  check it is up:  acstack-open --why" >&2
+    exit 1
+    ;;
+  bridge)
+    # Under `herdr --remote` the tunnel runs laptop-to-here, so nothing over
+    # there can open a port on this machine and a link to localhost:6419
+    # names the wrong localhost. Hand the whole document down the CDP link
+    # that is already open instead, and let Chrome hold it. That is also why
+    # --html exists: a document travels, a port does not.
+    #
+    # $0 is the path bash resolved this script to - absolute when it came off
+    # PATH - so the page pushed is the one --html renders, not a second copy
+    # of the renderer that can disagree with it.
+    html=$("$0" --html "$FILE") || exit 1
+    # base64 because the document is full of quotes and newlines and has to
+    # survive being a JavaScript string literal. tr rather than `base64 -w0`,
+    # which is GNU-only.
+    payload=$(printf '%s' "$html" | base64 | tr -d '\n')
+    # A tab of its own, and never over a page that is already there. The
+    # extension attaches per tab through chrome.debugger, and rewriting a
+    # real document detaches it - measured: pushing over an https page left
+    # /json/list empty and the bridge unusable until it was armed again by
+    # hand. A fresh about:blank tab survives the same rewrite, because the
+    # document being replaced has the same origin. So the armed tab is left
+    # exactly as it was, and this writes into a new one.
+    #
+    # The default session deliberately, as acstack-open explains: the relay
+    # takes one CDP client at a time, so a session of our own could not
+    # connect while an agent holds it.
+    #
+    # The last expression is the page title, so the browser answers with
+    # what it is now holding. That answer is what success means here - a
+    # command that exited 0 is not a page that arrived.
+    name=$(basename "$FILE")
+    timeout 20 agent-browser --cdp "$BRIDGE" tab new >/dev/null 2>&1
+    landed=$(printf 'const b64="%s";const doc=new TextDecoder().decode(Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));document.open();document.write(doc);document.close();document.title;\n' \
+               "$payload" \
+               | timeout 60 agent-browser --cdp "$BRIDGE" eval --stdin 2>/dev/null)
+    # Writing into the tab is only half of it. A tab created over CDP is
+    # created in the background, so it has to be brought forward or the page
+    # is real, correct, and never seen - which is exactly how this first went
+    # wrong. agent-browser carries Page.bringToFront on its tab switch, so
+    # switch to the tab just written into, which is the one it already has
+    # selected. Best effort: a page in a background tab still beats an error.
+    # The arrow marks the active tab, which is the one just written into.
+    # Taking the first line instead would raise whatever sits at index 0 -
+    # somebody else's tab, and the page still unseen.
+    idx=$(timeout 20 agent-browser --cdp "$BRIDGE" tab list 2>/dev/null \
+            | grep -m1 -- "$(printf '\342\206\222')" \
+            | sed -n 's/.*\[\([0-9][0-9]*\)\].*/\1/p')
+    [ -n "$idx" ] && timeout 20 agent-browser --cdp "$BRIDGE" tab "$idx" >/dev/null 2>&1
+    case "$landed" in
+      *"$name"*)
+        printf '%s is on screen in the browser on your machine\n' "$name" >&2
+        exit 0 ;;
+    esac
+    # Serving instead would print a link the laptop resolves to its own
+    # localhost, which is a wrong answer dressed as a working one.
+    echo "acstack-md: the bridge answered but is not holding the page." >&2
+    echo "  the document goes to the tab the Playwriter extension is armed on." >&2
+    echo "  check something is still armed:  acstack-open --why" >&2
+    exit 1
+    ;;
+esac
+# Every other route has a browser that can reach this machine's ports, or a
+# terminal that can hand someone a link. Serving is already exactly that.
+SERVE=1
+fi
+
+serve_or_html
+
+
+# Terminal render: swap each mermaid fence for its text drawing, then page it.
+ACSTACK_COLS="$COLS" ACSTACK_PAD="$PAD" ACSTACK_ONLY="$ONLY" ACSTACK_RUN="$$" \
+ACSTACK_PREVIEW="$PREVIEW" \
+python3 - "$FILE" <<'PY' > /tmp/acstack-md.$$.md 2>/dev/null
+import os, pathlib, re, shlex, shutil, subprocess, sys, tempfile
+text = pathlib.Path(sys.argv[1]).read_text()
+# "$HOME/..." rather than the absolute path: shorter, and unlike ~'/x y'
+# it expands correctly when the path contains spaces.
+_raw = sys.argv[1]
+_home = str(pathlib.Path.home())
+SELF = ('"$HOME' + _raw[len(_home):].replace('"', '\\"') + '"'
+      if _raw.startswith(_home) else shlex.quote(_raw))
+have = shutil.which("mermaid-ascii")
+COLS = int(os.environ.get("ACSTACK_COLS") or 80)
+PAD = (os.environ.get("ACSTACK_PAD") or "").split()
+ONLY = int(os.environ.get("ACSTACK_ONLY") or 0)
+PREVIEW = os.environ.get("ACSTACK_PREVIEW") == "1"
+# glow indents and pads a fenced block, so the art has less room than the pane.
+BUDGET = max(20, COLS - 6)
+seen = 0
+
+# mermaid-ascii understands `graph`/`flowchart` with [square] nodes. It draws
+# styling directives as if they were nodes, and leaks any other shape syntax
+# into the label, so both are normalised away before it sees the source.
+DROP = re.compile(r"^\s*(style|classDef|class|linkStyle|click|%%)\b")
+SHAPES = [
+  (re.compile(r"(\w+)\{\{(.+?)\}\}"), r"\1[\2]"),   # {{hexagon}}
+  (re.compile(r"(\w+)\(\((.+?)\)\)"), r"\1[\2]"),   # ((circle))
+  (re.compile(r"(\w+)\(\[(.+?)\]\)"), r"\1[\2]"),   # ([stadium])
+  (re.compile(r"(\w+)\[\((.+?)\)\]"), r"\1[\2]"),   # [(database)]
+  (re.compile(r"(\w+)\{(.+?)\}"),     r"\1[\2]"),   # {decision}
+  (re.compile(r"(\w+)\((.+?)\)"),     r"\1[\2]"),   # (rounded)
+]
+
+def to_ascii(src):
+  if not have:
+      return None, "mermaid-ascii not installed"
+  body = "\n".join(l for l in src.splitlines() if not DROP.match(l))
+  for pat, rep in SHAPES:
+      body = pat.sub(rep, body)
+  if not re.match(r"\s*(graph|flowchart|sequenceDiagram)\b", body):
+      kind = (body.strip().split(None, 1) or ["?"])[0]
+      return None, f"{kind} diagrams are not supported by mermaid-ascii"
+  with tempfile.NamedTemporaryFile("w", suffix=".mmd", delete=False) as f:
+      f.write(body); path = f.name
+  # mermaid-ascii reads a file, not stdin. A preview redraws on every cursor
+  # move, so a file left behind here fills /tmp at cursor speed.
+  try:
+      r = subprocess.run(["mermaid-ascii", "--file", path] + PAD,
+                         capture_output=True, text=True)
+  finally:
+      os.unlink(path)
+  if r.returncode != 0 or not r.stdout.strip():
+      return None, (r.stderr.strip().splitlines() or ["could not draw it"])[0]
+  return r.stdout.rstrip("\n"), None
+
+def repl(m):
+  global seen
+  seen += 1
+  n = seen
+  art, err = to_ascii(m.group(1))
+  if not art:
+      # Keep the source visible rather than swallowing the diagram.
+      return (f"\n```\nDiagram {n} not drawn: {err}\n```\n\n"
+              f"```\n{m.group(1).rstrip()}\n```")
+  lines = art.splitlines()
+  width = max((len(l) for l in lines), default=0)
+  if ONLY:
+      # Raw, unwrapped, for a pager that can scroll sideways.
+      return "\0DIAGRAM%d\0%s\0" % (n, art) if n == ONLY else ""
+  if width > BUDGET:
+      # glow wraps whatever it renders, and wrapped box-drawing art is
+      # noise. Emit a marker instead and splice the raw art back in after
+      # glow has run, so prose wraps to the pane and the diagram does not.
+      run = os.environ.get("ACSTACK_RUN") or str(os.getpid())
+      # /tmp, not gettempdir(): the shell trap and the splicer both look
+      # there, and a stray $TMPDIR would hide the art from either.
+      art_path = pathlib.Path(f"/tmp/acstack-md-art.{run}.{n}")
+      art_path.write_text(art + "\n")
+      # The arrow keys belong to the pager. A preview pane has none, and
+      # opening the file is what draws the diagram there.
+      hint = "open it full width" if PREVIEW else "pans sideways with the arrow keys"
+      return f"\n```\n\x00ACSTACKART{n}\x00 {width} cols, {hint}\n```"
+  return "```\n" + art + "\n```"
+
+out = re.sub(r"```mermaid\n(.*?)```", repl, text, flags=re.S)
+if ONLY:
+  hit = re.search(r"\0DIAGRAM(\d+)\0(.*?)\0", out, re.S)
+  sys.stdout.write(hit.group(2) if hit else f"no diagram {ONLY} in this file\n")
+else:
+  sys.stdout.write(out)
+PY
+
+if [ "$ONLY" != "0" ]; then
+# -S chops instead of wrapping: arrow keys scroll sideways.
+emit /tmp/acstack-md.$$.md less -SR
+elif command -v glow >/dev/null 2>&1; then
+# glow drops all styling when stdout is not a terminal, and its output has
+# to be captured to splice the diagrams into, so it runs under a pty.
+ACSTACK_COLS="$COLS" ACSTACK_STYLE="${ACSTACK_MD_STYLE:-}" \
+  python3 - /tmp/acstack-md.$$.md /tmp/acstack-md-out.$$.md <<'PY'
+import fcntl, os, pathlib, pty, re, struct, subprocess, sys, termios
+src, dst = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+cols = int(os.environ.get("ACSTACK_COLS") or 80)
+# Leave glow on "auto": under a pty it picks its full palette. Pinning a
+# named style here gives a noticeably flatter one.
+style = os.environ.get("ACSTACK_STYLE") or ""
+
+cmd = ["glow", "-w", str(cols - 2)] + (["--style", style] if style else []) + [str(src)]
+master, slave = pty.openpty()
+# glow reads the width from the pty, not just -w, so set it to match.
+fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 200, min(cols, 65535), 0, 0))
+proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=slave, stderr=subprocess.DEVNULL)
+os.close(slave)
+chunks = []
+while True:
+  try:
+      b = os.read(master, 65536)
+  except OSError:
+      break
+  if not b:
+      break
+  chunks.append(b)
+os.close(master); proc.wait()
+raw = b"".join(chunks)
+text = raw.decode("utf-8", "replace").replace("\r\n", "\n")
+# A pty makes glow probe the terminal for its background colour. Those replies
+# are meant for a real terminal, not a file, so drop them.
+text = re.sub(r"\x1b\][01][01];\?(\x07|\x1b\\)", "", text)
+text = re.sub(r"\x1b\[6n", "", text)
+dst.write_text(text)
+PY
+splice /tmp/acstack-md-out.$$.md
+emit /tmp/acstack-md-out.$$.md ${PAGER:-less -SR}
+else
+splice /tmp/acstack-md.$$.md
+emit /tmp/acstack-md.$$.md ${PAGER:-less -R}
+fi

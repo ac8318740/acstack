@@ -6,13 +6,17 @@
 # Every check here is offline. herdr is not required, so this runs in CI.
 #
 # Run it:  bash tests/test-terminal-workspace.sh
+# It takes a few minutes.
 # Exit code is 0 when every check passes, 1 otherwise.
 
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="${SCRIPT_DIR}/.."
-SETUP="${ROOT}/assets/terminal-workspace/setup.sh"
+TW_DIR="${ROOT}/assets/terminal-workspace"
+SETUP="${TW_DIR}/setup.sh"
+TW_LIB="${TW_DIR}/lib"
+TW_HELPERS="${TW_DIR}/helpers"
 DOCS="${ROOT}/docs/terminal-workspace.md"
 
 for f in "$SETUP" "$DOCS"; do
@@ -56,21 +60,58 @@ nor() { if [ "$RENDERS_HTML" = "1" ]; then no "$1"; else skip "${2:-${1%% (rc=*}
   printf '        apt install python3-markdown, or pip install --user markdown\n'
 }
 
-# Helper names setup.sh actually writes, and the retired ones it cleans up.
-installed=$(grep -oE 'cat > "\$BIN/[a-z-]+"' "$SETUP" | sed 's|.*/||; s|"||')
-retired=$(sed -n '/^  rm -f "\$BIN"\/acstack-/,/^        /p' "$SETUP" \
+# Helper names the setup installs, and the retired ones it cleans up.
+installed=$(find "$TW_HELPERS" -maxdepth 1 -type f -name 'acstack-*' -printf '%f\n' | sort)
+retired=$(sed -n '/rm -f "\$BIN"\/acstack-/,/^$/p' "$TW_LIB/helper-install.sh" \
           | grep -oE '\$BIN"/[a-z-]+' | sed 's|.*/||')
+
+extract_heredoc_after() {  # extract_heredoc_after <needle> <out> [end-marker]
+  local needle="$1" out="$2" end="${3:-PY}" file
+  file=$(grep -R -F -l "$needle" "$SETUP" "$TW_LIB" 2>/dev/null | head -1 || true)
+  [ -n "$file" ] || { : > "$out"; return; }
+  awk -v n="$needle" -v e="$end" 'index($0, n) {f=1; next} f && $0 == e {exit} f' "$file" > "$out"
+}
+
+copy_helper() {  # copy_helper <helper-name> <out>
+  cp "$TW_HELPERS/$1" "$2"
+  chmod +x "$2"
+}
 
 echo "setup.sh integrity"
 if bash -n "$SETUP" 2>/dev/null; then ok "setup.sh parses"; else no "setup.sh parses"; fi
+
+long_tw_files=""
+while IFS= read -r file; do
+  lines=$(wc -l < "$file" | tr -d ' ')
+  [ "$lines" -le 500 ] || long_tw_files="$long_tw_files ${file#$ROOT/}:$lines"
+done < <(find "$ROOT/assets/terminal-workspace" -type f | sort)
+if [ -z "$long_tw_files" ]; then ok "terminal-workspace files are at most 500 lines"
+else no "terminal-workspace files over 500 lines:$long_tw_files"; fi
+
+setup_lines=$(wc -l < "$SETUP" | tr -d ' ')
+if [ "$setup_lines" -le 300 ]; then ok "setup.sh is a short entry file"
+else no "setup.sh is a short entry file (lines: $setup_lines)"; fi
+
+SOURCEWORK="$WORK/source-guard"
+mkdir -p "$SOURCEWORK/home/.config/acstack" "$SOURCEWORK/bin"
+source_output=$(env \
+  HOME="$SOURCEWORK/home" \
+  ACSTACK_TW_CONFIG="$SOURCEWORK/home/.config/acstack/terminal-workspace.yaml" \
+  ACSTACK_TW_BIN="$SOURCEWORK/bin" \
+  ACSTACK_TW_NO_MAIN=1 \
+  bash -c '. "$1"; command -v write_helpers >/dev/null' sh "$SETUP" 2>&1)
+source_rc=$?
+if [ "$source_rc" -eq 0 ] && [ -z "$source_output" ]; then
+  ok "setup.sh can be sourced without running main"
+else
+  no "setup.sh can be sourced without running main (rc=$source_rc output: $(flat "$source_output"))"
+fi
 
 # Every python helper heredoc must compile. A broken one only shows up on a
 # user's machine otherwise, because setup.sh writes it without running it.
 py_broken=""
 for name in $installed; do
-  body="$WORK/$name"
-  awk -v n="$name" '$0 == "  cat > \"$BIN/" n "\" <<'\''H'\''" {f=1; next} f && $0 == "H" {exit} f' \
-    "$SETUP" > "$body"
+  body="$TW_HELPERS/$name"
   head -1 "$body" | grep -q python || continue
   python3 -m py_compile "$body" 2>/dev/null || py_broken="$py_broken $name"
 done
@@ -87,7 +128,7 @@ for name in $(grep -oE '\bacstack-[a-z][a-z-]*[a-z]\b' "$DOCS" | sort -u); do
   # Process names rather than binaries, named via exec -a inside a helper.
   # Either spelling counts: a fixed name, or a variable, which is how one
   # helper that renames itself by the mode it was asked for spells it.
-  grep -qE "exec -a $name|NAME=$name\\b" "$SETUP" && continue
+  grep -R -qE "exec -a $name|NAME=$name\\b" "$TW_DIR" && continue
   # A family prefix such as acstack-herdr- names a convention, not a command.
   echo "$installed" | grep -q "^$name-" && continue
   unknown="$unknown $name"
@@ -108,7 +149,7 @@ missing=""
 while read -r key; do
   [ -n "$key" ] || continue
   grep -qF "$key" "$DOCS" || missing="$missing $key"
-done < <(grep -oE 'cfg_get [a-z_]+\.[a-z_]*key "[^"]+"' "$SETUP" | grep -oE '"[^"]+"$' | tr -d '"')
+done < <(grep -R -h -oE 'cfg_get [a-z_]+\.[a-z_]*key "[^"]+"' "$SETUP" "$TW_LIB" | grep -oE '"[^"]+"$' | tr -d '"')
 if [ -z "$missing" ]; then ok "every default keybinding is documented"
 else no "keybindings missing from docs:$missing"; fi
 
@@ -181,8 +222,7 @@ echo "keymap merge safety"
 # Its own variable, not $KEYMAP: the yazi keymap section below claims that
 # name for its own writer, and the herdr fixtures are seeded after it runs.
 HERDR_KEYMAP="$WORK/herdr-keymap.py"
-awk "/^  ACSTACK_ARGS=.*py \"\\\$HERDR_CFG\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
-  "$SETUP" > "$HERDR_KEYMAP"
+extract_heredoc_after "py \"\$HERDR_CFG\" <<'PY'" "$HERDR_KEYMAP"
 BEGIN_MARK="# >>> acstack terminal-workspace >>>"
 END_MARK="# <<< acstack terminal-workspace <<<"
 # args <chord-modifier> [theme] [theme-light] [toast-delivery] [labels] [panel-sort]
@@ -437,8 +477,7 @@ echo "yazi merge safety"
 # entries) never hits this because array-of-table entries are additive by
 # design; yazi's plain tables are not.
 YAZI="$WORK/yazi.py"
-awk "/^    py \"\\\$HOME\/\.config\/yazi\/yazi\.toml\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
-  "$SETUP" > "$YAZI"
+extract_heredoc_after 'py "$HOME/.config/yazi/yazi.toml" <<'"'"'PY'"'"'' "$YAZI"
 args_yazi() { echo "$1|$BEGIN_MARK|$END_MARK"; }
 run_yazi() { ACSTACK_ARGS="$(args_yazi "$1")" python3 "$YAZI" "$2" 2>/dev/null; }
 
@@ -842,8 +881,7 @@ echo "sidebar grouping"
 # grouping wrong and it writes a worse order than it found, so pin the two rules
 # that are not obvious from reading it.
 RENUM="$WORK/renumber"
-awk "/^  cat > \"\\\$BIN\/acstack-herdr-renumber\" <<'H'\$/{f=1; next} f && /^H\$/{exit} f" \
-  "$SETUP" > "$RENUM"
+cp "$TW_HELPERS/acstack-herdr-renumber" "$RENUM"
 if python3 - "$RENUM" <<'PYCHK'
 import sys, types
 mod = types.ModuleType("r")
@@ -883,10 +921,9 @@ echo "copy and open from a remote machine"
 # and the Go clipboard library finds no xclip to shell out to. These pin the
 # two helpers that carry each one back to the terminal you are typing at.
 extract() {  # extract <helper-name> -> path
-  local name="$1" out="$WORK/$1"
-  awk -v n="$name" '$0 == "  cat > \"$BIN/" n "\" <<'\''H'\''" {f=1; next} f && $0 == "H" {exit} f' \
-    "$SETUP" > "$out"
-  chmod +x "$out"
+  local out="$WORK/$1"
+  copy_helper "$1" "$out"
+  [ "$1" = "acstack-md" ] && copy_helper acstack-md-lib "$WORK/acstack-md-lib"
   printf '%s' "$out"
 }
 CLIPBIN="$WORK/remote-bin"
@@ -918,8 +955,7 @@ fi
 # with its output discarded and the dashboard still drawn, so the link route
 # would have nowhere to draw. Run the real config writer and read the result.
 GHKB="$WORK/ghdash.py"
-awk "/^  ACSTACK_CFG=.*py \"\\\$GHDASH_CFG\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
-  "$SETUP" > "$GHKB"
+extract_heredoc_after "ACSTACK_CFG=\"\$CFG\" py \"\$GHDASH_CFG\" <<'PY'" "$GHKB"
 if python3 -c 'import yaml' 2>/dev/null && [ -s "$GHKB" ]; then
   : > "$WORK/gh-tw.yaml"
   printf 'prSections:\n- {title: Mine, filters: "is:open"}\n' > "$WORK/gh-dash.yml"
@@ -1486,7 +1522,7 @@ fi
 # The previewer command lines in setup.sh are the actual contract: whatever
 # flag they pass, the helper must accept. Derived from setup.sh rather than
 # hardcoded, so this keeps catching the next flag that drifts.
-preview_flags=$(grep "run = 'piper" "$SETUP" | grep 'acstack-md' \
+preview_flags=$(grep -R -h "run = 'piper" "$TW_LIB" | grep 'acstack-md' \
   | grep -oE -- '--[a-z][a-z-]*' | sort -u)
 if [ -z "$preview_flags" ]; then
   no "found no previewer flags to check - setup.sh's piper line may have changed shape"
@@ -2260,8 +2296,7 @@ echo "yazi keymap merge safety"
 # and a file containing both forms is invalid TOML - which yazi answers by
 # throwing the whole keymap away and falling back to presets.
 KEYMAP="$WORK/keymap.py"
-awk "/^    py \"\\\$HOME\/\.config\/yazi\/keymap\.toml\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
-  "$SETUP" > "$KEYMAP"
+extract_heredoc_after 'py "$HOME/.config/yazi/keymap.toml" <<'"'"'PY'"'"'' "$KEYMAP"
 run_keymap() {  # run_keymap <browser-key> <line-numbers-key> <path> [download-target]
   ACSTACK_ARGS="$1|$2|D|${4-}|e|$BEGIN_MARK|$END_MARK" python3 "$KEYMAP" "$3" 2>/dev/null
 }
@@ -2640,8 +2675,7 @@ echo "tuicr config merge safety"
 # value the user set by hand before the script managed it is a duplicate. TOML
 # forbids that, and tuicr answers an unparseable config by ignoring it.
 TUICR_CFG_PY="$WORK/tuicr-config.py"
-awk "/^    py \"\\\$HOME\/\.config\/tuicr\/config\.toml\" <<'PY'\$/{f=1; next} f && /^PY\$/{exit} f" \
-  "$SETUP" > "$TUICR_CFG_PY"
+extract_heredoc_after 'py "$HOME/.config/tuicr/config.toml" <<'"'"'PY'"'"'' "$TUICR_CFG_PY"
 if [ -s "$TUICR_CFG_PY" ]; then
   ok "the tuicr config writer is extractable from setup.sh"
 else
@@ -2766,6 +2800,7 @@ mkdir -p "$OWORK/bin" "$OWORK/home/.config/acstack"
 cp "$(extract acstack-open)" "$OWORK/bin/acstack-open"
 cp "$(extract acstack-clip)" "$OWORK/bin/acstack-clip"
 cp "$(extract acstack-md)"   "$OWORK/bin/acstack-md"
+cp "$WORK/acstack-md-lib"     "$OWORK/bin/acstack-md-lib"
 chmod +x "$OWORK/bin"/*
 OTOKEN="$OWORK/home/.config/acstack/opener.token"
 
@@ -3853,9 +3888,8 @@ else
   no "outdated should exit 2 without PyYAML (rc=$rc, said: $(flat "$out"))"
 fi
 
-# version_table lives inside setup.sh, so the rows have to be lifted out of the
-# source rather than called. Both directions of the check read this.
-TABLE_ROWS=$(sed -n '/^version_table()/,/^}/p' "$SETUP" | sed -n '/<</,/^T$/p' | grep -F '	')
+# version_table is a source list. Both directions of the check read it.
+TABLE_ROWS=$(sed -n '/^version_table()/,/^}/p' "$TW_LIB/versions.sh" | sed -n '/<</,/^T$/p' | grep -F '	')
 
 # Every GitHub tool in the version table has to name the same repository and the
 # same asset match as the install_binary call in apply. Two lists of the same
@@ -3863,8 +3897,8 @@ TABLE_ROWS=$(sed -n '/^version_table()/,/^}/p' "$SETUP" | sed -n '/<</,/^T$/p' |
 drift=""
 while IFS=$'\t' read -r name _ src repo match; do
   [ "$src" = "github" ] || continue
-  grep -qF "install_binary $name $repo $match" "$SETUP" \
-    || grep -qF "install_plain_github_binary $name $repo $match" "$SETUP" \
+  grep -R -qF "install_binary $name $repo $match" "$TW_LIB" \
+    || grep -R -qF "install_plain_github_binary $name $repo $match" "$TW_LIB" \
     || drift="$drift $name"
 done <<< "$TABLE_ROWS"
 # And the reverse. A tool apply installs but neither the table nor an arm of
@@ -3874,9 +3908,9 @@ unreachable=""
 while read -r name; do
   [ "$name" = "ya" ] && continue        # yazi's own arm reinstalls it
   cut -f1 <<< "$TABLE_ROWS" | grep -qx "$name" && continue
-  sed -n '/^upgrade_one()/,/^}/p' "$SETUP" | grep -qE "^ *$name\)" && continue
+  sed -n '/^upgrade_one()/,/^}/p' "$TW_LIB/versions.sh" | grep -qE "^ *$name\)" && continue
   unreachable="$unreachable $name"
-done < <(grep -oE 'install_(plain_github_)?binary [a-z-]+ [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ ' "$SETUP" \
+done < <(grep -R -h -oE 'install_(plain_github_)?binary [a-z-]+ [A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+ ' "$TW_LIB" \
          | awk '{print $2}' | sort -u)
 if [ -z "$unreachable" ]; then ok "every tool apply installs is one upgrade can reach"
 else no "upgrade cannot reach tools apply installs:$unreachable"; fi
@@ -3891,8 +3925,7 @@ echo "acstack-db opens a profile without rewriting the user's file"
 # The profile file is the user's. Writing it once is a convenience; writing it
 # twice would silently delete a connection string they typed.
 DBHELPER="$WORK/db-helper"
-awk -v n="acstack-db" '$0 == "  cat > \"$BIN/" n "\" <<'\''H'\''" {f=1; next} f && $0 == "H" {exit} f' \
-  "$SETUP" > "$DBHELPER"
+copy_helper acstack-db "$DBHELPER"
 DBH="$WORK/db-home"; DBBIN="$WORK/db-bin"
 mkdir -p "$DBH/.config/acstack" "$DBBIN"
 # A stand-in for harlequin, so the launch is observable and nothing is
@@ -3919,16 +3952,15 @@ cat > "$CPW/home/.config/acstack/terminal-workspace.yaml" <<YML
 harlequin:
   config_path: "$CPW/home/my profiles.toml"
 YML
-# setup.sh runs an action the moment it is sourced, so take the functions above
-# the case block and leave the action behind. write_helpers writes files and
-# reaches no network, which is why it is safe to call where apply is not.
-sed '/^case "$ACTION" in$/,$d' "$SETUP" > "$WORK/setup-funcs.sh"
+# write_helpers writes files and reaches no network, which is why it is safe to
+# call where apply is not.
 (
   export HOME="$CPW/home"
   export ACSTACK_TW_BIN="$CPW/home/.local/bin"
   export ACSTACK_TW_CONFIG="$CPW/home/.config/acstack/terminal-workspace.yaml"
+  export ACSTACK_TW_NO_MAIN=1
   # shellcheck disable=SC1090
-  . "$WORK/setup-funcs.sh"
+  . "$SETUP"
   write_helpers
 ) >/dev/null 2>&1
 if grep -qF "'$CPW/home/my profiles.toml'" "$CPW/home/.local/bin/acstack-db" 2>/dev/null
@@ -4760,6 +4792,22 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
   iw disable pi >/dev/null
 
+  # PR #331: the old git install source is not one apply owns. Keep it in
+  # settings.json, and tell the user the exact command that removes it.
+  old_git='git:github.com/ac8318740/spechub@v0.42.0'
+  printf '{\n  "packages": ["%s"]\n}\n' "$old_git" > "$ISET"
+  : > "$IHOME/pi.log"
+  out=$(iw apply)
+  pkgs=$(jget "$ISET" packages)
+  if printf '%s' "$pkgs" | grep -qF "\"$old_git\"" \
+     && ! grep -q "^pi remove $old_git" "$IHOME/pi.log" \
+     && printf '%s' "$out" | grep -qF "run: pi remove $old_git"; then
+    ok "apply warns about the old ACStack git pi package without removing it"
+  else
+    no "apply warns about the old ACStack git pi package without removing it (said: $(flat "$out"); packages: $pkgs; pi: $(flat "$(cat "$IHOME/pi.log")"))"
+  fi
+  iw disable pi >/dev/null
+
   # A settings.json pi cannot parse concedes the whole component: pi rewrites
   # that file on install, so even one install call puts the user's file at risk.
   printf '{}\n' > "$ISET"
@@ -4990,7 +5038,7 @@ fi
 # install it. Runs everywhere, because a config with pi off never reaches it.
 if [ "$(python3 -c 'import yaml,sys; print((yaml.safe_load(open(sys.argv[1]))["pi"] or {}).get("enabled"))' \
        "$ROOT/assets/terminal-workspace/config.example.yaml" 2>/dev/null)" = "False" ] \
-   && grep -q 'neovim|pi) echo false' "$SETUP"; then
+   && grep -R -q 'neovim|pi) echo false' "$TW_LIB"; then
   ok "pi starts off, in the example config and in the script's own default"
 else
   no "pi starts off, in the example config and in the script's own default"

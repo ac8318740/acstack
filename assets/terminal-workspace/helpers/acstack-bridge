@@ -1,0 +1,185 @@
+#!/usr/bin/env bash
+# Look at the Playwriter bridge from the dev machine, and fix it where that is
+# possible from here.
+#
+#   acstack-bridge status        what is up, on both machines
+#   acstack-bridge fix [what]    restart relay | tunnel | both (default both)
+#
+# Restarting either is a Windows scheduled task, so this machine cannot do it
+# directly. It asks the opener, which runs over there and can. When the opener
+# is not reachable either, it prints the handoff block to paste into a
+# PowerShell on the laptop instead - the same block the bridge skill defines.
+#
+# What it still cannot do is arm the extension. That is a click inside a
+# third-party extension and nothing on either machine can press it.
+# Installed by acstack.
+set -uo pipefail
+
+BRIDGE="${ACSTACK_BRIDGE_URL:-http://127.0.0.1:19988}"
+OPENER="${ACSTACK_OPENER_URL:-http://127.0.0.1:19989}"
+OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/acstack/opener.token"
+FREE_PORT="${ACSTACK_FREE_PORT:-$HOME/.claude/acstack/bin/vm-free-port.sh}"
+
+CMD="${1:-status}"
+WHAT="${2:-both}"
+
+tok() { cat "$OPENER_TOKEN" 2>/dev/null; }
+
+clear_port() {  # clear_port <port> - let go of a forward this machine still holds
+  # A tunnel that will not rebind is usually held from this side: the VM's sshd
+  # still owns the forward channel of a session that dropped. Restarting the
+  # task on the laptop then fails exactly the way it failed before, because
+  # nothing here let go of the port. So this runs first.
+  #
+  # The clearer ships with acstack and may simply not be installed on a machine
+  # that got the terminal workspace some other way. Worth saying, but not a
+  # reason to refuse the restart, which may be all that was needed.
+  if [ ! -f "$FREE_PORT" ]; then
+    echo "no port clearer at $FREE_PORT - asking for the restart without freeing $1 first." >&2
+    return 0
+  fi
+  #
+  # A clearer that predates --port is the awkward case in between: it exists,
+  # so the missing-file warning never fires, but it only knows how to free
+  # 19988. Called bare it would clear the bridge port twice, never touch 19989,
+  # and hand back two successes - so the caller would believe both ports were
+  # freed. Report the version and clear nothing; guessing is worse than saying.
+  # It announces its age two ways: the flag is nowhere in its text, or it takes
+  # the flag, does not recognise the argument, and exits 64 - the usage code,
+  # which is not "the port is stuck" and is not worth a retry without the flag.
+  local older="is older than this branch, so it cannot free $1 on request."
+  local fix="Update acstack on this machine to refresh it. Asking for the restart anyway."
+  if ! grep -q -- '--port' "$FREE_PORT" 2>/dev/null; then
+    echo "$FREE_PORT $older It has no --port support at all. $fix" >&2
+    return 0
+  fi
+  local rc=0
+  bash "$FREE_PORT" --port "$1" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" = "64" ]; then
+    echo "$FREE_PORT $older It refused --port with the usage code 64. $fix" >&2
+  elif [ "$rc" != "0" ]; then
+    echo "$FREE_PORT could not free $1 - asking for the restart anyway." >&2
+  fi
+}
+
+opener_call() {  # opener_call <method> <path> [data]
+  local t; t=$(tok) || return 1
+  [ -n "$t" ] || return 1
+  if [ "$1" = "POST" ]; then
+    curl -fsS --connect-timeout 2 -m 40 -X POST -H "X-ACStack-Token: $t" \
+      -H 'Content-Type: application/json' --data "${3:-{\}}" "$OPENER$2" 2>/dev/null
+  else
+    curl -fsS --connect-timeout 2 -m 10 -H "X-ACStack-Token: $t" "$OPENER$2" 2>/dev/null
+  fi
+}
+
+handoff() {  # what this machine cannot do, in the shape the other side expects
+  # Unquoted, because $1 names what is being asked for - so every PowerShell $
+  # inside has to be escaped or the shell eats it. A handoff block is pasted
+  # verbatim into a shell on the other machine, so a mangled one is worse than
+  # no block at all.
+  cat >&2 <<HANDOFF
+
+--- BEGIN VM-SIDE HANDOFF (to Windows agent) ---
+Context: the bridge needs $1 on the laptop, and the opener on 19989 is not
+reachable from this machine either, so nothing here can do it.
+
+Run on the Windows laptop:
+  Stop-ScheduledTask -TaskName 'Playwriter-*'
+  Start-ScheduledTask -TaskName 'Playwriter-Relay'
+  Start-ScheduledTask -TaskName 'Playwriter-Opener'
+  Get-ScheduledTask -TaskName 'Playwriter-Tunnel-*','Playwriter-OpenerTunnel-*' |
+    ForEach-Object { Start-ScheduledTask -TaskName \$_.TaskName }
+  .\doctor.ps1
+
+Expected result:
+  doctor.ps1 exits with all green rows, including "Relay listening on 19988"
+  and "Opener listening on 19989", and no tunnel-*.stuck markers.
+
+Report back:
+  The doctor.ps1 output (paste the table).
+--- END VM-SIDE HANDOFF ---
+HANDOFF
+}
+
+case "$CMD" in
+  status)
+    # This machine's own view first: these say whether the tunnels arrived,
+    # which is the half the laptop cannot see.
+    if curl -fsS --connect-timeout 1 -m 3 "$BRIDGE/json/version" >/dev/null 2>&1; then
+      armed=$(curl -fsS --connect-timeout 1 -m 3 "$BRIDGE/json/list" 2>/dev/null | tr -d '[:space:]')
+      case "$armed" in
+        ''|'[]') echo "relay:   reachable, but the extension is armed on no tab" ;;
+        *)       echo "relay:   reachable, extension armed" ;;
+      esac
+    else
+      echo "relay:   not reachable on $BRIDGE"
+    fi
+
+    if health=$(opener_call GET /health); then
+      echo "opener:  reachable - $(printf '%s' "$health" | tr -d '[:space:]')"
+    elif [ -z "$(tok)" ]; then
+      echo "opener:  no token at $OPENER_TOKEN (run register-tasks.ps1 on the laptop)"
+    else
+      echo "opener:  not reachable on $OPENER"
+    fi
+
+    # And the laptop's view, which only the opener can fetch.
+    if tasks=$(opener_call GET /bridge/health); then
+      echo "tasks:   $(printf '%s' "$tasks" | tr -d '[:space:]')"
+    else
+      echo "tasks:   unknown - the opener is the only way to see them from here"
+    fi
+    echo "route:   $(acstack-open --why 2>/dev/null || echo unknown)"
+    ;;
+  fix)
+    case "$WHAT" in
+      relay|tunnel|both) ;;
+      *) echo "usage: acstack-bridge fix [relay|tunnel|both]" >&2; exit 2 ;;
+    esac
+    # A tunnel restart is the only case where a port here is in the way. Both
+    # ports get cleared, because the opener's 19989 is forwarded by its own task
+    # and wedges on its own. fix relay touches no tunnel, so clearing a port
+    # there would be tearing down a working connection to fix something else.
+    if [ "$WHAT" != "relay" ]; then
+      clear_port 19988
+      clear_port 19989
+    fi
+    if out=$(opener_call POST /bridge/restart "$(printf '{"what":"%s"}' "$WHAT")"); then
+      echo "asked the laptop to restart: $WHAT"
+      printf '%s\n' "$out"
+      # Restarting is not recovering. Give the tunnels a moment to rebind, then
+      # say whether they actually came back rather than reporting the request.
+      sleep 5
+      rc=0
+      if curl -fsS --connect-timeout 1 -m 3 "$BRIDGE/json/version" >/dev/null 2>&1; then
+        echo "relay is answering again on $BRIDGE"
+      else
+        echo "the restart was accepted but the relay is still not answering here on 19988." >&2
+        echo "  if this persists the port may be wedged on this machine:" >&2
+        echo "  bash $FREE_PORT --port 19988" >&2
+        rc=1
+      fi
+      # Two tunnels, two verdicts. A relay that came back says nothing about
+      # the opener, and an opener that stayed down is the half that leaves this
+      # machine unable to reach a browser at all - so it is checked, and named.
+      if [ "$WHAT" != "relay" ]; then
+        if opener_call GET /health >/dev/null; then
+          echo "opener is answering again on $OPENER"
+        else
+          echo "the restart was accepted but the opener is still not answering here on 19989." >&2
+          echo "  if this persists the port may be wedged on this machine:" >&2
+          echo "  bash $FREE_PORT --port 19989" >&2
+          rc=1
+        fi
+      fi
+      exit $rc
+    fi
+    handoff "a restart of $WHAT"
+    exit 1
+    ;;
+  *)
+    echo "usage: acstack-bridge [status|fix [relay|tunnel|both]]" >&2
+    exit 2
+    ;;
+esac

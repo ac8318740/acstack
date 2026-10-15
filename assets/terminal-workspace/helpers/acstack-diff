@@ -1,0 +1,268 @@
+#!/usr/bin/env bash
+# Show a git diff in diffnav, with a banner naming what is being compared.
+#
+#   acstack-diff        this branch against dev, committed work only (alt+f)
+#   acstack-diff pick   choose the comparison from a menu (alt+x)
+#   acstack-diff auto   first non-empty of working tree, staged, last commit
+#
+# Every launch prepends a COMPARING block to the diff. diffnav renders whatever
+# precedes the first "diff --git" line, which is how git show's commit header
+# reaches the screen, so the block lands at the top of the content pane.
+#
+# diffnav's "o" key opens the file under the cursor with $EDITOR, in diffnav's
+# own pane. That pane is a herdr popup for alt+f and alt+x, and a popup cannot
+# host a second full-screen app, so the editor never draws there. acstack-edit
+# gives the file its own herdr tab instead, and both diff keys then match.
+set -uo pipefail
+if command -v acstack-edit >/dev/null 2>&1; then
+  case "${EDITOR:-}" in *acstack-edit) EDITOR=nvim ;; esac   # never nest
+  export ACSTACK_EDIT_EDITOR="${EDITOR:-nvim}"
+  export EDITOR=acstack-edit
+fi
+pick_checkout() {
+  # herdr groups worktrees as <root>/<repo>/<branch-slug>, so a pane often
+  # sits in the parent of several checkouts rather than in one.
+  local -a repos=()
+  while IFS= read -r d; do repos+=("$d"); done < <(
+    find . -mindepth 1 -maxdepth 1 -type d -exec test -e '{}/.git' \; -print 2>/dev/null | sort)
+  case ${#repos[@]} in
+    0) return 1 ;;
+    1) cd "${repos[0]}" && return 0 ;;
+    *) echo "Not a repo, but it holds ${#repos[@]} checkouts:"; echo
+       local i=1
+       for d in "${repos[@]}"; do
+         printf '  %d) %-34s %s\n' "$i" "${d#./}" "$(git -C "$d" branch --show-current 2>/dev/null)"
+         i=$((i+1))
+       done
+       echo; read -rp "Which one? [1-${#repos[@]}, q to quit] " choice
+       [[ "$choice" =~ ^[0-9]+$ ]] && [ "$choice" -ge 1 ] && [ "$choice" -le ${#repos[@]} ] \
+         && cd "${repos[$((choice-1))]}" && return 0
+       return 1 ;;
+  esac
+}
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  pick_checkout || { echo "No git checkout here: $PWD"; echo "Press any key..."; read -rsn1; exit 0; }
+fi
+
+BRANCH=$(git branch --show-current 2>/dev/null) || BRANCH=""
+[ -n "$BRANCH" ] || BRANCH="HEAD (detached)"
+
+# ---- refs -----------------------------------------------------------------
+ref_exists() { git rev-parse --verify --quiet "$1" >/dev/null 2>&1; }
+first_ref() { local r; for r in "$@"; do ref_exists "$r" && { echo "$r"; return 0; }; done; return 1; }
+dev_ref()     { first_ref origin/dev dev; }          # the server's dev wins over a stale local one
+              # default_compare falls back to the default branch only where no dev branch exists
+default_ref() {
+  local d; d=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)
+  [ -n "$d" ] && { echo "$d"; return 0; }
+  first_ref origin/main main origin/master master
+}
+tip() {  # tip <ref> -> "1b298bd . 4 hours ago . Merge pull request ..."
+  # kept short: diffnav's content pane is narrower than the popup, so a long
+  # line wraps and the banner stops looking like a banner.
+  git log -1 --format='%h  %ar  %s' "$1" 2>/dev/null | cut -c1-70
+}
+
+# ---- what diffnav cannot draw ---------------------------------------------
+# diffnav hands each file to delta, and delta dies on SIGABRT when one line
+# runs to hundreds of kilobytes. diffnav reports the child's death as
+# "FATA signal: aborted (core dumped)" and quits, so one such file takes the
+# whole diff down with it. A committed build artifact is what does it: this
+# project's own cli/dist/index.js.map holds a single 982,428-character line,
+# and the merge commit touching it aborted diffnav in 1.7 seconds.
+#
+# So the file goes, not the diff. Any file whose patch holds a line over the
+# limit is dropped and named in the banner, and the rest is drawn as usual.
+# 20000 is far above any line a person writes and far below where delta gives
+# out. Raise or lower it with ACSTACK_DIFF_LINE_LIMIT.
+LINE_LIMIT_DEFAULT=20000
+LINE_LIMIT="${ACSTACK_DIFF_LINE_LIMIT:-$LINE_LIMIT_DEFAULT}"
+# awk compares a length against whatever this holds. Hand it "abc" and every
+# comparison is a string comparison that is never true, so the guard turns
+# itself off and the abort comes back with nothing on screen to explain it.
+# Hand it 0 and every file is dropped instead. Refuse both, out loud.
+case "$LINE_LIMIT" in
+  ''|0|*[!0-9]*)
+    echo "acstack-diff: ACSTACK_DIFF_LINE_LIMIT is \"$LINE_LIMIT\", which is not a" >&2
+    echo "  positive whole number. Using $LINE_LIMIT_DEFAULT." >&2
+    LINE_LIMIT=$LINE_LIMIT_DEFAULT ;;
+esac
+drop_unrenderable() {  # drop_unrenderable <skipped-file>  ; diff in, diff out
+  # One file at a time: a patch has to be held whole before its longest line
+  # is known. Everything before the first "diff --git" is a header, so it goes
+  # straight through. Written for gawk, mawk and busybox awk alike.
+  awk -v lim="$LINE_LIMIT" -v skip="$1" '
+    function flush() {
+      if (path == "") return
+      # A tab between the two fields. banner reads this file back and splits
+      # on the same tab, so the two have to move together.
+      if (long) printf "%s\t%d\n", path, maxlen > skip
+      else for (i = 1; i <= n; i++) print buf[i]
+    }
+    /^diff --git / {
+      flush()
+      split("", buf); n = 0; long = 0; maxlen = 0
+      path = $0; sub(/^diff --git a\//, "", path); sub(/ b\/.*$/, "", path)
+      if (path == "") path = "?"
+    }
+    {
+      if (path == "") { print; next }
+      if (length($0) > maxlen) maxlen = length($0)
+      if (length($0) > lim) long = 1
+      buf[++n] = $0
+    }
+    END { flush() }'
+}
+
+# ---- banner ---------------------------------------------------------------
+banner() {  # banner <source-label> <change-label> <what> <command>
+  # No line may start with a space: diffnav strips leading whitespace, so any
+  # indentation collapses and columns stop lining up.
+  printf 'COMPARING  %s  ==>  %s\n' "$1" "$2"
+  # base and compare repeat their ref so each row ties back to the first line.
+  [ -n "${SRC_TIP:-}" ] && printf 'base     %s\n' "$(printf '%s  %s' "$1" "$SRC_TIP" | cut -c1-70)"
+  [ -n "${CHG_TIP:-}" ] && printf 'compare  %s\n' "$(printf '%s  %s' "$2" "$CHG_TIP" | cut -c1-70)"
+  printf 'showing  %s\n' "$3"
+  printf 'command  %s\n' "$4"
+  # A dropped file is named here rather than left to be noticed as missing.
+  # The tab is what drop_unrenderable writes between the two fields.
+  [ -s "${SKIP:-}" ] && while IFS="$(printf '\t')" read -r p len; do
+    printf 'skipped  %s  (one line is %s chars, and diffnav aborts on it)\n' "$p" "$len"
+  done < "$SKIP"
+  return 0
+}
+launch() {  # launch <source> <change> <what> <git-args...>
+  local src="$1" chg="$2" what="$3"; shift 3
+  local cmd="git $*"
+  local tmp; tmp=$(mktemp); SKIP=$(mktemp)
+  git "$@" 2>/dev/null | drop_unrenderable "$SKIP" > "$tmp"
+  if grep -q '^diff --git' "$tmp"; then
+    # diffnav puts the line after "commit <sha>" in its status bar, and the bar
+    # stays put while you walk the file tree. A git show stream carries its own
+    # header, so only a plain diff needs one synthesised.
+    { [ "${1:-}" = diff ] && printf 'commit %s\n' "$(git rev-parse HEAD 2>/dev/null)"
+      banner "$src" "$chg" "$what" "$cmd"; echo; cat "$tmp"; } | diffnav
+  else
+    # Nothing for diffnav to draw, for one of two different reasons. The
+    # banner and the wait for a keypress are the same either way, so only the
+    # explanation sits inside the branch.
+    banner "$src" "$chg" "$what" "$cmd"
+    echo
+    if [ -s "$SKIP" ]; then
+      echo "  Every file that changed carries a line too long for diffnav."
+      echo "  They are named above, and nothing else differs between these two."
+    else
+      echo "  No difference between these two. Nothing to show."
+      local dirty; dirty=$(git status --porcelain 2>/dev/null | grep -cv '^??')
+      if [ "${dirty:-0}" -gt 0 ]; then
+        echo "  You do have $dirty file(s) changed but not committed."
+        echo "  Press alt+x and pick \"my uncommitted changes\" to see them."
+      else
+        echo "  Press alt+x to compare something else."
+      fi
+    fi
+    echo; echo "Press any key..."; read -rsn1
+  fi
+  rm -f "$tmp" "$SKIP"
+}
+
+# ---- comparisons ----------------------------------------------------------
+against() {  # against <base-ref> <committed|everything>
+  local base="$1" mode="$2" mb
+  SRC_TIP=$(tip "$base")
+  mb=$(git merge-base "$base" HEAD 2>/dev/null); mb=${mb:0:9}
+  [ -n "$mb" ] || { echo "No common history between $base and $BRANCH."
+                    echo; echo "Press any key..."; read -rsn1; return 1; }
+  if [ "$mode" = committed ]; then
+    CHG_TIP=$(tip HEAD)
+    launch "$base" "$BRANCH" \
+      "commits on $BRANCH that $base does not have" \
+      diff "$base...HEAD"
+  else
+    CHG_TIP="the files as they sit on disk right now"
+    launch "$base" "$BRANCH plus my uncommitted changes" \
+      "everything $BRANCH has since it left $base, committed or not" \
+      diff "$mb"
+  fi
+}
+local_only() {
+  SRC_TIP=$(tip HEAD); CHG_TIP="the files as they sit on disk right now"
+  launch "the newest commit on $BRANCH" "my uncommitted changes" \
+    "edits I have made but not committed, staged or not" diff HEAD
+}
+one_commit() {  # one_commit <sha>
+  SRC_TIP=$(tip "$1^" 2>/dev/null); CHG_TIP=$(tip "$1")
+  launch "the commit just before $1" "commit $1" "what this one commit changed" \
+    show "$1" -m --first-parent
+}
+auto() {  # fallback when there is no branch comparison to make; $1 says why
+  local why="${1:-nothing new to compare against another branch}"
+  if ! git diff --quiet || ! git diff --cached --quiet; then local_only
+  else SRC_TIP=$(tip HEAD^ 2>/dev/null); CHG_TIP=$(tip HEAD)
+       launch "$BRANCH one commit back" "$BRANCH at its newest commit" \
+         "$why, and nothing is uncommitted, so here is that commit alone" \
+         show HEAD -m --first-parent; fi
+}
+
+# ---- picker ---------------------------------------------------------------
+strip_ansi() { sed 's/\x1b\[[0-9;]*m//g'; }
+pick_ref() {  # pick_ref <prompt> -> a branch name
+  git for-each-ref --sort=-committerdate --format='%(refname:short)' \
+      refs/heads refs/remotes 2>/dev/null | grep -v '^origin/HEAD$' \
+    | fzf --prompt="$1 > " --no-multi --cycle --preview-window='right,60%' \
+          --preview='git log --oneline --decorate --color=always -20 {}'
+}
+pick_commit() {  # pick_commit -> a short sha
+  git log --oneline --decorate --color=always -300 2>/dev/null \
+    | fzf --ansi --prompt="commit > " --no-multi --cycle --preview-window='right,60%' \
+          --preview='git show --stat --color=always {1}' \
+    | strip_ansi | awk '{print $1}'
+}
+pick() {
+  command -v fzf >/dev/null 2>&1 || { echo "fzf is not installed."; echo; auto; return; }
+  local dev def choice a b
+  dev=$(dev_ref); def=$(default_ref)
+  local -a rows=()
+  row() { rows+=("$(printf '%s\t%-24s ==>  %-30s %s' "$1" "$2" "$3" "$4")"); }
+  [ -n "$dev" ] && [ "$dev" != "$BRANCH" ] && {
+    row dev-committed  "$dev" "$BRANCH"                "committed work only"
+    row dev-everything "$dev" "$BRANCH + uncommitted"  "committed work plus what is not committed"; }
+  [ -n "$def" ] && [ "$def" != "$BRANCH" ] && [ "$def" != "$dev" ] && {
+    row def-committed  "$def" "$BRANCH"                "committed work only"
+    row def-everything "$def" "$BRANCH + uncommitted"  "committed work plus what is not committed"; }
+  row local  "HEAD"        "my uncommitted work" "staged and unstaged changes only"
+  row commit "its parent"  "one commit"          "pick a commit from this branch's history"
+  row branch "any branch"  "any branch"          "pick the source, then the branch to compare"
+  choice=$(printf '%s\n' "${rows[@]}" \
+    | fzf --delimiter=$'\t' --with-nth=2.. --no-multi --cycle \
+          --prompt="diff > " --header="on $BRANCH   ·   source ==> change" \
+    | cut -f1)
+  case "$choice" in
+    dev-committed)  against "$dev" committed ;;
+    dev-everything) against "$dev" everything ;;
+    def-committed)  against "$def" committed ;;
+    def-everything) against "$def" everything ;;
+    local)          local_only ;;
+    commit)         a=$(pick_commit); [ -n "$a" ] && one_commit "$a" ;;
+    branch)         a=$(pick_ref "source (compare against)") ; [ -z "$a" ] && exit 0
+                    b=$(pick_ref "change (the new work)")    ; [ -z "$b" ] && exit 0
+                    SRC_TIP=$(tip "$a"); CHG_TIP=$(tip "$b")
+                    launch "$a" "$b" "commits on $b that $a does not have" diff "$a...$b" ;;
+    *)              exit 0 ;;
+  esac
+}
+
+# ---- entry ----------------------------------------------------------------
+default_compare() {  # alt+f: the newest commit on this branch, against origin/dev
+  local base; base=$(dev_ref) || base=$(default_ref)
+  # Only when this checkout IS the base branch is there nothing to compare.
+  if [ -z "$base" ] || [ "$base" = "$BRANCH" ] || [ "origin/$BRANCH" = "$base" ]; then
+    auto "$BRANCH is the branch everything else compares against"; return; fi
+  against "$base" committed
+}
+case "${1:-}" in
+  "")   default_compare ;;
+  pick) pick ;;
+  auto) auto ;;
+  *)    echo "usage: acstack-diff [pick|auto]"; exit 2 ;;
+esac
