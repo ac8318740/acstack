@@ -58,6 +58,13 @@ acstack_tw_main() {
       for id in "$PI_ACSTACK" $(version_table | awk -F'\t' '$2=="pi" && $3=="npm" && $1!="pi"{print $1}' | while read -r name; do pi_npm_package "$name"; done); do
         src=$(pi_state pkg "$id") && say "pi package: $src" || say "pi package: $id not installed"
       done
+      if [ -e "$PI_QUESTION_BRIDGE" ] || [ -L "$PI_QUESTION_BRIDGE" ]; then
+        pi_state owns file "$PI_QUESTION_BRIDGE" \
+          && say "pi question blocked bridge: managed ($PI_QUESTION_BRIDGE)" \
+          || say "pi question blocked bridge: user-owned path ($PI_QUESTION_BRIDGE)"
+      else
+        say "pi question blocked bridge: absent ($PI_QUESTION_BRIDGE)"
+      fi
       [ -e "$PI_RETRO_EXT" ] && say "pi agentic-retro extension: present" \
         || say "pi agentic-retro extension: absent"
       grep -qsF "$PI_MD_BEGIN" "$PI_DIR"/AGENTS.override.md "$PI_DIR"/AGENTS.md "$PI_DIR"/AGENTS.MD \

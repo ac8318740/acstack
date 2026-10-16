@@ -41,6 +41,7 @@ END="# <<< acstack terminal-workspace <<<"
 PI_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 PI_SETTINGS="$PI_DIR/settings.json"
 PI_KEYBINDINGS="$PI_DIR/keybindings.json"
+PI_QUESTION_BRIDGE="$PI_DIR/extensions/acstack-question-blocked.ts"
 PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 # agentic-retro install-pi picks its own directory, from $PI_HOME rather than
 # pi's override, so look where it writes.

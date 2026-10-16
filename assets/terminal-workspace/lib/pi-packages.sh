@@ -140,6 +140,32 @@ bili_client() {  # bili_client install|remove <client>
   fi
 }
 
+pi_question_bridge() {  # pi_question_bridge install|remove
+  local fresh=0 rc
+  if [ "$1" = "install" ]; then
+    if { [ -e "$PI_QUESTION_BRIDGE" ] || [ -L "$PI_QUESTION_BRIDGE" ]; } \
+        && ! pi_state owns file "$PI_QUESTION_BRIDGE"; then
+      say "pi: $PI_QUESTION_BRIDGE already exists, so the question bridge was left alone"
+      return 0
+    fi
+    [ -e "$PI_QUESTION_BRIDGE" ] || [ -L "$PI_QUESTION_BRIDGE" ] || fresh=1
+    mkdir -p "$(dirname "$PI_QUESTION_BRIDGE")" \
+      && cp "$SCRIPT_DIR/pi/acstack-question-blocked.ts" "$PI_QUESTION_BRIDGE" || return $?
+    if pi_state own file "$PI_QUESTION_BRIDGE"; then
+      say "pi: question blocked bridge written to $PI_QUESTION_BRIDGE"
+    else
+      rc=$?
+      [ "$fresh" = 1 ] && rm -f "$PI_QUESTION_BRIDGE"
+      say "pi: question blocked bridge ownership registration failed for $PI_QUESTION_BRIDGE"
+      return "$rc"
+    fi
+  elif pi_state owns file "$PI_QUESTION_BRIDGE"; then
+    rm -f "$PI_QUESTION_BRIDGE" \
+      && pi_state disown file "$PI_QUESTION_BRIDGE" \
+      && say "pi: question blocked bridge removed"
+  fi
+}
+
 apply_pi() {
   find_pi
   if ! have pi; then
@@ -195,7 +221,9 @@ apply_pi() {
   fi
   if [ "$(cfg_get pi.question_tool true)" = "true" ]; then
     pi_add npm:@juicesharp/rpiv-ask-user-question npm:@juicesharp/rpiv-ask-user-question
+    pi_question_bridge install
   else
+    pi_question_bridge remove
     pi_drop npm:@juicesharp/rpiv-ask-user-question
   fi
   if [ "$(cfg_get pi.web_access true)" = "true" ]; then
@@ -283,6 +311,7 @@ apply_pi() {
 # and leaves the pi binary, its logins and its sessions alone.
 remove_pi() {
   find_pi
+  pi_question_bridge remove
   if pi_state parses "$PI_SETTINGS"; then
     pi_unpin "$PI_ACSTACK"
     pi_drop "$PI_ACSTACK"

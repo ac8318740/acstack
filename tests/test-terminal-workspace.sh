@@ -5028,6 +5028,180 @@ PY
   else
     no "the agentic-retro extension is found where agentic-retro writes it (owned: $owned)"
   fi
+  echo "question waits reach herdr without changing user extensions"
+  # A separate fake home keeps these contracts independent of earlier pi cases.
+  IHOME="$IWORK/bridge-home"
+  IAGENT="$IHOME/.pi/agent"
+  ISET="$IAGENT/settings.json"
+  ICFG="$IHOME/.config/acstack/terminal-workspace.yaml"
+  mkdir -p "$IAGENT/extensions" "$(dirname "$ICFG")"
+  printf '{}\n' > "$ISET"
+  pi_cfg ""
+  iw apply >/dev/null
+  bridge_harness="$SCRIPT_DIR/integration/question-blocked-bridge.mjs"
+  bridge_run() {
+    env HOME="$IHOME" PI_CODING_AGENT_DIR="$IAGENT" \
+      node --no-warnings "$bridge_harness" "$IAGENT" "$1" 2>&1
+  }
+  if [ "$(node -p 'process.features.typescript || ""' 2>/dev/null)" = "strip" ]; then
+    for scenario in pristine-answer pristine-cancel pristine-error pristine-unrelated dual-unrelated; do
+      result=$(bridge_run "$scenario"); rc=$?
+      if [ "$rc" -eq 0 ]; then ok "question bridge $scenario"
+      else no "question bridge $scenario ($(flat "$result"))"; fi
+    done
+  else
+    skip "question event contracts require Node TypeScript stripping"
+  fi
+
+  # Lifecycle checks need only the ownership ledger, never a TypeScript import.
+  # agentic-retro is the other extension installed by this fixture's stub.
+  bridge_locate() {
+    python3 - "$IHOME/.config/acstack/terminal-workspace.pi.json" "$1" <<'PYBRIDGE'
+import json, os, sys
+with open(sys.argv[1]) as ledger:
+    files = json.load(ledger).get("files", [])
+extensions = os.path.join(sys.argv[2], "extensions") + os.sep
+for file in files:
+    if file.startswith(extensions) and os.path.basename(file) != "agentic-retro.ts":
+        print(file)
+PYBRIDGE
+  }
+  bridge=$(bridge_locate "$IAGENT")
+
+  # Discover the owned asset without prescribing its basename.
+  if [ -f "$bridge" ]; then
+    original=$(cat "$bridge")
+    iw apply >/dev/null
+    repeated=$(cat "$bridge")
+    printf '\n// stale owned test fixture\n' >> "$bridge"
+    iw apply >/dev/null
+    refreshed=$(cat "$bridge")
+    if [ "$original" = "$repeated" ] && [ "$original" = "$refreshed" ]; then
+      ok "question bridge apply is idempotent and refreshes its owned asset"
+    else
+      no "question bridge apply is idempotent and refreshes its owned asset"
+    fi
+  else
+    no "question bridge apply is idempotent and refreshes its owned asset (no installed public-event bridge)"
+  fi
+
+  # Toggling off and both removal entrypoints must release the managed bridge,
+  # but not an unrelated workaround the user had installed themselves.
+  user_workaround="$IAGENT/extensions/user-question-workaround.ts"
+  printf '// user-owned rpiv:ask-user:blocked workaround\n' > "$user_workaround"
+  for removal in toggle disable uninstall; do
+    pi_cfg ""
+    iw apply >/dev/null
+    present=0
+    [ -n "$bridge" ] && [ -f "$bridge" ] && present=1
+    case "$removal" in
+      toggle) pi_cfg "  question_tool: false"; iw apply >/dev/null ;;
+      disable) iw disable pi >/dev/null ;;
+      uninstall) iw uninstall >/dev/null ;;
+    esac
+    if [ "$present" = "1" ] && [ ! -e "$bridge" ] \
+       && [ "$(cat "$user_workaround" 2>/dev/null)" = '// user-owned rpiv:ask-user:blocked workaround' ]; then
+      ok "question bridge $removal removes only its owned asset"
+    else
+      no "question bridge $removal removes only its owned asset (installed before removal: $present)"
+    fi
+  done
+
+  # A collision at the actual installation path is the user's, regardless of
+  # basename. Neither reapply nor either removal command may claim it.
+  if [ -n "$bridge" ]; then
+    mkdir -p "$(dirname "$bridge")"
+    printf '// my same-path question workaround\n' > "$bridge"
+    preserved=1
+    for action in apply apply 'disable pi' apply uninstall; do
+      pi_cfg ""
+      iw $action >/dev/null
+      [ "$(cat "$bridge" 2>/dev/null)" = '// my same-path question workaround' ] || preserved=0
+    done
+    if [ "$preserved" = "1" ]; then ok "question bridge preserves same-path user workaround on apply and removal"
+    else no "question bridge preserves same-path user workaround on apply and removal"; fi
+    rm -f "$bridge"
+  else
+    no "question bridge preserves same-path user workaround on apply and removal (no installed public-event bridge)"
+  fi
+
+  # A dangling symlink is still a user path, not an absent asset.
+  if [ -n "$bridge" ]; then
+    ln -s "$IWORK/missing-question-extension.ts" "$bridge"
+    out=$(iw status)
+    if printf '%s' "$out" | grep -i 'question.*bridge' | grep -qi 'user' \
+       && ! printf '%s' "$out" | grep -i 'question.*bridge' | grep -qi 'absent'; then
+      ok "question bridge status reports a dangling user symlink as preserved"
+    else
+      no "question bridge status reports a dangling user symlink as preserved (said: $(flat "$out"))"
+    fi
+    rm -f "$bridge"
+  else
+    no "question bridge status reports a dangling user symlink as preserved (no installed bridge path)"
+  fi
+
+  # Deny writes to the ledger while leaving extensions writable, as on a
+  # machine where ownership registration fails after the copy succeeds.
+  pi_cfg ""
+  iw apply >/dev/null
+  ledger="$IHOME/.config/acstack/terminal-workspace.pi.json"
+  ledger_dir=$(dirname "$ledger")
+  registration_safe=1
+  registration_details=""
+  for prior in new owned; do
+    cp "$ledger" "$IWORK/bridge-ledger.json"
+    if [ "$prior" = new ]; then
+      rm -f "$bridge"
+      python3 - "$ledger" "$bridge" <<'PYBRIDGE'
+import json, sys
+with open(sys.argv[1]) as source:
+    data = json.load(source)
+data["files"] = [file for file in data.get("files", []) if file != sys.argv[2]]
+with open(sys.argv[1], "w") as target:
+    json.dump(data, target)
+PYBRIDGE
+    fi
+    chmod a-w "$ledger" "$ledger_dir"
+    out=$(iw apply); rc=$?
+    chmod u+w "$ledger_dir" "$ledger"
+    reported=0
+    if [ "$rc" -ne 0 ] || printf '%s' "$out" | grep -Eqi 'cannot|could not|failed|unable|error|permission denied'; then
+      reported=1
+    fi
+    if [ "$prior" = new ]; then
+      [ ! -e "$bridge" ] && [ ! -L "$bridge" ] && [ "$reported" = 1 ] || registration_safe=0
+    else
+      [ -f "$bridge" ] && [ "$(cat "$bridge")" = "$original" ] && [ "$reported" = 1 ] || registration_safe=0
+    fi
+    registration_details="$registration_details [$prior: rc=$rc, asset=$([ -e "$bridge" ] && echo present || echo absent), reported=$reported]"
+    cp "$IWORK/bridge-ledger.json" "$ledger"
+    iw apply >/dev/null
+  done
+  iw disable pi >/dev/null
+  if [ "$registration_safe" = 1 ]; then
+    ok "question bridge registration failure cleans new assets, preserves owned assets, and reports failure"
+  else
+    no "question bridge registration failure cleans new assets, preserves owned assets, and reports failure ($registration_details)"
+  fi
+
+  # Pi's override determines extension discovery; never leak a second bridge
+  # into the default agent directory while installing under the override.
+  ALT="$IWORK/bridge-alt-agent"
+  mkdir -p "$ALT"
+  printf '{}\n' > "$ALT/settings.json"
+  pi_cfg ""
+  PI_CODING_AGENT_DIR="$ALT" iw apply >/dev/null
+  alternate=$(bridge_locate "$ALT")
+  default=$(bridge_locate "$IAGENT")
+  PI_CODING_AGENT_DIR="$ALT" iw disable pi >/dev/null
+  if [ -f "${alternate:-/nonexistent}" ]; then
+    no "question bridge honors PI_CODING_AGENT_DIR and cleans up there (alternate asset remains)"
+  elif [ -n "$alternate" ] && [ -z "$default" ] \
+       && [ "$(cat "$user_workaround" 2>/dev/null)" = '// user-owned rpiv:ask-user:blocked workaround' ]; then
+    ok "question bridge honors PI_CODING_AGENT_DIR and cleans up there"
+  else
+    no "question bridge honors PI_CODING_AGENT_DIR and cleans up there (no alternate bridge or default path changed)"
+  fi
 else
   printf '  note: apply installs x86_64 binaries only and reads its config with\n'
   printf '        PyYAML, so the pi checks are skipped\n'
