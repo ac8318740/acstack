@@ -30,6 +30,6 @@ Reply with numbers to fix (e.g., "1,2,4") or "all" or "skip all", and any notes 
 
 After user responds:
 
-- Fix selected items via task-executor subagents (parallelize independent fixes)
+- Fix selected items under the shared Implementation discipline in `orchestrator/AGENTS.md`, directly or through useful delegation
 - Present next wave if more findings remain
 - Continue until all findings addressed or user says "done" / "skip the rest"

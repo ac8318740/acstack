@@ -18,7 +18,7 @@ Profile:      [detected]
 Directories:  src/, tests/
 Commands:     [from profile]
 Frontend:     [if applicable]
-Workflow:     strict TDD, strict orchestrator, spec sync on, grilling via question tool
+Workflow:     adaptive verification, spec sync on, grilling via question tool
 ```
 
 ## Step 4: Ask what to customise
@@ -46,8 +46,6 @@ numbered list. It holds two questions in one call:
       "multiSelect": true,
       "options": [
         {"label": "Grilling", "description": "How grilling asks its questions – a question tool (default) or plain prose"},
-        {"label": "TDD strictness", "description": "Relaxed writes the tests after the code; all three phases still run"},
-        {"label": "Orchestrator", "description": "Allow direct code work instead of subagent delegation"},
         {"label": "Spec sync", "description": "Disable automatic spec sync on commit"}
       ]
     }
@@ -71,17 +69,10 @@ user did not select.
 - **Grilling** – ask `tool`, the host's question tool, against `inline` prose.
   Recommend `tool`. It writes `workflow.grilling.questions`.
 
-- **TDD strictness** – ask strict against relaxed, and write
-  `workflow.tdd.strict`.
+- Apply the shared Implementation discipline in `orchestrator/AGENTS.md` without adding workflow switches
+- Do not offer or generate the deprecated TDD booleans
 
-    Strict runs the test-writer first, so the tests exist before the code.
-    Relaxed runs the task-executor first and the test-writer after it. Relaxed
-    drops no phase, and all three agents run under both.
 
-    Recommend strict, because the relaxed test-writer works beside an
-    implementation it must not read.
-
-- **Orchestrator** – ask strict against relaxed.
 - **Spec sync** – ask enabled against disabled.
 - **Python venv** – ask the activation command. Ask it only for a Python profile.
 

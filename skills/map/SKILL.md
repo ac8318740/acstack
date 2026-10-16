@@ -176,13 +176,11 @@ the list, marked `skip: <reason>`.
    the node's diagram shape, never its route):
     - `hitl` nodes: run grilling rounds over them. A round is the whole hitl
      frontier.
-    - `afk` nodes: claim and run without the user. Unlimited, and in parallel
-     when independent. Research goes to read-only codebase-search subagents:
-     `Explore` on Claude Code and `scout` on pi.
+    - `afk` nodes: claim and run without the user. Choose direct work or useful delegation
+     under the shared Implementation discipline in `orchestrator/AGENTS.md`.
 
      Implementation work follows `/acstack:implement`'s procedure – it owns
-     the claim-execute-resolve flow, the explorer dispatch, and the TDD
-     pipeline. Do not restate that flow here. Invoke it.
+     the claim-execute-resolve flow and adaptive verification. Do not restate that flow here. Invoke it.
 
 4. **Claim, then resolve** – `afk` nodes only. A `hitl` resolution happens
    inside the grilling round, with no claim step. Both are compositions over
@@ -196,8 +194,7 @@ the list, marked `skip: <reason>`.
    <what was decided or done, and why>"
    ```
 
-   The pipeline's state lives inside the claim, not on the node – there is no
-   phase field to maintain. If the work stalls or fails, release the claim
+   Work stays inside the claim, with no per-phase bookkeeping. If the work stalls or fails, release the claim
    (`--status open`) and the node is plainly open again.
 
 5. **After every resolution**, in order:

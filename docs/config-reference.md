@@ -6,13 +6,13 @@ One file, `acstack/project.yaml`, holds every setting that belongs to a project.
 
 - **It names what to run**: the test, build, lint, typecheck, and format commands
 - **It names where to look**: the source and test directories, and the frontend
-- **It names how strict to be**: whether tests come first, and whether the agent may write code itself
+- **It configures required gates**: spec sync, frontend verification, and design review
 - **Every skill and every agent reads it** before it runs anything
 - **A key you leave out takes the default** this document gives it
 
 Three terms first.
 
-- **A key** is one dotted path into the file, such as `workflow.tdd.strict`
+- **A key** is one dotted path into the file, such as `workflow.spec_sync`
 - **A default** is what ACStack does when the file states no value
 - **A rung** is one token count at which the context-pressure hook speaks up, asking the session to choose continuity or freshness
 
@@ -23,7 +23,7 @@ flowchart TD
     FILE --> FE["frontend.*<br/>dev server, browser"]
     WF --> SKILLS["commit, grilling, map,<br/>archive, handoff"]
     WF --> HOOK["hooks/context-pressure.sh"]
-    RUN --> AGENTS["orchestrator, test-writer,<br/>task-executor, task-checker"]
+    RUN --> AGENTS["Completion owner<br/>and delegated agents"]
     FE --> FV["frontend-verifier"]
     HOST["~/.config/acstack/config.json<br/>host.* keys - see dev-setups.md"] --> FV
 ```
@@ -211,8 +211,8 @@ Three refusals protect a file neither command can handle.
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
 | `workflow.spec_sync` | `true`, `false` | `true` | the `commit` skill runs spec sync before it commits, unless this says `false`; with `false` the living specs under `acstack/specs/` stop tracking the code |
-| `workflow.tdd.strict` | `true`, `false` | `true` | `false` runs the task-executor before the test-writer; all three phases still run, and the checker's gate changes with the key |
-| `workflow.tdd.orchestrator_strict` | `true`, `false` | `true` | `false` lets the coordinating session read and write code itself for small tasks, instead of handing every piece to a subagent |
+| `workflow.tdd.strict` | `true`, `false` | none | deprecated compatibility boolean; no sequencing effect, including explicit `true` |
+| `workflow.tdd.orchestrator_strict` | `true`, `false` | none | deprecated compatibility boolean; no delegation effect, including explicit `true` |
 | `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, and the change touched frontend files |
 | `workflow.design_review` | `true`, `false` | `false` | a design review runs on a UI change only when this is `true`; it needs the impeccable plugin installed and switched on, which `acstack config check` reports on |
 
@@ -239,33 +239,19 @@ How a boolean reads:
         - An impeccable older than major 4, or one whose version it cannot read, warns on stderr and stays on
         - `--json` prints the same answer as `{"on": ..., "reasons": [...], "impeccable": ...}`
 
-### 3.1. What `workflow.tdd.strict` moves
+### 3.1. Deprecated TDD booleans
 
-*`workflow.tdd.strict` reorders the first two phases. It drops none of them.*
+*Adaptive verification replaces the old sequencing and delegation guarantee.*
 
-- The default `true` runs test-writer, then task-executor, then task-checker
-- A `false` runs task-executor, then test-writer, then task-checker
-- All three agents run either way
-- Six files read the key: `orchestrator/AGENTS.md`, `skills/implement/SKILL.md`, `agents/test-writer.md`, `agents/task-executor.md`, `agents/task-checker.md`, and `skills/setup/SKILL.md`
-- Relaxed TDD, the name for `false`, means nobody writes the tests first
-    - It does not mean the work goes unverified
-    - The rule of a checker after every executor does not move
-
-Relaxed costs the test-writer part of its independence.
-
-- Under `true` it cannot read an implementation
-    - None exists when it runs
-- Under `false` the implementation sits in the working tree beside it, and only its instructions keep it from reading that code
-- The two settings do not give equal independence, and `agents/test-writer.md` states the weaker guarantee as the cost of relaxed
-
-What the checker gates on moves with the key.
-
-- Under `true` the checker holds the task's new tests to failing before the executor and passing after
-- Under `false` the implementation came first
-    - Nothing can show those tests failing without it
-    - The checker then holds the new tests to existing and passing
-    - It holds the full suite to passing
-    - The test count to not dropping
+- `workflow.tdd.strict` and `workflow.tdd.orchestrator_strict` remain known boolean keys for compatibility
+- Neither key has an effective default or controls sequencing or delegation, including explicit `true`
+- ACStack removes the former strict guarantee
+- The CLI still supports get, set, list, and unset for either key
+- Unrelated writes preserve existing values and comments
+- Deprecation alone does not trigger automatic config migration
+- New setup does not offer or generate either key
+- `orchestrator/AGENTS.md` owns the shared Implementation discipline
+- Explicit user requests for stronger process still apply
 
 ### 3.2. How the agent asks you a question
 
@@ -446,23 +432,21 @@ Two limits are worth knowing.
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `commands.test` | a shell command, or `null` | from the profile | the test-writer, task-executor, and task-checker run it; the task-checker fails a task whose tests do not pass |
-| `commands.test_collect` | a shell command, or `null` | from the profile | the task-checker counts tests with it and compares the count against `.test-baseline`; `null` skips the baseline check |
-| `commands.build` | a shell command, or `null` | from the profile | the task-checker verifies the build with it |
-| `commands.lint` | a shell command, or `null` | from the profile | the pipeline lints with it, usually with a fix flag |
-| `commands.typecheck` | a shell command, or `null` | from the profile | the pipeline type-checks with it |
-| `commands.format` | a shell command, or `null` | from the profile | the pipeline runs it over the files the work touched, immediately before the task-checker; `null` means no format step |
-| `directories.source` | a path | `src/` | where `/acstack:setup` explores to propose the domain map, and where the pipeline writes source |
-| `directories.tests` | a path | `tests/` | where the test-writer writes tests, and the one tree the task-executor may not touch |
+| `commands.test` | a shell command, or `null` | from the profile | the verification owner runs the configured tests |
+| `commands.test_collect` | a shell command, or `null` | from the profile | the verification owner compares counts with `.test-baseline`; counts alone do not prove coverage |
+| `commands.build` | a shell command, or `null` | from the profile | the verification owner checks the build with it |
+| `commands.lint` | a shell command, or `null` | from the profile | the verification owner lints with it, usually with a fix flag |
+| `commands.typecheck` | a shell command, or `null` | from the profile | the verification owner type-checks with it |
+| `commands.format` | a shell command, or `null` | from the profile | format touched files before final verification; `null` means no format step |
+| `directories.source` | a path | `src/` | where `/acstack:setup` explores to propose the domain map, and where the implementer writes source |
+| `directories.tests` | a path | `tests/` | where tests live; assigned separate test ownership governs who may edit them |
 | `test_markers.exclude` | comma-separated markers, or `null` | `null` for Node, `slow,integration` for Python | which markers a default test run leaves out, as in `pytest -m` |
 | `venv.activate` | a shell command, or `null` | `null` for Node, `source .venv/bin/activate` for Python | every agent prefixes each command with it when the file states one |
 
-- One rule places the format step under both TDD settings
-    - It runs immediately before the task-checker
-        - Under relaxed TDD it falls after the test-writer and formats the new tests too
-- A non-zero exit from `commands.format` gets reported, and never counts as a failed implementation
-    - Formatting is not correctness
-    - The task-checker runs afterwards, and its own gate decides whether the work passes
+- Run configured formatting over touched files before final verification
+- Report a non-zero formatting exit without treating it as evidence of incorrect behavior
+- Verification follows formatting regardless of whether another agent runs it
+
 - `acstack config show` lists a `commands` entry only when its value is a non-empty string
     - A `null`, a number or a nested block does not name a command anyone could run
         - The listing leaves it out
@@ -479,9 +463,9 @@ Two limits are worth knowing.
 | `frontend.dev_server_check` | a shell command | a `curl` of the URL | how the frontend-verifier decides the dev server is up |
 | `frontend.helpers_dir` | a path | `<frontend.directory>/tests/helpers/` | where `VERIFICATION-KNOWLEDGE.md` lives; the `verification-knowledge` row of the check fails when the file is missing, and when the key states nothing |
 | `frontend.commands.dev` | a shell command | none | how the frontend-verifier starts the dev server; without it the verifier cannot start one itself |
-| `frontend.commands.build` | a shell command | from the profile | the frontend build the pipeline runs |
-| `frontend.commands.lint` | a shell command | from the profile | the frontend lint the pipeline runs |
-| `frontend.commands.test` | a shell command | from the profile | the frontend tests the pipeline runs |
+| `frontend.commands.build` | a shell command | from the profile | the frontend build the verification owner runs |
+| `frontend.commands.lint` | a shell command | from the profile | the frontend lint the verification owner runs |
+| `frontend.commands.test` | a shell command | from the profile | the frontend tests the verification owner runs |
 
 - An explicit `frontend: null` reads the same as no block at all
 - The CLI counts a frontend only when the key holds something other than `null`
@@ -547,9 +531,6 @@ workflow:
   spec_sync: true
   grilling:
     questions: tool
-  tdd:
-    strict: true
-    orchestrator_strict: true
   # /acstack:setup writes true for a project with a frontend.
   # An absent key reads as false. Section 3 says why.
   frontend_verification: true

@@ -166,11 +166,11 @@ Add three options at the end of the list, whatever the check reported:
     So this option is the only way one of them reaches a question.
 
 - **Change one setting** – for a key the check has no opinion about, such as
-  `workflow.tdd.strict`. Point the user at `docs/config-reference.md`, which
+  `workflow.maps.persist`. Point the user at `docs/config-reference.md`, which
   lists every key, its values and its default. Then write the key:
 
   ```bash
-  ~/.claude/acstack/bin/acstack config set workflow.tdd.strict false
+  ~/.claude/acstack/bin/acstack config set workflow.maps.persist true
   ```
 
   Do not restate the reference here.

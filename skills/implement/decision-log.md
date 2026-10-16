@@ -9,7 +9,7 @@ row.
 Write one row per decision point, never one per action:
 
 - **A fork chosen** – two ways to build something, and you picked one
-- **A unit verified** – a node's checker passed, or a build verification went green
+- **A unit verified** – a node's verification passed, or a build verification went green
 - **A revert** – you undid work, and the row names what triggered it
 - **A blocker** – something stopped the node, and the row names it
 

@@ -1,6 +1,6 @@
 # ACStack
 
-ACStack is an agentic coding stack. It makes coding agents plan before they code, write tests before implementation, and keep docs matching the code.
+ACStack is an agentic coding stack. It helps coding agents clarify requirements, test meaningful behavior, and keep docs matching the code.
 
 - **ACStack aims to solve two common failure modes coding agents introduce**
     - The agent starts building before the requirements are clear
@@ -9,9 +9,9 @@ ACStack is an agentic coding stack. It makes coding agents plan before they code
     - Claude Code installs it as a plugin
     - pi installs it as an npm package
 - **ACStack introduces structure around how your agent works**
-    - Every change goes through a test-writer, an implementer, and a checker
+    - Verification fits the change under a shared policy in `orchestrator/AGENTS.md`
     - Every commit updates your specs from the diff
-- **Downside: this structure may make your agent take longer on small tweaks than necessary**
+- Straightforward work can stay with one agent, including investigation, tests, implementation, and verification
 
 ```mermaid
 flowchart TD
@@ -276,19 +276,19 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 
 ## 6. Every agent
 
-*Four agents run in order. The one rule that matters: the test-writer never sees the implementation.*
+*Use agents when independent interpretation, review, or parallel scopes improve confidence.*
 
 | Agent | Role |
-|-------|------|
-| `test-writer` | Writes tests from requirements only, before the code under strict TDD and after it under relaxed |
-| `task-executor` | TDD phase 2, making tests pass, and it cannot modify tests |
-| `task-checker` | TDD phase 3, verifying everything: mock skepticism, test baseline, regressions, TDD isolation audit |
-| `frontend-verifier` | TDD phase 4, real browser verification via agent-browser CLI, when `project.yaml` configures a frontend |
+| --- | --- |
+| `test-writer` | Optional independent tests from requirements and interfaces |
+| `task-executor` | Implements source and tests unless tests have a separate owner |
+| `task-checker` | Independent review of behavior, coverage, regressions, and integration |
+| `frontend-verifier` | Configured real-browser verification on final frontend code |
 
-- The agent session you talk to coordinates
-    - It hands every piece of research and code to these agents
-- A fail from the task-checker sends the work back to the task-executor with the reason
-- The frontend-verifier runs under three conditions: a configured frontend, changed frontend files, and verification switched on
+- `orchestrator/AGENTS.md` owns the shared Implementation discipline
+- Require independent review for security boundaries, money, irreversible data changes, or unresolved correctness or impact uncertainty
+- Separate test ownership stays separate when chosen
+- Configured frontend gates still apply without a delegated checker
 
 ## 7. Output style
 
@@ -338,28 +338,20 @@ The style also ships a per-turn reminder:
 
 ## 9. Design principles
 
-*Five rules explain why every default is what it is.*
+*Meaningful evidence matters more than a fixed agent sequence.*
 
-- **Strict TDD holds because of the order the agents run in** – relaxed TDD holds only because the instructions say so
-    - Either way the task-executor cannot edit a test file
-    - Under strict TDD the test-writer runs first
-    - There is no implementation for it to copy
-    - Under relaxed TDD it runs second
-    - Only its instructions stop it reading the code it is testing
-    - The two are not equally safe
-    - That is why strict is the default
-- **Your docs never drift from the code** – `/acstack:commit` reads the diff and updates the specs under `acstack/specs/` in the same commit
-    - Any agent that spots a spec contradicting the code fixes the spec there and then
-    - A spec describes what the code does today
-    - It never describes what someone plans to build
-- **Build no more process than the job needs** – a to-do graph appears only when one conversation cannot hold the questions
-    - A typo fix gets no machinery
-    - A month-long feature gets a map
-    - You type the same command either way
-    - ACStack works out which it is
-- **Planning gets more effort than coding** – three agents read the relevant code before anyone writes a line
-    - Mock audits, regression suites and integration checks follow the implementation
-- **Strict defaults, easy to relax** – run `acstack config set` to change how strict the TDD is, how much the agent does itself, or how it asks you questions
+- Prefer practical tests-first work to expose mistakes before implementation
+- Require tests for meaningful changed behavior when existing coverage cannot catch mistakes
+- Reuse adequate coverage for refactors and skip new tests for nonbehavioral edits
+- Explain impractical testing and disclose missing regression protection
+- Keep docs current through commit-time spec sync
+- Build no more planning structure than the unanswered questions need
+- Preserve explicit requests for stronger process
+- The deprecated `workflow.tdd.strict` and `workflow.tdd.orchestrator_strict` booleans no longer control sequencing or delegation, including explicit `true`
+    - Neither key has an effective default
+    - ACStack removes the former strict guarantee
+    - ACStack does not automatically rewrite existing configuration
+    - New setup does not offer or generate these keys
 
 ## 10. Licence and credits
 

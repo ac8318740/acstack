@@ -50,13 +50,10 @@ frontend and has not turned browser verification on. Turn it on:
 read it. Without it, every path through spec sync skips in silence, and the
 living specs never update.
 
-Launch a **read-only codebase-search subagent** over `directories.source` to propose domains.
-Use `Explore` on Claude Code and `scout` on pi.
+Investigate `directories.source` directly or through useful delegation under the shared Implementation discipline in `orchestrator/AGENTS.md`.
+Propose top-level functional areas with a kebab-case name, their paths, and one line saying what each owns.
 
-Ask it for the top-level functional areas.
-Ask for a kebab-case name, the paths that belong to it, and one line saying what it owns.
-
-Guidance for the subagent:
+Guidance for the proposal:
 
 - Group by responsibility, not by layer. Use `auth`, `billing` and `search`,
   never `models`, `controllers` and `utils`.

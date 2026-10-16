@@ -40,9 +40,9 @@ LLM decided to commit during autonomous work -> auto-fix.
 
 ```
 1. SNAPSHOT  – collect the diff and understand what changed
-2. DISCOVER  – learn project conventions dynamically (parallel subagents)
-3. REVIEW    – analyze changes against conventions + best practices (parallel subagents)
-4. ADJACENT  – check surrounding code for related rot (parallel subagents)
+2. DISCOVER  – learn project conventions dynamically
+3. REVIEW    – analyze changes against conventions and requirements
+4. ADJACENT  – check surrounding code for related rot
 5. REPORT    – synthesize findings
 6. FIX       – auto-fix or interactive proposal waves
 ```
@@ -69,15 +69,16 @@ Categorize changed files into scopes using the project configuration:
 - **tests**: files under `directories.tests` from project.yaml
 - **other**: everything else
 
-If no meaningful code changes exist (only docs, config, assets), report "No code changes to review" and exit. Run the prose lint from Step 3 before you exit, when Markdown files changed.
+Judge changes by effect, including behavior changed through config, assets, or shipped guidance.
+For nonbehavioral edits, review accuracy and run prose lint when Markdown changed.
 
 ## Step 2: DISCOVER – Learn project conventions (parallel)
 
-Launch **3 parallel read-only codebase-search subagents** to build a dynamic understanding of the project's current conventions.
-Use `Explore` on Claude Code and `scout` on pi.
-Do NOT hardcode conventions – discover them fresh each time.
+Follow the shared Implementation discipline in `orchestrator/AGENTS.md` for delegation and required independent review.
+Investigate these dimensions directly or through useful delegation.
+Discover current conventions rather than hardcoding them.
 
-**Subagent A – Living Specs & Architecture:**
+**Living specs and architecture:**
 
 ```
 Read the living specs relevant to this change:
@@ -88,7 +89,7 @@ Read the living specs relevant to this change:
 Report: list of project conventions and patterns relevant to these changes.
 ```
 
-**Subagent B – Codebase Patterns via Search:**
+**Codebase patterns:**
 
 ```
 Search the codebase for established patterns related to the changes.
@@ -99,7 +100,7 @@ Identify: how does the rest of the codebase handle similar things?
 Report: established patterns, common approaches, naming conventions observed.
 ```
 
-**Subagent C – Local Context & Config:**
+**Local context and configuration:**
 
 ```
 For each changed file, read:
@@ -109,15 +110,15 @@ For each changed file, read:
 Report: local conventions, related code patterns, existing abstractions nearby.
 ```
 
-Synthesize the three reports into a **convention profile** – the set of expectations
-review subagents measure changes against.
+Synthesize findings into a convention profile for the review.
 
 ## Step 3: REVIEW – Analyze changes (parallel)
 
-Launch **3 parallel review subagents**, each examining a different quality dimension.
-Every subagent receives the diff AND the convention profile from Step 2.
+Review every dimension below, directly or through useful delegation.
+Give delegated reviewers the diff and the convention profile from Step 2.
+Assess coverage against requirements instead of assuming a task-checker already assessed it.
 
-**Subagent 1 – Hardcodes & SSOT:**
+**Hardcodes and single source of truth:**
 
 ```
 Examine the diff for:
@@ -132,7 +133,7 @@ For each finding, report:
   FILE:LINE | SEVERITY (MUST/SHOULD/CONSIDER) | WHAT | WHY | SUGGESTED FIX
 ```
 
-**Subagent 2 – Scalability & Readability:**
+**Scalability and readability:**
 
 ```
 Examine the diff for:
@@ -148,7 +149,7 @@ For each finding, report:
   FILE:LINE | SEVERITY (MUST/SHOULD/CONSIDER) | WHAT | WHY | SUGGESTED FIX
 ```
 
-**Subagent 3 – Edge Cases & Robustness:**
+**Edge cases and failure handling:**
 
 ```
 Examine the diff for:
@@ -178,9 +179,8 @@ Add each finding to the review as `SHOULD | PROSE`, at the `file:line` it names.
 
 ## Step 4: ADJACENT – Check surrounding code for rot
 
-For each file with findings from Step 3, launch a **read-only codebase-search subagent**.
-Use up to 3 subagents in parallel.
-Each subagent examines the rest of that file and its immediate imports for the same categories of issue.
+For each file with findings, examine the surrounding code and immediate imports for related issues.
+Delegate when useful, with non-overlapping scopes.
 
 ```
 File [path] has these issues in the changed code: [summary].
@@ -197,7 +197,7 @@ same module, or same pattern). Stay narrowly scoped.
 
 ## Step 5: REPORT – Synthesize findings
 
-Merge all subagent findings. Deduplicate. Sort by:
+Merge all findings. Deduplicate. Sort by:
 
 1. MUST FIX (correctness, security, will-break-in-prod)
 2. SHOULD FIX (convention violations, readability, maintainability)
@@ -212,7 +212,7 @@ For each finding, make sure it has:
 - Why it matters (1 sentence)
 - Suggested fix (concrete, actionable – code snippet or approach)
 
-If any finding needs deeper analysis to determine the right fix, launch a **planning subagent**:
+If a finding needs deeper analysis, investigate directly or delegate with this brief:
 
 ```
 This code has [problem]. The file is [path]. Here's the surrounding context: [context].
@@ -233,11 +233,11 @@ Consider: does a fix here require changes in other files? What's the minimal cha
 | SHOULD   | Violates conventions, hurts maintainability, tech debt | SSOT violations, unclear naming, missing error handling on I/O     |
 | CONSIDER | Improvement opportunity, not urgent                    | Adjacent rot, minor style, could-be-cleaner patterns               |
 
-## What this skill does not check
+## Review responsibilities and tool checks
 
 - **Formatting/style** – linters and formatters handle this
 - **Type errors** – typecheckers handle this
-- **Test coverage** – task-checker handles this
+- Assess test adequacy under the shared Implementation discipline, even when no task-checker ran
 - **UI rendering** – frontend-verify handles this
 - **Security scanning** – dedicated security tools handle credentials in committed code
 

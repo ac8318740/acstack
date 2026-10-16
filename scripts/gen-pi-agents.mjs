@@ -61,6 +61,7 @@ const tools = 'read, grep, find, ls, bash, edit, write';
 // frontend-verifier runs, and the frontend-verifier's prompt points at bridge.
 const SKILLS = {
   'test-writer': ['test-conventions'],
+  'task-executor': ['test-conventions'],
   'frontend-verifier': ['browser-verify', 'bridge'],
 };
 

@@ -3220,7 +3220,6 @@ describe('acstack config get, project keys', () => {
 
   describe('a key the file does not state', () => {
     it.each([
-      ['workflow.tdd.strict', 'true'],
       ['workflow.frontend_verification', 'false'],
       ['workflow.grilling.questions', 'tool'],
       ['workflow.handoff.ack_turns', '5'],
@@ -3238,6 +3237,18 @@ describe('acstack config get, project keys', () => {
       // "unset" would still have to go and look the answer up.
       expect(result.stderr).toContain(fallback);
     });
+
+    it.each(['workflow.tdd.strict', 'workflow.tdd.orchestrator_strict'])(
+      'exits 2 for the unstated %s without advertising a boolean default',
+      (key) => {
+        const result = runGet(key, makeProject('name: no-default-project\n'));
+
+        expect(result.status).toBe(2);
+        expect(result.stderr).toContain(key);
+        expect(result.stderr).toContain('unset');
+        expect(result.stderr).not.toMatch(/\b(?:true|false)\b/i);
+      },
+    );
 
     it('exits 2 and reports unset for a key the reference gives no default at all', () => {
       // `workflow.maps.tracker` has no default: the map skill picks one at
@@ -3327,26 +3338,26 @@ describe('acstack config unset, project keys', () => {
     });
   });
 
-  describe('the key falls back to its default once it is gone', () => {
-    it('round-trips one key: set it, get it, unset it, get it back as unset', () => {
-      const root = makeProject(HAND_EDITED_PROJECT);
+  describe('reading a key once it is gone', () => {
+    it.each(['workflow.tdd.strict', 'workflow.tdd.orchestrator_strict'])(
+      'round-trips %s: set it, get it, unset it, get it back as unset without a default',
+      (key) => {
+        const root = makeProject(HAND_EDITED_PROJECT);
 
-      expect(runSet('workflow.tdd.strict', 'false', root).status).toBe(0);
+        expect(runSet(key, 'false', root).status).toBe(0);
 
-      const stated = runGet('workflow.tdd.strict', root);
-      expect(stated.status).toBe(0);
-      expect(stated.stdout.trim()).toBe('false');
+        const stated = runGet(key, root);
+        expect(stated.status).toBe(0);
+        expect(stated.stdout.trim()).toBe('false');
 
-      expect(runUnset('workflow.tdd.strict', root).status).toBe(0);
+        expect(runUnset(key, root).status).toBe(0);
 
-      const gone = runGet('workflow.tdd.strict', root);
-      expect(gone.status).toBe(2);
-      expect(gone.stderr).toContain('unset');
-      // The documented default is the opposite of the value just removed, so
-      // a fallback that kept reading the old value shows here rather than
-      // hiding behind a default that happened to agree with it.
-      expect(gone.stderr).toContain('true');
-    });
+        const gone = runGet(key, root);
+        expect(gone.status).toBe(2);
+        expect(gone.stderr).toContain('unset');
+        expect(gone.stderr).not.toMatch(/\b(?:true|false)\b/i);
+      },
+    );
 
     it('round-trips workflow.design_review the same way, back to the default false', () => {
       const root = makeProject('name: design-review-project\n');

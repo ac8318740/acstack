@@ -837,8 +837,6 @@ export function setProjectKey(file: string, key: string, value: unknown): void {
 export const PROJECT_KEY_DEFAULTS: Readonly<Record<string, string>> = {
   'workflow.spec_sync': 'true',
   'workflow.grilling.questions': 'tool',
-  'workflow.tdd.strict': 'true',
-  'workflow.tdd.orchestrator_strict': 'true',
   [FRONTEND_VERIFICATION_KEY]: 'false',
   [DESIGN_REVIEW_KEY]: 'false',
   'workflow.maps.persist': 'false',
