@@ -104,3 +104,17 @@ This spec covers the bundled `acstack` command-line interface.
 - **Given**: `acstack node update` receives an empty `--summary`
 - **Then**: ACStack clears the summary
 - **Source**: `cli/src/lib/nodes.ts`, `cli/src/commands/node.ts`
+
+## Project configuration
+
+### FR-008: Preserve deprecated workflow booleans without defaults
+
+- **Description**: The CLI retains boolean config compatibility without assigning legacy workflow defaults
+- **Given**: A project sets `workflow.tdd.strict` or `workflow.tdd.orchestrator_strict`
+- **When**: A user gets, sets, lists, or unsets either key
+- **Then**: The CLI treats the value as a boolean and preserves unrelated configuration and comments
+- **Given**: A project omits either key
+- **When**: A user reads effective configuration
+- **Then**: The CLI supplies no default for that key
+- **Then**: Unrelated config writes do not insert or remove either key
+- **Source**: `cli/src/lib/project-config.ts`

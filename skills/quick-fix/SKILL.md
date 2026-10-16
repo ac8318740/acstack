@@ -18,9 +18,9 @@ If `$ARGUMENTS` is empty, ask the user to describe what's broken.
 
 ## Before you start
 
-Copy the seven step headings below into your todo list word for word. They go ahead of any task-specific items. A step you skip stays in the list, marked `skip: <reason>`.
+Read the shared Implementation discipline in `orchestrator/AGENTS.md`.
+Choose checks and delegation under that policy while investigating the bug.
 
-When Step 5 runs, copy its four numbered steps the same way.
 
 ## Step 1: Understand the problem
 
@@ -37,11 +37,11 @@ If the user provided an error message or stack trace, note the key details (file
 
 ## Step 2: Explore the codebase
 
-**Do NOT skip this step.** Delegate exploration to subagents:
+Investigate directly or delegate when another agent improves confidence:
 
-1. **Locate the code**: Launch a read-only codebase-search subagent to find the files involved. Use `Explore` on Claude Code and `scout` on pi. Read only a file you can already name.
+1. **Locate the code**: Find the files involved, including existing regression coverage
 
-2. **Read the integration points**: Have the subagent read the broken function's callers and callees, not just the function. Understand:
+2. **Read the integration points**: Read the broken function's callers and callees, not just the function:
     - What calls this code? (upstream)
     - What does this code call? (downstream)
     - What data flows through it? (inputs/outputs)
@@ -69,7 +69,7 @@ Based on the exploration, identify the root cause – not just the symptom.
 Bad: "The function returns null" (symptom).
 Good: "The function returns null because the query filter uses `org_id`, but the test user's org isn't in the result set" (root cause).
 
-If the root cause isn't clear after exploration, escalate to deeper investigation with parallel debug subagents. Don't guess.
+If the root cause remains unclear, investigate further or seek independent help rather than guessing.
 
 ## Step 4: Plan the fix
 
@@ -83,12 +83,14 @@ If the fix touches more than 3 files, pause. Confirm the scope with the user –
 
 ## Step 5: Implement via the Implementation discipline
 
-Follow the standard pipeline:
+Apply the shared policy to the minimal fix.
 
-1. **test-writer** – Write a failing test that reproduces the problem (if testable behavior exists). Skip for pure config/infra fixes.
-2. **task-executor** – Implement the minimal fix to make the test pass. Executor CANNOT modify test files.
-3. **task-checker** – Verify: task tests pass, full suite passes, test count >= baseline, no regressions.
-4. **frontend-verify** – Only if the fix touches frontend files (check `frontend.directory` in project.yaml).
+- Reproduce the bug with a failing regression test before fixing it when practical
+- Confirm the intended failure, then implement the fix
+- Explain any departure from tests-first work
+- Preserve regression protection and separate test ownership when chosen
+- Follow `../implement/design-pass.md` when its frontend design gate applies
+
 
 ## Step 6: Verify
 
@@ -99,15 +101,9 @@ Run build verification using commands from `acstack/project.yaml`:
 # Read these from project.yaml – do not hardcode
 ```
 
-**STOP – if the fix touches frontend files, you MUST visually verify before proceeding to Step 7.**
+Use the configured frontend gates under the shared policy.
+Do not proceed with failed required checks or unverified configured browser behavior.
 
-If the project has a frontend verification agent or browser verification configured, use them. Otherwise, take a browser screenshot and think through:
-
-1. **Expected vs actual** – What should the change look like? Does the screenshot match?
-2. **Gaps** – Is anything missing, wrong, or showing the wrong data/labels/formatting?
-3. **General UX** – Anything weird? Overlapping elements, bad spacing, truncation, unprofessional appearance?
-
-If verification finds a problem, fix it. Verify again. Do NOT proceed to Step 7 with unverified frontend changes.
 
 ## Step 7: Report
 
@@ -118,8 +114,10 @@ Problem: <one-line description>
 Root cause: <what was actually wrong>
 Fix: <what changed and why>
 Files modified: <list>
-Tests: <added/modified/passing>
-Regressions: none
+Verification: <actual commands and results>
+Blocked checks: <checks that could not run and why, or none>
+Missing regression protection: <behavior left unprotected, or none identified>
+Remaining risks: <known risks and uncertainty, or none identified>
 ```
 
-Remind the user to `/commit` when they're satisfied.
+Remind the user to `/acstack:commit` when they're satisfied.

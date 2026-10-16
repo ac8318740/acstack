@@ -12459,8 +12459,6 @@ var init_project_config = __esm({
     PROJECT_KEY_DEFAULTS = {
       "workflow.spec_sync": "true",
       "workflow.grilling.questions": "tool",
-      "workflow.tdd.strict": "true",
-      "workflow.tdd.orchestrator_strict": "true",
       [FRONTEND_VERIFICATION_KEY]: "false",
       [DESIGN_REVIEW_KEY]: "false",
       "workflow.maps.persist": "false",

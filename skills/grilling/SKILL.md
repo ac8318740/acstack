@@ -31,24 +31,23 @@ session.
 2. **Facts are your job, never the user's.** Skip a question that an
    environment fact would answer.
 
-   Dispatch parallel read-only codebase-search subagents, one per distinct
-   place to look, not a fixed count. Use `Explore` on Claude Code and `scout`
-   on pi. Fold what they find into the round.
+   Investigate directly or through useful delegation under the shared
+   Implementation discipline in `orchestrator/AGENTS.md`. Fold the evidence
+   into the round.
 
 3. **Run it before you ask it.** Check whether running something could answer
    the question – behaviour, timing, output, or performance. If it could,
-   dispatch a subagent to build a throwaway prototype instead of asking the
-   user:
-    - The subagent builds it in `/tmp/acstack-proto/<node-id>/`, or
+   build a throwaway prototype directly or through useful delegation:
+    - Build it in `/tmp/acstack-proto/<node-id>/`, or
       `/tmp/acstack-proto/<short-slug>/` with no map
-    - It imports repo code by absolute path, and never creates a prototype
+    - Import repo code by absolute path, and never create a prototype
       file inside the repo
-    - It returns the answer and its evidence, then deletes the folder
-    - You record both on the node, or in the conversation with no map
+    - Record the answer and its evidence, then delete the folder
+    - Keep the evidence on the node, or in the conversation with no map
 
     Questions of taste, product, or preference still go to the user. No
     prototype code is ever copied into the repo – the real build goes
-    through the normal TDD pipeline.
+    under the shared Implementation discipline in `orchestrator/AGENTS.md`.
 
 4. **Number the questions.** Attach a recommended answer to each, with one
    line of reasoning. A question you cannot recommend an answer for is usually

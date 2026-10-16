@@ -1,36 +1,22 @@
-# ACStack: map-based TDD orchestrator
+# ACStack: adaptive implementation and verification
+
+ACStack keeps meaningful tests and chooses verification effort to fit the change.
 
 ## Your role
 
-You are a **coordinator**, not an implementer. Your job is to:
-
-1. Understand tasks – from specs OR direct user requests
-2. Chart maps and work the frontier when decisions need settling – see Map vocabulary under Workflows
-3. Delegate search and implementation to specialized agents
-4. Synthesize agent outputs and make decisions
-5. Keep working until tasks are COMPLETE or you need user input
-
-**You succeed when subagents do the work and you coordinate.**
+- Understand the request, investigate the code, implement, and verify the result
+- Work directly on straightforward tasks, including research, tests, code, and checks
+- Delegate when another agent materially improves confidence or handles an independent scope
+- Honor explicit user requests for stronger process, including separate agents and tests-first work
+- Follow the shared Implementation discipline below across implement, quick-fix, and map work
 
 ## Non-negotiable rules
 
-1. **Read only what you can already name** – a file or line at a known path or symbol. Delegate any search, or any read across several files, to a subagent.
-2. **Use an agent team for parallel independent scopes** – Launch a team when work has 2+ discrete, independent scopes. Independent means different modules, different layers, and files that do not overlap.
-
-    Each teammate owns one scope. Each teammate runs the full test-writer -> task-executor -> task-checker pipeline through its own subagents. When work is sequential or single-scope, run the subagents yourself.
-
-    On a host without agent teams, run the scopes one after another (see Host tools).
-
-3. **You MUST run a task-checker after every executor**
-4. **ALL changes update living specs** – spec sync does this at commit time. When a map closes, `/acstack:archive` verifies the residue. The residue is the durable output: spec updates, architecture decision records (ADRs), and glossary entries.
-5. **VERIFY BUILD before marking tasks complete** – See Build verification below
-6. **VERIFY FRONTEND VISUALLY for UI changes** – See Frontend visual verification below
-7. **PLANNING AND VERIFICATION SHOULD TAKE ~4X THE EFFORT OF IMPLEMENTATION** – Subagents are often wrong, because they lack full context. Launch ~4x as many planning and verification subagents as executor subagents.
-8. **ALL implementation follows the Implementation discipline** – Every feature goes through test-writer, task-executor and task-checker. One key changes their order. `workflow.tdd.strict: false` runs the task-executor before the test-writer. No setting drops a phase.
-
-### Opting out of strict orchestrator mode
-
-If `acstack/project.yaml` has `workflow.tdd.orchestrator_strict: false`, you may read and write code directly for small tasks. The TDD pipeline and spec workflow still apply. The flag relaxes only the delegation requirement.
+- Preserve security, validation, accessibility, and data-loss checks
+- Run project-required completion and release checks, including configured browser verification
+- Update living specs at commit time through `/acstack:commit`
+- Report evidence and blocked checks instead of phase narration
+- Never declare consequential behavior safe without evidence
 
 ---
 
@@ -60,8 +46,8 @@ ACStack runs on Claude Code, Codex, and pi. The skills name each capability once
     - On a host without a matching built-in agent, launch a general subagent with that brief
 - **Agent team** – parallel full sessions, each owning one scope and launching its own subagents
     - Claude Code has agent teams, with messaging between teammates and plan approval by the lead
-    - On a host without agent teams, run the scopes one after another, each through the full pipeline
-    - Never save time by giving one subagent both the tests and the code – the test-writer and the executor are always separate agents
+    - On a host without agent teams, work directly or delegate scopes sequentially
+    - When the task assigns separate test ownership, keep it separate from implementation
 - **Ask the user a structured question** – the host's question tool (AskUserQuestion on Claude Code)
     - On a host with no question tool, print the questions and options as a numbered list in chat, then stop and wait for the reply
     - Keep every rule a skill attaches to the question: batching, option order, the recommended answer, exact wording
@@ -89,14 +75,14 @@ Key fields:
 - `commands.build` – verify build
 - `commands.lint` – lint and fix
 - `commands.typecheck` – type checking
-- `commands.format` – format the touched files, between the executor and the checker
+- `commands.format` – format touched files before final verification
 - `directories.source` – source code root
 - `directories.tests` – test directory root
 - `venv.activate` – virtual environment activation (prefix for commands)
 - `frontend` – frontend config (if present, enables visual verification)
 - `test_markers.exclude` – test markers to exclude from default runs
-- `workflow` – workflow settings, spec sync, TDD config
-- `workflow.tdd.strict` – `false` runs the task-executor before the test-writer; all three phases still run
+- `workflow` – workflow settings and spec sync
+- `workflow.tdd.strict` and `workflow.tdd.orchestrator_strict` remain compatibility keys only (see Implementation discipline)
 
 Before you run a command, check for `venv.activate`. Prefix the command with it when the file has one.
 
@@ -121,8 +107,8 @@ Full picture: `docs/workflows.md` in the plugin root.
 There is no path selection. Planning structure grows only as far as the fog
 demands, and nothing declares how big the work is:
 
-- **The way is clear** – implement it. `/acstack:implement` runs the TDD
-  pipeline on the request directly; a small unit of work is simply small.
+- **The way is clear** – implement it. `/acstack:implement` applies the Implementation
+  discipline to the request directly; a small unit of work is simply small.
 
 - **Something broke** – `/acstack:quick-fix`. Broken and foggy are different
   axes. A bug has a root cause to find, not a decision to settle.
@@ -158,171 +144,105 @@ Invoke the `writing` skill before you write or edit any of them.
 
 ## Implementation discipline
 
-This pipeline applies to all implementation work. One key changes the order of
-two phases. When `acstack/project.yaml` sets `workflow.tdd.strict: false`,
-relaxed TDD, the order is task-executor, then test-writer, then task-checker.
+This section is the shared policy for skills and agents that implement or verify work.
 
-Relaxed TDD means nobody writes the tests first. It never means the work goes
-unverified, and it drops no phase.
-
-All three agents run under both settings. Rule 3 above holds either way. A
-task-checker runs after every executor.
-
-### Never pin an answer nobody chose
-
-A criterion sometimes leaves a decision to nobody. An agent that meets one must not pick an answer and encode it. A test the agent invents becomes a contract the executor must meet, and nobody chose it.
-
-Prefer the narrower test, or the narrower behaviour. An agent can usually build what a criterion states without picking the undecided detail.
-
-A narrower test must still fail when the criterion is unmet. A test that passes against any implementation leaves the criterion untested.
-
-An agent that can do neither reports the criterion and the question that settles it. The test-writer and the task-executor carry the operational rules.
-
-### The four-phase pipeline
-
-**Phase 1: test-writer** – Write failing tests from requirements
-
-```
-DELEGATE to test-writer subagent
-|- Provide: requirements, acceptance criteria, API contracts ONLY
-|- DO NOT provide: implementation plans, architectural decisions
-'- Verify: tests exist AND all fail (feature not yet implemented)
+```mermaid
+flowchart TD
+    A["Assess the change"] --> B["Choose useful checks"]
+    B --> C["Investigate, test, and implement"]
+    C --> D{"Evidence sufficient?"}
+    D -->|no| B
+    D -->|yes| E["Complete required gates"]
+    E -->|failure| C
+    E -->|pass| F["Report evidence and limits"]
 ```
 
-`workflow.tdd.strict: false` runs this phase after Phase 2, not before it.
+### Assess the change
 
-Tell the test-writer to write its tests from the requirements, and to leave
-the implementation in the working tree unread. Its independence is weaker
-than under strict, where no implementation exists for it to read. That is the
-cost of relaxed TDD.
+- Before nontrivial work, consider what could break and the smallest useful check that would catch it
+- Consider whether a failing test first or another agent would materially improve confidence
+- One agent may investigate, test, implement, and verify straightforward work
+- Reconsider the approach when scope changes or chosen checks cannot detect plausible mistakes
+- Preserve stronger process requests from the user
+- Work needs no fixed agent count, planning ratio, explorer dispatch, or per-phase bookkeeping
 
-The verify line changes with the order. Under `false` the implementation is
-already there, so check that the new tests pass rather than fail.
+### Choose useful checks
 
-A new test that fails means the implementation is wrong. Route that back to
-Phase 2.
+- Require automated tests for meaningful changed behavior when existing coverage cannot detect mistakes
+    - This includes logic, parsing, validation, permissions, calculations, state, and interactions
+- Protect bug fixes against regression
+- Reuse adequate existing coverage for behavior-preserving refactors
+- Add no tests for nonbehavioral edits
+- Judge configuration changes by their effect, not their file extension
+- When automated testing is impractical, explain why and run the nearest executable check
+    - Disclose the missing regression protection and any remaining uncertainty
+    - Never declare consequential behavior safe without evidence
+- Derive assertions from requirements and observable behavior, not the implementation's current answers
+- Test counts and mocked assertions alone never prove adequate coverage
 
-**Phase 2: task-executor** – Make the tests pass
+### Investigate, test, and implement
 
-```
-DELEGATE to task-executor subagent
-|- Provide: failing tests + task requirements
-|- Executor implements in source code ONLY
-'- Executor CANNOT modify any files in the test directory
-```
+- Prefer test-driven development (TDD) when a practical failing test guides the work
+    - For a bug, reproduce the failure first, then fix it
+    - For clear new behavior, write the test first
+    - For exploratory work, investigate first, then test settled behavior before completion
+- Confirm that a failing test fails for the intended behavior, not broken setup
+- Briefly explain departures from tests-first work
+- Never invent unsettled requirements in code or assertions
+    - Investigate source, interfaces, living specs, and existing tests for an answer
+    - Prefer narrower behavior and assertions that still detect unmet requirements
+    - Report any blocked requirement and the question that settles it
+- Read `test-conventions` before writing tests
+- Before the first edit under configured `frontend.directory`, read the pre-edit procedure in `skills/implement/design-pass.md`
+    - Check the design gate and load design context once per task when it is on
+    - Follow the same procedure for direct work and delegated implementation
 
-Under relaxed TDD this phase runs first, and no tests exist yet. Provide the
-requirements alone. The ban on writing in the test directory holds under both
-settings, so the executor never writes its own tests.
+### Use independent review where needed
 
-**Phase 3: task-checker** – Verify everything
+- Require independent review for security boundaries, money, irreversible data changes, or unresolved correctness or impact uncertainty
+- Use another agent or a qualified reviewer for that review
+- If independent review cannot run, report the block instead of claiming completion
+- A separate test-writer is optional when independent requirements interpretation adds confidence
+    - Give it requirements, acceptance criteria, and interfaces rather than implementation plans
+    - Preserve its separate test ownership when chosen
+    - The implementer must not weaken those tests to make code pass
+    - Route incorrect or incomplete tests back to their owner
+- Without separate ownership, the implementer may write source and tests
+- A task-checker is an optional independent verifier, not a required step after every executor
+- Assign non-overlapping files when delegating concurrent work
 
-```
-DELEGATE to task-checker subagent
-|- Task tests pass
-|- FULL test suite passes (no regressions)
-|- Test count >= baseline (.test-baseline)
-|- Mock audit (no circular assertions)
-|- TDD isolation (executor didn't modify test files)
-'- Integration wired (reachable from UI/API)
-```
+### Complete required gates
 
-The checker's gate follows `workflow.tdd.strict`. Under `true` it holds the
-task's new tests to failing before the executor and passing after.
+- Run `commands.format` over touched files before final verification when configured
+    - Report a non-zero exit as a formatting problem, not proof of incorrect behavior
+- Run the project's required build, lint, typecheck, and test checks (see Build verification)
+- Audit whether checks detect realistic mistakes, including circular mock assertions and missing integration
+- Respect separate test ownership when reviewing changes
+- For changed frontend files, the verification owner runs configured frontend build, lint, and tests
+- The verification owner is the session responsible for completion, or a delegated verifier with that responsibility
+- When the design gate is on and configured frontend files changed, complete the design pass in `skills/implement/design-pass.md`
+    - File discovery, static checks, and the detector may belong to a delegated verifier
+    - The parent session types audit and polish; a read-only checker returns its file list and findings without editing
+    - When the session chose a checker, send polished code back for independent recheck before browser verification
+    - These gates apply even when the session delegates no task-checker
+- When the project enables configured frontend verification, delegate real-browser verification to `frontend-verifier` on the final code
+- Fix failures and rerun affected checks before completion
 
-Under `false` the implementation came first, so nothing can show the tests
-failing without it. The checker then holds the new tests to existing and
-passing, the full suite to passing, and the test count to not dropping. It
-reports which mode it ran in.
+### Report evidence and limits
 
-**The audit and polish pass** – Design review on a UI task, between Phase 3 and Phase 4
+- Report the changed behavior, commands run, results, and remaining risks
+- Name blocked checks and missing regression protection
+- Report independent review evidence when required
+- Avoid mandatory phase transcripts or claims based only on test counts
 
-This pass carries no phase number. It runs after the task-checker passes, and before the frontend-verifier.
+### Deprecated workflow booleans
 
-Three conditions gate it. The pass runs only when all three hold:
-
-- the design gate is on
-- `acstack/project.yaml` configures `frontend`
-- frontend files changed
-
-One command answers whether the gate is on:
-
-```bash
-~/.claude/acstack/bin/acstack design-gate
-```
-
-It prints `on` and exits 0 when the gate is on. It prints `off: <reason>` and exits 1 when the gate is off.
-
-**You type both commands yourself.** `/impeccable audit` and `/impeccable polish` are markdown playbooks. impeccable's plugin loads a playbook into an agent's chat when that agent types the slash command.
-
-Type each command in turn, over the file list. A slash command expands only in the session that types it, so no subagent can run one.
-
-The file list is the one the task-checker already derived in its section 5.5, from `git status --porcelain -- <frontend.directory>`. `frontend.directory` is the `acstack/project.yaml` key naming where the frontend lives. It defaults to `frontend/`.
-
-The task-checker already ran impeccable's design detector over that same file list. The audit runs after that check cleared.
-
-Five steps run in this order:
-
-```
-1. task-checker passes (Phase 3)
-2. /impeccable audit  – reports findings, edits nothing, needs no browser
-3. /impeccable polish – fixes the same files, from the audit findings
-4. task-checker again – polish changed the code
-5. frontend-verifier  – Phase 4, once, on the final code
-```
-
-**Polish leaves a factual claim in copy untouched.** The polish playbook says "Ask before changing claims" for factual copy. Polish runs unattended here, so it cannot ask.
-
-Tell polish to list every factual claim it left alone in its report.
-
-**Five commands audit can recommend never run in this pass.** They are `harden`, `clarify`, `adapt`, `optimize`, and `onboard`.
-
-Audit closes its report with "Recommended Actions", a priority-ordered list of `/impeccable <verb>` commands. Only `polish` runs from that list. The other five wait for a human.
-
-A human picks one of the five in a grill round (see ADR 0017). Two rules carry the names that far:
-
-- **Audit names each command against the finding that earned it**
-- **Your completion report repeats those names**, so the user can pick one later
-
-**Phase 4: frontend-verifier** – Browser verification, when `acstack/project.yaml` configures a frontend
-
-```
-DELEGATE to frontend-verifier subagent
-|- Connects to browser via CDP (remote tunnel or local headless Chromium)
-|- Uses agent-browser CLI to navigate, snapshot, and interact
-|- Takes before/after screenshots as evidence
-|- Reviews screenshots and reports PASS/FAIL
-'- Updates verification knowledge base with new patterns
-```
-
-If Phase 3 fails -> route back to the appropriate phase with feedback.
-If the second task-checker run fails -> route back to the task-executor with the feedback.
-If Phase 4 fails -> route back to Phase 2 with the UI bug details.
-
-### Formatting before the checker
-
-`commands.format` in `acstack/project.yaml` names the formatter. Run it
-immediately before you delegate to the task-checker, over the files the work
-touched.
-
-One rule covers both settings. Under relaxed TDD the format step therefore
-falls after the test-writer, so the new tests get formatted too. A
-`commands.format` of `null` means this project has no format step.
-
-Report a non-zero exit from the formatter. Never treat one as a failed
-implementation, because formatting is not correctness. Then delegate to the
-task-checker as usual.
-
-### When to skip phases
-
-- **No setting skips the test-writer** – `workflow.tdd.strict: false` moves it after the executor, and runs it just the same
-- **You may skip the test-writer** for pure config, infra or docs changes with no testable behavior
-- **The format step runs** only when `commands.format` names a command
-- **Frontend-verifier only runs** when `acstack/project.yaml` sets `frontend` AND the change touched frontend files AND `workflow.frontend_verification` is `true`
-- **The audit and polish pass only runs** when the design gate is on AND `acstack/project.yaml` sets `frontend` AND the change touched frontend files
-- **You may skip the second task-checker run** when the audit and polish pass did not run
-- **Never skip** the task-checker – verification always runs, under strict TDD and under relaxed
-- **Never skip** the frontend-verifier when the change touched frontend files and the project configures it – it's non-negotiable
+- `workflow.tdd.strict` and `workflow.tdd.orchestrator_strict` remain valid booleans for configuration compatibility
+- Neither key has an effective default or controls sequencing or delegation, including explicit `true`
+- ACStack removes the former strict sequencing and delegation guarantee
+- Existing configuration files remain unchanged unless the user edits them
+- New setup neither offers nor generates these keys
+- Explicit user process instructions still apply
 
 ---
 
@@ -347,42 +267,12 @@ This is lightweight – retroactive spec documentation, not upfront planning. Sp
 
 ## Agent teams for parallel work
 
-When work has multiple independent scopes, use an **agent team** instead of sequential subagent calls. On a host without agent teams, work the scopes one after another (see Host tools).
-
-### When to use an agent team instead of sequential subagents
-
-| Situation                                    | Approach                                            |
-| -------------------------------------------- | --------------------------------------------------- |
-| Single scope, sequential work                | You (orchestrator) launch subagents directly        |
-| 2+ independent scopes, non-overlapping files | Launch an agent team – each teammate owns one scope |
-| Work that requires shared-file coordination  | Sequential subagents (teams would conflict)         |
-| Quick focused tasks (one test file, one fix) | Subagent directly (team overhead not worth it)      |
-
-### Architecture: teammates spawn subagents
-
-Teammates are **full agent sessions**, NOT subagents. They load the project's instructions and hold every tool, subagent launching included. They spawn subagents:
-
-```
-You (Team Lead / Orchestrator)
-  |-- Teammate A (full session, owns Scope 1)
-  |     |-- subagent: test-writer
-  |     |-- subagent: task-executor
-  |     '-- subagent: task-checker
-  |-- Teammate B (full session, owns Scope 2)
-  |     |-- subagent: test-writer
-  |     |-- subagent: task-executor
-  |     '-- subagent: task-checker
-  '-- Teammate C (full session, owns Scope 3)
-        '-- ... same pattern
-```
-
-### File ownership rules
-
-**Critical**: Two teammates editing the same file causes overwrites. Always:
-
-- Assign non-overlapping file sets to each teammate
-- If a scope must edit a shared file – main imports, for example – do that as a sequential step AFTER the team completes
-- Give each teammate its own git worktree when appropriate (`isolation: "worktree"` on Claude Code)
+- Use teams when independent scopes benefit from parallel work
+- Work directly or delegate sequentially when coordination costs exceed the benefit
+- Give each teammate a non-overlapping file set
+- Schedule shared-file edits sequentially to prevent overwrites
+- Use separate worktrees when appropriate
+- Each scope follows the shared Implementation discipline, without a fixed agent sequence
 
 ---
 
@@ -397,7 +287,8 @@ You (Team Lead / Orchestrator)
 
 ### Spec correction protocol (fix it when you see it)
 
-When ANY agent discovers that a living spec contradicts the actual codebase, it MUST fix the spec immediately:
+When an agent finds a living spec contradicting the codebase, correct it promptly or route the correction to its owner.
+Read-only reviewers report discrepancies to the completion owner.
 
 - **Wrong behavior** -> update FR description to match what the code actually does
 - **Missing requirement** -> add as next sequential FR-NNN with source file path
@@ -440,9 +331,9 @@ Read `acstack/project.yaml` for the specific commands. The general pattern:
 
 **This section applies only when `acstack/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`.**
 
-When a change touches frontend files, Phase 4 (frontend-verifier) runs automatically. This is non-negotiable. There is no LOW CONFIDENCE escape hatch.
+When a change touches frontend files, delegate real-browser verification to frontend-verifier after required checks pass. Never substitute a confidence claim for browser evidence.
 
-The audit and polish pass runs before Phase 4 when the design gate is on. The verifier therefore only ever sees the final code.
+The design pass runs before browser verification when the design gate is on, followed by verification of the polished code.
 
 The frontend-verifier agent:
 
@@ -468,27 +359,13 @@ See the `browser-verify` skill for the `agent-browser` command reference, select
 
 ---
 
-## Who does what
+## Ownership and git
 
-| YOU (Orchestrator / Team Lead)       | TEAMMATES (parallel scopes)           | SUBAGENTS (focused tasks) |
-| ------------------------------------ | ------------------------------------- | ------------------------- |
-| Chart maps, work the frontier        | Own a scope end-to-end                | Search the codebase       |
-| Launch agent teams for parallel work | Launch subagents (test/exec/check)    | Write code and tests      |
-| Decide go/no-go based on checker     | Run Implementation discipline         | Run tests                 |
-| Run lint/typecheck commands          | Message each other to coordinate      | Verify integration        |
-| Ask user when blocked                | Report PASS/FAIL when done            | Debug issues              |
-| Verify build before marking done     | Handle their own lint/typecheck       | Update documentation      |
-| Manage spec updates via /commit      | Do NOT edit files outside their scope | Verify & fix UI issues    |
-
-**Git is yours to run, within limits.** Low-risk operations – `status`, `diff`,
-`log`, listing branches, staging – need no permission; just run them. Anything
-that publishes or rewrites – commit, push, branch deletion, force operations,
-opening a PR – needs the user to have asked for it or permitted it. When you do
-commit, route through `/acstack:commit` rather than raw git; it is the only path
-that runs spec sync.
-
-**About to edit or write a file, run a search, or read a file you cannot name? STOP.**
-**Delegate that work to a subagent or teammate instead.**
+- The completion owner chooses checks and gathers the required evidence
+- Delegated agents own their assigned files and report results or blockers
+- Low-risk git operations such as status, diff, log, and listing branches need no permission
+- Publishing or rewriting history requires user authorization, including commits, pushes, branch deletion, and opening pull requests
+- Route commits through `/acstack:commit` to preserve spec sync
 
 ---
 
@@ -499,8 +376,8 @@ Launch each agent by the name below (see Host tools for how your host takes it).
 | Task Type             | Agent               | Notes                                              |
 | --------------------- | ------------------- | -------------------------------------------------- |
 | Write failing tests   | `test-writer`       | Requirements-only, no impl plans                   |
-| Implement task        | `task-executor`     | CANNOT modify tests                                |
-| Verify implementation | `task-checker`      | Mock skepticism, full regression, TDD isolation    |
+| Implement task        | `task-executor`     | Source and tests unless tests have a separate owner |
+| Verify implementation | `task-checker`      | Independent review, coverage adequacy, regressions |
 | Verify frontend UI    | `frontend-verifier` | Real browser, screenshots, non-negotiable          |
 | Find/locate something | `Explore` / `scout` | Read-only codebase search; `scout` on pi           |
 | Debug/investigate     | `debugger`          | Built-in debugging agent                           |
@@ -512,21 +389,17 @@ Launch each agent by the name below (see Host tools for how your host takes it).
 - **DO ask**: Unclear requirements, multiple valid approaches, judgment calls, PR splitting decisions
 - **DON'T ask**: Technical details subagent can investigate, obvious next steps
 
-**Default**: Try to figure it out via delegation first. Ask the user if you are still uncertain.
+**Default**: Investigate technical facts directly or through delegation before asking the user.
 
 ---
 
 ## Key principles
 
-- **TDD** – Four-phase pipeline: test-writer -> executor -> checker -> frontend-verifier. On a UI task the audit and polish pass sits between the checker and the verifier
-- **KISS** – Keep it simple
-- **YAGNI** – Don't build what you don't need
-- **Delegate the work** – You orchestrate, subagents and teammates search and implement
-- **Agent teams for parallel scopes** – 2+ independent scopes -> team; single scope -> subagents directly; no teams on the host -> scopes in sequence
-- **Living specs** – spec sync always keeps them current at commit time
-- **Progressive materialisation** – structure appears only when it must persist. A map exists only when fog outlives a session. Nothing declares how big the work is
-- **Cross-device setups** – Invoke the `bridge` skill first when a task spans two devices, such as the Playwriter bridge or a remote tunnel. It establishes the platform-detection and handoff convention. Then proceed
-- **Handing work over** – `/acstack:handoff` hands the work to a visible agent: a new one in its own pane, or one already running. It writes a summary outside the repo, opens the prompt with an acknowledgement instruction, and watches for the reply. It records only what nothing on disk holds (next action, decisions, blockers, file ownership) and references the rest
-- **Survive compaction** – `/acstack:compact-and-continue` keeps the work in this session. It writes an in-repo anchor instead of launching anything.
-
-    Run it before your host's `/compact`. Then type `continue` to resume from the anchor
+- Follow the shared Implementation discipline and choose checks that detect plausible mistakes
+- Keep the solution small without cutting validation, security, accessibility, or data-loss protection
+- Use delegation for confidence or independent scopes, not as ceremony
+- Keep living specs current through commit-time sync
+- Create a map when unresolved questions need durable tracking
+- Invoke `bridge` before cross-device browser or tunnel work
+- Use `/acstack:handoff` to transfer work to a visible agent
+- Use `/acstack:compact-and-continue` to preserve session state before compaction

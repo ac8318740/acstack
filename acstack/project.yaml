@@ -6,9 +6,6 @@ workflow:
     questions: tool      # tool | inline
   maps:
     tracker: github
-  tdd:
-    strict: true
-    orchestrator_strict: true
   frontend_verification: false
   design_review: true
   handoff:

@@ -16,7 +16,7 @@ The bridge lets an agent drive a real browser over the Chrome DevTools Protocol 
 
 **child session** – A subagent or a teammate, launched by another agent rather than by a person. It runs inside the **lead session**'s own process and shares that session's id, so no environment variable separates the two. A child reports its state to the lead, and never writes what the lead owns.
 
-**design gate** – The optional checks impeccable adds to acstack's pipeline when `workflow.design_review` is true. The detector runs inside task-checker, then an audit and a polish pass run before frontend-verifier.
+**design gate** – The optional checks impeccable adds when `workflow.design_review` is true with impeccable installed. The verification owner may delegate file discovery, static checks, and the detector. The parent session types audit and polish, then ensures rechecking before configured browser verification, even without a task-checker.
 
 **dev setup** – The machine-level tools an ACStack session runs inside. It names the orchestrator that hosts terminal panes and git worktrees. It also names the browser-verification modes that work on the machine, plus optional extras such as publishing the dev server to a private network.
 

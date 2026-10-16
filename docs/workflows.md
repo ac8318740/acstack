@@ -5,7 +5,7 @@
 ACStack routes a request down one of three paths. Every path ends at a commit that updates your specs.
 
 - **The path depends on what is in your way**: nothing, a bug, or an unanswered question
-- **A clear request goes straight to the four TDD agents** (see section 4)
+- **A clear request goes straight to implementation and adaptive verification** (see section 4)
 - **A bug goes to root-cause analysis first** (see section 2)
 - **A request with open questions becomes a to-do graph** you work through (see section 1)
 - **The rest of this document** is the detail behind one box of the diagram below
@@ -17,9 +17,9 @@ flowchart TD
     Q -->|"it is broken"| F["Root-cause fix<br/>(quick-fix)"]
     Q -->|"open decisions"| M["Map<br/>(chart, then work the frontier)"]
     M -->|"work nodes"| I
-    I --> T["Build under TDD<br/>(4-phase pipeline)"]
-    F --> C["Commit<br/>(acstack:commit)"]
-    T --> C
+    I --> T["Verify the change<br/>(shared Implementation discipline)"]
+    F --> T
+    T --> C["Commit<br/>(acstack:commit)"]
     C --> Y["Sync specs from the diff<br/>(domain-map.yaml)"]
     Y --> L[("Living specs<br/>acstack/specs/")]
     M -->|"every question answered"| A["Archive<br/>(check the decisions landed,<br/>then delete the nodes)"]
@@ -31,7 +31,7 @@ flowchart TD
 | Map, the to-do graph  | section 1 |
 | Implement             | section 2 |
 | Asking and recording  | section 3 |
-| Build under TDD       | section 4 |
+| Verify the change     | section 4 |
 | Commit **and** sync   | section 5 |
 | Archive               | section 6 |
 | Living specs          | section 7 |
@@ -121,11 +121,11 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
 
 - `/acstack:implement` claims `afk` work nodes from the frontier when a map exists
     - It treats the request itself as the work item when none does
-    - Either way, parallel read-only codebase-search subagents run over the relevant code before anyone writes anything
+    - Either way, investigate relevant code directly or through useful delegation
 - The command resolves paths at claim time
     - A node describes behaviour
     - It can sit unstarted for weeks
-- The test-driven development (TDD) pipeline of section 4 runs to completion inside each claim
+- The shared Implementation discipline applies inside each claim (see section 4)
 - A node only ever moves `open -> claimed -> resolved`
     - The agent releases the claim when work stalls
     - The node is plainly open again
@@ -146,7 +146,7 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
     - A round asks the whole frontier, every question whose prerequisites have resolved, numbered, each with a recommended answer
     - It then recomputes the frontier and repeats
     - Facts are the agent's job, never yours
-    - It sends any question a look at the environment would answer to a subagent instead
+    - It investigates technical facts directly or through useful delegation
     - Presentation follows `workflow.grilling.questions`, the host's question tool by default
     - It falls back to inline prose past 4 questions, or for a question with no discrete options
     - There is no question cap
@@ -161,70 +161,32 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
 - **`writing`** holds the standard every durable artifact follows: node answers, ADRs, glossary entries, specs and handoffs
     - The words to avoid live in `skills/writing/vocabulary.md`
 
-## 4. Build under TDD
+## 4. Verify the change
 
-*Four agents run in order. The rule that does the work: the test-writer never sees the implementation.*
+*Choose checks that can detect realistic mistakes, then gather evidence before completion.*
 
 ```mermaid
 flowchart LR
-    subgraph P["Order set by workflow.tdd.strict"]
-        direction LR
-        W["test-writer<br/>(requirements only)"]
-        E["task-executor<br/>(cannot edit tests)"]
-        W -.->|"strict: tests first"| E
-        E -.->|"relaxed: code first"| W
-    end
-    P --> Fm["format<br/>(commands.format)"]
-    Fm --> K["task-checker<br/>(PASS / FAIL)"]
-    K -->|FAIL| E
-    K -->|PASS| V["frontend-verifier<br/>(real browser)"]
-    V -->|FAIL| E
+    A["Assess what breaks"] --> B["Choose checks and useful delegation"]
+    B --> C["Test and implement"]
+    C --> D["Verify evidence and required gates"]
+    D -->|insufficient or failed| B
+    D -->|pass| E["Report results and limits"]
 ```
 
-The separation is the mechanism, not a formality.
+- The authoritative policy lives in `orchestrator/AGENTS.md`, under Implementation discipline
+- One agent can investigate, test, implement, and verify straightforward work
+- Practical tests-first work remains preferred
+- Another agent adds independent interpretation or review when useful or required by the shared policy
+- Choosing separate test ownership prevents the implementer from weakening those tests
+- Formatting and project-required completion checks still apply
+- Frontend design checks run under `skills/implement/design-pass.md`, even without a delegated checker
+- Configured real-browser verification runs on the final code after required gates pass
+- Report commands, results, and blocked checks rather than phase narration
+- Deprecated TDD booleans no longer control order or delegation, including explicit `true`
+    - Existing config remains readable without automatic rewriting
+    - New setup offers no replacement switches
 
-- **test-writer** sees requirements and acceptance criteria, never the implementation plan
-    - Tests then encode what should happen
-    - The implementation cannot shape them
-- **task-executor** receives the failing tests and cannot modify anything in the test directory
-    - It has to make the specification pass instead of editing it
-- **task-checker** is a binary gate
-    - It runs the task's tests, then the full suite for regressions
-    - It checks the test count against `.test-baseline` and audits mocks for circular assertions
-    - It confirms the executor left the tests alone
-- **frontend-verifier** drives a real browser over the Chrome DevTools Protocol (CDP)
-    - It takes before and after screenshots
-    - It reports on that evidence
-
-Which phases run, and in what order:
-
-- A FAIL routes back to the executor with the reason
-- Phases 1 and 4 are conditional
-    - You can skip test-writer for a config or docs change with no testable behaviour
-    - The frontend-verifier runs under three conditions: `acstack/project.yaml` configures a frontend, frontend files changed, and verification is on
-- `workflow.tdd.strict: false` reverses phase 1 and phase 2
-    - The order becomes task-executor, then test-writer, then task-checker
-    - It drops no phase
-    - All three agents run
-    - Relaxed TDD means nobody writes the tests first, never that the work goes unverified
-
-Relaxed weakens one wall, the one this section calls the important one.
-
-- Under `false` the test-writer works beside an implementation it must not read, instead of one that does not exist yet
-- Its independence then rests on its instructions rather than on context isolation
-- That is the cost of relaxed TDD
-- The checker pays for it too
-    - No run can show the new tests failing without the implementation
-    - It holds them to existing and passing instead
-
-The format step sits immediately before phase 3.
-
-- The pipeline runs `commands.format` over the files the work touched
-- Under relaxed that puts the format step after the test-writer
-    - The new tests get formatted too
-- A project whose `commands.format` is `null` gets no format step
-- A non-zero exit gets reported
-    - It never counts as a failed implementation
 
 ## 5. Commit and sync specs
 

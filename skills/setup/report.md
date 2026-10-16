@@ -13,8 +13,7 @@ Profile:      [profile]
 Source:       [source dir]
 Tests:        [tests dir]
 Grilling:     [question tool/inline prose]
-TDD:          [strict/relaxed]
-Orchestrator: [strict/relaxed]
+Verification: adaptive (shared Implementation discipline)
 Spec sync:    [enabled/disabled]
 Frontend:     [configured/not configured]
 Browser:      [project's preferred mode / not configured]
@@ -30,14 +29,10 @@ Health check: [n] pass, [n] fail, [n] info
 Next: describe what you want to build, or run /acstack:bootstrap for existing code.
 ```
 
-Fill the `Host:` line and the `Orchestrator:` line from two different sources.
-`Orchestrator:` is this project's delegation policy, read from
-`workflow.tdd.orchestrator_strict` in `acstack/project.yaml`. It says whether
-the coordinator may write code itself. `Host:` is about the machine. It names
-which tool owns terminal panes and git worktrees, and which browser modes work
-here.
-
-The `host` skill declares both, and the global config holds them.
+- Fill `Host:` from the machine declarations in global config
+- The `host` skill owns terminal panes, worktrees, and available browser modes
+- Existing deprecated workflow booleans do not control verification or delegation, including explicit `true`
+- Do not rewrite existing configuration merely because it contains those keys
 
 Fill `Workspace:` from `host.terminal_workspace`: `yes` on `true`, `declined` on
 `false`, and `not asked` when it is unset.
