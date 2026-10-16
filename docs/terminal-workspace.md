@@ -365,7 +365,14 @@ What `apply` does:
     - ACStack uses it because decisions can include markdown, code and artifact previews
     - It accepts freeform answers and notes, and needs no full-event telemetry environment variable
     - This setup still keeps pi's install telemetry disabled through `pi.settings.install_telemetry: false`
-    - Set `pi.question_tool: false` to leave it out, or to remove it later if this setup installed it
+    - Setup installs a managed question bridge under pi's agent directory, honoring `PI_CODING_AGENT_DIR`
+    - The bridge translates `rpiv:ask-user:blocked` into `herdr:blocked`, so herdr shows the question's input wait
+    - Answer, cancellation, and error completion release the question's blocker while other herdr blockers stay active
+    - A producer that also emits the matching herdr event synchronously contributes only one blocker
+    - Events carry no source ID, so the bridge treats a matching synchronous herdr event as the producer's own
+    - Reapply refreshes the owned bridge, but preserves a pre-existing file at the same path
+    - `pi.question_tool: false`, `disable pi`, and `uninstall` remove only the owned bridge and leave user workarounds alone
+    - Set `pi.question_tool: false` to leave the package out, or remove it later if this setup installed it
 - It installs `pi-web-access` by default for Pi web search and web access
     - The package is `pi-web-access` from `nicobailon/pi-web-access`
     - It adds web search, URL fetching, GitHub repo cloning, PDF extraction and media understanding tools to pi
@@ -402,6 +409,8 @@ How it treats pi's files:
 - `apply` never touches `auth.json`
     - Run `pi`, then `/login`, yourself
 - `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether `auth.json` exists
+    - The question bridge line reports a managed asset, a user-owned path, or an absent asset
+    - Start a new pi session or run `/reload` after setup changes extensions
 - `setup.sh outdated` and `setup.sh upgrade` include `billion-context`, `@juicesharp/rpiv-todo`, `pi-plugin-manager`, `@juicesharp/rpiv-ask-user-question`, `pi-web-access`, `pi-lens`, and `pi-slash-anywhere` like pi's other npm packages
 
 ## 4. How you attach
