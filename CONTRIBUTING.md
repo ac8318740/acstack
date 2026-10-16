@@ -329,6 +329,7 @@ node scripts/gen-pi-agents.mjs
     - If a test needs isolation, use `--pool=vmThreads`
 - Run `bash tests/run-all.sh` for the hook suites
     - `tests/test-terminal-workspace.sh` takes a few minutes; allow at least five
+    - The pi component's checks live in `tests/test-terminal-workspace-pi.sh`, so pi work can run them alone
 
 ## 6. Releasing
 
