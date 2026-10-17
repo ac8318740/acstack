@@ -7,6 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { EventEmitter } from 'node:events';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const work = process.env.ACSTACK_TEST_WORK;
@@ -18,7 +19,7 @@ function check(name, cond, detail = '') {
 }
 
 /** Load the extension against a fresh stub, and return its registrations. */
-function load({ tools = ['subagent'] } = {}) {
+function load({ tools = ['subagent'], extensions = [ext], events } = {}) {
   const handlers = {};
   const commands = {};
   const sent = [];
@@ -30,7 +31,12 @@ function load({ tools = ['subagent'] } = {}) {
     sendMessage: (message, options) => { sent.push({ message, options }); },
     sendUserMessage: (content, options) => { userSent.push({ content, options }); },
   };
-  ext.default(pi);
+  for (const extension of extensions) {
+    extension.default({ ...pi, ...(events ? { events: {
+      on(name, handler) { events.on(name, handler); return () => events.off(name, handler); },
+      emit: (name, payload) => events.emit(name, payload),
+    } } : {}) });
+  }
   return { handlers, commands, sent, userSent };
 }
 
@@ -71,6 +77,105 @@ function customEvent() {
 const wrapper = path.join(root, 'cli', 'bin', 'acstack.js');
 const agentLink = path.join(home, '.claude', 'acstack', 'bin', 'acstack');
 const humanLink = path.join(home, '.local', 'bin', 'acstack');
+
+// --- package manifest: question blocking without workspace setup -------------
+
+{
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const packaged = await Promise.all(manifest.pi.extensions.map(file => import(path.join(root, file))));
+  const legacy = await import(path.join(root, 'tests/fixtures/pi-question-blocked-legacy.ts'));
+  for (const [name, extensions] of [
+    ['package only', packaged],
+    ['legacy first', [legacy, ...packaged]],
+    ['package first', [...packaged, legacy]],
+    ['two packages', [...packaged, ...packaged]],
+    ['legacy and two packages', [legacy, ...packaged, ...packaged]],
+  ]) {
+    const events = new EventEmitter();
+    const reg = load({ extensions, events });
+    const ctx = makeCtx(newProject(`question-${name}`));
+    await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+    const counts = [];
+    let count = 0;
+    events.on('herdr:blocked', ({ active }) => { counts.push(count += active ? 1 : -1); });
+    const settle = () => new Promise(resolve => setImmediate(resolve));
+    // An unrelated wait must survive completion of two overlapping questions.
+    events.emit('herdr:blocked', { active: true });
+    for (const toolCallId of ['one', 'two']) {
+      events.emit('rpiv:ask-user:blocked', { active: true, toolCallId });
+      await settle();
+    }
+    for (const toolCallId of ['one', 'two']) {
+      events.emit('rpiv:ask-user:blocked', { active: false, toolCallId });
+      await settle();
+    }
+    events.emit('herdr:blocked', { active: false });
+    // Anonymous native sources remain independent, even if they describe the same wait.
+    for (const active of [true, false]) {
+      events.emit('rpiv:ask-user:blocked', { active, toolCallId: 'native' });
+      events.emit('herdr:blocked', { active });
+      await settle();
+    }
+    check(`question blocking ${name}: overlapping and balanced native sources`,
+      JSON.stringify(counts) === JSON.stringify([1, 2, 3, 2, 1, 0, 1, 2, 1, 0]), JSON.stringify(counts));
+
+    counts.length = 0;
+    for (const toolCallId of ['one', 'two', 'three']) {
+      events.emit('rpiv:ask-user:blocked', { active: true, toolCallId });
+    }
+    await settle();
+    for (const toolCallId of ['one', 'two', 'three']) {
+      events.emit('rpiv:ask-user:blocked', { active: false, toolCallId });
+      await settle();
+    }
+    check(`question blocking ${name}: synchronous starts and separate completions`,
+      JSON.stringify(counts) === JSON.stringify([1, 2, 3, 2, 1, 0]), JSON.stringify(counts));
+
+    counts.length = 0;
+    count = 0;
+    events.emit('rpiv:ask-user:blocked', { active: true, toolCallId: 'one' });
+    await Promise.resolve();
+    for (const toolCallId of ['two', 'three']) {
+      events.emit('rpiv:ask-user:blocked', { active: true, toolCallId });
+    }
+    await settle();
+    for (const toolCallId of ['one', 'two', 'three']) {
+      events.emit('rpiv:ask-user:blocked', { active: false, toolCallId });
+      await settle();
+    }
+    check(`question blocking ${name}: starts across microtask boundaries`,
+      JSON.stringify(counts) === JSON.stringify([1, 2, 3, 2, 1, 0]), JSON.stringify(counts));
+
+    counts.length = 0;
+    count = 0;
+    for (const active of [true, false, true, false]) {
+      events.emit('rpiv:ask-user:blocked', { active });
+    }
+    await settle();
+    check(`question blocking ${name}: mixed synchronous transitions`,
+      JSON.stringify(counts) === JSON.stringify([1, 0, 1, 0]), JSON.stringify(counts));
+
+    counts.length = 0;
+    count = 0;
+    events.emit('rpiv:ask-user:blocked', { active: true, toolCallId: 'question' });
+    events.emit('herdr:blocked', { active: true });
+    await settle();
+    events.emit('rpiv:ask-user:blocked', { active: false, toolCallId: 'question' });
+    await settle();
+    events.emit('herdr:blocked', { active: false });
+    check(`question blocking ${name}: unrelated native wait starts alongside question`,
+      JSON.stringify(counts) === JSON.stringify([1, 2, 1, 0]), JSON.stringify(counts));
+
+    await fire(reg, 'session_start', { reason: 'switch' }, ctx);
+    counts.length = 0;
+    for (const active of [true, false]) {
+      events.emit('rpiv:ask-user:blocked', { active, toolCallId: 'after-switch' });
+      await settle();
+    }
+    check(`question blocking ${name}: repeated startup keeps one relay`,
+      JSON.stringify(counts) === JSON.stringify([1, 0]), JSON.stringify(counts));
+  }
+}
 
 // --- session_start: CLI symlinks ---------------------------------------------
 

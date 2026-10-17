@@ -91,6 +91,9 @@ Then, in your project, run `/acstack:setup`.
         - Freshness uses `/acstack:handoff` when a fresh window or independent read helps more
         - With no thresholds set, the first nudge comes at 200k tokens or half the window, whichever is lower
         - The urgent nudge comes at 500k tokens or 80% of the window, whichever is lower
+- ACStack includes the question-status bridge automatically
+    - With `@juicesharp/rpiv-ask-user-question` and Herdr's Pi integration installed, Herdr shows blocked while Pi waits for an answer
+    - Existing setup-installed bridges can stay installed without counting the same wait twice
 - Both subagent packages find the four agents through the `pi.subagents` field in `package.json`
     - `@tintinweb/pi-subagents` exposes `Agent`; `pi-subagents` exposes `subagent`
     - The agents use your subagent package's default model

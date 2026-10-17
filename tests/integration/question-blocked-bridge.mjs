@@ -91,14 +91,14 @@ if (['pristine-answer', 'pristine-cancel', 'pristine-error'].includes(scenario))
   for (const unrelatedFirst of [true, false, true, false]) {
     herdrWait(true);
     floor = 1;
-    ceiling = 2;
+    ceiling = 3;
     dualWait(true);
     await settle();
-    expectCount(2, 'dual producer must contribute exactly one blocker');
+    expectCount(3, 'public and anonymous native sources contribute independent blockers');
     if (unrelatedFirst) {
       herdrWait(false);
       await settle();
-      expectCount(1, 'question must stay blocked when unrelated wait ends');
+      expectCount(2, 'question sources must stay blocked when unrelated wait ends');
       floor = 0;
       dualWait(false);
     } else {

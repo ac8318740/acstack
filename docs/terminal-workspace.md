@@ -365,11 +365,14 @@ What `apply` does:
     - ACStack uses it because decisions can include markdown, code and artifact previews
     - It accepts freeform answers and notes, and needs no full-event telemetry environment variable
     - This setup still keeps pi's install telemetry disabled through `pi.settings.install_telemetry: false`
-    - Setup installs a managed question bridge under pi's agent directory, honoring `PI_CODING_AGENT_DIR`
+    - ACStack's Pi package loads the question bridge automatically, including installations made without terminal-workspace setup
+    - Setup also installs a fallback copy under pi's agent directory, honoring `PI_CODING_AGENT_DIR`
+    - The packaged bridge and fallback copy count each wait once when both load
     - The bridge translates `rpiv:ask-user:blocked` into `herdr:blocked`, so herdr shows the question's input wait
     - Answer, cancellation, and error completion release the question's blocker while other herdr blockers stay active
-    - A producer that also emits the matching herdr event synchronously contributes only one blocker
-    - Events carry no source ID, so the bridge treats a matching synchronous herdr event as the producer's own
+    - Anonymous native Herdr events remain independent from question events, including simultaneous waits
+    - A producer emitting both event types contributes two balanced blockers, which clear when both sources finish
+    - Older fallback copies work unless another extension recursively emits public question events; remove the older copy in that case
     - Reapply refreshes the owned bridge, but preserves a pre-existing file at the same path
     - `pi.question_tool: false`, `disable pi`, and `uninstall` remove only the owned bridge and leave user workarounds alone
     - Set `pi.question_tool: false` to leave the package out, or remove it later if this setup installed it
