@@ -44,6 +44,7 @@ node_dir="$(dirname "$(command -v node)")"
 out="$(
   HOME="$WORK/home" TMPDIR="$WORK/tmp" PATH="${node_dir}:/usr/bin:/bin" \
     ACSTACK_TEST_WORK="$WORK/projects" PI_CODING_AGENT_DIR= ACSTACK_CONTEXT_PRESSURE_DIR= HERDR_ENV= \
+    PI_SUBAGENT_CHILD= PI_SUBAGENTS_HERDR_BRIDGE= \
     node --no-warnings "$HARNESS" 2>&1
 )"
 status=$?
