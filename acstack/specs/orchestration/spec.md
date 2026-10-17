@@ -66,3 +66,11 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: Existing files remain unchanged unless edited by the user
 - **Then**: ACStack removes the former strict sequencing and delegation guarantee
 - **Source**: `orchestrator/AGENTS.md`, Deprecated workflow booleans
+
+## FR-007: Use the host's subagent tool
+
+- **Given**: An agent delegates work on pi
+- **When**: The installed package exposes `Agent` or `subagent`
+- **Then**: The agent uses `Agent` with `subagent_type`, or `subagent` with `agent`
+- **Then**: Read-only searches use `Explore` through `Agent`, or `scout` through `subagent`
+- **Source**: `orchestrator/AGENTS.md`, Host tools

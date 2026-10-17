@@ -102,13 +102,25 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   const ctx = makeCtx(newProject('no-subagents'));
   await fire(reg, 'session_start', { reason: 'startup' }, ctx);
   await fire(reg, 'session_start', { reason: 'new' }, ctx);
-  const warnings = ctx.notes.filter((n) => n.msg.includes('pi-subagents is not loaded'));
+  const warnings = ctx.notes.filter((n) => n.msg.includes('no supported subagent tool is loaded'));
   check('warns once when pi-subagents is missing', warnings.length === 1, `${warnings.length} warnings`);
 
   const reg2 = load();
   const ctx2 = makeCtx(newProject('with-subagents'));
   await fire(reg2, 'session_start', { reason: 'startup' }, ctx2);
   check('stays quiet when pi-subagents is loaded', !ctx2.notes.some((n) => n.msg.includes('pi-subagents')));
+
+  const agentReg = load({ tools: ['read', 'bash', 'Agent'] });
+  const agentCtx = makeCtx(newProject('with-agent-tool'));
+  await fire(agentReg, 'session_start', { reason: 'startup' }, agentCtx);
+  check('stays quiet when @tintinweb/pi-subagents supplies Agent',
+    !agentCtx.notes.some((n) => n.level === 'warning'));
+
+  const workflowReg = load({ tools: ['read', 'bash', 'SubagentWorkflow'] });
+  const workflowCtx = makeCtx(newProject('workflow-only'));
+  await fire(workflowReg, 'session_start', { reason: 'startup' }, workflowCtx);
+  check('a workflow tool alone does not suppress the missing-agent warning',
+    workflowCtx.notes.some((n) => n.level === 'warning' && n.msg.includes('acstack:')));
   check('no setup reminder inside an acstack project', !ctx2.notes.some((n) => n.msg.includes('no project config')));
 
   const ctx3 = makeCtx(newProject('plain', { acstack: false }));

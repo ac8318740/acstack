@@ -40,8 +40,8 @@ ACStack runs on Claude Code, Codex, and pi. The skills name each capability once
 
 - **Launch a subagent** – start a child agent with its own context, by its ACStack name (`test-writer`, `task-executor`, `task-checker`, `frontend-verifier`)
     - Claude Code: the Agent tool, with `subagent_type` set to that name
-    - pi: the `subagent` tool from `pi-subagents`
-    - **Read-only codebase-search subagent** – Claude Code's `Explore`, pi's `scout`
+    - pi: `Agent` from `@tintinweb/pi-subagents` (`subagent_type`), or `subagent` from `pi-subagents` (`agent`)
+    - **Read-only codebase-search subagent** – `Explore` on Claude Code and pi's `Agent`, or `scout` on pi's `subagent`
     - `debugger` names a debugging agent
     - On a host without a matching built-in agent, launch a general subagent with that brief
 - **Agent team** – parallel full sessions, each owning one scope and launching its own subagents

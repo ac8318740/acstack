@@ -66,10 +66,10 @@ Then, in your project:
 
 ### 1.2. Install on pi
 
-*The same project installs as a [pi](https://pi.dev) package. Subagents come from the `pi-subagents` package.*
+*The same project installs as a [pi](https://pi.dev) package with `@tintinweb/pi-subagents` or `pi-subagents` for delegation.*
 
 ```
-pi install npm:pi-subagents
+pi install npm:@tintinweb/pi-subagents
 pi install npm:acstack
 ```
 
@@ -91,16 +91,17 @@ Then, in your project, run `/acstack:setup`.
         - Freshness uses `/acstack:handoff` when a fresh window or independent read helps more
         - With no thresholds set, the first nudge comes at 200k tokens or half the window, whichever is lower
         - The urgent nudge comes at 500k tokens or 80% of the window, whichever is lower
-- `pi-subagents` finds the four agents through the `pi.subagents` field in `package.json`
-    - The agents use your `pi-subagents` default model
-    - ACStack warns at session start when `pi-subagents` is missing
-- Allow delegation in `~/.pi/agent/AGENTS.md` – `pi-subagents` only delegates when your request or your instructions allow it:
+- Both subagent packages find the four agents through the `pi.subagents` field in `package.json`
+    - `@tintinweb/pi-subagents` exposes `Agent`; `pi-subagents` exposes `subagent`
+    - The agents use your subagent package's default model
+    - ACStack warns at session start when pi lists neither tool
+- Allow delegation in `~/.pi/agent/AGENTS.md`:
 
     ```
     When an ACStack skill or the ACStack orchestrator says to launch a subagent, you may delegate to it.
     ```
 
-    - Set `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json` to offer the `subagent` tool from the first turn (restart pi after)
+    - For `pi-subagents`, set `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json` to offer `subagent` from the first turn (restart pi after)
 - pi gets the ACStack writing style from the extension by default
     - Run `/acstack-writing-style default` to use the bundled style again
     - Run `/acstack-writing-style off` to disable style injection
