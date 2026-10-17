@@ -1494,8 +1494,7 @@ fi
 # diagram code path, so it cannot see a diagram tempfile leak - use one that
 # actually has a diagram. mermaid-ascii's working copy is written under the
 # system temp directory as tmpXXXXXXXX.mmd, a name that does not start with
-# "acstack-md", so watch that pattern too rather than one glob, and respect
-# $TMPDIR since that is where the code actually writes, not always /tmp.
+# "acstack-md", so watch that pattern too rather than one glob.
 cat > "$WORK/residue-diagram.md" <<'MD1B'
 # Residue check
 
@@ -1505,18 +1504,17 @@ graph LR
   B --> C[Yet another sufficiently long label]
 ```
 MD1B
-TMP_DIR="${TMPDIR:-/tmp}"
-tmp_before=$(find "$TMP_DIR" -maxdepth 1 \( -name 'acstack-md*' -o -name '*.mmd' \) 2>/dev/null | sort)
-COLUMNS=40 "$MD" --preview "$WORK/residue-diagram.md" </dev/null >/dev/null 2>&1
-tmp_after=$(find "$TMP_DIR" -maxdepth 1 \( -name 'acstack-md*' -o -name '*.mmd' \) 2>/dev/null | sort)
-# $TMP_DIR is shared with whatever else is running, so only new entries count
-# - an unrelated process tidying up its own stale debris between the two
-# snapshots is not this check's business, and must not fail it.
-new_files=$(comm -13 <(echo "$tmp_before") <(echo "$tmp_after"))
+# The helper names its /tmp files after its own PID, and its .mmd copy goes
+# to $TMPDIR. A private $TMPDIR plus that PID means only this run's files
+# count, so another suite running at the same time cannot fail this check.
+PREVIEW_TMP="$WORK/residue-tmp"; mkdir -p "$PREVIEW_TMP"
+TMPDIR="$PREVIEW_TMP" COLUMNS=40 "$MD" --preview "$WORK/residue-diagram.md" </dev/null >/dev/null 2>&1 &
+md_pid=$!; wait "$md_pid"
+new_files=$( { find /tmp -maxdepth 1 \( -name "acstack-md*.$md_pid" -o -name "acstack-md*.$md_pid.*" \); find "$PREVIEW_TMP" -mindepth 1; } 2>/dev/null)
 if [ -z "$new_files" ]; then
-  ok "--preview leaves no acstack-md*/.mmd residue in $TMP_DIR"
+  ok "--preview leaves no acstack-md*/.mmd residue"
 else
-  no "--preview leaves residue in $TMP_DIR: $(echo "$new_files" | tr '\n' ' ')"
+  no "--preview leaves residue: $(echo "$new_files" | tr '\n' ' ')"
 fi
 
 # The previewer command lines in setup.sh are the actual contract: whatever
