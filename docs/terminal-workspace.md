@@ -396,6 +396,14 @@ What `apply` does:
 - It writes the four keys under `pi.settings` into `~/.pi/agent/settings.json`
 - It patches pi's bundled TUI so Windows Terminal Win32 input records paste as text
     - `pi update` can replace the bundle, so `setup.sh upgrade pi` reapplies the patch
+- It patches an existing herdr Pi reporter to keep the parent working while background subagents run
+    - Questions still show blocked, even when children are active
+    - The patch handles `pi-subagents` busy events and `@tintinweb/pi-subagents` Agent lifecycle events
+    - Tintin workflows and children already running during an extension reload lack lifecycle replay and remain outside this tracking
+    - `apply`, herdr integration installation, and `setup.sh upgrade herdr` reapply the patch
+    - Direct `herdr integration install pi` overwrites the patch; run `apply` afterward, then restart Pi or use `/reload`
+    - Setup leaves unknown reporter layouts unchanged and reports the skipped patch
+    - `disable pi`, `disable herdr`, and `uninstall` remove unchanged managed patch blocks
 
 How it treats pi's files:
 

@@ -301,6 +301,7 @@ apply_pi() {
   pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": "eager"}'
   pi_state md write
   patch_pi_win32_paste
+  patch_herdr_pi_status
 
   # Logging in is interactive and stores a credential, so it stays the user's.
   [ -f "$PI_DIR/auth.json" ] || say "pi: not logged in yet. Run pi, then /login"
@@ -311,6 +312,7 @@ apply_pi() {
 # and leaves the pi binary, its logins and its sessions alone.
 remove_pi() {
   find_pi
+  patch_herdr_pi_status --remove
   pi_question_bridge remove
   if pi_state parses "$PI_SETTINGS"; then
     pi_unpin "$PI_ACSTACK"

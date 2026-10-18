@@ -3023,8 +3023,8 @@ else
   no "--browser keys the document by its absolute path, hex-encoded"
 fi
 
-# Serving would leave a port behind on a machine whose ports nobody can reach.
-if ! pgrep -f 'acstack-md-serve' >/dev/null 2>&1; then
+# Other sessions may serve documents; only this test's document must have no server.
+if ! pgrep -f "acstack-md-serve.*$OWORK/doc.md" >/dev/null 2>&1; then
   ok "--browser on the opener route leaves no server behind"
 else
   no "--browser on the opener route leaves no server behind"
