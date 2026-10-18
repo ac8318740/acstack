@@ -147,6 +147,12 @@ Running it again after a config edit updates every managed region in place.
 The master switch comes first. With `enabled: false` at the top of the config,
 `apply` exits without installing anything.
 
+In Yazi, lowercase `i` opens the hovered Markdown file in Frogmouth for clickable file links.
+
+- Install Frogmouth separately with `pipx install frogmouth`
+- `apply` preserves an existing `i` binding or sequence instead of adding this shortcut
+- `e` keeps editing in `$EDITOR`
+
 ### 4.1. What `apply` never overwrites
 
 *Marked regions only. Whatever the user wrote outside them survives every re-apply.*
