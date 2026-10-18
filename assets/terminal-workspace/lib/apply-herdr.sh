@@ -303,6 +303,9 @@ PY
 
   local integ; integ=$(cfg_get herdr.integration none)
   if [ "$integ" != "none" ] && [ -n "$integ" ]; then
-    herdr integration install "$integ" >/dev/null 2>&1 && say "herdr $integ state hook installed"
+    if herdr integration install "$integ" >/dev/null 2>&1; then
+      say "herdr $integ state hook installed"
+      patch_herdr_pi_status
+    fi
   fi
 }

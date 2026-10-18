@@ -189,6 +189,7 @@ PY
              say "delta unset as git pager"
              say "now set delta.enabled: false in $CFG so apply does not restore it" ;;
       herdr)
+        patch_herdr_pi_status --remove
         py "$HERDR_CFG" "$BEGIN" "$END" <<'PY'
 import re, sys, os
 p, b, e = sys.argv[1:4]
