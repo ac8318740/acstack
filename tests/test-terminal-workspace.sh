@@ -2331,6 +2331,39 @@ else
   no "a fresh keymap.toml binds b to the browser on the hovered file"
 fi
 
+if python3 - "$WORK/km-fresh.toml" "$KEYMAP" <<'PYFROG'
+import os, pathlib, shlex, subprocess, sys, tempfile, tomllib
+config = tomllib.load(open(sys.argv[1], "rb"))["mgr"]["prepend_keymap"]
+binding = next(b for b in config if b["on"] == "i")
+assert next(b for b in config if b["on"] == "e")["run"] == 'shell --block -- ${EDITOR:-vi} %h'
+command = binding["run"].removeprefix("shell --block -- ")
+assert command != binding["run"], "Frogmouth must block Yazi"
+with tempfile.TemporaryDirectory() as tmp:
+    root = pathlib.Path(tmp)
+    stub = root / "frogmouth"
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$FROG_ARGS"\n')
+    stub.chmod(0o755)
+    output = root / "args"
+    env = dict(os.environ, PATH=tmp + ":" + os.environ["PATH"], FROG_ARGS=str(output))
+    for name in ("read me.md", "NOTES.MARKDOWN", "quote';$.md"):
+        subprocess.run(["sh", "-c", command.replace("%h", shlex.quote(name))], env=env, check=True)
+        assert output.read_text().splitlines() == ["--", name]
+    output.unlink()
+    subprocess.run(["sh", "-c", command.replace("%h", shlex.quote("image.png"))], env=env, check=True)
+    assert not output.exists(), "Non-Markdown files must not open in Frogmouth"
+    for on in ('"i"', '["i", "x"]'):
+        custom = root / "keymap.toml"
+        original = f'[[mgr.prepend_keymap]]\non = {on}\nrun = "plugin mine"\n'
+        custom.write_text(original)
+        subprocess.run([sys.executable, sys.argv[2], str(custom)], check=True,
+                       env=dict(os.environ, ACSTACK_ARGS="b|#|D||e|# >>> acstack terminal-workspace >>>|# <<< acstack terminal-workspace <<<"))
+        data = tomllib.loads(custom.read_text())["mgr"]["prepend_keymap"]
+        assert not any("frogmouth" in str(b.get("run")) for b in data), "Existing i binding must survive"
+        assert any(b["run"] == "plugin mine" for b in data)
+PYFROG
+then ok "i opens only Markdown in Frogmouth, quotes paths, and preserves custom bindings"
+else no "i opens only Markdown in Frogmouth, quotes paths, and preserves custom bindings"; fi
+
 # The line-numbers key is two actions, not one: flipping the flag changes
 # nothing a reader can see until the pane is drawn again.
 if python3 - "$WORK/km-fresh.toml" <<'PYLN'

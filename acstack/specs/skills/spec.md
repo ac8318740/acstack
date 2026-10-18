@@ -44,3 +44,11 @@ Implementation skills apply the shared policy while preserving their task-specif
 - **Then**: The agent follows resolved context and reports ownership directives without rerunning context or updating impeccable
 - **Then**: The agent leaves `PRODUCT.md` and `DESIGN.md` to their owners and leaves the post-write hook to impeccable
 - **Source**: `skills/implement/design-pass.md`
+
+## FR-005: Explain the Markdown inspection shortcut
+
+- **Given**: A user applies the terminal workspace with Yazi enabled
+- **When**: The agent follows the terminal-workspace skill
+- **Then**: The skill explains lowercase `i` opens Markdown in Frogmouth and gives `pipx install frogmouth` for the separate installation
+- **Then**: The skill states existing `i` bindings take precedence and `e` keeps editing in `$EDITOR`
+- **Source**: `skills/terminal-workspace/SKILL.md`
