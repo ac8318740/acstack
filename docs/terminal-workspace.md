@@ -365,11 +365,14 @@ What `apply` does:
     - ACStack uses it because decisions can include markdown, code and artifact previews
     - It accepts freeform answers and notes, and needs no full-event telemetry environment variable
     - This setup still keeps pi's install telemetry disabled through `pi.settings.install_telemetry: false`
-    - Setup installs a managed question bridge under pi's agent directory, honoring `PI_CODING_AGENT_DIR`
+    - ACStack's Pi package loads the question bridge automatically, including installations made without terminal-workspace setup
+    - Setup also installs a fallback copy under pi's agent directory, honoring `PI_CODING_AGENT_DIR`
+    - The packaged bridge and fallback copy count each wait once when both load
     - The bridge translates `rpiv:ask-user:blocked` into `herdr:blocked`, so herdr shows the question's input wait
     - Answer, cancellation, and error completion release the question's blocker while other herdr blockers stay active
-    - A producer that also emits the matching herdr event synchronously contributes only one blocker
-    - Events carry no source ID, so the bridge treats a matching synchronous herdr event as the producer's own
+    - Anonymous native Herdr events remain independent from question events, including simultaneous waits
+    - A producer emitting both event types contributes two balanced blockers, which clear when both sources finish
+    - Older fallback copies work unless another extension recursively emits public question events; remove the older copy in that case
     - Reapply refreshes the owned bridge, but preserves a pre-existing file at the same path
     - `pi.question_tool: false`, `disable pi`, and `uninstall` remove only the owned bridge and leave user workarounds alone
     - Set `pi.question_tool: false` to leave the package out, or remove it later if this setup installed it
@@ -393,6 +396,14 @@ What `apply` does:
 - It writes the four keys under `pi.settings` into `~/.pi/agent/settings.json`
 - It patches pi's bundled TUI so Windows Terminal Win32 input records paste as text
     - `pi update` can replace the bundle, so `setup.sh upgrade pi` reapplies the patch
+- It patches an existing herdr Pi reporter to keep the parent working while background subagents run
+    - Questions still show blocked, even when children are active
+    - The patch handles `pi-subagents` busy events and `@tintinweb/pi-subagents` Agent lifecycle events
+    - Tintin workflows and children already running during an extension reload lack lifecycle replay and remain outside this tracking
+    - `apply`, herdr integration installation, and `setup.sh upgrade herdr` reapply the patch
+    - Direct `herdr integration install pi` overwrites the patch; run `apply` afterward, then restart Pi or use `/reload`
+    - Setup leaves unknown reporter layouts unchanged and reports the skipped patch
+    - `disable pi`, `disable herdr`, and `uninstall` remove unchanged managed patch blocks
 
 How it treats pi's files:
 

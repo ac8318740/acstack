@@ -152,3 +152,11 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: It stops if a retained record lies inside the proposed node disposal path
 - **Then**: It preserves native Git ignore rules without force-adding private records
 - **Source**: `skills/design-doc/SKILL.md`, `skills/archive/SKILL.md`
+
+## FR-011: Explain the Markdown inspection shortcut
+
+- **Given**: A user applies the terminal workspace with Yazi enabled
+- **When**: The agent follows the terminal-workspace skill
+- **Then**: The skill explains lowercase `i` opens Markdown in Frogmouth and gives `pipx install frogmouth` for the separate installation
+- **Then**: The skill states existing `i` bindings take precedence and `e` keeps editing in `$EDITOR`
+- **Source**: `skills/terminal-workspace/SKILL.md`

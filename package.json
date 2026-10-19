@@ -39,7 +39,8 @@
   ],
   "pi": {
     "extensions": [
-      "./pi/extension.ts"
+      "./pi/extension.ts",
+      "./assets/terminal-workspace/pi/acstack-question-blocked.ts"
     ],
     "subagents": {
       "agents": [

@@ -404,6 +404,12 @@ find_pi() {
 }
 
 
+# Keep herdr's own writer as the sole pane authority; reapply after it is replaced.
+patch_herdr_pi_status() {
+  python3 "$SCRIPT_DIR/lib/patch-herdr-pi.py" "$PI_DIR/extensions/herdr-agent-state.ts" "$@" \
+    || say "pi: herdr background status patch was not applied; reporter left unchanged"
+}
+
 # Pi's bundled TUI does not always receive Windows Terminal paste as plain
 # text. Through Herdr and ConPTY it can arrive as Win32 input records such as
 # ESC[13;28;13;1;0;1_. Patch the installed bundle after install or update.

@@ -659,11 +659,11 @@ export default function acstack(pi: ExtensionAPI): void {
 			return;
 		}
 
-		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent")) {
+		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent" || tool.name === "Agent")) {
 			warnedSubagents = true;
 			report(
 				ctx,
-				"acstack: pi-subagents is not loaded, so the test-writer, task-executor, task-checker and frontend-verifier agents cannot run. Install it with `pi install npm:pi-subagents`.",
+				"acstack: no supported subagent tool is loaded (Agent or subagent), so the test-writer, task-executor, task-checker, and frontend-verifier agents cannot run. Install `npm:@tintinweb/pi-subagents` or `npm:pi-subagents` with `pi install`.",
 				"warning",
 			);
 		}

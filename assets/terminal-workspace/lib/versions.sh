@@ -204,8 +204,12 @@ upgrade_one() {  # upgrade_one <name>
     find_pi
   fi
   case "$1" in
-    herdr)     herdr update >/dev/null 2>&1 \
-                 && say "herdr updated" || say "herdr update failed" ;;
+    herdr)     if herdr update >/dev/null 2>&1; then
+                 say "herdr updated"
+                 patch_herdr_pi_status
+               else
+                 say "herdr update failed"
+               fi ;;
     gh-dash)   gh extension upgrade dlvhdr/gh-dash >/dev/null 2>&1 \
                  && say "gh-dash upgraded" || say "gh-dash upgrade failed" ;;
     harlequin) uv tool upgrade harlequin >/dev/null 2>&1 \

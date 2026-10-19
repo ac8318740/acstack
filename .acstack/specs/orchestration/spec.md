@@ -93,3 +93,15 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: pi skips extension registration when `PI_SUBAGENT_CHILD` or `PI_SUBAGENTS_HERDR_BRIDGE` equals `1`
 - **Then**: Generated child definitions retain their inline canonical standard independently of parent style settings
 - **Source**: `hooks/communication-standard.sh`, `hooks/communication-standard.mjs`, `hooks/hooks.json`, `hooks/lib/communication-standard.mjs`, `pi/extension.ts`
+
+## FR-009: Use the host's subagent tool
+
+- **Given**: An agent delegates work on pi
+- **When**: The installed package exposes `Agent` or `subagent`
+- **Then**: The agent uses `Agent` with `subagent_type`, or `subagent` with `agent`
+- **Then**: Read-only searches use `Explore` through `Agent`, or `scout` through `subagent`
+- **Given**: A pi session passes project-data policy enforcement
+- **When**: pi exposes neither supported subagent tool
+- **Then**: The extension warns once per extension instance and names both packages with their `pi install` instructions
+- **Then**: Either supported tool suppresses the missing-tool warning
+- **Source**: `orchestrator/AGENTS.md`, Host tools; `pi/extension.ts`

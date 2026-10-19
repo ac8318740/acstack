@@ -1,10 +1,11 @@
 # Design workflow verification
 
-The developer approved the current design and manually verified the header controls; all required local checks pass before map closeout.
+The approved design and retained review history accompany a closed map and passing local checks after integration with `dev`.
 
 ## Scope
 
-- Branch: `design-doc`, with uncommitted changes after checkpoint `4550016`
+- Branch: `design-doc`, with implementation checkpoints `4550016` and `c9f4c70`
+- Integrated base: `origin/dev` at `d2d9382`, retaining plugin version `0.51.0`
 - Planning: GitHub map `design-doc`, root #351, with contributions from #352, #353, and #354
 - Authored entry: `.acstack/designs/acstack-workflow/design.yaml`
 - Canonical review identity: `acstack-workflow`, separate from the original `acstack-design` review
@@ -18,7 +19,7 @@ The developer approved the current design and manually verified the header contr
 | Type checking | `npm --prefix cli run typecheck` | Pass |
 | Lint | `npm --prefix cli run lint` | Pass |
 | CLI tests | `npm --prefix cli test` | 1,791 tests pass across 54 files |
-| Shell and integration suites | `bash tests/run-all.sh` | 1,489 tests pass across 15 suites |
+| Shell and integration suites | `bash tests/run-all.sh` | 1,525 tests pass across 16 suites |
 | Whitespace | `git diff --check` | Pass |
 | Prose review | `acstack lint-prose` over the review brief, CLI spec, and contributor guide | Three reviewed passive-voice suggestions; no missing actor changes the meaning |
 
@@ -99,12 +100,20 @@ Evidence: `/tmp/acstack-design-doc-review/publication-feedback-review.md`, `publ
 - The map guidance keeps copyediting-only work exempt from design documents
 - No duplicate browser pass was run after the developer's manual check
 
+## Integration with newer dev changes
+
+- The merge retains `.acstack` project data, the design workflow, and the newer pi tool and status fixes
+- The moved living specs preserve the upstream Agent-tool and Frogmouth requirements under unique requirement numbers
+- Independent review checks pi instruction handling, question blockers, and background subagent status without finding an integration regression
+- Rebuilding leaves the generated CLI and provided roles unchanged
+- The merged tree passes build, type checking, lint, all 1,791 CLI tests, all 1,525 shell checks, and four compatibility tests
+
 ## Actual review state
 
 - The live review serves the real GitHub-bound entry rather than the portable unbound example
 - Three contributions have verified provenance to root #351
 - Explicit `applied` receipts explain how the authored design incorporates each contribution
-- The map has no unresolved blocking question
+- Root #351 and its work nodes are closed after approval and residue checks
 - CLI status confirms `approval.valid: true` for source revision `83675924924f158410b6e5a41b8f1c1450431dde5730f429114696a21f56ead1`
 - The approval in `94011f77d29fadcf/review.json` binds the current source, comment revision and digest, map inputs, and selected historical feedback
 - New comments or changed inputs require renewed reconciliation and approval

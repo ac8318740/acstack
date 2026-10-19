@@ -79,6 +79,7 @@ The two files this skill works with:
 - **Config**: `~/.config/acstack/terminal-workspace.yaml`, copied from `assets/terminal-workspace/config.example.yaml`
 - **Script**: `assets/terminal-workspace/setup.sh` in this plugin
 
+Yazi's `i` opens Markdown in Frogmouth (`pipx install frogmouth`); existing `i` bindings take precedence, and `e` keeps editing in `$EDITOR`.
 The keys, on one page: [docs/terminal-workspace-keys.md](../../docs/terminal-workspace-keys.md).
 
 Background and why each piece is there:
