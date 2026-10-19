@@ -16,7 +16,7 @@ A fixed agent sequence is not a prerequisite.
 
 ## Project configuration
 
-Read `acstack/project.yaml` for project-specific settings:
+Read `.acstack/project.yaml` for project-specific settings:
 
 - `commands.test` – how to run tests
 - `commands.test_collect` – how to count tests (for baseline)
@@ -80,7 +80,7 @@ If ANY pre-existing test fails -> FAIL immediately.
 
 ### 4.6 Test count baseline
 
-If `project.yaml` configures `commands.test_collect`, compare the current test count against `.test-baseline`:
+If `project.yaml` configures `commands.test_collect`, compare the current test count against `.acstack/.test-baseline`:
 
 If CURRENT < BASELINE, investigate the removed coverage and report any unmet project baseline requirement.
 A count alone neither proves adequacy nor establishes who removed a test.

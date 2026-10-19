@@ -1,8 +1,8 @@
 # Project configuration
 
-*Every key in `acstack/project.yaml`, the values it takes, its default, and what changes when you change it.*
+*Every key in `.acstack/project.yaml`, the values it takes, its default, and what changes when you change it.*
 
-One file, `acstack/project.yaml`, holds every setting that belongs to a project.
+One file, `.acstack/project.yaml`, holds every setting that belongs to a project.
 
 - **It names what to run**: the test, build, lint, typecheck, and format commands
 - **It names where to look**: the source and test directories, and the frontend
@@ -18,7 +18,7 @@ Three terms first.
 
 ```mermaid
 flowchart TD
-    FILE["acstack/project.yaml<br/>(written by /acstack:setup)"] --> WF["workflow.*<br/>switches, maps, handoff"]
+    FILE[".acstack/project.yaml<br/>(written by /acstack:setup)"] --> WF["workflow.*<br/>switches, maps, handoff"]
     FILE --> RUN["commands.*, directories.*,<br/>test_markers, venv"]
     FILE --> FE["frontend.*<br/>dev server, browser"]
     WF --> SKILLS["commit, grilling, map,<br/>archive, handoff"]
@@ -44,7 +44,7 @@ flowchart TD
 
 *The setup skill writes the whole file. To change one key, run `acstack config set`.*
 
-- `acstack/project.yaml` sits in the project root, beside `acstack/domain-map.yaml`
+- `.acstack/project.yaml` sits under the project root, beside `.acstack/domain-map.yaml`
 - `/acstack:setup` writes it
     - On a fresh project the skill detects the project type, then writes every key from a profile under `profiles/`
     - On a project that already has the file, the skill leads with the health check and offers a menu of changes
@@ -54,7 +54,8 @@ flowchart TD
     - The setup skill copies them from a profile
         - An omitted one names nothing at all
 
-Four commands read the file and change nothing.
+These commands report configuration without changing settings.
+CLI startup can repair the root Git ignore baseline before the command runs.
 
 | Command | What it prints |
 | --- | --- |
@@ -63,6 +64,82 @@ Four commands read the file and change nothing.
 | `acstack config list` | every key the file states |
 | `acstack design-gate` | whether a design review runs here, as `on` and exit 0 or one `off: <reason>` line per reason and exit 1 (section 3) |
 
+### Project data stays local by default
+
+- All ACStack-owned project records live under `.acstack/`
+- The root `.gitignore` controls tracking, independently for every part
+- No configuration key controls tracking
+
+| Part | Canonical path |
+| --- | --- |
+| Project configuration | `.acstack/project.yaml` |
+| Domain map | `.acstack/domain-map.yaml` |
+| Living specs | `.acstack/specs/` |
+| Maps | `.acstack/maps/` |
+| Authored design sources | `.acstack/designs/` |
+| Archives | `.acstack/archive/` |
+| Legacy change records | `.acstack/changes/` |
+| Alignment packs | `.acstack/alignment-packs/` |
+| Design review comments | `.acstack/design-reviews/` |
+| Architecture decisions | `.acstack/decisions/` |
+| Cross-domain glossary | `.acstack/CONTEXT.md` |
+| Browser connection | `.acstack/agent-browser.json` |
+| Verification knowledge | `.acstack/verification/VERIFICATION-KNOWLEDGE.md` |
+| Test baseline | `.acstack/.test-baseline` |
+| Decision logs | `.acstack/decision-logs/` |
+| Continuation anchor | `.acstack/HANDOFF.md` |
+| Agent handoffs | `.acstack/handoffs/` |
+
+- `/acstack:setup` creates `.acstack/`, then immediately runs `~/.claude/acstack/bin/acstack project-data ensure`
+- Setup asks which parts to track with a multi-select question, with none selected by default
+- CLI and host session startup run `project-data ensure` before checking configuration
+- `ensure` needs no config when `.acstack/` exists and does nothing when no project data exists
+- It installs a managed `/.acstack/**` baseline at the start of the root `.gitignore`
+- Existing user rules follow the baseline, preserving their exceptions
+- Bare filesystem creation cannot trigger a command
+    - The first ACStack CLI invocation or session startup enforces the baseline; ACStack runs no filesystem watcher
+- Add native exceptions after existing rules, outside the managed baseline, to track selected parts
+    - The user can select configuration, specs, and architecture decisions independently
+
+```gitignore
+# User rules after existing rules and the ACStack-managed baseline
+!/.acstack/
+!/.acstack/project.yaml
+!/.acstack/specs/
+!/.acstack/specs/**
+!/.acstack/decisions/
+!/.acstack/decisions/**
+```
+
+- Reopen `.acstack/` before any selected part to override earlier whole-directory ignores
+- A nested file also needs its parent directory reopened, for example `!/.acstack/verification/` before its file exception
+- Git ignore rules do not untrack files already in the Git index
+- ACStack never force-adds ignored files or changes the Git index to enforce this policy
+- ACStack deprecates `workflow.alignment_packs.commit_generated_packs`
+    - Existing boolean values remain accepted for compatibility but have no effect
+    - New setup neither offers nor generates the key; native Git ignore rules alone control tracking
+- Installed tools under `~/.claude/acstack/bin/`, XDG configuration, and host-owned `.claude/` settings keep their existing locations
+- Helper programs and user code under `frontend.helpers_dir` stay where they are
+    - Verification metadata always uses `.acstack/verification/VERIFICATION-KNOWLEDGE.md`
+
+### Explicit migration from the old layout
+
+1. Update installed ACStack tools before moving project data
+2. Stop old agent sessions and review processes; old CLI versions and hooks cannot read the new layout
+3. From the checkout to migrate, run `~/.claude/acstack/bin/acstack project-data migrate`
+4. Review the working-tree changes, then restart agents and reviews with the updated tools
+
+- Migration preflights all moves and aborts on collisions without overwriting destination data
+- It moves old `acstack/` project records, root `CONTEXT.md`, `.test-baseline`, and `agent-browser.json` into the canonical destinations
+- It moves `docs/adr/` to `.acstack/decisions/` and old decision logs to `.acstack/decision-logs/`
+- It moves verification knowledge, not arbitrary helper directories or their programs
+- Previously tracked old paths become pending deletions; their new destinations stay local unless the user opts in
+- Migration preserves local data and makes no Git index changes or automatic tracking exceptions
+- Migrate each checkout explicitly; never move another checkout's data automatically
+- Decision logs still belong to the main checkout at `<main checkout>/.acstack/decision-logs/`
+    - If that checkout remains on the legacy layout, stop and report an actionable migration error
+    - Do not create a partial `.acstack/` directory there as a workaround
+
 ### 1.1. Which file a write lands in
 
 *The key decides, and the key alone.*
@@ -70,7 +147,7 @@ Four commands read the file and change nothing.
 - A `host.*` key describes the machine
     - It goes to the global config at `~/.config/acstack/config.json`
 - Every other key in this document describes the project
-    - It goes to `acstack/project.yaml`
+    - It goes to `.acstack/project.yaml`
 - Section 10 covers the `host.*` keys
 - `acstack config get <key>` and `acstack config unset <key>` read the same key table and route the same way
 
@@ -152,7 +229,7 @@ So the result decides which path a write takes, and never the shape of the key.
 
 *A file ACStack itself produced always reads back.*
 
-- A project that holds `acstack/` and no `project.yaml` gets the file created
+- A project that holds `.acstack/` and no `project.yaml` gets the file created
 - A block stating nothing takes a key underneath it, whether the file spells that block as a bare colon, as `null` or as `~`
     - That is the state `acstack config unset` leaves behind
         - The tool accepts its own output
@@ -210,7 +287,7 @@ Three refusals protect a file neither command can handle.
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `workflow.spec_sync` | `true`, `false` | `true` | the `commit` skill runs spec sync before it commits, unless this says `false`; with `false` the living specs under `acstack/specs/` stop tracking the code |
+| `workflow.spec_sync` | `true`, `false` | `true` | the `commit` skill runs spec sync before it commits, unless this says `false`; with `false` the living specs under `.acstack/specs/` stop tracking the code |
 | `workflow.tdd.strict` | `true`, `false` | none | deprecated compatibility boolean; no sequencing effect, including explicit `true` |
 | `workflow.tdd.orchestrator_strict` | `true`, `false` | none | deprecated compatibility boolean; no delegation effect, including explicit `true` |
 | `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, and the change touched frontend files |
@@ -271,7 +348,7 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
 | `workflow.maps.tracker` | `github`, `files` | none | the `map`, `implement`, and `archive` skills read the matching backend document and use its operations |
-| `workflow.maps.persist` | `true`, `false` | `false` | `true` moves a cleared map's node files to `acstack/archive/[YYYY-MM-DD]-[name]/nodes/`; `false` deletes `acstack/maps/<name>/` |
+| `workflow.maps.persist` | `true`, `false` | `false` | `true` moves a cleared map's node files to `.acstack/archive/[YYYY-MM-DD]-[name]/nodes/`; `false` deletes `.acstack/maps/<name>/` |
 
 - An absent `workflow.maps.tracker` means nobody has chosen yet
     - The `map` skill then picks at the moment it first writes a map's nodes down, confirms the choice with the user, and writes the key
@@ -423,7 +500,7 @@ Two limits are worth knowing.
         - `200_000` reads as 200,000
     - Exponent and float notation do not
         - `2e5` and `2.0` fall back to the default
-- The hook opens `acstack/project.yaml` relative to the working directory
+- The hook opens `.acstack/project.yaml` relative to the working directory
     - A session running outside the project root therefore gets the defaults, whatever the file says
 
 ## 7. commands, directories, test_markers and venv
@@ -433,7 +510,7 @@ Two limits are worth knowing.
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
 | `commands.test` | a shell command, or `null` | from the profile | the verification owner runs the configured tests |
-| `commands.test_collect` | a shell command, or `null` | from the profile | the verification owner compares counts with `.test-baseline`; counts alone do not prove coverage |
+| `commands.test_collect` | a shell command, or `null` | from the profile | the verification owner compares counts with `.acstack/.test-baseline`; counts alone do not prove coverage |
 | `commands.build` | a shell command, or `null` | from the profile | the verification owner checks the build with it |
 | `commands.lint` | a shell command, or `null` | from the profile | the verification owner lints with it, usually with a fix flag |
 | `commands.typecheck` | a shell command, or `null` | from the profile | the verification owner type-checks with it |
@@ -461,7 +538,7 @@ Two limits are worth knowing.
 | `frontend.directory` | a path | `frontend/` | where the frontend lives |
 | `frontend.dev_server_url` | a URL | `http://localhost:3000` | the address the frontend-verifier opens |
 | `frontend.dev_server_check` | a shell command | a `curl` of the URL | how the frontend-verifier decides the dev server is up |
-| `frontend.helpers_dir` | a path | `<frontend.directory>/tests/helpers/` | where `VERIFICATION-KNOWLEDGE.md` lives; the `verification-knowledge` row of the check fails when the file is missing, and when the key states nothing |
+| `frontend.helpers_dir` | a path | `<frontend.directory>/tests/helpers/` | where helper programs live; verification metadata always lives at `.acstack/verification/VERIFICATION-KNOWLEDGE.md` |
 | `frontend.commands.dev` | a shell command | none | how the frontend-verifier starts the dev server; without it the verifier cannot start one itself |
 | `frontend.commands.build` | a shell command | from the profile | the frontend build the verification owner runs |
 | `frontend.commands.lint` | a shell command | from the profile | the frontend lint the verification owner runs |
@@ -480,7 +557,7 @@ The Chrome DevTools Protocol (CDP) is the wire protocol the verifier drives a br
 | --- | --- | --- | --- |
 | `frontend.browser.mode` | `remote`, `headless`, `local` | none | the mode `acstack config browser-mode` resolves for the frontend-verifier, weighed against the three host axes; it also picks the `cdp_port` default |
 | `frontend.browser.fallback` | `none`, `remote`, `headless`, `local` | none | only `none` acts: it forbids another mode from standing in when the host does not declare the preferred one |
-| `frontend.browser.cdp_port` | a whole number from 1 to 65535 | `19988` under `mode: remote`, `9555` otherwise | the port the frontend-verifier dials, and the port the `agent-browser-json` row of the check requires `agent-browser.json` to name |
+| `frontend.browser.cdp_port` | a whole number from 1 to 65535 | `19988` under `mode: remote`, `9555` otherwise | the port the frontend-verifier dials, and the port the `agent-browser-json` row of the check requires `.acstack/agent-browser.json` to name |
 
 The two defaults come from two different browsers.
 
@@ -491,7 +568,7 @@ The two defaults come from two different browsers.
 The port default applies wherever the CLI needs a number.
 
 - `acstack config check` holds a project that states no `cdp_port` to the default its mode implies
-- It fails when `agent-browser.json` names a different port
+- It fails when `.acstack/agent-browser.json` names a different port
 - `acstack config show` behaves the other way, printing only what the project states
     - "What did the project say" and "which port do we dial" are different questions
 

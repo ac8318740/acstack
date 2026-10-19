@@ -68,8 +68,8 @@ interface ShowSpecJson {
  */
 function makeProject(): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-cmds-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
-  writeFileSync(join(root, 'acstack', 'project.yaml'), '# test project\n');
+  mkdirSync(join(root, '.acstack'), { recursive: true });
+  writeFileSync(join(root, '.acstack', 'project.yaml'), '# test project\n');
   mkdirSync(changeDir(root), { recursive: true });
   writeFileSync(join(changeDir(root), 'proposal.md'), '# Proposal\n\nSome prose.\n');
   mkdirSync(specDir(root), { recursive: true });
@@ -82,15 +82,15 @@ const CHANGE_NAME = 'mychange';
 const SPEC_NAME = 'myspec';
 
 function changeDir(root: string): string {
-  return join(root, 'acstack', 'changes', CHANGE_NAME);
+  return join(root, '.acstack', 'changes', CHANGE_NAME);
 }
 
 function specDir(root: string): string {
-  return join(root, 'acstack', 'specs', SPEC_NAME);
+  return join(root, '.acstack', 'specs', SPEC_NAME);
 }
 
 function archiveDir(root: string): string {
-  return join(root, 'acstack', 'changes', 'archive');
+  return join(root, '.acstack', 'changes', 'archive');
 }
 
 /**

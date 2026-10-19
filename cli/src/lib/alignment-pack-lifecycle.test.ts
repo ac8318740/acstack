@@ -16,7 +16,7 @@ async function tempRoot() {
 }
 
 async function writeProjectConfig(root: string, yaml: string) {
-  const acstackDir = join(root, 'acstack');
+  const acstackDir = join(root, '.acstack');
   await mkdir(acstackDir, { recursive: true });
   await writeFile(join(acstackDir, 'project.yaml'), yaml);
 }
@@ -68,11 +68,11 @@ describe('alignment pack lifecycle setup and archive rules', () => {
     expect(
       alignmentPackStoragePaths({ root, map: 'checkout redesign', packVersion: 'checkout redesign@map:abc/123' })
     ).toEqual({
-      directory: join(root, 'acstack', 'alignment-packs', 'checkout-redesign'),
-      packHtml: join(root, 'acstack', 'alignment-packs', 'checkout-redesign', 'checkout-redesign@map-abc-123.html'),
-      annotationsJsonl: join(root, 'acstack', 'alignment-packs', 'checkout-redesign', 'annotations.jsonl'),
-      feedbackMarkdown: join(root, 'acstack', 'alignment-packs', 'checkout-redesign', 'feedback.md'),
-      localState: join(root, 'acstack', 'alignment-packs', 'checkout-redesign', 'state.json'),
+      directory: join(root, '.acstack', 'alignment-packs', 'checkout-redesign'),
+      packHtml: join(root, '.acstack', 'alignment-packs', 'checkout-redesign', 'checkout-redesign@map-abc-123.html'),
+      annotationsJsonl: join(root, '.acstack', 'alignment-packs', 'checkout-redesign', 'annotations.jsonl'),
+      feedbackMarkdown: join(root, '.acstack', 'alignment-packs', 'checkout-redesign', 'feedback.md'),
+      localState: join(root, '.acstack', 'alignment-packs', 'checkout-redesign', 'state.json'),
     });
   });
 
@@ -98,16 +98,16 @@ describe('alignment pack lifecycle setup and archive rules', () => {
   it('archives generated working state after residue is confirmed without deleting source maps or durable records', async () => {
     const root = await tempRoot();
     const paths = alignmentPackStoragePaths({ root, map: 'checkout-redesign', packVersion: 'checkout-redesign@map-abc123' });
-    const sourceMap = join(root, 'acstack', 'maps', 'checkout-redesign', 'node-001.md');
-    const durableSpec = join(root, 'acstack', 'specs', 'checkout-redesign.md');
+    const sourceMap = join(root, '.acstack', 'maps', 'checkout-redesign', 'node-001.md');
+    const durableSpec = join(root, '.acstack', 'specs', 'checkout-redesign.md');
     const durableAdr = join(root, 'docs', 'adr', '0012-checkout-redesign.md');
-    const decisionLedger = join(root, 'acstack', 'decisions', 'ledger.md');
+    const decisionLedger = join(root, '.acstack', 'decisions', 'ledger.md');
 
     await mkdir(paths.directory, { recursive: true });
-    await mkdir(join(root, 'acstack', 'maps', 'checkout-redesign'), { recursive: true });
-    await mkdir(join(root, 'acstack', 'specs'), { recursive: true });
+    await mkdir(join(root, '.acstack', 'maps', 'checkout-redesign'), { recursive: true });
+    await mkdir(join(root, '.acstack', 'specs'), { recursive: true });
     await mkdir(join(root, 'docs', 'adr'), { recursive: true });
-    await mkdir(join(root, 'acstack', 'decisions'), { recursive: true });
+    await mkdir(join(root, '.acstack', 'decisions'), { recursive: true });
     await writeFile(paths.packHtml, '<!doctype html><title>Alignment pack</title>');
     await writeFile(paths.annotationsJsonl, '{"comment":"already extracted"}\n');
     await writeFile(paths.feedbackMarkdown, '# Feedback\n');

@@ -59,7 +59,14 @@ Then, in your project:
 /acstack:setup
 ```
 
-- `/acstack:setup` detects the project type, then writes `acstack/project.yaml` with workflow settings
+- `/acstack:setup` detects the project type, then writes `.acstack/project.yaml` with workflow settings
+- All ACStack-owned project records stay local by default under `.acstack/`
+    - Setup asks which parts to track, with none selected by default
+    - Native exceptions after the root `.gitignore` baseline let you track configuration, specs, decisions, or any other part independently
+    - See [Project data and migration](docs/config-reference.md#project-data-stays-local-by-default) for canonical paths and commands
+- Update installed ACStack tools before migrating an older project
+    - Stop old agents and reviews, run `~/.claude/acstack/bin/acstack project-data migrate`, then restart with updated tools
+    - Migration aborts on collisions without overwrites or Git index changes; tracked old paths become pending deletions
 - The SessionStart hook loads the orchestrator instructions whenever it detects an ACStack project
 - Your CLAUDE.md stays clean for project-specific content
 - Upgrading from a version before 0.8.0 means deleting one stale `@import` line (see [docs/migrate-0.8.md](docs/migrate-0.8.md))
@@ -128,7 +135,7 @@ The three commands:
     - Each question comes with the agent's recommended answer
     - You provide feedback on the agent's recommended answer instead of prompting from scratch
     - Some requests only need one question
-    - The agent writes that decision down as a short note under `docs/adr/`
+    - The agent writes that decision down as a short note under `.acstack/decisions/`
     - A big feature may need dozens of questions
     - The agent stores those questions as a **map**
     - You work through the map across several sessions
@@ -156,7 +163,7 @@ Each node also records six things.
 - **Who answers it**: you, or the agent working alone
 - **What kind it is**: a destination, a standing note, a decision, research, or work
 - **A short name**, which labels the node in a diagram
-- **Where it lives**: a GitHub issue by default, or a markdown file under `acstack/maps/` with no GitHub remote
+- **Where it lives**: a GitHub issue by default, or a markdown file under `.acstack/maps/` with no GitHub remote
 
 Almost every node explains itself with a diagram.
 
@@ -180,7 +187,7 @@ For the full picture of each step and how they connect, read [docs/workflows.md]
 
 *The project states what to run. The machine states what it can do.*
 
-- `acstack/project.yaml` holds every project-scoped setting
+- `.acstack/project.yaml` holds every project-scoped setting
     - [docs/config-reference.md](docs/config-reference.md) gives each key, its values, its default and what changes
 - `~/.config/acstack/config.json` holds the nine `host.*` axes
     - `/acstack:host` writes eight of them once per machine, and `/acstack:setup` writes the ninth
@@ -203,7 +210,7 @@ ACStack ships a Node.js CLI: `acstack config`, `acstack list`, `acstack node ...
         - The first line of every issue body carries all of that node's edges
         - One call therefore reads the whole map
         - A sub-issue and an issue dependency mirror those edges, so GitHub's own interface draws the map
-    - Markdown files are the fallback, one per node under `acstack/maps/<name>/`
+    - Markdown files are the fallback, one per node under `.acstack/maps/<name>/`
 - The CLI builds everything else on those four operations
     - `acstack node frontier` lists what is ready to start now, closest to the original goal first
     - `acstack node walk` packs the whole map into one brief for a fresh session, in the order the decisions happened
@@ -247,7 +254,7 @@ For work with open decisions, chart it with `/acstack:map` first.
 
 | Skill | Description |
 |-------|-------------|
-| `/acstack:commit` | Commit, and update the specs under `acstack/specs/` from the diff first |
+| `/acstack:commit` | Commit, and update the specs under `.acstack/specs/` from the diff first |
 | `/acstack:archive` | Close a finished map, after checking the decisions reached your specs and notes, then delete the nodes |
 | `/acstack:sync` | Update the specs from code changes, outside a commit |
 | `/acstack:handoff` | Hand work to a visible agent, a new one in its own pane or one already running, with acknowledgement |

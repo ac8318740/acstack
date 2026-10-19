@@ -1,8 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
 import { ACSTACK_DIR, projectFile } from './constants.js';
+import { ensureProjectGitignore } from './project-data.js';
 import { getProjectKey, projectKeyDefaultFlag } from './project-config.js';
 
 export const ALIGNMENT_PACK_AUTO_GENERATE_KEY = 'workflow.alignment_packs.auto_generate';
@@ -82,11 +82,7 @@ export async function archiveAlignmentPackWorkingState(options: ArchiveAlignment
   await rm(paths.directory, { recursive: true, force: true });
 }
 
-// Generated packs stay out of git unless the project opts in; an ignore file inside the folder
-// does that without touching the project's own .gitignore.
+// Git's root ignore rules alone control tracking; commit_generated_packs is compatibility-only.
 export function ignoreGeneratedPacks(root: string): void {
-  const ignore = join(root, ACSTACK_DIR, ALIGNMENT_PACKS_DIR, '.gitignore');
-  if (existsSync(ignore) || booleanProjectValue(projectFile(root), ALIGNMENT_PACK_COMMIT_GENERATED_PACKS_KEY)) return;
-  mkdirSync(dirname(ignore), { recursive: true });
-  writeFileSync(ignore, `# Written by acstack. Delete this file and set ${ALIGNMENT_PACK_COMMIT_GENERATED_PACKS_KEY}: true to commit packs.\n*\n`);
+  ensureProjectGitignore(root);
 }

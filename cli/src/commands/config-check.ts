@@ -516,7 +516,6 @@ function checkFrontendFiles(
   report: CheckReport,
   root: string,
   project: ProjectHostContext,
-  helpersDir: string | null,
   verification: boolean
 ): void {
   if (firstBinaryOnPath([AGENT_BROWSER_BIN])) {
@@ -530,7 +529,7 @@ function checkFrontendFiles(
   }
 
   checkAgentBrowserJson(report, root, project.cdpPort);
-  checkVerificationKnowledge(report, root, helpersDir);
+  checkVerificationKnowledge(report, root);
   reportFrontendVerificationFlag(report, verification);
 }
 
@@ -554,7 +553,7 @@ function checkAgentBrowserJson(report: CheckReport, root: string, expected: numb
     report.line(
       'fail',
       id,
-      `${AGENT_BROWSER_JSON_FILE} is missing from the project root - ` +
+      `${AGENT_BROWSER_JSON_FILE} is missing - ` +
         `${AGENT_BROWSER_BIN} needs one naming CDP port ${expected}`
     );
     return;
@@ -589,20 +588,10 @@ function checkAgentBrowserJson(report: CheckReport, root: string, expected: numb
  */
 function checkVerificationKnowledge(
   report: CheckReport,
-  root: string,
-  helpersDir: string | null
+  root: string
 ): void {
   const id = 'verification-knowledge';
-  if (helpersDir === null) {
-    report.line(
-      'fail',
-      id,
-      `frontend.helpers_dir is unset, so there is nowhere for ${VERIFICATION_KNOWLEDGE_FILE} to live`
-    );
-    return;
-  }
-
-  const relative = join(helpersDir, VERIFICATION_KNOWLEDGE_FILE);
+  const relative = VERIFICATION_KNOWLEDGE_FILE;
   if (!isFile(join(root, relative))) {
     report.line(
       'fail',
@@ -652,7 +641,7 @@ export function checkProjectFiles(report: CheckReport, loaded: LoadedProject): v
   report.heading("This project's files and design tools");
 
   if (!loaded.root) {
-    // Nothing here is this directory's business: without acstack/ there is no
+    // Nothing here is this directory's business: without .acstack/ there is no
     // map to want and no frontend to configure. One line saying so beats a
     // column of failures about files a non-project was never going to have.
     report.line('info', 'no-project', 'No ACStack project here, so there are no project files to check');
@@ -665,7 +654,6 @@ export function checkProjectFiles(report: CheckReport, loaded: LoadedProject): v
       report,
       loaded.root,
       loaded.host,
-      loaded.helpersDir,
       loaded.workflow.frontendVerification
     );
   }

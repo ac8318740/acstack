@@ -1897,6 +1897,9 @@ SO
 cat > "$BRBIN/agent-browser" <<'AB'
 #!/bin/sh
 echo "agent-browser $*" >> "$ACSTACK_TEST_LOG"
+if [ "${1:-}" = "--config" ]; then
+  [ -f "${2:-}" ] || { echo "config file not found: ${2:-}" >&2; exit 64; }
+fi
 # The real listing marks the active tab with an arrow and indents the rest.
 # Which line carries the arrow is the whole point: switching to the wrong index
 # raises somebody else's tab.
@@ -1928,15 +1931,26 @@ chmod +x "$BRBIN/acstack-open" "$BRBIN/agent-browser"
 br_log="$WORK/browser.log"
 br_push="$WORK/browser.push"
 rm -f "$br_log" "$br_push"
-PATH="$BRBIN:$PATH" ACSTACK_TEST_ROUTE=bridge ACSTACK_TEST_LOG="$br_log" \
+browser_project="$WORK/browser-project"
+mkdir -p "$browser_project/.acstack" "$browser_project/nested"
+printf '{}\n' > "$browser_project/.acstack/agent-browser.json"
+printf '{"shadow":true}\n' > "$browser_project/agent-browser.json"
+(cd "$browser_project/nested" && PATH="$BRBIN:$PATH" ACSTACK_TEST_ROUTE=bridge ACSTACK_TEST_LOG="$br_log" \
   ACSTACK_TEST_PUSH="$br_push" timeout 30 "$MD" --browser "$WORK/html.md" \
-  </dev/null >/dev/null 2>&1
+  </dev/null >/dev/null 2>&1)
 br_rc=$?
 
 if [ "$br_rc" -eq 0 ] && grep -q 'agent-browser.*eval' "$br_log" 2>/dev/null; then
   okr "--browser hands the page to agent-browser on the bridge route"
 else
   nor "--browser hands the page to agent-browser on the bridge route (rc=$br_rc)"
+fi
+
+if grep -q '^agent-browser ' "$br_log" \
+   && ! grep '^agent-browser ' "$br_log" | grep -Fv -- "--config $browser_project/.acstack/agent-browser.json " >/dev/null; then
+  okr "every browser document command uses the absolute project config"
+else
+  nor "every browser document command uses the absolute project config"
 fi
 
 # The payload has to be the rendered document, not the markdown and not a
@@ -2953,7 +2967,7 @@ fi
 # Both reachable at once is the interesting case: the bridge drives a browser
 # for an agent and needs a tab armed by hand, the opener reaches the browser
 # the user actually uses. The opener wins.
-printf '#!/bin/sh\nexit 0\n' > "$OWORK/bin/agent-browser"
+cp "$BRBIN/agent-browser" "$OWORK/bin/agent-browser"
 chmod +x "$OWORK/bin/agent-browser"
 relay_up '[{"id":"1","type":"page","url":"https://example.com"}]'
 if [ "$(obare env ACSTACK_OPENER_URL="$OURL" ACSTACK_BRIDGE_URL="$BURL" acstack-open --why 2>/dev/null)" = "opener" ]; then
@@ -2961,6 +2975,39 @@ if [ "$(obare env ACSTACK_OPENER_URL="$OURL" ACSTACK_BRIDGE_URL="$BURL" acstack-
 else
   no "with both reachable the opener outranks the bridge"
 fi
+git init -q "$browser_project"
+open_browser_log="$OWORK/browser.log"
+(cd "$browser_project/nested" && obare env ACSTACK_OPENER_URL="$OURL" ACSTACK_OPEN_OPENER=off ACSTACK_BRIDGE_URL="$BURL" \
+  ACSTACK_TEST_LOG="$open_browser_log" acstack-open "https://example.com/config" >/dev/null 2>&1)
+if [ "$(wc -l < "$open_browser_log")" -eq 2 ] \
+   && ! grep -Fv -- "--config $browser_project/.acstack/agent-browser.json --cdp $BURL " "$open_browser_log" >/dev/null; then
+  ok "every URL browser command uses the absolute project config"
+else
+  no "every URL browser command uses the absolute project config"
+fi
+# No optional browser config: both real helpers still use the healthy stub relay.
+plain_browser_project="$OWORK/plain-project"
+mkdir -p "$plain_browser_project/nested"
+git init -q "$plain_browser_project"
+for helper in acstack-open acstack-md; do
+  : > "$open_browser_log"
+  if [ "$helper" = acstack-open ]; then
+    browser_args=("https://example.com/no-config")
+  else
+    browser_args=(--browser "$WORK/html.md")
+  fi
+  (cd "$plain_browser_project/nested" && obare env ACSTACK_OPEN_OPENER=off ACSTACK_BRIDGE_URL="$BURL" \
+    ACSTACK_TEST_LOG="$open_browser_log" ACSTACK_TEST_PUSH="$br_push" \
+    "$helper" "${browser_args[@]}" </dev/null >/dev/null 2>&1)
+  browser_rc=$?
+  if [ "$browser_rc" -eq 0 ] && [ -s "$open_browser_log" ] \
+     && ! grep -q -- '--config' "$open_browser_log" \
+     && ! grep -Fv -- "--cdp $BURL " "$open_browser_log" >/dev/null; then
+    ok "$helper opens through a healthy bridge without an optional config"
+  else
+    no "$helper opens through a healthy bridge without an optional config (rc=$browser_rc)"
+  fi
+done
 kill "$RELAY_PID" 2>/dev/null; wait "$RELAY_PID" 2>/dev/null
 rm -f "$WORK/relay.port" "$OWORK/bin/agent-browser"
 
@@ -3023,8 +3070,8 @@ else
   no "--browser keys the document by its absolute path, hex-encoded"
 fi
 
-# Serving would leave a port behind on a machine whose ports nobody can reach.
-if ! pgrep -f 'acstack-md-serve' >/dev/null 2>&1; then
+# Check this fixture; another terminal may already have a preview open.
+if ! pgrep -f "acstack-md-serve.*$OWORK/doc.md" >/dev/null 2>&1; then
   ok "--browser on the opener route leaves no server behind"
 else
   no "--browser on the opener route leaves no server behind"

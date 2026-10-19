@@ -1,5 +1,5 @@
 /**
- * What `acstack/project.yaml` holds, and every read and write of it.
+ * What `.acstack/project.yaml` holds, and every read and write of it.
  *
  * One writer, one reader, one schema, so a value the command accepts is a
  * value every reader of the file already understands.
@@ -51,7 +51,7 @@ import { findPluginRoot } from './project.js';
 import { ensureDir } from './utils.js';
 
 /**
- * What one numeric `acstack/project.yaml` key accepts.
+ * What one numeric `.acstack/project.yaml` key accepts.
  *
  * `number` on its own is the constraint on none of these keys, and a value
  * outside the range is not caught anywhere else: the code that dials a port
@@ -70,7 +70,7 @@ export interface NumberSpec {
 }
 
 /**
- * What one `acstack/project.yaml` key accepts.
+ * What one `.acstack/project.yaml` key accepts.
  *
  * `profile` and `context_thresholds` are their own kinds rather than an enum
  * and a string, because neither set is known at compile time: the profile
@@ -117,7 +117,7 @@ export const FRONTEND_VERIFICATION_KEY = 'workflow.frontend_verification';
 export const DESIGN_REVIEW_KEY = 'workflow.design_review';
 
 /**
- * Every key `acstack/project.yaml` holds, in the order docs/config-reference.md
+ * Every key `.acstack/project.yaml` holds, in the order docs/config-reference.md
  * documents them. This table is the schema: a key absent from it is a key
  * `acstack config set` refuses, so adding a documented key here is the whole
  * job of teaching the command to write it.
@@ -516,7 +516,7 @@ function readSource(file: string): string {
  * What this adds is everything a rename would otherwise take from the user:
  *
  * The link is resolved before anything is replaced, because a rename replaces
- * the NAME. `acstack/project.yaml` is a symlink whenever one file is shared
+ * the NAME. `.acstack/project.yaml` is a symlink whenever one file is shared
  * between checkouts, and renaming a temp over the link leaves a regular file
  * where the link was, the real file still holding the old value, and the
  * command exiting 0 about a change nothing will ever read. Resolving first

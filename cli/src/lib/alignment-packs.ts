@@ -13,6 +13,7 @@ const AlignmentGroupSchema = z
   .object({
     id: z.string().min(1),
     parentGroupId: z.string().min(1).optional(),
+    ownerNodeId: z.string().min(1).optional(),
     label: z.string().min(1),
     summary: z.string().min(1),
     sourceRefs: z.array(z.string().min(1)).default([]),
@@ -25,6 +26,8 @@ const AlignmentNodeSchema = z
     groupId: z.string().min(1),
     label: z.string().min(1),
     technicalLabel: z.string().min(1).optional(),
+    elementKind: z.enum(['actor', 'component', 'store', 'external-system']).optional(),
+    channels: z.array(z.enum(['web', 'mobile', 'desktop', 'cli', 'agent', 'email', 'sms', 'voice'])).optional(),
     summary: z.string().min(1),
     // The full technical definition, as markdown; `summary` is the plain-language one.
     technicalSummary: z.string().min(1).optional(),
@@ -35,6 +38,7 @@ const AlignmentNodeSchema = z
 const AlignmentEdgeSchema = z
   .object({
     id: z.string().min(1),
+    direction: z.enum(['one-way', 'bidirectional']).optional(),
     fromNodeId: z.string().min(1),
     toNodeId: z.string().min(1),
     relationship: z.string().min(1),
@@ -110,6 +114,11 @@ export type ReviewAnnotation = z.infer<typeof ReviewAnnotationSchema>;
 
 export const AlignmentPackSchema = z
   .object({
+    // Optional so legacy alignment packs keep their existing framing.
+    documentKind: z.literal('design').optional(),
+    designDocument: z.object({
+      id: z.string().min(1), name: z.string().min(1), summary: z.string().min(1), detail: z.string().optional(),
+    }).strict().optional(),
     packVersion: z.string().min(1),
     source: z
       .object({
@@ -128,6 +137,16 @@ export const AlignmentPackSchema = z
   })
   .strict()
   .superRefine((pack, ctx) => {
+    const owners = new Set<string>();
+    for (const [index, group] of pack.graph.groups.entries()) {
+      if (!group.ownerNodeId) continue;
+      const owner = pack.graph.nodes.find(node => node.id === group.ownerNodeId);
+      const message = !owner ? 'group owner must name an existing node'
+        : owners.has(owner.id) ? 'node ownership must be unique'
+        : owner.groupId !== group.id ? 'owner membership must be its owned group' : undefined;
+      if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['graph', 'groups', index, 'ownerNodeId'], message });
+      owners.add(group.ownerNodeId);
+    }
     if (pack.reviewState.approval && pack.reviewState.approval.packVersion !== pack.packVersion) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

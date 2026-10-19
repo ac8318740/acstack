@@ -40,7 +40,7 @@
 #   nudge when it crosses each rung rather than on every single stop.
 #
 #   The default rungs are workflow.handoff.nudge_warn and nudge_severe from
-#   acstack/project.yaml (defaulting to 200000 / 500000), and then one rung
+#   .acstack/project.yaml (defaulting to 200000 / 500000), and then one rung
 #   every workflow.handoff.nudge_step tokens (default 100000) above the last
 #   one. Setting workflow.handoff.context_thresholds replaces the default rungs
 #   entirely with the listed ones - written either block style (one "- item"
@@ -361,7 +361,7 @@ def read_config():
         "context_thresholds": None,
     }
     try:
-        with open(os.path.join("acstack", "project.yaml"), encoding="utf-8", errors="replace") as f:
+        with open(os.path.join(".acstack", "project.yaml"), encoding="utf-8", errors="replace") as f:
             lines = f.read().split("\n")
     except OSError:
         return cfg

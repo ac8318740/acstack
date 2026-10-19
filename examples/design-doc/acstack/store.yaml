@@ -1,0 +1,10 @@
+id: design-source
+name: Authored design files
+summary: Persist the entry, per-element YAML, and supporting Markdown in Git.
+kind: store
+relationships:
+  - id: read-source
+    from: review-runtime
+    to: design-source
+    direction: one-way
+    label: Reads design source

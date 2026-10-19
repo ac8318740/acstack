@@ -1,4 +1,4 @@
-// The files backend for map nodes: acstack/maps/<name>/NNN-slug.md.
+// The files backend for map nodes: .acstack/maps/<name>/NNN-slug.md.
 //
 // This module is the whole tracker contract for the files backend – create,
 // read, update, list. Frontier, claim and resolve are compositions over these

@@ -23,7 +23,7 @@ frontier, claim, resolve and walk.
 Two backends ship in this skill's directory: `trackers/github.md` for repos
 with GitHub auth, and `trackers/files.md` as the fallback.
 
-`workflow.maps.tracker` in `acstack/project.yaml` (`github` or `files`) records
+`workflow.maps.tracker` in `.acstack/project.yaml` (`github` or `files`) records
 the project's choice. If the key names a backend, read the matching doc and use
 its operations. If the key is absent, pick at materialisation time – the moment
 you first write the map's nodes down.
@@ -33,7 +33,7 @@ choice with the user. Then write the key, so later sessions need not re-decide.
 ## Which mode
 
 One command runs two modes, and what already exists picks between them. Check
-the configured tracker for existing maps – `ls acstack/maps/` on the files
+the configured tracker for existing maps – `ls .acstack/maps/` on the files
 backend, `gh label list --search "map:" --json name` on GitHub.
 
 If `$ARGUMENTS` names a map, or exactly one exists, work its frontier – the
@@ -51,7 +51,7 @@ still one map.
 
 2. **Load the frontend branch on a frontend destination.** `frontend.md`
    beside this skill holds five more rules. Read it when the destination
-   touches `frontend.directory`, the path in `acstack/project.yaml` where the
+   touches `frontend.directory`, the path in `.acstack/project.yaml` where the
    frontend lives. Every other map skips it.
 
 3. **Open with a breadth-first grill.** Work the conversation frontier in
@@ -143,7 +143,7 @@ operation. First the root:
 
 - Apply `alignment.md` after diagrams are current. Build the artifact, run the
   review gate, and start implementation only after approval.
-- On the files backend, suggest adding `acstack/maps/` to `.gitignore`
+- On the files backend, `.acstack/maps/` is ignored by the root managed baseline unless the user opts in
   (`trackers/files.md` gives the reason).
 
 ## Working the frontier

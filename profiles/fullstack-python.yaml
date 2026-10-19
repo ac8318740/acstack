@@ -1,5 +1,5 @@
 # Fullstack Python (backend) + Node/TS (frontend) profile for acstack
-# Used by /acstack:setup to generate acstack/project.yaml
+# Used by /acstack:setup to generate .acstack/project.yaml
 
 commands:
   test: "pytest tests/ --tb=short -x"

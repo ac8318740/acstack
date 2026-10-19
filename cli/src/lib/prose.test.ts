@@ -19,6 +19,18 @@ function paragraphOf(n: number): string {
   return Array.from({ length: n }, (_, i) => `Sentence number ${i + 1} is short.`).join('\n') + '\n';
 }
 
+describe('prose review guidance', () => {
+  it('labels length and voice warnings as review heuristics, not correctness limits', () => {
+    const findings = lintProse(`${words(26)}.\n\n${paragraphOf(4)}\nThe file was deleted.\n`, []);
+    for (const rule of ['sentence-length', 'paragraph-length', 'passive-voice']) {
+      const finding = findings.find(item => item.rule === rule);
+      expect(finding).toBeDefined();
+      expect(finding!.message).toContain('review');
+      expect(finding!.message).not.toContain('limit');
+    }
+  });
+});
+
 describe('parseVocabulary', () => {
   const markdown = `<!--
 \`acstack lint-prose\` reads this layout. Ignore this comment entirely.

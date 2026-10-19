@@ -64,6 +64,15 @@ function reviewPack() {
 }
 
 describe('alignment pack model', () => {
+  it('validates component ownership while preserving legacy groups', () => {
+    const input = reviewPack();
+    const owned = { ...input.graph.groups[0], ownerNodeId: 'node-passwordless' };
+    const parse = (groups: unknown[]) => AlignmentPackSchema.parse({ ...input, graph: { ...input.graph, groups } });
+    expect(parse([owned, input.graph.groups[1]]).graph.groups[0].ownerNodeId).toBe('node-passwordless');
+    expect(() => parse([{ ...owned, ownerNodeId: 'missing' }])).toThrow(/owner/);
+    expect(() => parse([owned, { ...owned, id: 'duplicate' }])).toThrow(/owner/);
+    expect(() => parse([{ ...owned, ownerNodeId: 'node-saved-card' }, input.graph.groups[1]])).toThrow(/membership/);
+  });
   it('stores pack version, source references, graph content, view state, and review state', () => {
     const pack = AlignmentPackSchema.parse(reviewPack());
 

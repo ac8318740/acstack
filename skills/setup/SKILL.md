@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Set up ACStack in a project, and change how an already configured project is set up. With no acstack/project.yaml it detects the project type, writes the config, generates the domain map and offers browser verification. With one already there it leads with the health check, then offers to fix each row that failed. Both paths end in the same check, so it is safe to run on the first day and on any day after.
+description: Set up ACStack in a project, and change how an already configured project is set up. With no .acstack/project.yaml it detects the project type, writes the config, generates the domain map and offers browser verification. With one already there it leads with the health check, then offers to fix each row that failed. Both paths end in the same check, so it is safe to run on the first day and on any day after.
 argument-hint: "[what to set up or change]"
 disable-model-invocation: true
 ---
@@ -18,7 +18,7 @@ join at the health check, so this skill states every fix once.
 
 ```mermaid
 flowchart TD
-    HOST["Step 1<br/>declare this machine"] --> FORK{"acstack/project.yaml<br/>is here?"}
+    HOST["Step 1<br/>declare this machine"] --> FORK{".acstack/project.yaml<br/>is here?"}
     FORK -- no --> FIRST["Steps 3 to 6<br/>detect, ask, write the config"]
     FORK -- yes --> CHECK
     FIRST --> CHECK["Step 7<br/>acstack config check --json"]
@@ -32,8 +32,8 @@ flowchart TD
 
 Three terms, before they get used:
 
-- A **health check** is one run of `acstack config check`. It audits the machine
-  and the project. It changes nothing.
+- A **health check** is one run of `acstack config check`. It reports gaps in the machine
+  and project configuration.
 
 - A **row** is one line of that report. It carries an `id`, a `status` and a
   `message`.
@@ -44,7 +44,6 @@ Three terms, before they get used:
 The command line tool audits. This skill interviews and writes. Neither one does
 the other's job.
 
-See `docs/adr/0008-cli-audits-skill-interviews.md`.
 
 ## Step 1: Declare this machine
 
@@ -75,8 +74,14 @@ answers. Come back to Step 2 when it finishes.
 
 ## Step 2: Choose the path
 
+Run `~/.claude/acstack/bin/acstack project-data ensure` before checking for configuration.
+It needs no config, does nothing without `.acstack/`, and preserves user tracking exceptions.
+
+If legacy project records remain, explain the explicit migration procedure in `docs/config-reference.md` before proceeding.
+Never move them silently or run Git index commands.
+
 ```bash
-test -f acstack/project.yaml && echo present || echo absent
+test -f .acstack/project.yaml && echo present || echo absent
 ```
 
 - **absent** – take the first-run path. Go to Step 3.
@@ -113,7 +118,7 @@ CLI. An agent testing this branch before the release runs
 It prints one object to standard output and nothing else:
 
 ```json
-{"checks": [{"id": "domain-map", "status": "pass", "message": "acstack/domain-map.yaml maps 4 domains"}]}
+{"checks": [{"id": "domain-map", "status": "pass", "message": ".acstack/domain-map.yaml maps 4 domains"}]}
 ```
 
 Each `status` is `pass`, `fail` or `info`. The exit codes carry the same news:
@@ -143,7 +148,7 @@ Offer a row when any of these holds:
 
 - Its `status` is `fail`.
 - Its `id` is `preferred-browser-mode`, its `status` is `info`, and
-  `acstack/project.yaml` configures a `frontend` block. The project has a
+  `.acstack/project.yaml` configures a `frontend` block. The project has a
   frontend and has named no browser mode for it.
 
 - Its `id` is `output-style` and its `status` is `info`. The row passes when the
@@ -209,7 +214,7 @@ Read [`browser.md`](browser.md) when the user picks the remote mode in Step 10, 
 
 ## Step 12: Offer the terminal workspace
 
-Read [`terminal-workspace.md`](terminal-workspace.md) on every run, after the rows are fixed.
+Read [`terminal-workspace.md`](terminal-workspace.md) on every run, after you fix the rows.
 
 ## Step 13: Offer the design review
 
@@ -235,7 +240,7 @@ Read [`report.md`](report.md) on every run, as the last step.
   It reads the key to decide which one.
 
     A `host.*` key goes to the global config at `~/.config/acstack/config.json`.
-    Every other key it knows goes to `acstack/project.yaml`, and the write keeps
+    Every other key it knows goes to `.acstack/project.yaml`, and the write keeps
     the comments and the key order. It refuses a key neither schema knows, so
     never fall back to editing the file.
 

@@ -1,6 +1,14 @@
 import { Command } from 'commander';
 import { spawnSync } from 'node:child_process';
 import { resolveVersion } from './lib/version.js';
+import { ensureProjectGitignore } from './lib/project-data.js';
+import { findProjectRoot } from './lib/project.js';
+import { fail } from './lib/utils.js';
+
+try {
+  const root = findProjectRoot();
+  if (root && !(process.argv[2] === 'project-data' && process.argv[3] === 'migrate')) ensureProjectGitignore(root);
+} catch (error) { fail((error as Error).message); }
 
 const program = new Command()
   .name('acstack')
@@ -9,12 +17,14 @@ const program = new Command()
 
 // Commands are registered by their own modules
 const commands = await Promise.all([
+  import('./commands/project-data.js'),
   import('./commands/list.js'),
   import('./commands/show.js'),
   import('./commands/archive.js'),
   import('./commands/node.js'),
   import('./commands/alignment.js'),
   import('./commands/config.js'),
+  import('./commands/design-doc.js'),
   import('./commands/design-gate.js'),
   import('./commands/feedback.js'),
   import('./commands/handoff.js'),

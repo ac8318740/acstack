@@ -29,7 +29,7 @@ You write tests from requirements and application programming interface (API) co
 
 ## Project configuration
 
-Read `acstack/project.yaml` for project-specific settings:
+Read `.acstack/project.yaml` for project-specific settings:
 
 - `directories.tests` – where to create test files
 - `directories.source` – source code root (for mirroring structure)

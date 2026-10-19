@@ -27,7 +27,7 @@ flowchart TD
     AXES --> OPT["Optional axes<br/>(preview, terminal workspace, element picker, Orca topology)"]
     ORCH -->|"pick the worktree tool"| WT["new-worktree, teardown-worktree"]
     BROW -->|"pick the browser"| FV["frontend-verifier"]
-    PROJ["What this project prefers<br/>(frontend.browser.* in acstack/project.yaml)"] --> FV
+    PROJ["What this project prefers<br/>(frontend.browser.* in .acstack/project.yaml)"] --> FV
     OPT -.->|"nothing reads them yet"| CHK["acstack config check lists them"]
 ```
 
@@ -46,9 +46,9 @@ flowchart TD
 | `host.terminal_workspace` | `true`, `false` | no | global config | `/acstack:setup` offers the workspace once, and never asks again after this is set |
 | `host.element_picker` | `stagewise`, `orca-design-mode`, `none` | no | global config | nothing; check 5 lists it |
 | `host.orca.topology` | `local`, `remote` | no | global config | nothing; check 5 marks it inert unless `host.orchestrators.orca` is `true` |
-| `frontend.browser.mode` | `remote`, `headless`, `local` | no | `acstack/project.yaml` | the preference, weighed against the three host axes |
-| `frontend.browser.cdp_port` | a port number | no | `acstack/project.yaml` | `frontend-verifier`; defaults to `19988` for `remote` and `9555` otherwise |
-| `frontend.browser.fallback` | `none`, or any word | no | `acstack/project.yaml` | only `none` acts: it forbids a stand-in mode |
+| `frontend.browser.mode` | `remote`, `headless`, `local` | no | `.acstack/project.yaml` | the preference, weighed against the three host axes |
+| `frontend.browser.cdp_port` | a port number | no | `.acstack/project.yaml` | `frontend-verifier`; defaults to `19988` for `remote` and `9555` otherwise |
+| `frontend.browser.fallback` | `none`, or any word | no | `.acstack/project.yaml` | only `none` acts: it forbids a stand-in mode |
 
 Where the file lives, and how the CLI reads a value:
 

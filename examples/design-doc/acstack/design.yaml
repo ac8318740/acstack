@@ -1,0 +1,35 @@
+id: acstack-design
+name: ACStack design review
+summary: >-
+  The design-doc skill guides authoring; the review command and server
+  prepare a browser review with saved comments and a Markdown companion.
+detail: journey.md
+elements:
+  - user.yaml
+  - acstack.yaml
+  - skills.yaml
+  - host.yaml
+  - cli.yaml
+  - review-runtime.yaml
+  - viewer.yaml
+  - store.yaml
+  - github.yaml
+concerns:
+  - id: offline-review
+    name: Offline review
+    elements: [review-runtime, viewer, design-source]
+    requirement: >-
+      Reviewers can inspect the design without uploading project details
+      or fetching browser assets.
+    response: >-
+      The review command and server read bounded local source files and
+      embed validated graph data with the bundled browser review interface.
+  - id: honest-scope
+    name: Honest review status
+    elements: [skills, review-runtime, viewer]
+    requirement: >-
+      An exported review artifact must not imply that a reviewer approved
+      a map or implementation.
+    response: >-
+      The browser review interface labels the design as a review artifact;
+      durable approval and map reconciliation remain deferred.

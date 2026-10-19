@@ -16,7 +16,7 @@ Implement the assigned requirements under the shared Implementation discipline i
 
 ## Project configuration
 
-Read `acstack/project.yaml` for project-specific settings:
+Read `.acstack/project.yaml` for project-specific settings:
 
 - `directories.source` – where to write source code
 - `directories.tests` – test directory, subject to assigned ownership

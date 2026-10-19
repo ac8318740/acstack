@@ -1551,7 +1551,7 @@ export ACSTACK_OPEN_CMD="ssh laptop open"   # or any command taking a URL
     - It needs a tab armed by hand before every session
     - The tab it drives lives in a dedicated Chrome profile rather than your default browser
 - The opener is the answer for reading
-- It is a separate service on purpose, per [ADR 0006](adr/0006-document-opener-service.md)
+- A separate service opens documents without depending on the relay or the browser automation session
 
 What it does is deliberately small:
 

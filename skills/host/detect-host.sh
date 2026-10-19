@@ -246,8 +246,8 @@ project_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # verification, so we look for it at column zero only - `frontend:` nested under
 # some other key means something else entirely.
 has_frontend="false"
-if [ -n "$project_root" ] && [ -f "${project_root}/acstack/project.yaml" ]; then
-  if grep -q '^frontend:' "${project_root}/acstack/project.yaml" 2>/dev/null; then
+if [ -n "$project_root" ] && [ -f "${project_root}/.acstack/project.yaml" ]; then
+  if grep -q '^frontend:' "${project_root}/.acstack/project.yaml" 2>/dev/null; then
     has_frontend="true"
   fi
 fi

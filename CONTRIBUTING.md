@@ -230,7 +230,7 @@ fi
     - `.github/workflows/ci.yml` regenerates each set and fails the run if the committed copy differs
     - Treat the hook as a convenience, and never as the guarantee
 
-`acstack/project.yaml` names both commands in one place.
+`.acstack/project.yaml` names both commands in one place.
 
 - Its `commands.build` runs the esbuild build and the Codex generator together
 - Anything that verifies a build therefore leaves the tree matching what CI expects
@@ -407,7 +407,6 @@ The Merge button does not work on that pull request, and it does not work for ad
     - Its merge commit, squash, and rebase each write a commit to `main` that `dev` can never contain
     - That commit is what used to force a back-merge into `dev` after every promotion
 - A fast-forward strands nothing on `main`, so there is no back-merge
-- `docs/adr/0010-promote-dev-to-main-by-fast-forward.md` records the reasoning
 
 Three things follow as rules:
 
@@ -476,14 +475,17 @@ Revisit this only if a machine needs the CLI with **no plugin installed at all**
 
 ## 7. Writing standards
 
-*Two skills own every durable artifact this repository ships, the skill files and these docs included.*
+Use the fewest clear words that preserve all necessary information.
 
-- Prose follows the `writing` skill in `skills/writing/`, which owns words, sentences, paragraphs, and heading style
-- Shape follows the `visual-docs` skill in `skills/visual-docs/`, which owns the Minto pyramid, diagram-first structure, and bullet discipline
-    - Section 3 of that skill holds the bullet rules
-        - 90% or more of the body in bullets, one sentence each, no trailing period
-        - Markdown nests four spaces per level
-- Run `~/.claude/acstack/bin/acstack lint-prose <paths>` before you open the pull request
-    - It checks sentence length, paragraph length, passive voice, the `vocabulary.md` deny lists, marks and emoji
-    - It warns and never blocks
-    - It does not yet check the bullet rules
+- `output-styles/ac-writing-style.md` owns the shared communication standard in its marked block
+    - Claude Code loads the style; `hooks/ac-writing-style-reminder.sh` extracts the complete block on user turns
+    - `pi/extension.ts` injects the style and extracts the same block, without a generated copy
+    - Keep the markers intact; reminder extraction depends on them, not headings or item counts
+- Read `skills/writing/SKILL.md` and its examples before editing durable prose
+    - The skill loads the canonical standard even on hosts without style injection
+    - `skills/visual-docs/SKILL.md` applies the standard to document structure and diagrams
+- Choose structure to fit the reader's questions and the relationships you explain
+    - Lengths and counts prompt review; they do not determine clarity or correctness
+- Run `~/.claude/acstack/bin/acstack lint-prose <paths>` before opening a pull request
+    - It warns about sentence length, paragraph length, passive voice, vocabulary, marks, and emoji
+    - Review its heuristic warnings in context; the command never blocks

@@ -18,8 +18,8 @@ class AdaptiveVerificationTests(unittest.TestCase):
         self.work = tempfile.TemporaryDirectory(prefix="acstack-verification-")
         self.addCleanup(self.work.cleanup)
         self.root = Path(self.work.name)
-        (self.root / "acstack").mkdir()
-        self.project = self.root / "acstack/project.yaml"
+        (self.root / ".acstack").mkdir()
+        self.project = self.root / ".acstack/project.yaml"
         self.project.write_text("profile: node-typescript\n")
 
     def cli(self, *args):

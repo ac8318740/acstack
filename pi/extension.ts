@@ -14,7 +14,7 @@
  *                        from the SSOT style file   (hooks/ac-writing-style-reminder.sh)
  *   agent_before_settle  nudge with a continuity-versus-freshness checkpoint
  *                        as context fills          (hooks/context-pressure.sh)
- *   session_compact      re-inject acstack/HANDOFF.md after a compaction, and
+ *   session_compact      re-inject .acstack/HANDOFF.md after a compaction, and
  *                        restart the nudge ladder   (hooks/session-start-handoff.sh,
  *                                                    hooks/context-pressure.sh)
  *
@@ -31,10 +31,50 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const troubleshoot = path.join(packageRoot, "TROUBLESHOOTING.md");
+
+function hasLegacyProjectData(root: string): boolean {
+	if (!fs.lstatSync(path.join(root, "acstack"), { throwIfNoEntry: false })?.isDirectory()) return false;
+	return ["project.yaml", "domain-map.yaml"].some(name => {
+		const entry = fs.lstatSync(path.join(root, "acstack", name), { throwIfNoEntry: false });
+		return entry?.isFile() || entry?.isSymbolicLink();
+	}) || ["alignment-packs", "design-reviews", "maps", "specs", "changes", "archive", "decision-logs"].some(name => {
+		const entry = fs.lstatSync(path.join(root, "acstack", name), { throwIfNoEntry: false });
+		return entry?.isDirectory() || entry?.isSymbolicLink();
+	});
+}
+
+function projectRoot(cwd: string): string {
+	let root = path.resolve(cwd);
+	while (true) {
+		if (fs.existsSync(path.join(root, ".acstack")) || hasLegacyProjectData(root)) return root;
+		const parent = path.dirname(root);
+		if (parent === root) break;
+		root = parent;
+	}
+	try {
+		return execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+	} catch {
+		return path.resolve(cwd);
+	}
+}
+
+function ensureProjectData(ctx: ExtensionContext, root: string): boolean {
+	if (hasLegacyProjectData(root)) {
+		report(ctx, "acstack: legacy project data found; run ~/.claude/acstack/bin/acstack project-data migrate before using it.", "warning");
+	}
+	try {
+		execFileSync(process.execPath, [path.join(packageRoot, "cli", "bin", "acstack.js"), "project-data", "ensure"], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
+		return !hasLegacyProjectData(root);
+	} catch (error) {
+		report(ctx, `acstack: project-data ensure failed; ignore policy is not confirmed installed. Skipping project activation and private writes. ${error instanceof Error ? error.message : String(error)}`, "error");
+		return false;
+	}
+}
 
 /** pi-subagents' background runner sets this in every child process. */
 const SUBAGENT_CHILD_ENV = "PI_SUBAGENT_CHILD";
@@ -213,11 +253,20 @@ function stripFrontmatter(text: string): string {
 
 /**
  * The per-turn reminder, extracted from the style file on every call so it
- * cannot drift. Mirrors the awk in hooks/ac-writing-style-reminder.sh line for
- * line: the top-level lines of "## Who you are", then "## Before you send" in
- * full. tests/test-pi-extension.sh checks the two produce the same text.
+ * cannot drift. The bundled style uses a complete marked communication block,
+ * matching hooks/ac-writing-style-reminder.sh. Keep the older heading-based
+ * extraction below for user-owned custom styles.
  */
 export function extractWritingReminder(style: string): string | undefined {
+	const start = "<!-- acstack:communication:start -->\n";
+	const end = "<!-- acstack:communication:end -->";
+	const startAt = style.indexOf(start);
+	if (startAt !== -1) {
+		const endAt = style.indexOf(end, startAt + start.length);
+		if (endAt === -1) return undefined;
+		const shared = style.slice(startAt + start.length, endAt);
+		return shared.trim() ? `ac-writing-style reminder\n\n${shared}` : undefined;
+	}
 	const out: string[] = [];
 	let persona = false;
 	let checklist = false;
@@ -294,7 +343,7 @@ function flowList(value: string): string[] {
 }
 
 /**
- * The workflow.handoff keys from acstack/project.yaml. A port of read_config
+ * The workflow.handoff keys from .acstack/project.yaml. A port of read_config
  * in hooks/context-pressure.sh, hand-rolled for the same reason: no YAML
  * library is guaranteed to be installed.
  */
@@ -441,12 +490,12 @@ const HANDOFF_PREAMBLE =
 	"wrong assumption taken after compaction is expensive to unwind.\n\n";
 
 /**
- * Consume acstack/HANDOFF.md the way hooks/session-start-handoff.sh does:
+ * Consume .acstack/HANDOFF.md the way hooks/session-start-handoff.sh does:
  * only a file carrying the acstack_handoff marker, moved into a per-map
  * archive so it is never injected twice. Returns the text to inject.
  */
 export function consumeHandoff(cwd: string, now: Date = new Date()): string | undefined {
-	const active = path.join(cwd, "acstack", "HANDOFF.md");
+	const active = path.join(cwd, ".acstack", "HANDOFF.md");
 	const raw = readText(active);
 	if (!raw?.trim()) return undefined;
 
@@ -467,11 +516,11 @@ export function consumeHandoff(cwd: string, now: Date = new Date()): string | un
 	let stamp = (meta.created || "").replace(/[^A-Za-z0-9._-]/g, "-");
 	if (!stamp) stamp = now.toISOString().replace(/\.\d+Z$/, "Z").replace(/:/g, "-");
 
-	const changeDir = path.join(cwd, "acstack", "changes", map);
+	const changeDir = path.join(cwd, ".acstack", "changes", map);
 	const archiveDir =
 		map !== "ad-hoc" && fs.existsSync(changeDir)
 			? path.join(changeDir, "handoffs")
-			: path.join(cwd, "acstack", "handoffs", map);
+			: path.join(cwd, ".acstack", "handoffs", map);
 	try {
 		fs.mkdirSync(archiveDir, { recursive: true });
 		let dest = path.join(archiveDir, `${stamp}.md`);
@@ -597,11 +646,18 @@ export default function acstack(pi: ExtensionAPI): void {
 
 	const orchestratorFile = path.join(packageRoot, "orchestrator", "AGENTS.md");
 	const styleFile = path.join(packageRoot, "output-styles", "ac-writing-style.md");
-	const isProject = (cwd: string) => fs.existsSync(path.join(cwd, "acstack", "project.yaml"));
+	const unsafeProjects = new Set<string>();
+	const isProject = (cwd: string) => !unsafeProjects.has(projectRoot(cwd)) && fs.existsSync(path.join(projectRoot(cwd), ".acstack", "project.yaml"));
 	let warnedSubagents = false;
 
 	pi.on("session_start", async (event, ctx) => {
 		linkClis(ctx);
+		const root = projectRoot(ctx.cwd);
+		if (ensureProjectData(ctx, root)) unsafeProjects.delete(root);
+		else {
+			unsafeProjects.add(root);
+			return;
+		}
 
 		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent")) {
 			warnedSubagents = true;
@@ -662,7 +718,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		const lastText = readText(lastFile)?.trim();
 		const lastRung = lastText && /^\d+$/.test(lastText) ? Number.parseInt(lastText, 10) : undefined;
 
-		const cfg = readHandoffConfig(readText(path.join(ctx.cwd, "acstack", "project.yaml")));
+		const cfg = readHandoffConfig(readText(path.join(projectRoot(ctx.cwd), ".acstack", "project.yaml")));
 		const nudge = contextNudge(usage.tokens, usage.contextWindow, cfg, lastRung, process.env.HERDR_ENV === "1");
 		if (!nudge) return;
 
@@ -693,7 +749,9 @@ export default function acstack(pi: ExtensionAPI): void {
 			}
 		}
 
-		const handoff = consumeHandoff(ctx.cwd);
+		const root = projectRoot(ctx.cwd);
+		if (!ensureProjectData(ctx, root)) return;
+		const handoff = consumeHandoff(root);
 		if (handoff) {
 			pi.sendMessage({ customType: "acstack-handoff", content: handoff, display: true }, { deliverAs: "nextTurn" });
 		}

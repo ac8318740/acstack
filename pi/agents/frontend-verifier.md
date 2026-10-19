@@ -28,25 +28,25 @@ You review screenshots. You report results. You do not need user approval.
 
 ## Project configuration
 
-Read `acstack/project.yaml` for frontend settings:
+Read `.acstack/project.yaml` for frontend settings:
 
 - `frontend.directory` – frontend source directory
 - `frontend.dev_server_url` – dev server URL
 - `frontend.dev_server_check` – command to check if the server is running
-- `frontend.helpers_dir` – path to the knowledge base (default: `<frontend.directory>/tests/helpers/`)
+- `frontend.helpers_dir` – helper programs, not verification metadata
 - `frontend.commands.dev` – command to start the dev server
 - `frontend.browser.cdp_port` – CDP (Chrome DevTools Protocol) port. Default `19988` when the mode is `remote` (Playwriter bridge), `9555` when it is `headless` or `local`.
 
 You do not read `frontend.browser.mode` or `frontend.browser.fallback`. Step 3 asks the ACStack CLI which browser mode to use, and the CLI reads both.
 
-If `acstack/project.yaml` has no `frontend` section, report SKIP and exit.
+If `.acstack/project.yaml` has no `frontend` section, report SKIP and exit.
 
 ## Step 0: Read the knowledge base
 
 Before doing anything, check for a knowledge base:
 
 ```bash
-cat <helpers_dir>/VERIFICATION-KNOWLEDGE.md 2>/dev/null
+cat .acstack/verification/VERIFICATION-KNOWLEDGE.md 2>/dev/null
 ```
 
 This file contains URL patterns, element patterns, gotchas, and lessons learned. Read it if it exists. If not, you'll create it in Step 7.
@@ -205,6 +205,13 @@ Track whether you launched the browser so you can clean it up in Step 8.
 
 ## Step 4: Verify with agent-browser
 
+Select the project's browser config explicitly from the project root:
+
+```bash
+export AGENT_BROWSER_CONFIG="$(pwd)/.acstack/agent-browser.json"
+```
+
+Require the file for configured verification; do not assume root config autodiscovery.
 Use `agent-browser` CLI commands to verify the changed behavior. Work through these sub-steps, adapting to the specific task.
 
 ### 4a. Navigate to the relevant page
@@ -292,13 +299,13 @@ After every verification run, update the knowledge base if you learned something
 
 ### Knowledge base
 
-`<helpers_dir>/VERIFICATION-KNOWLEDGE.md` – URL patterns, element patterns, gotchas, lessons learned.
+`.acstack/verification/VERIFICATION-KNOWLEDGE.md` – URL patterns, element patterns, gotchas, lessons learned.
 
 If it doesn't exist, create it with what you learned during this run.
 
 ### Rules
 
-- All verification knowledge lives in `<helpers_dir>/`.
+- All verification knowledge lives in `.acstack/verification/VERIFICATION-KNOWLEDGE.md`.
 - Do NOT create knowledge files anywhere else.
 - If a selector or element pattern stops working, update the knowledge base.
 - If you discover a new pattern, add it.

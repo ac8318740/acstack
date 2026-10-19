@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import chalk from 'chalk';
 import { ACSTACK_DIR, CHANGES_DIR, SPECS_DIR, ARCHIVE_DIR } from './constants.js';
+import { assertCanonicalProject } from './project-data.js';
 import { findProjectRoot } from './project.js';
 
 /**
@@ -70,6 +71,7 @@ export function listArchivedChanges(root: string): string[] {
 
 export function requireProject(root: string | null): asserts root is string {
   if (!root) fail('Not in an ACStack project. Run `/acstack:setup` first.');
+  try { assertCanonicalProject(root); } catch (error) { fail((error as Error).message); }
 }
 
 /**

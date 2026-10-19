@@ -1,0 +1,5 @@
+id: cli
+name: CLI package
+summary: Ships the review command, local server, and browser review interface.
+kind: component
+parent: acstack

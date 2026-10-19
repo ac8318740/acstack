@@ -83,11 +83,11 @@ function emptyPathDir(): string {
   return mkdtempSync(join(tmpdir(), 'acstack-empty-path-'));
 }
 
-/** A temp project root whose `acstack/project.yaml` holds `yaml`. */
+/** A temp project root whose `.acstack/project.yaml` holds `yaml`. */
 function makeProject(yaml: string): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
-  writeFileSync(join(root, 'acstack', 'project.yaml'), yaml);
+  mkdirSync(join(root, '.acstack'), { recursive: true });
+  writeFileSync(join(root, '.acstack', 'project.yaml'), yaml);
   return root;
 }
 

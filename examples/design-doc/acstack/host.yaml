@@ -1,0 +1,14 @@
+id: host
+name: Agent session setup
+summary: >-
+  Registers ACStack skill commands and adds rules for planning, coding,
+  and checking changes to the agent's session.
+kind: component
+parent: acstack
+channels: [agent]
+relationships:
+  - id: load-skills
+    from: host
+    to: skills
+    direction: one-way
+    label: Registers

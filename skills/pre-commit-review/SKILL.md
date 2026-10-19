@@ -59,7 +59,7 @@ git status --short
 git log --oneline -3  # recent context
 ```
 
-Read `acstack/project.yaml` to understand the project's directory layout, commands, and conventions.
+Read `.acstack/project.yaml` to understand the project's directory layout, commands, and conventions.
 
 Categorize changed files into scopes using the project configuration:
 
@@ -82,9 +82,9 @@ Discover current conventions rather than hardcoding them.
 
 ```
 Read the living specs relevant to this change:
-- Check acstack/specs/ directory listing
+- Check .acstack/specs/ directory listing
 - Read spec.md files for domains touched by the changed files
-  (use acstack/domain-map.yaml to map files -> domains)
+  (use .acstack/domain-map.yaml to map files -> domains)
 - Extract documented conventions, patterns, and requirements (FR-NNN entries)
 Report: list of project conventions and patterns relevant to these changes.
 ```

@@ -27,6 +27,7 @@
     "cli/package.json",
     "cli/README.md",
     "docs/",
+    "examples/design-doc/",
     "hooks/",
     "orchestrator/",
     "output-styles/",

@@ -22,7 +22,7 @@ $ARGUMENTS
 ### 1. Find the work
 
 Check the configured tracker for maps (`workflow.maps.tracker` in
-`acstack/project.yaml`; the map skill's `trackers/` docs declare the
+`.acstack/project.yaml`; the map skill's `trackers/` docs declare the
 operations – files backend shown below).
 
 **A map exists** (or `$ARGUMENTS` names one):
@@ -57,7 +57,7 @@ small unit of work, and nothing has to declare it small.
 
 ### 2. Read project configuration
 
-Read `acstack/project.yaml` for build/test/lint commands and directory paths.
+Read `.acstack/project.yaml` for build/test/lint commands and directory paths.
 
 ### 3. Create feature branch
 
@@ -118,11 +118,11 @@ Apply the shared Implementation discipline to the claimed node or bare request.
 
 
 **Decision log**: on afk nodes, append one row per decision point to
-`<main checkout>/acstack/.decisions/<name>.tsv`. A decision point is a fork chosen, a
+`<main checkout>/.acstack/decision-logs/<name>.tsv`. A decision point is a fork chosen, a
 unit verified, a revert, or a blocker.
 
 Read `decision-log.md` before the first row. It holds how to find the main
-checkout, the columns, and the `.gitignore` the directory needs.
+checkout, the columns, and the root ignore baseline.
 
 **Parallelism**: use teams when independent nodes benefit from parallel work.
 Assign non-overlapping files, and schedule shared-file changes sequentially.
@@ -154,7 +154,7 @@ decision landed. With a map, then:
 ### 7. Build verification
 
 After each node (and before ending the session), run the commands from
-`acstack/project.yaml`: build, full test suite, lint and typecheck. All must
+`.acstack/project.yaml`: build, full test suite, lint and typecheck. All must
 pass before claiming the next node.
 
 ### 8. Completion

@@ -92,7 +92,7 @@ You have full context of the ACStack system. Use it naturally, don't force it.
 ### Check for context
 
 At the start, quickly check what exists – maps on the configured tracker
-(`ls acstack/maps/` on the files backend) and living specs
+(`ls .acstack/maps/` on the files backend) and living specs
 (`~/.claude/acstack/bin/acstack list --specs --json`).
 
 ### When no map exists

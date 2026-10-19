@@ -19,7 +19,7 @@ gets no row.
 ## Where the log lives
 
 The log is one file per map, in the main checkout:
-`<main checkout>/acstack/.decisions/<name>.tsv`. The `<name>` is the map name
+`<main checkout>/.acstack/decision-logs/<name>.tsv`. The `<name>` is the map name
 you pass to `--map`.
 
 Write it in the main checkout, never in a worktree. Removing a worktree
@@ -30,12 +30,13 @@ it. Find the main checkout from any worktree:
 main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
 ```
 
-Nobody commits the log. When you first create the `acstack/.decisions/`
-directory, write `.gitignore` inside it, containing a single line:
-
-```text
-*
-```
+- The root managed baseline ignores `.acstack/decision-logs/` by default
+- Check the main checkout's layout before creating or writing the log
+- If it still has legacy project records, stop with an actionable migration error
+- Tell the user to update installed tools, stop old agents and reviews, and explicitly migrate that checkout before restarting
+- Never move another checkout's records automatically or create a partial `.acstack/` there
+- On an already migrated main checkout, run `~/.claude/acstack/bin/acstack project-data ensure` before writing the log
+- Do not add a nested ignore file; native exceptions in the root `.gitignore` alone control tracking
 
 ## What a row holds
 

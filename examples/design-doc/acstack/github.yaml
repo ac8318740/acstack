@@ -1,0 +1,11 @@
+id: github
+name: GitHub
+summary: Displays the generated Markdown companion during manual review.
+kind: external-system
+channels: [web]
+relationships:
+  - id: publish-companion
+    from: user
+    to: github
+    direction: one-way
+    label: Publishes the Markdown companion to

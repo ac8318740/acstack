@@ -45,24 +45,25 @@ For each planned commit:
 
 **This step is non-negotiable.** After drafting the commit message but BEFORE creating the commit, spec sync runs automatically.
 
-Read `acstack/project.yaml` – if `workflow.spec_sync` is `true` (or not explicitly `false`), run spec sync:
+Read `.acstack/project.yaml` – if `workflow.spec_sync` is `true` (or not explicitly `false`), run spec sync:
 
-1. Read `acstack/domain-map.yaml` (if exists)
+1. Read `.acstack/domain-map.yaml` (if exists)
 2. Map staged files to spec domains
-3. For each affected domain where `acstack/specs/[domain]/spec.md` exists:
+3. For each affected domain where `.acstack/specs/[domain]/spec.md` exists:
     - Analyze what the staged changes add, modify, or remove
     - Generate lightweight ADDED/MODIFIED/REMOVED entries
     - Update the domain's spec.md
 4. Refresh `DESIGN.md`, per Step 2 of the `sync` skill
-5. Stage any updated spec files
+5. Stage updated specs only when native `.gitignore` rules allow tracking
+    - Keep ignored specs updated locally; never force-add them or change the Git index to bypass this choice
     - Stage `DESIGN.md` and `.impeccable/design.json` too when the refresh ran
-6. Include spec updates in the commit
+6. Include only opted-in spec updates in the commit
 7. Flag unmapped source files and prompt user to map them
 
 **Skip spec sync ONLY when:**
 
 - `workflow.spec_sync` is explicitly `false` in project.yaml
-- No `acstack/domain-map.yaml` exists
+- No `.acstack/domain-map.yaml` exists
 - Changed files don't match any domain
 - Changes are docs/config only (no behavioral changes)
 - No spec.md exists for affected domains (don't create from scratch here)

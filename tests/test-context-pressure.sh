@@ -56,7 +56,7 @@ echo ""
 # Fixture / assertion helpers
 # ---------------------------------------------------------------------------
 
-# Enter a fresh, isolated cwd for one case (the hook reads acstack/project.yaml
+# Enter a fresh, isolated cwd for one case (the hook reads .acstack/project.yaml
 # relative to cwd, so each case gets its own directory to avoid bleed).
 enter_case() {
   CASE_DIR="$WORK/case_$1"
@@ -157,18 +157,18 @@ ladder_step() {
   run_hook "$(stop_payload_session "$T" "$SID")" -u HERDR_ENV
 }
 
-# Write acstack/project.yaml (relative to cwd) from stdin, for the cases whose
+# Write .acstack/project.yaml (relative to cwd) from stdin, for the cases whose
 # config is richer than mk_config's two thresholds.
 mk_config_raw() {
-  mkdir -p acstack
-  cat > acstack/project.yaml
+  mkdir -p .acstack
+  cat > .acstack/project.yaml
 }
 
-# Write acstack/project.yaml (relative to cwd) with threshold overrides.
+# Write .acstack/project.yaml (relative to cwd) with threshold overrides.
 mk_config() {
   local warn="$1" severe="$2"
-  mkdir -p acstack
-  cat > acstack/project.yaml <<EOF
+  mkdir -p .acstack
+  cat > .acstack/project.yaml <<EOF
 workflow:
   handoff:
     nudge_warn: $warn

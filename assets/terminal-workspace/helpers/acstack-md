@@ -222,11 +222,19 @@ case "$(command -v acstack-open >/dev/null 2>&1 && acstack-open --why 2>/dev/nul
     # The last expression is the page title, so the browser answers with
     # what it is now holding. That answer is what success means here - a
     # command that exited 0 is not a page that arrived.
+    project_root="$PWD"
+    while [ "$project_root" != / ] && [ ! -d "$project_root/.acstack" ]; do
+      project_root=$(dirname "$project_root")
+    done
+    [ "$project_root" != / ] || project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+    browser_config="$project_root/.acstack/agent-browser.json"
+    browser_args=()
+    [ ! -f "$browser_config" ] || browser_args=(--config "$browser_config")
     name=$(basename "$FILE")
-    timeout 20 agent-browser --cdp "$BRIDGE" tab new >/dev/null 2>&1
+    timeout 20 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" tab new >/dev/null 2>&1
     landed=$(printf 'const b64="%s";const doc=new TextDecoder().decode(Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));document.open();document.write(doc);document.close();document.title;\n' \
                "$payload" \
-               | timeout 60 agent-browser --cdp "$BRIDGE" eval --stdin 2>/dev/null)
+               | timeout 60 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" eval --stdin 2>/dev/null)
     # Writing into the tab is only half of it. A tab created over CDP is
     # created in the background, so it has to be brought forward or the page
     # is real, correct, and never seen - which is exactly how this first went
@@ -236,10 +244,10 @@ case "$(command -v acstack-open >/dev/null 2>&1 && acstack-open --why 2>/dev/nul
     # The arrow marks the active tab, which is the one just written into.
     # Taking the first line instead would raise whatever sits at index 0 -
     # somebody else's tab, and the page still unseen.
-    idx=$(timeout 20 agent-browser --cdp "$BRIDGE" tab list 2>/dev/null \
+    idx=$(timeout 20 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" tab list 2>/dev/null \
             | grep -m1 -- "$(printf '\342\206\222')" \
             | sed -n 's/.*\[\([0-9][0-9]*\)\].*/\1/p')
-    [ -n "$idx" ] && timeout 20 agent-browser --cdp "$BRIDGE" tab "$idx" >/dev/null 2>&1
+    [ -n "$idx" ] && timeout 20 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" tab "$idx" >/dev/null 2>&1
     case "$landed" in
       *"$name"*)
         printf '%s is on screen in the browser on your machine\n' "$name" >&2

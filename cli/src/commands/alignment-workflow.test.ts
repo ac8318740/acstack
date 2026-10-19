@@ -30,8 +30,8 @@ function runCli(args: string[], opts: { cwd?: string; env?: NodeJS.ProcessEnv } 
 
 function makeProject(): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-alignment-workflow-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
-  writeFileSync(join(root, 'acstack', 'project.yaml'), '# test project\n');
+  mkdirSync(join(root, '.acstack'), { recursive: true });
+  writeFileSync(join(root, '.acstack', 'project.yaml'), '# test project\n');
   writeNode(root, 'demo', {
     id: '001',
     title: 'Checkout redesign',
@@ -64,7 +64,7 @@ function writeNode(
     summary?: string;
   }
 ): void {
-  const dir = join(root, 'acstack', 'maps', map);
+  const dir = join(root, '.acstack', 'maps', map);
   mkdirSync(dir, { recursive: true });
   const frontmatter = [
     'status: open',
@@ -121,7 +121,7 @@ function alignmentPackArtifacts(root: string): Array<{ path: string; pack: Align
 }
 
 function sourceSnapshot(root: string): Record<string, string> {
-  const mapRoot = join(root, 'acstack', 'maps');
+  const mapRoot = join(root, '.acstack', 'maps');
   return Object.fromEntries(
     walkFiles(mapRoot).map(path => [relative(root, path), readFileSync(path, 'utf-8')])
   );
@@ -205,7 +205,7 @@ describe('alignment pack workflow', () => {
     await once(child, 'exit');
 
     expect(readFileSync(opener.logPath, 'utf-8').trim()).toBe(`http://localhost:${port}/`);
-    expect(readFileSync(join(root, 'acstack', 'alignment-packs', 'demo', 'feedback.md'), 'utf-8')).toContain('Name the payment steps');
+    expect(readFileSync(join(root, '.acstack', 'alignment-packs', 'demo', 'feedback.md'), 'utf-8')).toContain('Name the payment steps');
     expect(stdout).toContain('Review state: changes-requested');
   });
 
@@ -232,7 +232,7 @@ describe('alignment pack workflow', () => {
   it('changes the pack version when only a summary changes', () => {
     expect(runCli(['map', '--map', 'demo'], { cwd: root }).status).toBe(0);
     const before = alignmentPackArtifacts(root)[0].pack.packVersion;
-    const file = join(root, 'acstack', 'maps', 'demo', '002-saved-card-flow.md');
+    const file = join(root, '.acstack', 'maps', 'demo', '002-saved-card-flow.md');
     writeFileSync(file, readFileSync(file, 'utf-8').replace('a card they saved before', 'a stored card'));
 
     expect(runCli(['map', '--map', 'demo'], { cwd: root }).status).toBe(0);
@@ -258,7 +258,7 @@ describe('alignment pack workflow', () => {
     const result = runCli(['map', '--map', 'demo'], { cwd: root });
 
     expect(result.status, result.stderr || result.stdout).toBe(0);
-    expect(readFileSync(join(root, 'acstack', 'alignment-packs', '.gitignore'), 'utf-8')).toMatch(/^\*$/m);
+    expect(readFileSync(join(root, '.gitignore'), 'utf-8')).toMatch(/^\/\.acstack\/\*\*$/m);
   });
 
   it('align-viewer records a review from a feedback file and reports review state', () => {
@@ -316,7 +316,7 @@ describe('alignment pack workflow', () => {
     const result = runCli(['align-viewer', '--map', 'demo', '--feedback', feedbackPath], { cwd: root });
 
     expect(result.status, result.stderr || result.stdout).toBe(0);
-    const feedback = readFileSync(join(root, 'acstack', 'alignment-packs', 'demo', 'feedback.md'), 'utf-8');
+    const feedback = readFileSync(join(root, '.acstack', 'alignment-packs', 'demo', 'feedback.md'), 'utf-8');
     expect(feedback).toContain('Name the payment steps');
     expect(feedback).toContain('Selected text: design');
     expect(result.stdout).toContain('1 comment imported.');

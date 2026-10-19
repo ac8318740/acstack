@@ -65,7 +65,7 @@ session.
 
 ## Presentation
 
-`workflow.grilling.questions` in `acstack/project.yaml` picks the mode:
+`workflow.grilling.questions` in `.acstack/project.yaml` picks the mode:
 
 | Value            | Behaviour                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------ |
@@ -127,8 +127,8 @@ belong in git:
 ```markdown
 ## Answer
 
-Map nodes stay out of git. `acstack/maps/` goes in `.gitignore`, because a
-node is working state that the map throws away once it clears.
+Map nodes stay local by default under `.acstack/maps/`.
+The user can opt in through native root `.gitignore` exceptions.
 
 The durable output is the living specs, the architecture decision records and
 the glossary. The `record-context` skill extracts each one as a node

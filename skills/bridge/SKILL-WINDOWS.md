@@ -276,9 +276,9 @@ pages.
 The opener shows a page from a VM in this laptop's default browser. It is a
 second service, not part of the bridge.
 
-The bridge carries CDP to a Chrome the extension drives. The opener takes a
-document and opens a tab. See `docs/adr/0006-document-opener-service.md` for
-why these stay apart.
+The bridge carries CDP to a Chrome the extension drives. The opener opens
+documents in the default browser without requiring an automation session.
+Separate services let either function run without the other.
 
 Two tasks run it:
 

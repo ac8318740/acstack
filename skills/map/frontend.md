@@ -4,7 +4,7 @@ A map whose destination changes the frontend carries five rules that no other
 map loads, and this file holds all five.
 
 `SKILL.md` decides when to read this file. The destination has to touch
-`frontend.directory`, the path in `acstack/project.yaml` where the frontend
+`frontend.directory`, the path in `.acstack/project.yaml` where the frontend
 lives.
 
 Two plugins appear in the rules below.
