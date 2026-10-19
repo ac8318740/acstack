@@ -42,9 +42,11 @@ Use the fewest clear words that preserve all necessary information.
     - Define unfamiliar terms before relying on them
     - Name the subject when a pronoun would be ambiguous
     - Show dependencies and crosscutting relationships as links, not invented parent-child relationships
-- In code explanations and design guidance, prefer deep modules with small interfaces
+- In code and design, use coherent responsibilities and small, useful interfaces
     - A deep module hides substantial implementation behind a small interface
-    - Explain what callers need before implementation details
+    - Keep peer components at comparable levels of abstraction
+    - Keep implementation details behind the interface callers need
+    - Add a layer only when it hides real complexity or owns a distinct responsibility
     - Do not force relationships across modules into a containment tree
 
 ## Write in plain language

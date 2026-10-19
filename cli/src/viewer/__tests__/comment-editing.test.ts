@@ -50,7 +50,8 @@ it('shares one main callback across both surfaces, changes only comment, and rel
   const { usePostedComments } = await import('../posted-comments.js');
   await import('../main.js');
   const strict = root.render.mock.calls[0][0] as ReactElement<{ children: ReactElement }>;
-  const App = strict.props.children.type as () => ReactNode;
+  const provider = strict.props.children as ReactElement<{ children: ReactElement }>;
+  const App = provider.props.children.type as () => ReactNode;
   const drawer = () => elements(rerender(App)).find(node => node.type === Drawer)!;
   const original = drawer();
   expect(vi.mocked(usePostedComments).mock.lastCall?.[3]).toBe(original.props.onEdit);

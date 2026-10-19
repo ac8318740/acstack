@@ -5,16 +5,21 @@ description: Author a structured design document and review it through a live lo
 
 # Author and review a design document
 
-Create a small YAML entry and one YAML file per element, then review the design with comments saved on the agent's device.
+Author one design source for interactive browser review and a GitHub-readable Markdown companion with Mermaid.
+The React Flow browser view supports drill-down and comments saved on the agent's device.
 
 ```mermaid
 flowchart LR
     A[Agree on the design scope] --> B[Author entry and element files]
-    B --> C[Validate and start review]
+    B --> C[Validate and review in the browser]
     C -->|invalid source| B
-    C -->|valid source| D[Review in the browser]
-    D --> E[Save comments for the agent]
-    E -->|requested changes| B
+    C --> D[Save comments for the agent]
+    M[Map contributions when bound] --> E[Reconcile feedback and contributions]
+    D --> E
+    E -->|revise| B
+    E -->|ready| F[Approve the exact revision]
+    F --> G[Implement and retain review evidence]
+    G -->|review inputs change| B
 ```
 
 ## Agree on the design scope
@@ -36,6 +41,8 @@ flowchart LR
 - Optionally add `detail` with a relative Markdown path for the overview and worked journey
 - Give each element `id`, `name`, `summary`, and `kind`
 - Write each summary as a standalone responsibility, not a code fragment or a list of implementation steps
+- Keep peer elements at comparable levels of abstraction
+- Reuse element names in the overview, relationships, and detail; connect readable names to code identifiers when they differ
 - Model only real entities; the document overview is context, not an architecture node
 - Choose `kind` from `actor`, `component`, `store`, or `external-system`
     - An actor participates from outside the system, such as a person or an external autonomous agent
@@ -124,6 +131,7 @@ relationships:
 - Use `--port <port>` when another review already uses the default port
 - Use a new Markdown path to protect existing files
 - Keep Markdown beside source files when its relative source links must resolve on GitHub
+- Generate the companion from the same YAML and supporting Markdown; revise the source instead of hand-editing its Mermaid
 - Fix validation errors before asking the user to review
 - Keep each source file within 256 KiB and the document within 4 MiB
 - Keep the document within 200 elements, 100 concerns, and 200 relationships per element
@@ -156,5 +164,72 @@ relationships:
 - Edit the authored files following feedback, then restart the review for the changed design
 - Keep earlier feedback with its original design version rather than silently moving comments to changed text
 - Comments do not approve a design or authorize implementation
-- This slice does not reconcile maps, persist approval, archive designs, or remove legacy commands
-- Automatic invocation by map remains deferred until the reviewer accepts the example
+- Approval records the exact authored source, ordered saved comments, and current map contributions
+
+## Reconcile and approve a map-linked design
+
+- Invoke this workflow from map for shared behavior, component boundaries, or data-flow decisions
+- Store `Design entry: <repository-relative-path>` in the map root body
+- Add `planning: {tracker: files | github, map: <name>}` to the entry
+- Use the same contribution format in files and GitHub node bodies
+- Put one fenced JSON array under `## Design contributions`
+
+```json
+[
+  {
+    "id": "interface-choice",
+    "designId": "checkout-design",
+    "targets": ["checkout"],
+    "statement": "The checkout component exposes the command interface"
+  }
+]
+```
+
+- Use document, element, relationship, or concern IDs as targets
+- Read `~/.claude/acstack/bin/acstack design-review status <entry>` for contribution keys and the exact revision tuple
+- Select older feedback with `--review-file <canonical-review.json>` when the source changed
+- Preserve the selected historical snapshot; reconciliation belongs to the current revision
+- Resolve blocking decision nodes or mark them out of scope
+- Surface contradictory proposals as decision nodes rather than choosing one silently
+- Write reconciliation input with the four status fields: `sourceRevision`, `reviewRevision`, `commentsDigest`, and `mapInputsDigest`
+- Add a `decisions` array with `comments`, `contributions`, `outcome`, and nonempty `rationale` in each decision
+- Reference each selected comment index and current contribution key exactly once
+- Choose `applied`, `retained`, or `needs-human`; `needs-human` keeps approval blocked
+- Run `~/.claude/acstack/bin/acstack design-review reconcile <entry> --input <json-file>` with the same optional `--review-file`
+- Empty feedback and contribution sets need no invented reconciliation
+- Reopen `~/.claude/acstack/bin/acstack design-doc <entry>` after authored source changes
+- Choose Approve this revision in the document details after reconciliation
+- Keep unposted drafts intact; approval saves only posted comment edits
+- Require `approval.valid: true` from status before implementation
+- Reopen the gate after authored source, saved feedback, or meaningful contribution inputs change
+- Presentation regeneration alone preserves approval
+- Keep `workflow.design_review` unchanged; it controls the separate frontend design pass
+
+## Import legacy review history explicitly
+
+- ACStack removes `map --map` and `align-viewer` without aliases
+- Author the new design first; the old planning graph cannot define its architecture
+- Keep map planning in `node walk`, `node frontier`, and `node diagram`
+- Use a nonsymlink legacy directory under `.acstack/alignment-packs/`
+- Write an explicit JSON mapping array of `{from: {type, id}, to: {type, id}}` pairs
+- Map every commented legacy target to a valid current target
+- Choose document context explicitly when a legacy target is ambiguous
+
+```sh
+~/.claude/acstack/bin/acstack design-review migrate <entry> \
+  --legacy-dir <path> --mapping <json-file> [--feedback <json-file>]
+```
+
+- Supply `--feedback` only for an explicit exported feedback JSON file
+- Migration reads saved pack versions, approvals, annotations, and the corresponding main-checkout decision log
+- Migration preserves original artifacts and decision logs byte-for-byte
+- Canonical `review.json` retains imported history, source fingerprints, and original comments, quotes, authors, timestamps, and provenance
+- Imported comments append to existing feedback; duplicate source comments import once
+- Historical approval remains history, never current approval
+- An actual import advances the comment revision once and invalidates prior effective approval
+- Repeating the same source and mapping imports nothing again
+- Invalid inputs fail before any write; publication uses the canonical review lock
+- Reconcile imported feedback and obtain current exact-revision approval before implementation or archive
+- Never migrate automatically at startup or archive
+- Retain design sources, canonical reviews, import history, and decision logs independently of `workflow.maps.persist`
+- Respect native Git ignore rules; never force-add private review records

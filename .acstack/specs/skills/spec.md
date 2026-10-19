@@ -59,10 +59,14 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: The skill reads the canonical marked block in `output-styles/ac-writing-style.md` and its writing examples
 - **Then**: The guidance preserves necessary information while using clear words, comparable siblings, consistent names, and parent summaries
 - **Then**: The guidance chooses structure from the ideas rather than enforcing word counts or bullet quotas
+- **Given**: An agent implements or reviews code
+- **When**: The agent applies the shared architecture principles
+- **Then**: The agent checks coherent responsibilities, comparable peer components, and small interfaces that hide real complexity
+- **Then**: Code review and pre-commit review inspect connected callers without requiring nesting, pass-through layers, or arbitrary size limits
 - **Given**: Relationships need visual explanation
 - **When**: The visual-docs skill structures the document
 - **Then**: The skill chooses diagrams and sections to explain those relationships without requiring a diagram-node-to-heading correspondence
-- **Source**: `skills/writing/SKILL.md`, `skills/writing/examples.md`, `skills/visual-docs/SKILL.md`, `output-styles/ac-writing-style.md`
+- **Source**: `skills/writing/SKILL.md`, `skills/writing/examples.md`, `skills/visual-docs/SKILL.md`, `skills/code-review/SKILL.md`, `skills/pre-commit-review/SKILL.md`, `output-styles/ac-writing-style.md`
 
 ## FR-006: Author a design for human review
 
@@ -70,8 +74,11 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **When**: The agent prepares the review source
 - **Then**: The agent separates existing behavior from the proposed change and explains the review questions, trade-offs, and worked journey
 - **Then**: The agent models real entities with atomic files, genuine containment, mirrored relationships, and explained cross-element concerns
+- **Then**: Peer elements use comparable abstractions and consistent names across the overview, relationships, and supporting detail
+- **Then**: Interactive React Flow review and the Markdown/Mermaid companion derive from the same authored source
 - **Then**: New project designs default to `.acstack/designs/<id>/design.yaml` unless the user chooses another location
 - **Then**: Plugin worked examples remain public source under `examples/design-doc/acstack/`
+- **Then**: Design files persist on disk with Git tracking controlled by the project's explicit opt-ins
 - **Then**: The agent starts a live design review through localhost or SSH and optionally exports Markdown for GitHub
 - **Then**: Posted, edited, and deleted comments save on the agent's device without approving the design
 - **Then**: Send to agent waits for saved comments and provides a clipboard prompt naming the review JSON and authored entry
@@ -80,7 +87,10 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: The agent uses the developer's comments as requests to revise the design
 - **Then**: The skill preserves feedback with its source version and explains failed saves and conflicting revisions
 - **Then**: Nesting expresses containment without a duplicate containment arrow
-- **Then**: Automatic map invocation, map reconciliation, durable approval, archiving, and legacy command removal remain outside this implemented slice
+- **Then**: Map planning invokes design-doc for changes to behavior, boundaries, or data flow
+- **Then**: Structured node contributions retain their node identities and answer-chain provenance across both trackers
+- **Then**: The agent explicitly reconciles comments and contributions before requesting approval
+- **Then**: Implementation checks approval against the current authored files, comments, and map inputs
 - **Source**: `skills/design-doc/SKILL.md`, `examples/design-doc/acstack/`
 
 ## FR-007: Offer independent tracking choices for every project-data part
@@ -109,4 +119,36 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Given**: The main checkout uses the canonical layout
 - **When**: The agent prepares a log write
 - **Then**: The agent runs `project-data ensure` first without adding a nested ignore file
-- **Source**: `skills/implement/decision-log.md`
+- **Given**: Archive closes the map
+- **When**: It extracts lasting decisions from the log
+- **Then**: Archive retains the original decision log independently of `workflow.maps.persist`
+- **Source**: `skills/implement/decision-log.md`, `skills/archive/SKILL.md`
+
+## FR-009: Require matching design approval before implementation and archive
+
+- **Given**: A map root names a design entry
+- **When**: Implementation or archive checks that design's status
+- **Then**: The returned planning tracker and map must match the active map
+- **Then**: A missing or different binding blocks reliance on that design's approval
+- **Then**: The agent requires valid approval for the current authored source, saved comments, and map contributions
+- **Then**: Invalid approval or unresolved reconciliation returns the work to design-doc
+- **Given**: Archive prepares node disposal
+- **When**: Fog, open questions, claims, or undecided scope remain
+- **Then**: Archive stops until the work resolves or the user explicitly drops the scope
+- **Source**: `skills/implement/SKILL.md`, `skills/map/SKILL.md`, `skills/map/alignment.md`, `skills/archive/SKILL.md`
+
+## FR-010: Migrate legacy feedback explicitly and retain review evidence
+
+- **Given**: An agent imports legacy review history
+- **When**: The agent follows design-doc
+- **Then**: The agent authors the design first and explicitly maps every commented legacy target to a current design target
+- **Then**: The agent invokes `design-review migrate` instead of the removed `map --map` or `align-viewer` commands
+- **Then**: Imported approvals remain history and require reconciliation and fresh exact-revision approval
+- **Then**: Startup and archive never migrate legacy review history automatically
+- **Given**: Archive disposes of temporary map nodes
+- **When**: It checks durable records
+- **Then**: It retains authored designs, canonical reviews, import history, original alignment artifacts, and decision logs independently of `workflow.maps.persist`
+- **Then**: It retains handoffs containing review evidence or provenance absent elsewhere
+- **Then**: It stops if a retained record lies inside the proposed node disposal path
+- **Then**: It preserves native Git ignore rules without force-adding private records
+- **Source**: `skills/design-doc/SKILL.md`, `skills/archive/SKILL.md`

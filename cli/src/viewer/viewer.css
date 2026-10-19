@@ -292,6 +292,7 @@ blockquote { padding-left: 10px; border-left: 2px solid var(--frame-border); col
   .masthead h1, .masthead > .hint, .masthead > .error { flex-basis: 100%; }
   .review-controls { flex-basis: 100%; margin-left: 0; min-width: 0; flex-wrap: wrap; gap: 6px 12px; }
   .review-controls > .version { margin-right: auto; min-width: 0; overflow-wrap: anywhere; }
+  .review-controls > .actions { flex-wrap: wrap; max-width: 100%; }
   .review-controls > .error, .review-controls > .hint { flex-basis: 100%; min-width: 0; }
   .drawer-resize { display: none; }
   .drawer { width: auto; max-height: 50vh; border-left: 0; border-top: 1px solid var(--border); }

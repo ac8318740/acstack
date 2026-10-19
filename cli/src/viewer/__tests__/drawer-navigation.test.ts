@@ -38,7 +38,8 @@ it('wires graph Comment, fresh and same-item selection, and detail navigation th
   const { Diagram } = await import('../diagram.js');
   await import('../main.js');
   const strict = root.render.mock.calls[0][0] as ReactElement<{ children: ReactElement }>;
-  const App = strict.props.children.type as () => ReactNode;
+  const provider = strict.props.children as ReactElement<{ children: ReactElement }>;
+  const App = provider.props.children.type as () => ReactNode;
   const tree = () => elements(rerender(App));
   const drawer = () => tree().find(node => node.type === Drawer)!;
   const graph = () => tree().find(node => node.type === Diagram)!;

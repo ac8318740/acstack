@@ -6,6 +6,8 @@ import type { DrawerView } from '../drawer.js';
 import { commentScopeOptions, clampDrawerWidth, CommentForm, Comments, Details, DocumentOverview, Drawer as ActualDrawer, drawerWidthForKey, drawerWidthLimit, commentContext } from '../drawer.js';
 
 vi.mock('../pack.js', () => ({
+  liveComments: false,
+  useReviewAnnotations: () => ({ annotations: [], setAnnotations: vi.fn(), syncState: undefined, flush: undefined, retry: vi.fn() }),
   targetLabel: () => 'Project developer',
   diagramId: () => 'item:author',
   pack: {

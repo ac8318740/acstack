@@ -60,4 +60,4 @@ Never edit or delete a row. A wrong call gets a new row that supersedes it,
 and its `why` names the row it replaces.
 
 `/acstack:archive` reads the log before it closes the map. It hands lasting
-decisions to `record-context`, then deletes the log file.
+decisions to `record-context` and retains the original log independently of `workflow.maps.persist`.

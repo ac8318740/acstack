@@ -79,8 +79,8 @@ CLI startup can repair the root Git ignore baseline before the command runs.
 | Authored design sources | `.acstack/designs/` |
 | Archives | `.acstack/archive/` |
 | Legacy change records | `.acstack/changes/` |
-| Alignment packs | `.acstack/alignment-packs/` |
-| Design review comments | `.acstack/design-reviews/` |
+| Legacy review artifacts (retained for explicit import) | `.acstack/alignment-packs/` |
+| Canonical design reviews and imported history | `.acstack/design-reviews/` |
 | Architecture decisions | `.acstack/decisions/` |
 | Cross-domain glossary | `.acstack/CONTEXT.md` |
 | Browser connection | `.acstack/agent-browser.json` |
@@ -115,9 +115,12 @@ CLI startup can repair the root Git ignore baseline before the command runs.
 - A nested file also needs its parent directory reopened, for example `!/.acstack/verification/` before its file exception
 - Git ignore rules do not untrack files already in the Git index
 - ACStack never force-adds ignored files or changes the Git index to enforce this policy
-- ACStack deprecates `workflow.alignment_packs.commit_generated_packs`
-    - Existing boolean values remain accepted for compatibility but have no effect
-    - New setup neither offers nor generates the key; native Git ignore rules alone control tracking
+- ACStack retires `workflow.alignment_packs` auto-generation, approval, and tracking settings; existing fields have no effect
+    - This includes `approval_gate` and `commit_generated_packs`
+    - Setup and config writes no longer offer them; ACStack never silently rewrites or deletes existing files
+    - Native Git ignore rules alone control tracking
+- Map-linked design approval uses the exact source, saved comments, and contribution inputs, without a new workflow flag
+- `workflow.design_review` still controls only the frontend design pass
 - Installed tools under `~/.claude/acstack/bin/`, XDG configuration, and host-owned `.claude/` settings keep their existing locations
 - Helper programs and user code under `frontend.helpers_dir` stay where they are
     - Verification metadata always uses `.acstack/verification/VERIFICATION-KNOWLEDGE.md`
@@ -139,6 +142,25 @@ CLI startup can repair the root Git ignore baseline before the command runs.
 - Decision logs still belong to the main checkout at `<main checkout>/.acstack/decision-logs/`
     - If that checkout remains on the legacy layout, stop and report an actionable migration error
     - Do not create a partial `.acstack/` directory there as a workaround
+
+### Explicit import from retired map reviews
+
+- ACStack removes legacy `map --map` and `align-viewer` without aliases
+- Use `design-doc <entry>` for authored design review
+- Use `node walk`, `node frontier`, and `node diagram` for map planning
+- Author the new design before importing legacy feedback
+
+```sh
+~/.claude/acstack/bin/acstack design-review migrate <entry> \
+  --legacy-dir <path> --mapping <json-file> [--feedback <json-file>]
+```
+
+- Choose a nonsymlink directory under `.acstack/alignment-packs/`
+- Supply explicit target mappings; see the `design-doc` skill for mapping and reconciliation instructions
+- Migration preserves source artifacts and decision logs unchanged
+- Canonical `review.json` keeps imported feedback and approval history; historical approval never authorizes the current design
+- Startup and archive never import automatically
+- Design source, review evidence, imported history, and decision logs outlive temporary map nodes regardless of `workflow.maps.persist`
 
 ### 1.1. Which file a write lands in
 

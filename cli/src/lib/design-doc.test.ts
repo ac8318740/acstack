@@ -95,7 +95,49 @@ describe('authored design documents', () => {
     expect(pack.graph.nodes.find(node => node.id === 'child')?.groupId).toBe('design:container:app');
     expect(pack.graph.nodes.find(node => node.id === 'data')?.groupId).toBe('design:root');
     expect(pack.graph.edges.map(edge => edge.id)).toEqual(['reads']);
-    expect(renderDesignDocMarkdown(doc)).toContain('subgraph container_app["App"]');
+    expect(renderDesignDocMarkdown(doc)).toContain('subgraph element_app["App"]');
+  });
+  it('renders each Mermaid entity once while preserving containment and every relationship endpoint', () => {
+    const f = fixture();
+    f.save('child.yaml', { ...f.data, id: 'child', name: 'Child', parent: 'app', relationships: [] });
+    f.save('design.yaml', { ...f.entry, elements: [...f.entry.elements, 'child.yaml'] });
+    const documents = [f.load(), loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)];
+    for (const doc of documents) {
+      const mermaid = renderDesignDocMarkdown(doc).match(/```mermaid\n([\s\S]*?)```/)?.[1];
+      expect(mermaid).toBeTypeOf('string');
+      const entities: Array<{ id: string; name: string; parents: string[] }> = [];
+      const parents: string[] = [];
+      const edges: Array<{ from: string; to: string; label: string; arrow: string }> = [];
+      for (const line of mermaid!.split('\n').map(line => line.trim())) {
+        const declaration = line.match(/^(subgraph\s+)?([\w:-]+)\["([^"\n]+)"\]/);
+        if (declaration) {
+          const name = declaration[3].split('<br/>')[0];
+          entities.push({ id: declaration[2], name, parents: [...parents] });
+          if (declaration[1]) parents.push(name);
+        } else if (line === 'end') parents.pop();
+        const edge = line.match(/^([\w:-]+)\s+(-->|<-->)\|"([^"]+)"\|\s+([\w:-]+)/);
+        if (edge) edges.push({ from: edge[1], to: edge[4], label: edge[3], arrow: edge[2] });
+      }
+      for (const item of doc.items) {
+        const representations = entities.filter(entity => entity.name === item.name);
+        expect.soft(representations, `${item.id} must have exactly one visible identity`).toHaveLength(1);
+        if (item.parent) {
+          const parent = doc.items.find(candidate => candidate.id === item.parent)!;
+          expect(representations.every(entity => entity.parents.includes(parent.name)), `${item.id} containment`).toBe(true);
+        }
+      }
+      const relationships = [...new Map(doc.items.flatMap(item => item.relationships).map(edge => [edge.id, edge])).values()];
+      expect(edges).toHaveLength(relationships.length);
+      for (const relationship of relationships) {
+        const from = doc.items.find(item => item.id === relationship.from)!;
+        const to = doc.items.find(item => item.id === relationship.to)!;
+        expect(edges.map(edge => ({
+          from: entities.find(entity => entity.id === edge.from)?.name,
+          to: entities.find(entity => entity.id === edge.to)?.name,
+          label: edge.label, arrow: edge.arrow,
+        }))).toContainEqual({ from: from.name, to: to.name, label: relationship.label, arrow: relationship.direction === 'bidirectional' ? '<-->' : '-->' });
+      }
+    }
   });
   it.each(['missing', 'mismatch', 'duplicate'] as const)('rejects %s endpoint declarations', mode => {
     const f = fixture();
@@ -160,7 +202,7 @@ describe('authored design documents', () => {
     expect(doc.concerns.find(concern => concern.id === 'offline-review')?.elements).toEqual(['review-runtime', 'viewer', 'design-source']);
     expect(doc.concerns.find(concern => concern.id === 'honest-scope')?.elements).toEqual(['skills', 'review-runtime', 'viewer']);
     expect(pack.graph.nodes.some(node => node.id === doc.id)).toBe(false);
-    expect(pack.designDocument?.detail).toContain('durable approval');
+    expect(pack.designDocument?.detail).toContain(readFileSync(new URL('../../../examples/design-doc/acstack/journey.md', import.meta.url), 'utf8').trim());
     expect(pack.graph.nodes.find(node => node.id === 'viewer')?.technicalSummary).toContain('Design response:');
     expect(renderDesignDocMarkdown(doc)).toBe(readFileSync(new URL('../../../examples/design-doc/acstack/README.md', import.meta.url), 'utf8'));
   });

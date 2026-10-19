@@ -4,21 +4,16 @@
 
 This spec covers the bundled `acstack` command-line interface.
 
-## Alignment packs
+## Review artifacts and legacy migration
 
-### FR-001: Generate a versioned pack from a map
+### FR-001: Retire generated map review commands without aliases
 
-- **Description**: The CLI converts a files-backend map into a deterministic alignment pack
-- **Given**: A project has a map at `.acstack/maps/<name>/`
-- **When**: A user runs `acstack map --map <name>`
-- **Then**: ACStack writes a standalone HTML pack under `.acstack/alignment-packs/<safe-map>/`
-- **Then**: The pack version includes the map name and a stable hash of map node content, including each node's summary
-- **Then**: Each item carries a business definition (the node summary, or the body's first paragraph) and a technical definition (the full body)
-- **Then**: The root `.gitignore` controls pack tracking without a generated nested ignore file
-- **Given**: A map name holds characters other than letters, digits, `.`, `_` and `-`, or is `.` or `..`
-- **When**: A user runs `acstack map` or `acstack align-viewer` with it
-- **Then**: ACStack refuses the name before reading or writing any file
-- **Source**: `cli/src/commands/alignment.ts`, `cli/src/lib/alignment-pack-lifecycle.ts`
+- **Given**: A user reads the CLI help
+- **Then**: The CLI offers authored `design-doc` and `design-review` commands instead of `map` and `align-viewer`
+- **When**: A user invokes either retired command
+- **Then**: ACStack rejects it with the authored review and explicit migration replacements
+- **Then**: ACStack never dispatches an external executable under either reserved name
+- **Source**: `cli/src/index.ts`, `cli/src/commands/design-doc.ts`
 
 ### FR-002: Store a traceable alignment graph
 
@@ -42,56 +37,41 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: A folded group shows as one box, and the links it hides merge into one labelled link
 - **Then**: A drawer shows the selected item's business definition, its collapsed technical definition, its links, and its source
 - **Then**: A reviewer can comment on a box, a link, or highlighted text, and the viewer keeps the comments in browser storage per pack version
-- **Given**: A reviewer opens a legacy alignment pack directly, not through `acstack align-viewer`
-- **Then**: The viewer cannot submit a review and names the command that starts a review
+- **Given**: A reviewer opens a legacy alignment pack directly
+- **Then**: The viewer cannot submit legacy approval and points to explicit migration and authored design review
 - **Source**: `cli/src/lib/alignment-pack-renderer.ts`, `cli/src/viewer/`, `cli/scripts/build-viewer.mjs`, `.acstack/decisions/0018-alignment-packs-use-local-viewers.md`
 
-### FR-004: Serve a review and record the decision
+### FR-004: Explicitly migrate legacy feedback into an authored design
 
-- **Description**: The `align-viewer` command serves the pack on localhost and records the review the page posts back
-- **Given**: A user runs `acstack align-viewer --map <name>`
-- **When**: The server starts on `127.0.0.1` port 19990, or `ACSTACK_ALIGN_PORT`
-- **Then**: ACStack prints the URL and, in an SSH session, the `ssh -L` forward to set up, then opens the page through `acstack-open`
-- **Given**: The page posts Approve or Request changes with its one-time token
-- **When**: The server receives the review
-- **Then**: ACStack writes the review state into the pack, the comments into `annotations.jsonl`, and `feedback.md`, then stops
-- **Then**: The page copies a prompt for the reviewer's agent to the clipboard and shows it with a Copy button
-- **Given**: A post lacks the right token, comes from a host other than localhost, or exceeds 1 MB
-- **Given**: A post arrives while the server records another review
-- **Then**: The server refuses it and records nothing
-- **Given**: A review requests changes with no comments
-- **Then**: ACStack refuses it
-- **Given**: A user runs `acstack align-viewer --map <name> --feedback <path>`
-- **Then**: ACStack records the review from the file without serving the page
-- **Given**: Feedback names a different pack version
-- **Then**: ACStack rejects it and leaves source map files unchanged
-- **Source**: `cli/src/commands/alignment.ts`, `cli/src/lib/alignment-review-protocol.ts`
+- **Given**: A user has an authored design, a legacy pack directory, and explicit target mappings
+- **When**: The user runs `design-review migrate <entry> --legacy-dir <directory> --mapping <json-file>`
+- **Then**: ACStack validates embedded pack JSON without evaluating HTML scripts
+- **Then**: ACStack imports persisted annotations and an optional `--feedback <json-file>` export
+- **Then**: Every imported comment targets an existing authored element through an explicit, type-correct mapping
+- **Then**: ACStack rejects conflicting pack versions, foreign annotations, missing mappings, malformed inputs, symlinks, and size-limit violations before publication
+- **Then**: Input errors identify the affected artifact
+- **Source**: `cli/src/commands/design-doc.ts`, `cli/src/lib/design-migration.ts`
 
-### FR-005: Convert annotations into feedback for agents
+### FR-005: Preserve original feedback while appending mapped comments
 
-- **Description**: Annotation helpers keep reviewer comments tied to the pack graph
-- **Given**: A reviewer records an annotation event
-- **When**: ACStack appends it
-- **Then**: ACStack writes one JSON object per line with pack version, target, evidence, comment, author, and time
-- **Given**: Annotation JSONL matches the current pack version
-- **When**: ACStack exports feedback Markdown
-- **Then**: The file groups comments by target and gives each target its graph context, including a node's technical definition and a link's node names
-- **Source**: `cli/src/lib/alignment-feedback.ts`
+- **Given**: A valid legacy import contains comments, pack review state, and decision records
+- **When**: ACStack imports that history
+- **Then**: ACStack appends mapped comments without replacing current comments
+- **Then**: Canonical `review.json` retains the original packs, annotation metadata, mappings, source fingerprints, and exact decision-log content
+- **Then**: Original legacy artifacts and decision logs remain unchanged
+- **Then**: Repeating the same import, including after moving the checkout, does not duplicate comments or receipts
+- **Then**: Historical approval remains evidence and never approves the authored design
+- **Then**: Imported comments invalidate current approval
+- **Source**: `cli/src/lib/design-migration.ts`, `cli/src/lib/design-review.ts`
 
-### FR-006: Manage pack lifecycle state
+### FR-006: Retain review evidence independently of temporary map nodes
 
-- **Description**: Alignment pack state stays local until a user confirms durable residue extraction
-- **Given**: `.acstack/project.yaml` omits alignment pack settings
-- **When**: ACStack loads alignment pack config
-- **Then**: ACStack enables auto generation and approval gates
-- **Then**: The root managed ignore baseline keeps new generated packs local unless user rules opt them in
-- **Given**: Pack working state exists for a map
-- **When**: Archive runs before a user confirms durable residue extraction
-- **Then**: ACStack refuses to delete the pack directory
-- **Given**: A user has confirmed durable residue extraction
-- **When**: Archive runs for that map
-- **Then**: ACStack deletes the local pack directory without deleting maps, specs, ADRs, or decisions
-- **Source**: `cli/src/lib/alignment-pack-lifecycle.ts`, `cli/src/lib/project-config.ts`
+- **Given**: Archive runs for a cleared map
+- **Then**: Removing temporary nodes never authorizes deletion of authored designs, canonical review history, imported feedback, or decision logs
+- **Given**: Legacy pack state exists
+- **When**: An archive helper runs after residue extraction
+- **Then**: The helper retains the legacy source for explicit migration
+- **Source**: `cli/src/lib/alignment-pack-lifecycle.ts`, `skills/archive/SKILL.md`
 
 ## Map nodes
 
@@ -129,6 +109,7 @@ This spec covers the bundled `acstack` command-line interface.
 - **When**: A user runs `acstack design-doc <entry> --markdown <new.md>`
 - **Then**: ACStack validates the complete source before serving the design or writing Markdown
 - **Then**: The browser uses the shared viewer and the Markdown names the same elements, relationships, and concerns
+- **Then**: Each Mermaid container has one identity shared by its subgraph and relationship endpoints
 - **Then**: Markdown creation refuses existing files, including symlinks
 - **Then**: The command prints a localhost review URL, feedback location, and SSH forwarding instructions when running over SSH
 - **Then**: The review defaults to port 19990 and accepts a different port through `--port`
@@ -341,7 +322,7 @@ This spec covers the bundled `acstack` command-line interface.
 ### FR-020: Reconcile policy before command dispatch
 
 - **Given**: The CLI finds a project containing `.acstack/`
-- **When**: Any invocation other than explicit `project-data migrate` starts
+- **When**: Any invocation other than explicit `project-data migrate` or `design-review migrate` starts
 - **Then**: ACStack reconciles the root ignore policy before running built-in commands or dispatching external `acstack-<name>` helpers
 - **Then**: Policy failure stops dispatch rather than allowing unprotected writes
 - **Given**: A project command requires canonical metadata but only recognized legacy records exist
@@ -367,13 +348,15 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: ACStack reverses completed operations and reports any incomplete rollback
 - **Source**: `cli/src/commands/project-data.ts`, `cli/src/lib/project-data.ts`
 
-### FR-022: Accept the legacy pack tracking boolean without applying it
+### FR-022: Retire alignment settings without rewriting existing configuration
 
-- **Given**: Configuration states `workflow.alignment_packs.commit_generated_packs` as a boolean
-- **When**: The CLI reads or changes configuration
-- **Then**: The key remains accepted for compatibility
-- **Then**: Its value has no tracking effect; native root `.gitignore` rules control tracking
-- **Then**: ACStack adds no YAML tracking key or generated nested ignore file
+- **Given**: Configuration contains legacy `workflow.alignment_packs` settings
+- **When**: ACStack loads configuration
+- **Then**: All legacy alignment settings have no effect
+- **Then**: ACStack leaves the existing configuration bytes unchanged
+- **When**: A user lists defaults or tries to set a legacy alignment key
+- **Then**: The CLI offers no alignment defaults and rejects the unsupported write
+- **Then**: Native root `.gitignore` rules continue to control artifact tracking
 - **Source**: `cli/src/lib/project-config.ts`, `cli/src/lib/alignment-pack-lifecycle.ts`
 
 ### FR-023: Separate design relationship routes before publishing the diagram
@@ -406,3 +389,34 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: It uses balanced horizontal placement while retaining downward flow and nested component boundaries
 - **Then**: Route clearance, label placement, and expand/collapse anchor checks still apply
 - **Source**: `cli/src/viewer/alignment-graph.ts`, `cli/src/viewer/compact-layout.test.ts`
+
+### FR-026: Trace authored design contributions to map nodes
+
+- **Given**: An authored design names a files or GitHub map
+- **When**: `design-review status` gathers its structured contributions
+- **Then**: Each contribution identifies its node, design elements, statement, and answer-chain provenance
+- **Then**: The map root has exactly one repository-relative design reference resolving to the bound entry
+- **Then**: Missing, mismatched, ambiguous, or unsafe root references fail before review storage opens
+- **Then**: Status reports the validated planning binding so consumers can compare it with the active map
+- **Then**: Invalid references, duplicate contribution identities, malformed proposals, and unavailable maps fail explicitly
+- **Then**: Unresolved design decisions block approval; unfinished implementation work does not
+- **Then**: Claims and implementation status changes leave the contribution digest unchanged
+- **Source**: `cli/src/lib/design-map.ts`, `cli/src/lib/github-issues.ts`, `cli/src/commands/design-lifecycle-workflow.test.ts`
+
+### FR-027: Reconcile feedback before exact-input approval
+
+- **Given**: A design has posted comments or map contributions
+- **When**: The agent submits `design-review reconcile` decisions
+- **Then**: Every comment and contribution receives one explicit disposition with a rationale
+- **Then**: Historical feedback remains unchanged; reconciliation and approval records reside in the current canonical `review.json`
+- **Then**: Previously selected histories and unresolved historical reconciliations remain obligations across later source revisions
+- **Then**: Only a fresh reconciliation in the current source version can settle those obligations
+- **Then**: History discovery fails closed on invalid canonical evidence or its 1,024-entry and 16 MiB aggregate limits
+- **Then**: Approval binds the exact authored file bytes and paths, selected feedback histories, comment revision and digest, and contribution digest
+- **Then**: Changes to those inputs invalidate effective approval; regenerating presentation leaves it unchanged
+- **Then**: Stale requests and unresolved human decisions cannot approve the revision
+- **When**: The developer chooses approval in the header or document details
+- **Then**: Both controls open one shared confirmation modal without approving until confirmation
+- **Then**: Both controls use the same saved-comment and exact-input checks and show `Approved` after success
+- **Then**: A temporary approval-request failure permits retry with a fresh input check without reloading or changing comments
+- **Source**: `cli/src/lib/design-doc.ts`, `cli/src/lib/design-lifecycle.ts`, `cli/src/lib/design-review.ts`, `cli/src/viewer/design-approval.tsx`, `cli/src/commands/design-lifecycle-workflow.test.ts`, `cli/src/viewer/__tests__/drawer-lifecycle.test.ts`

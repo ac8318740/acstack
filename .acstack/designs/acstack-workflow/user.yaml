@@ -1,0 +1,15 @@
+id: user
+name: Project developer
+summary: Authors the design and reviews the exported artifact locally.
+kind: actor
+relationships:
+  - id: author-design
+    from: user
+    to: skills
+    direction: one-way
+    label: Requests design guidance from
+  - id: publish-companion
+    from: user
+    to: github
+    direction: one-way
+    label: Optionally publishes the Markdown companion to

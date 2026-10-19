@@ -255,7 +255,7 @@ For work with open decisions, chart it with `/acstack:map` first.
 | Skill | Description |
 |-------|-------------|
 | `/acstack:commit` | Commit, and update the specs under `.acstack/specs/` from the diff first |
-| `/acstack:archive` | Close a finished map, after checking the decisions reached your specs and notes, then delete the nodes |
+| `/acstack:archive` | Verify implemented specs and current design approval, retain review evidence, then dispose of temporary map nodes |
 | `/acstack:sync` | Update the specs from code changes, outside a commit |
 | `/acstack:handoff` | Hand work to a visible agent, a new one in its own pane or one already running, with acknowledgement |
 | `/acstack:compact-and-continue` | Anchor the session's load-bearing state to survive compaction, then continue in place |

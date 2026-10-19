@@ -196,7 +196,7 @@ flowchart LR
 
 1. Reads `.acstack/domain-map.yaml` to map each changed file to a domain.
 2. Works out what the diff adds, modifies or removes, for each affected domain with a `spec.md`.
-3. Writes those entries into the domain's spec and stages them in the same commit.
+3. Writes those entries into the domain's spec; it stages tracked specs and preserves ignored specs locally without force-adding them.
 4. Flags source files that match no domain.
 5. Checks the glossaries.
 
@@ -223,8 +223,13 @@ Four cases stop sync.
 
 *A map is working state, not a record you keep. Archive checks the decisions reached your specs, your decision notes, and your glossary, then deletes the nodes.*
 
-- `/acstack:archive` checks for a cleared map: empty frontier, no fog, no claims
-- It spot-checks that the specs, the decision notes and the glossary captured what the effort settled
+- `/acstack:archive` checks all nodes, not just the frontier: no open questions, fog, or claims apart from the root
+- A bound design requires completed feedback reconciliation and current exact-revision approval
+- Archive checks living specs against implemented behavior, not proposals
+- Archive applies `record-context`'s existing ADR and glossary criteria
+- Archive records dropped scope, unresolved limits, and durable node provenance before disposal
+- Design source, canonical review evidence, imported history, and decision logs survive regardless of `workflow.maps.persist`
+- Archive never recursively deletes review artifacts or evidence-bearing handoffs
 - It then disposes of the nodes
     - It deletes them by default
     - It moves them to `.acstack/archive/<date>-<name>/nodes/` when `workflow.maps.persist` is `true`
@@ -257,8 +262,9 @@ Two rules keep them honest.
     - Archive verifies a completed map left nothing behind
     - Both converge on the same files
 - **Fix it when you see it**
-    - Any agent that finds a spec contradicting the code corrects the spec immediately
-    - It rewrites wrong behaviour, appends missing requirements, and deletes stale references
+    - An agent that finds a contradiction corrects the spec or routes the correction to its owner
+    - A read-only reviewer reports the discrepancy to the completion owner
+    - The owner rewrites wrong behaviour, appends missing requirements, and deletes stale references
 
 `/acstack:bootstrap` generates the first set from an existing codebase. A project never starts from an empty directory.
 

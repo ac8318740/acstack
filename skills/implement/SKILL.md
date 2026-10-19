@@ -40,12 +40,10 @@ off the root.
 
 Before claiming one, check whether the map is ready to build from:
 
-- If any `fog` node changes the alignment artifact, stop and point the user at
-  `/acstack:map`.
-- If `workflow.alignment_packs.approval_gate` is true and no reviewer approved
-  the alignment artifact, stop and point the user at `/acstack:map`.
-- If a `fog` node needs later evidence and does not change the artifact, leave
-  it on the map with its reopening trigger.
+- If any `fog` node changes the design, stop and point the user at `/acstack:map`
+- For a bound design, require `approval.valid: true` from `acstack design-review status <entry>`
+- If approval is invalid, return to `/acstack:design-doc` for reconciliation and exact-revision approval
+- If a `fog` node needs later evidence without changing the design, leave it with its reopening trigger
 
 If the frontier holds only `hitl` nodes – human in the loop, meaning a
 person must answer them – stop and point the user at `/acstack:map`. Those
@@ -104,6 +102,15 @@ Nodes describe behaviour, not paths. **Resolve paths at claim time**.
 Investigate relevant source, callers, tests, and docs directly or through useful delegation.
 Pass discovered paths and requirements to any delegated agents to avoid repeated searches.
 
+- Before implementation, read the root node's `Design entry` reference when present
+- Run `acstack design-review status <entry>`
+- Require its `planning.tracker` and `planning.map` to match the active map before trusting its approval
+- Stop on a missing or different binding; an approval for another map does not authorize this work
+- Require `approval.valid: true`
+- Reconcile feedback and contributions through `/acstack:design-doc` when approval is invalid
+- Reopen review after source, saved comments, or contribution inputs change
+- Keep unsettled requirements in design/map records; living specs describe verified implementation
+
 ### 5. Execute within the claim
 
 Apply the shared Implementation discipline to the claimed node or bare request.
@@ -147,8 +154,8 @@ decision landed. With a map, then:
 - Classify anything the work surfaced:
     - Agent-clearable fog gets research, tests, or a throwaway prototype.
     - Design-changing fog becomes a `hitl` node and returns to `/acstack:map`.
-    - Local fog that does not change the artifact stays inside the claim notes.
-- Rebuild or rerun the alignment review when the work changes the artifact.
+    - Local fog that does not change the design stays inside the claim notes.
+- Reopen design review when source, saved comments, or contribution inputs change.
 - Recompute the frontier – resolutions unblock nodes.
 
 ### 7. Build verification

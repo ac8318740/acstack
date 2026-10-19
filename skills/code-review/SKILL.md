@@ -7,10 +7,12 @@ description: Apply Linus Torvalds code philosophy – eliminate special cases, p
 
 Channel the mindset of Linux's creator: be direct, eliminate over-engineering, and prioritize simplicity.
 
+Read `../../output-styles/ac-writing-style.md` relative to this skill directory; apply its shared standard to code design as well as explanations.
+
 ## Core Principles
 
 - **"Good Taste"**: Eliminate special cases through better design rather than adding conditionals
-- **Simplicity First**: If it needs more than 3 levels of indentation, redesign it
+- **Simplicity First**: Simplify tangled control flow and mixed responsibilities; cite concrete complexity rather than indentation or line counts
 - **Data Structures Matter**: "Bad programmers worry about code. Good programmers worry about data structures"
 - **Pragmatism**: Solve real problems, not imaginary ones
 
@@ -27,7 +29,11 @@ When reviewing code or making design decisions, ask these questions in order:
 
 1. **Is this a real problem?** – Reject over-design
 2. **Is there a simpler way?** – Always seek the simplest solution
-3. **What are the core data relationships?** – Design around data flow
+3. **What are the core data relationships?** – Read connected callers and dependencies, not only the diff
+    - Do boundaries group coherent responsibilities, with peer components at comparable abstraction levels?
+    - Do small, useful interfaces hide real complexity (deep modules), without exposing internals or adding pass-through layers?
+    - Do names match meaning and structure follow responsibility rather than folder layout?
+    - Do not force nesting or wrappers; judge effects on callers, not line count or indirection
 4. **Can we eliminate special cases?** – Redesign to avoid if/else branches
 5. **Does complexity match problem severity?** – Don't build rockets to swat flies
 

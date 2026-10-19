@@ -17,3 +17,5 @@
 - [0017](0017-call-impeccable-copy-only-its-questions.md) – Call impeccable's command line, and copy only its question sets
 - [0018](0018-alignment-packs-use-local-viewers.md) – Alignment packs use local viewers
 - [0019](0019-keep-project-data-local.md) – Keep project data local under .acstack
+- [0020](0020-bind-design-approval-to-exact-inputs.md) – Bind design approval to exact inputs
+- [0021](0021-retire-legacy-review-through-explicit-migration.md) – Retire legacy review through explicit migration

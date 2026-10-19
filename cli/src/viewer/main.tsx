@@ -15,6 +15,7 @@ import { AppTooltipLayer } from './tooltip.js';
 import type { ReviewStatus } from '../lib/alignment-packs.js';
 import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alignment-review-protocol.js';
 import { copy, ReviewHandoff } from './review-handoff.js';
+import { DesignApproval, DesignApprovalProvider } from './design-approval.js';
 import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, useReviewAnnotations } from './pack.js';
 
 // Present only when `acstack align-viewer` served this page; a file opened directly is read-only.
@@ -213,6 +214,7 @@ function App() {
             <div className="actions">
               <span className="hint" role="status">{syncState?.status ?? 'Saving'}</span>
               {syncState?.status === 'Not synced' && <button type="button" className="btn" onClick={retry}>Retry</button>}
+              <DesignApproval compact />
               {handoffPrompt && flush && <ReviewHandoff prompt={handoffPrompt} flush={flush} />}
             </div>
           ) : REVIEW_TOKEN ? (
@@ -233,7 +235,7 @@ function App() {
               </button>
             </div>
           ) : (
-            <span className="hint">{pack.documentKind === 'design' ? 'Comments stay in this browser. Approval is not recorded.' : `Read-only copy. Run acstack align-viewer --map ${pack.source.map.id} to review.`}</span>
+            <span className="hint">{pack.documentKind === 'design' ? 'Comments stay in this browser. Approval is not recorded.' : 'Read-only legacy copy. Use design-review migrate with an authored entry and explicit mapping, then open design-doc.'}</span>
           )}
           {liveComments && syncState?.error && <span className="error" role="alert">{syncState.error}</span>}
         </div>
@@ -344,6 +346,6 @@ function App() {
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <App />
+    <DesignApprovalProvider><App /></DesignApprovalProvider>
   </StrictMode>
 );

@@ -14,15 +14,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Purpose
 
-A map is scaffolding. It exists to clear fog – the questions nobody could
-state precisely when the effort started.
-
-Once the fog clears, the answers belong in living specs, ADRs and the
-glossary, not in a second copy that drifts. That is the residue – what
-survives the map.
-
-Archive verifies the residue reached those three places. It then closes the
-map's root node and disposes of the rest.
+Archive verifies implemented specs, durable decisions, and retained review evidence before closing the root and disposing of temporary map nodes.
 
 ## Step 1: Locate the map
 
@@ -64,8 +56,23 @@ frontier only lists nodes with no unresolved blockers. Two nodes that block
 each other show an empty frontier while both questions stay open. An empty
 frontier is therefore no proof of a cleared map.
 
-If anything remains, WARN with what it is and ask for confirmation –
-archiving an uncleared map throws away open questions.
+If anything remains, stop and list the fog, open questions, or claims.
+Ask the user to resolve them or explicitly mark dropped scope out of scope before retrying.
+Do not dispose of an uncleared map.
+
+For a bound design, read the root's `Design entry` reference and run:
+
+```bash
+~/.claude/acstack/bin/acstack design-review status <entry>
+```
+
+- Require returned `planning.tracker` and `planning.map` to match the map being archived
+- Stop on a missing or different binding; another map's approval does not authorize this archive
+- Require `approval.valid: true` for the current exact revision tuple
+- Require completed reconciliation of saved feedback and current map contributions
+- Return invalid approval or unresolved reconciliation to `/acstack:design-doc`
+- Recheck after source, saved comments, or contribution inputs change
+- Never promote historical approval or migrate legacy data during archive
 
 ## Step 3: Extract the residue
 
@@ -77,13 +84,19 @@ Check each resolution left what it should have:
 
 1. **Living specs** – behaviour the effort built should already be in
    `.acstack/specs/` via commit-time sync. Spot-check the affected domains.
+
+   Verify against source and verification evidence, not proposals copied from map nodes.
    Fix gaps on sight per the Spec Correction Protocol.
 
-2. **ADRs and glossary** – invoke `record-context` for any resolved decision
-   that meets the bar and that nobody recorded. This is the last chance.
+2. **ADRs and glossary** – apply `record-context`'s existing tests to unrecorded decisions.
+   An ADR requires a hard-to-reverse, surprising decision with a real trade-off.
+   A glossary entry requires an agreed term; neither is the common outcome.
 
-3. **Out-of-scope nodes** – report them. A scope boundary is worth the user
-   hearing once more before the map disappears.
+3. **Scope and provenance** – record dropped scope, unresolved limits, and reopening conditions before disposal.
+   Keep durable node identities and their provenance with the affected specs or decision records.
+
+   Preserve enough context to trace implemented behavior back to its decisions without retaining proposals as requirements.
+   Stop if unresolved scope still needs a decision rather than an explicit out-of-scope resolution.
 
 4. **The decision log** – read `<main checkout>/.acstack/decision-logs/<name>.tsv`
    if it exists. The main checkout is `dirname` of `git rev-parse
@@ -128,21 +141,25 @@ Default is delete because keeping the nodes leaves a second copy of every
 decision, and the two drift. On the GitHub tracker there is nothing to
 dispose – closed issues are already the archive.
 
-Also dispose of `.acstack/handoffs/<name>/` if it exists. Consumed handoffs
-hold conversation content and should not outlive the map they served.
+Retain these records independently of `workflow.maps.persist`:
 
-Also dispose of `.acstack/alignment-packs/<safe-map>/` if it exists. Alignment
-packs are local review artifacts. Step 3 already verified the durable residue.
+- Authored design entries and referenced source files
+- Canonical `review.json` files, posted feedback, reconciliation, and exact-revision approval evidence
+- Imported legacy history and original `.acstack/alignment-packs/` artifacts
+- Main-checkout `.acstack/decision-logs/<name>.tsv` files
+- Handoffs that contain review evidence or provenance not retained elsewhere
 
-Delete the map's decision log, `<main checkout>/.acstack/decision-logs/<name>.tsv`,
-on either tracker. Step 3 already extracted what it held. Leave the directory
-for the next map; the root managed baseline remains in place.
+Never recursively delete alignment, review, decision-log, or handoff directories as archive cleanup.
+Do not invoke a cleanup helper that erases those records.
+
+If a retained source or review record sits inside the proposed node disposal path, stop and resolve its safe retention first.
+Respect native Git ignore rules; never force-add private records.
 
 ## Step 6: Report
 
 - Nodes resolved / out-of-scope counts
 - Residue: domains spot-checked, ADRs and glossary entries written
-- Disposal: deleted, or archive path
+- Disposal: node deletion or archive path, plus retained review evidence and provenance
 - Reminder: commit with `/acstack:commit`
 
 ## Legacy: archiving a `.acstack/changes/` directory

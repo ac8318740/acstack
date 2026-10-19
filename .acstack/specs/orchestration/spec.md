@@ -80,3 +80,16 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: Legacy warnings name the explicit migration command without silently moving records
 - **Then**: Installed launchers under `~/.claude/acstack/bin/` retain their existing paths
 - **Source**: `hooks/project-data.sh`, `hooks/session-start.sh`, `pi/extension.ts`
+
+## FR-008: Load communication guidance independently of project activation
+
+- **Given**: A host dispatches the registered SessionStart or SubagentStart hook
+- **When**: The communication hook runs
+- **Then**: It returns the complete canonical marked standard as event-specific additional context
+- **Then**: Injection requires neither initialized project metadata nor successful orchestrator activation
+- **Then**: The selected-style per-turn reminder remains separate
+- **Then**: pi parent sessions retain their existing style controls and child-session orchestrator guard
+- **Then**: pi's off mode disables parent style injection and reminders; custom mode reads the configured style path
+- **Then**: pi skips extension registration when `PI_SUBAGENT_CHILD` or `PI_SUBAGENTS_HERDR_BRIDGE` equals `1`
+- **Then**: Generated child definitions retain their inline canonical standard independently of parent style settings
+- **Source**: `hooks/communication-standard.sh`, `hooks/communication-standard.mjs`, `hooks/hooks.json`, `hooks/lib/communication-standard.mjs`, `pi/extension.ts`

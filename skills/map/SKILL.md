@@ -64,10 +64,17 @@ still one map.
    sharp. The test is whether you can *state* the question precisely, not
    whether you can answer it.
 
-5. **Classify fog.** Read `alignment.md`. Blocking fog changes the alignment
-   artifact. Deferred fog does not.
+5. **Classify fog.** Read `alignment.md`. Blocking fog changes the design.
+   Deferred fog does not.
 
 ### Progressive materialisation
+
+Before deciding whether the map must persist:
+
+- Invoke `/acstack:design-doc` for shared behavior, component boundaries, or data-flow decisions
+- Apply that condition to conversation-only work as well as persisted maps
+- Skip design documents when those decisions are absent, including pure copyediting
+- When a design is required, require current design approval before implementation; changed source or contribution inputs reopen review
 
 The machinery appears only when it must persist. After the opening grill:
 
@@ -141,9 +148,13 @@ operation. First the root:
   diagrams below. A parent draws its subtree, so nothing can draw one earlier.
   The root is a parent too, and it draws the whole map.
 
-- Apply `alignment.md` after diagrams are current. Build the artifact, run the
-  review gate, and start implementation only after approval.
-- On the files backend, `.acstack/maps/` is ignored by the root managed baseline unless the user opts in
+- When a design is required:
+    - Record `Design entry: <repository-relative-path>` in the root node body
+    - Bind the entry back to the map with `planning: {tracker: files | github, map: <name>}`
+    - Require `design-review status` to return that same `planning` binding before using its approval for this map
+    - Record proposals in the node body's `## Design contributions` section using the format in `/acstack:design-doc`
+    - Reconcile proposals and saved feedback explicitly; surface conflicts as decision nodes
+- On the files backend, the root Git ignore rules exclude `.acstack/maps/` unless the user opts in
   (`trackers/files.md` gives the reason).
 
 ## Working the frontier
@@ -200,12 +211,12 @@ the list, marked `skip: <reason>`.
 5. **After every resolution**, in order:
     - Invoke `record-context`
     - Create nodes for anything the resolution surfaced
-    - Classify new fog by whether it changes the alignment artifact
+    - Classify new fog by whether it changes the design
     - Create the critique node when the resolved node changed the frontend,
       per `frontend.md`
     - Regenerate the diagram on the resolved node's parent (see Regenerating
       diagrams)
-    - Rebuild or rerun the alignment review when the artifact changes
+    - Reopen design review when source, saved comments, or contribution inputs change
     - Recompute the frontier
 
     The regeneration comes after the new nodes exist. A surfaced node hangs

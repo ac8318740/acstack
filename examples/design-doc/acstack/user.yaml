@@ -12,4 +12,4 @@ relationships:
     from: user
     to: github
     direction: one-way
-    label: Publishes the Markdown companion to
+    label: Optionally publishes the Markdown companion to

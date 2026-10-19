@@ -85,6 +85,8 @@ class AdaptiveVerificationTests(unittest.TestCase):
         (self.root / "scripts").mkdir()
         shutil.copytree(ROOT / "agents", self.root / "agents")
         shutil.copytree(ROOT / "skills", self.root / "skills")
+        shutil.copytree(ROOT / "hooks", self.root / "hooks")
+        shutil.copytree(ROOT / "output-styles", self.root / "output-styles")
         script = self.root / "scripts/gen-pi-agents.mjs"
         shutil.copyfile(ROOT / "scripts/gen-pi-agents.mjs", script)
         result = subprocess.run(["node", str(script)], capture_output=True, text=True, timeout=30)

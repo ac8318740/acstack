@@ -27,6 +27,7 @@
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readCommunicationStandard } from '../hooks/lib/communication-standard.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = join(root, 'agents');
@@ -79,6 +80,8 @@ function tomlMultiline(value) {
   return `"""\n${escaped}\n"""`;
 }
 
+const standard = readCommunicationStandard(root);
+
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
@@ -101,7 +104,7 @@ for (const file of readdirSync(srcDir).filter((f) => f.endsWith('.md')).sort()) 
     `name = ${tomlString(fields.name)}`,
     `description = ${tomlString(fields.description)}`,
     '',
-    `developer_instructions = ${tomlMultiline(body)}`,
+    `developer_instructions = ${tomlMultiline(`${body}\n\n${standard}`)}`,
     '',
   ].join('\n');
 

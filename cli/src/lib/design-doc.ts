@@ -21,18 +21,21 @@ const ElementSchema = z.object({
 const EntrySchema = z.object({
   id: identity, name: text, summary: text,
   elements: z.array(text).min(1).max(200), detail: text.optional(),
+  planning: z.object({ tracker: z.enum(['files', 'github']), map: text }).strict().optional(),
   concerns: z.array(z.object({
     id: identity, name: text, elements: z.array(identity).min(2).max(200), requirement: text, response: text,
   }).strict()).max(100).default([]),
 }).strict();
 type Element = z.infer<typeof ElementSchema> & { file: string; detailText?: string };
-export type DesignDoc = z.infer<typeof EntrySchema> & { items: Element[]; detailText?: string };
+export type DesignDoc = z.infer<typeof EntrySchema> & { items: Element[]; detailText?: string; sourceRevision: string };
 
 // Bound every read before YAML expansion; yaml's default alias limit also rejects expansion bombs.
-function readBounded(file: string): string {
+function readBounded(file: string): Buffer {
   const stat = statSync(file);
   if (!stat.isFile() || stat.size > 262144) throw new Error(`${file}: file type or size exceeds the 256 KiB limit`);
-  return readFileSync(file, 'utf8');
+  const bytes = readFileSync(file);
+  if (bytes.length > 262144) throw new Error(`${file}: file size exceeds the 256 KiB limit`);
+  return bytes;
 }
 function childPath(root: string, name: string): string {
   if (isAbsolute(name) || name.split(/[\\/]/).includes('..')) throw new Error(`Invalid design path: ${name}`);
@@ -41,35 +44,35 @@ function childPath(root: string, name: string): string {
   if (rel.split(/[\\/]/)[0] === '..' || isAbsolute(rel)) throw new Error(`Design path escapes source directory: ${name}`);
   return path;
 }
-function yaml<T>(file: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>): T {
-  try { return schema.parse(parse(readBounded(file)) as unknown); }
-  catch (error) { throw new Error(`${file}: ${error instanceof Error ? error.message : String(error)}`); }
-}
 export function loadDesignDoc(entryPath: string): DesignDoc {
   const path = realpathSync(entryPath);
   const root = dirname(path);
-  const entry = yaml(path, EntrySchema);
-  const files = new Set<string>();
-  let totalBytes = statSync(path).size;
-  const countBytes = (bytes: number) => {
-    totalBytes += bytes;
+  const captured = new Map<string, Buffer>();
+  let totalBytes = 0;
+  const read = (file: string, name: string): string => {
+    const bytes = captured.get(name) ?? readBounded(file);
+    totalBytes += bytes.length;
     if (totalBytes > 4 * 1024 * 1024) throw new Error('Design source size exceeds the 4 MiB limit');
+    captured.set(name, bytes);
+    return bytes.toString('utf8');
   };
-  const readDetail = (name?: string): string | undefined => {
-    if (!name) return undefined;
-    const file = childPath(root, name);
-    countBytes(statSync(file).size);
-    return readBounded(file);
+  const yaml = <T>(file: string, name: string, schema: z.ZodType<T, z.ZodTypeDef, unknown>): T => {
+    try { return schema.parse(parse(read(file, name)) as unknown); }
+    catch (error) { throw new Error(`${file}: ${error instanceof Error ? error.message : String(error)}`); }
   };
+  const entry = yaml(path, relative(root, path), EntrySchema);
+  const files = new Set<string>();
+  const readDetail = (name?: string): string | undefined => name ? read(childPath(root, name), name) : undefined;
   const items = entry.elements.map(file => {
     const resolved = childPath(root, file);
     if (files.has(resolved)) throw new Error(`${file}: duplicate element file`);
     files.add(resolved);
-    countBytes(statSync(resolved).size);
-    const element = yaml(resolved, ElementSchema);
+    const element = yaml(resolved, file, ElementSchema);
     return { ...element, file, detailText: readDetail(element.detail) };
   });
-  const doc = { ...entry, items, detailText: readDetail(entry.detail) };
+  const detailText = readDetail(entry.detail);
+  const sourceRevision = createHash('sha256').update(JSON.stringify([...captured].sort(([a], [b]) => a.localeCompare(b)).map(([name, bytes]) => [name, bytes.toString('base64')]))).digest('hex');
+  const doc = { ...entry, items, detailText, sourceRevision };
   const ids = new Set<string>([entry.id]);
   for (const item of items) {
     if (ids.has(item.id)) throw new Error(`${item.file}: duplicate identity ${item.id}`);
@@ -137,7 +140,9 @@ function itemDetail(doc: DesignDoc, item: Element): string {
 export function designDocToPack(doc: DesignDoc): AlignmentPack {
   const containers = new Set(doc.items.flatMap(item => item.parent ? [item.parent] : []));
   const edges = [...new Map(doc.items.flatMap(item => item.relationships).map(edge => [edge.id, edge])).values()];
-  const version = createHash('sha256').update(JSON.stringify(doc)).digest('hex').slice(0, 16);
+  const content = { ...doc };
+  delete (content as Partial<DesignDoc>).sourceRevision;
+  const version = createHash('sha256').update(JSON.stringify(content)).digest('hex').slice(0, 16);
   return AlignmentPackSchema.parse({
     documentKind: 'design', packVersion: `${doc.id}@${version}`,
     designDocument: { id: doc.id, name: doc.name, summary: doc.summary, detail: doc.detailText },
@@ -160,8 +165,8 @@ export function renderDesignDocMarkdown(doc: DesignDoc): string {
   const walk = (parent?: string, indent = '    ') => {
     for (const item of doc.items.filter(item => item.parent === parent)) {
       const children = doc.items.some(child => child.parent === item.id);
-      if (children) lines.push(`${indent}subgraph container_${item.id}["${label(item.name)}"]`);
-      lines.push(`${indent}element_${item.id}["${label(item.name)}<br/>${item.kind}${item.channels.length ? ` · ${item.channels.join(', ')}` : ''}"]`);
+      if (children) lines.push(`${indent}subgraph element_${item.id}["${label(item.name)}"]`);
+      else lines.push(`${indent}element_${item.id}["${label(item.name)}<br/>${item.kind}${item.channels.length ? ` · ${item.channels.join(', ')}` : ''}"]`);
       walk(item.id, `${indent}    `);
       if (children) lines.push(`${indent}end`);
     }

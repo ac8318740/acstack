@@ -1,11 +1,12 @@
 id: github
 name: GitHub
-summary: Displays the generated Markdown companion during manual review.
+summary: Hosts a published copy of the Markdown companion when the developer chooses to share it.
 kind: external-system
 channels: [web]
+detail: publication.md
 relationships:
   - id: publish-companion
     from: user
     to: github
     direction: one-way
-    label: Publishes the Markdown companion to
+    label: Optionally publishes the Markdown companion to

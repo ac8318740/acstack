@@ -49,7 +49,7 @@ export function useStored<T>(name: string, initial: T, enabled = true): [T, (val
   return [value, setValue];
 }
 
-const token = document.querySelector<HTMLMetaElement>(`meta[name="${REVIEW_TOKEN_META}"]`)?.content;
+export const token = document.querySelector<HTMLMetaElement>(`meta[name="${REVIEW_TOKEN_META}"]`)?.content;
 export const liveComments = Boolean(token && document.querySelector<HTMLMetaElement>(`meta[name="${REVIEW_MODE_META}"]`)?.content === 'comments');
 export const handoffPrompt = (() => {
   if (!liveComments) return null;

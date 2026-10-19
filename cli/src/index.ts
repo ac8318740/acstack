@@ -7,7 +7,7 @@ import { fail } from './lib/utils.js';
 
 try {
   const root = findProjectRoot();
-  if (root && !(process.argv[2] === 'project-data' && process.argv[3] === 'migrate')) ensureProjectGitignore(root);
+  if (root && !(['project-data', 'design-review'].includes(process.argv[2] ?? '') && process.argv[3] === 'migrate')) ensureProjectGitignore(root);
 } catch (error) { fail((error as Error).message); }
 
 const program = new Command()
@@ -22,7 +22,6 @@ const commands = await Promise.all([
   import('./commands/show.js'),
   import('./commands/archive.js'),
   import('./commands/node.js'),
-  import('./commands/alignment.js'),
   import('./commands/config.js'),
   import('./commands/design-doc.js'),
   import('./commands/design-gate.js'),
@@ -46,6 +45,7 @@ program.addHelpText(
 // acstack-md --preview runs on every cursor move in a file manager, and
 // paying Node's startup for it would make previews noticeably slower.
 const first = process.argv[2];
+if (first === 'map' || first === 'align-viewer') fail('This command is retired. Use design-doc, or design-review migrate for explicit legacy imports.');
 const known = new Set(
   program.commands.flatMap((c) => [c.name(), ...c.aliases()])
 );

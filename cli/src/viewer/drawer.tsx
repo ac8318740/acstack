@@ -3,6 +3,7 @@ import { ChevronRight, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, T
 import Markdown from 'react-markdown';
 import type { Diagram } from './alignment-graph.js';
 import { type Annotation, diagramId, pack, targetLabel } from './pack.js';
+import { DesignApproval } from './design-approval.js';
 import { ElementMetadata } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
@@ -192,6 +193,7 @@ export function DocumentOverview() {
         <p>{document.summary}</p>
         {document.detail && <div className="markdown"><Markdown components={{ img: () => null }}>{document.detail}</Markdown></div>}
       </div>
+      <DesignApproval />
       <p className="muted">Select a component or relationship to inspect its responsibilities and concerns.</p>
     </section>
   );

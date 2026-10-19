@@ -70,7 +70,7 @@ user did not select.
   Recommend `tool`. It writes `workflow.grilling.questions`.
 
 - Apply the shared Implementation discipline in `orchestrator/AGENTS.md` without adding workflow switches
-- Do not offer or generate the deprecated TDD booleans or `workflow.alignment_packs.commit_generated_packs`
+- Do not offer or generate the deprecated TDD booleans or retired `workflow.alignment_packs` settings
 
 
 - **Spec sync** – ask enabled against disabled.

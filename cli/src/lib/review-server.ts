@@ -20,6 +20,7 @@ export function createReviewServer(options: {
   get?: () => unknown;
   post: (body: unknown) => unknown;
   recorded?: () => void;
+  designReview?: { get: () => unknown; post: (body: unknown) => unknown };
 }): Server {
   const token = randomBytes(16).toString('hex');
   const metadata = `<meta name="${REVIEW_TOKEN_META}" content="${token}">${options.mode ? `<meta name="${REVIEW_MODE_META}" content="comments">` : ''}`;
@@ -40,10 +41,11 @@ export function createReviewServer(options: {
       res.end(html);
       return;
     }
-    if (req.url !== options.path || (req.method !== 'POST' && !(req.method === 'GET' && options.get))) return reply(404, { error: 'Not found' });
+    const endpoint = req.url === '/api/design-review' ? options.designReview : req.url === options.path ? options : undefined;
+    if (!endpoint || (req.method !== 'POST' && !(req.method === 'GET' && endpoint.get))) return reply(404, { error: 'Not found' });
     if (req.headers[REVIEW_TOKEN_HEADER] !== token) return reply(403, { error: 'This page is from an older review. Reload it.' });
     if (req.method === 'GET') {
-      void Promise.resolve().then(() => options.get?.()).then(body => reply(200, body)).catch((error: unknown) => {
+      void Promise.resolve().then(() => endpoint.get?.()).then(body => reply(200, body)).catch((error: unknown) => {
         reply(error instanceof ReviewHttpError ? error.status : 500, { error: 'Cannot read review feedback' });
       });
       return;
@@ -61,9 +63,9 @@ export function createReviewServer(options: {
       busy = true;
       void (async () => {
         try {
-          const result = await options.post(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown);
+          const result = await endpoint.post(JSON.parse(Buffer.concat(chunks).toString('utf8')) as unknown);
           reply(200, result);
-          options.recorded?.();
+          if (req.url === options.path) options.recorded?.();
         } catch (error) {
           reply(error instanceof ReviewHttpError ? error.status : 400, { error: error instanceof Error ? error.message : String(error) });
         } finally { busy = false; }

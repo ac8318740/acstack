@@ -1,9 +1,7 @@
-import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
-import { ACSTACK_DIR, projectFile } from './constants.js';
+import { ACSTACK_DIR } from './constants.js';
 import { ensureProjectGitignore } from './project-data.js';
-import { getProjectKey, projectKeyDefaultFlag } from './project-config.js';
 
 export const ALIGNMENT_PACK_AUTO_GENERATE_KEY = 'workflow.alignment_packs.auto_generate';
 export const ALIGNMENT_PACK_APPROVAL_GATE_KEY = 'workflow.alignment_packs.approval_gate';
@@ -37,24 +35,13 @@ export interface ArchiveAlignmentPackWorkingStateOptions {
   durableResidueExtracted: boolean;
 }
 
-function booleanProjectValue(file: string, key: string): boolean {
-  const read = getProjectKey(file, key);
-  if (read.status === 'unset') return projectKeyDefaultFlag(key);
-  if (typeof read.value !== 'boolean') throw new Error(`${key} must be a boolean.`);
-  return read.value;
-}
-
 function storageName(value: string): string {
   return value.replace(/[^a-zA-Z0-9._@-]+/g, '-');
 }
 
 export function loadAlignmentPackConfig(root: string): Promise<AlignmentPackConfig> {
-  const file = projectFile(root);
-  return Promise.resolve({
-    autoGenerate: booleanProjectValue(file, ALIGNMENT_PACK_AUTO_GENERATE_KEY),
-    approvalGate: booleanProjectValue(file, ALIGNMENT_PACK_APPROVAL_GATE_KEY),
-    commitGeneratedPacks: booleanProjectValue(file, ALIGNMENT_PACK_COMMIT_GENERATED_PACKS_KEY),
-  });
+  void root;
+  return Promise.resolve({ autoGenerate: false, approvalGate: false, commitGeneratedPacks: false });
 }
 
 export function alignmentPackStoragePaths(options: AlignmentPackStorageOptions): AlignmentPackStoragePaths {
@@ -69,17 +56,13 @@ export function alignmentPackStoragePaths(options: AlignmentPackStorageOptions):
   };
 }
 
-export async function archiveAlignmentPackWorkingState(options: ArchiveAlignmentPackWorkingStateOptions): Promise<void> {
+export function archiveAlignmentPackWorkingState(options: ArchiveAlignmentPackWorkingStateOptions): Promise<void> {
   if (!options.durableResidueExtracted) {
     throw new Error('Cannot archive alignment pack working state before durable residue has been extracted.');
   }
 
-  const paths = alignmentPackStoragePaths({
-    root: options.root,
-    map: options.map,
-    packVersion: options.map,
-  });
-  await rm(paths.directory, { recursive: true, force: true });
+  // Legacy review artifacts remain available for explicit migration.
+  return Promise.resolve();
 }
 
 // Git's root ignore rules alone control tracking; commit_generated_packs is compatibility-only.

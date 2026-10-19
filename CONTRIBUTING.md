@@ -267,6 +267,16 @@ Why the hook installs them:
     - It leaves alone an agent of yours that shares a name
 - It does nothing at all on a machine with no `~/.codex`
 
+Before checking delivery in Codex:
+
+- Enable hooks and trust the reviewed ACStack hook source through Codex's trust flow
+    - Installing the plugin alone does not grant hook execution
+    - Noninteractive automation must establish that trust before expecting startup context
+- Start a fresh session after the first startup installs agent definitions
+    - Codex discovers available roles before that startup hook runs
+- Verify a native named-role delegation when checking the generated definitions
+    - The native v1 agent tool exposes role selection; the v2 collaboration tool has a different interface
+
 The generator emits only the three keys Codex applies: `name`, `description`, and `developer_instructions`. It deliberately omits others.
 
 - `model` – ours says `opus`, a Claude alias that means nothing to Codex
@@ -478,9 +488,12 @@ Revisit this only if a machine needs the CLI with **no plugin installed at all**
 Use the fewest clear words that preserve all necessary information.
 
 - `output-styles/ac-writing-style.md` owns the shared communication standard in its marked block
-    - Claude Code loads the style; `hooks/ac-writing-style-reminder.sh` extracts the complete block on user turns
-    - `pi/extension.ts` injects the style and extracts the same block, without a generated copy
-    - Keep the markers intact; reminder extraction depends on them, not headings or item counts
+    - Session-start and subagent-start hooks load the block independently of project activation
+    - `hooks/ac-writing-style-reminder.sh` keeps the selected-style reminder on user turns
+    - `pi/extension.ts` retains parent-session style controls
+    - The Codex and pi generators embed the block in every provided agent definition
+    - Generated definitions are build artifacts, not separate style guides
+    - Keep the markers intact; extraction depends on them, not headings or item counts
 - Read `skills/writing/SKILL.md` and its examples before editing durable prose
     - The skill loads the canonical standard even on hosts without style injection
     - `skills/visual-docs/SKILL.md` applies the standard to document structure and diagrams

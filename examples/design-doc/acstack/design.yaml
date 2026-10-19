@@ -1,8 +1,8 @@
 id: acstack-design
 name: ACStack design review
 summary: >-
-  The design-doc skill guides authoring; the review command and server
-  prepare a browser review with saved comments and a Markdown companion.
+  ACStack guides design authoring, saves browser feedback, reconciles optional
+  map contributions, and records exact-revision approval with retained evidence.
 detail: journey.md
 elements:
   - user.yaml
@@ -23,7 +23,9 @@ concerns:
       or fetching browser assets.
     response: >-
       The review command and server read bounded local source files and
-      embed validated graph data with the bundled browser review interface.
+      embed validated graph data with bundled browser assets, without uploading
+      the design. Agent-side reads of GitHub-bound maps still require
+      network access.
   - id: honest-scope
     name: Honest review status
     elements: [skills, review-runtime, viewer]
@@ -31,5 +33,7 @@ concerns:
       An exported review artifact must not imply that a reviewer approved
       a map or implementation.
     response: >-
-      The browser review interface labels the design as a review artifact;
-      durable approval and map reconciliation remain deferred.
+      Comments and exports are not approval. Approval requires reconciled
+      feedback and contributions, resolved blocking questions, and the exact
+      source, review, comments, and map-input tuple. Implementation checks
+      remain separate.
