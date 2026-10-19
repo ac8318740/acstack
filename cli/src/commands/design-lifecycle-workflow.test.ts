@@ -100,7 +100,10 @@ afterEach(async () => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 async function request(url: URL | string, init: RequestInit = {}) {
-  return fetch(url, { ...init, signal: AbortSignal.timeout(5_000) });
+  // Synchronous CLI calls can outlast idle sockets before the client handles their close events.
+  const headers = new Headers(init.headers);
+  headers.set('Connection', 'close');
+  return fetch(url, { ...init, headers, signal: AbortSignal.timeout(5_000) });
 }
 async function start(root: string) {
   // Allocate through port 0 without requiring the public CLI to accept --port 0.
@@ -154,6 +157,16 @@ async function savedComments(server: Awaited<ReturnType<typeof start>>) {
 function denied(response: Response) { expect(response.status).toBeGreaterThanOrEqual(400); expect(response.status).toBeLessThan(500); }
 
 describe('authored design lifecycle through the shipped CLI and HTTP', () => {
+  it('keeps authenticated HTTP requests usable after the test client blocks beyond the idle timeout', async () => {
+    const server = await start(fixture());
+    const before = await server.get();
+    const blocked = spawnSync(process.execPath, ['-e', 'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 8000)'], { timeout: 10_000 });
+    expect(blocked.error).toBeUndefined();
+    expect(blocked.status).toBe(0);
+    expect(server.child.exitCode).toBeNull();
+    expect(tuple(await server.get())).toEqual(tuple(before));
+  }, 20_000);
+
   it('rejects malformed reconciliation JSON before creating canonical review state', () => {
     const root = fixture();
     const directory = join(root, '.acstack/design-reviews');

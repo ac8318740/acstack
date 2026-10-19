@@ -140,47 +140,7 @@ months ago deserves to hear what fails first.
 
 ## Step 8: Offer the rows that need a fix
 
-Build one multi-select question in the question tool (AskUserQuestion with
-`multiSelect: true` on Claude Code). Put one option in it per row you are going
-to offer, and say in each description what the row reported. This is the pre-selection the user sees: only real gaps reach the menu.
-
-Offer a row when any of these holds:
-
-- Its `status` is `fail`.
-- Its `id` is `preferred-browser-mode`, its `status` is `info`, and
-  `.acstack/project.yaml` configures a `frontend` block. The project has a
-  frontend and has named no browser mode for it.
-
-- Its `id` is `output-style` and its `status` is `info`. The row passes when the
-  settings files select `acstack:ac-writing-style`, so `info` means they select
-  some other style, or select none.
-
-- Its `id` is `frontend-verification` and its `status` is `info`. The project
-  configures a frontend and `workflow.frontend_verification` is not `true`.
-
-Each of those rules reads the `status` and the `id`. Read neither row's message
-to decide, for the reason Step 7 gives: the message is prose and it gets
-reworded.
-
-Add three options at the end of the list, whatever the check reported:
-
-- **Re-declare this machine** – invoke the `host` skill. It re-asks every axis,
-  required and optional, and starts from the current answers.
-
-    The check reports an `optional-axis:<key>` row as `info`, never as `fail`.
-    So this option is the only way one of them reaches a question.
-
-- **Change one setting** – for a key the check has no opinion about, such as
-  `workflow.maps.persist`. Point the user at `docs/config-reference.md`, which
-  lists every key, its values and its default. Then write the key:
-
-  ```bash
-  ~/.claude/acstack/bin/acstack config set workflow.maps.persist true
-  ```
-
-  Do not restate the reference here.
-
-- **Skip** – leave everything as it is.
+Read [Step 8 in row-fixes.md](row-fixes.md#step-8-offer-the-rows-that-need-a-fix) and build its full menu.
 
 ## Step 9: Fix one row at a time
 

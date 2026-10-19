@@ -1,6 +1,52 @@
 # Setup: row fixes
 
-`SKILL.md` decides when to read this file: Step 9 is fixing a `browser-mode:<mode>`, `frontend-verification`, `domain-map`, `agent-browser`, `agent-browser-json`, `verification-knowledge` or `output-style` row.
+[The setup skill](SKILL.md) loads Step 8 on every run and Step 9 for the selected row fixes.
+
+## Step 8: Offer the rows that need a fix
+
+Build one multi-select question in the question tool (AskUserQuestion with
+`multiSelect: true` on Claude Code). Put one option in it per row you are going
+to offer, and say in each description what the row reported. This is the pre-selection the user sees: only real gaps reach the menu.
+
+Offer a row when any of these holds:
+
+- Its `status` is `fail`.
+- Its `id` is `preferred-browser-mode`, its `status` is `info`, and
+  `.acstack/project.yaml` configures a `frontend` block. The project has a
+  frontend and has named no browser mode for it.
+
+- Its `id` is `output-style` and its `status` is `info`. The row passes when the
+  settings files select `acstack:ac-writing-style`, so `info` means they select
+  some other style, or select none.
+
+- Its `id` is `frontend-verification` and its `status` is `info`. The project
+  configures a frontend and `workflow.frontend_verification` is not `true`.
+
+Each of those rules reads the `status` and the `id`. Read neither row's message
+to decide, for the reason Step 7 gives: the message is prose and it gets
+reworded.
+
+Add three options at the end of the list, whatever the check reported:
+
+- **Re-declare this machine** – invoke the `host` skill. It re-asks every axis,
+  required and optional, and starts from the current answers.
+
+    The check reports an `optional-axis:<key>` row as `info`, never as `fail`.
+    So this option is the only way one of them reaches a question.
+
+- **Change one setting** – for a key the check has no opinion about, such as
+  `workflow.maps.persist`. Point the user at `docs/config-reference.md`, which
+  lists every key, its values and its default. Then write the key:
+
+  ```bash
+  ~/.claude/acstack/bin/acstack config set workflow.maps.persist true
+  ```
+
+  Do not restate the reference here.
+
+- **Skip** – leave everything as it is.
+
+## Step 9: Fix one row at a time
 
 Five rows describe the machine: `required-axis`, `orchestrator`, `browser-mode`,
 `preferred-browser-mode` and `optional-axis`. Invoke the `host` skill for each of

@@ -32,7 +32,7 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **When**: Setup offers workflow choices or generates project YAML
 - **Then**: Setup neither offers nor generates `workflow.tdd.strict` or `workflow.tdd.orchestrator_strict`
 - **Then**: Setup describes adaptive verification through the shared policy
-- **Source**: `skills/setup/SKILL.md`, `skills/setup/first-run.md`, `skills/setup/report.md`
+- **Source**: `skills/setup/SKILL.md`, `skills/setup/first-run.md`, `skills/setup/report.md`, `skills/setup/row-fixes.md`
 
 ## FR-004: Load shared design context before frontend edits
 
@@ -91,7 +91,7 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: Structured node contributions retain their node identities and answer-chain provenance across both trackers
 - **Then**: The agent explicitly reconciles comments and contributions before requesting approval
 - **Then**: Implementation checks approval against the current authored files, comments, and map inputs
-- **Source**: `skills/design-doc/SKILL.md`, `examples/design-doc/acstack/`
+- **Source**: `skills/design-doc/SKILL.md`, `skills/map/SKILL.md`, `skills/map/materialising.md`, `examples/design-doc/acstack/`
 
 ## FR-007: Offer independent tracking choices for every project-data part
 
@@ -135,7 +135,7 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Given**: Archive prepares node disposal
 - **When**: Fog, open questions, claims, or undecided scope remain
 - **Then**: Archive stops until the work resolves or the user explicitly drops the scope
-- **Source**: `skills/implement/SKILL.md`, `skills/map/SKILL.md`, `skills/map/alignment.md`, `skills/archive/SKILL.md`
+- **Source**: `skills/implement/SKILL.md`, `skills/map/SKILL.md`, `skills/map/materialising.md`, `skills/map/alignment.md`, `skills/archive/SKILL.md`
 
 ## FR-010: Migrate legacy feedback explicitly and retain review evidence
 

@@ -18,7 +18,7 @@ The approved design and retained review history accompany a closed map and passi
 | Build and generated distributions | `npm --prefix cli run build && node scripts/gen-codex-agents.mjs && node scripts/gen-pi-agents.mjs` | Pass |
 | Type checking | `npm --prefix cli run typecheck` | Pass |
 | Lint | `npm --prefix cli run lint` | Pass |
-| CLI tests | `npm --prefix cli test` | 1,791 tests pass across 54 files |
+| CLI tests | `npm --prefix cli test` | 1,792 tests pass across 54 files |
 | Shell and integration suites | `bash tests/run-all.sh` | 1,525 tests pass across 16 suites |
 | Whitespace | `git diff --check` | Pass |
 | Prose review | `acstack lint-prose` over the review brief, CLI spec, and contributor guide | Three reviewed passive-voice suggestions; no missing actor changes the meaning |
@@ -93,7 +93,7 @@ Evidence: `/tmp/acstack-design-doc-review/publication-feedback-review.md`, `publ
 - The header and document approval buttons share one confirmation modal and the existing exact-input approval checks
 - The header shows `Approved` after successful approval
 - The developer manually verified the latest UI and approved the real design
-- The shared-control regression passes with the complete 1,791-test CLI suite
+- The shared-control regression passes with the complete 1,792-test CLI suite
 - Three stale label and root-wrapper tests were corrected with the developer's permission without weakening their behavior assertions
 - Build, generated distributions, type checking, lint, and all 15 shell suites pass
 - A temporary approval-request failure permits retry with fresh input checks; the independent regression failed before the one-line fix and passes afterward
@@ -106,7 +106,15 @@ Evidence: `/tmp/acstack-design-doc-review/publication-feedback-review.md`, `publ
 - The moved living specs preserve the upstream Agent-tool and Frogmouth requirements under unique requirement numbers
 - Independent review checks pi instruction handling, question blockers, and background subagent status without finding an integration regression
 - Rebuilding leaves the generated CLI and provided roles unchanged
-- The merged tree passes build, type checking, lint, all 1,791 CLI tests, all 1,525 shell checks, and four compatibility tests
+- The merged tree passes build, type checking, lint, all 1,792 CLI tests, all 1,525 shell checks, and four compatibility tests
+
+## PR gate corrections
+
+- Required links load relocated map-creation and setup-menu instructions without exceeding the skill entrypoint limit
+- HTTP fixtures close each connection before synchronous CLI work can leave an older client holding an expired socket
+- A blocked-client regression preserves authentication, revision equality, and server-liveness checks without request retries
+- The full shell job uses Node 22 and the existing Markdown prerequisite; the separate CLI job retains Node 20 coverage
+- Independent review finds no lost instructions, weakened assertions, production-policy changes, or new dependencies
 
 ## Actual review state
 

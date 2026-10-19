@@ -19,7 +19,10 @@ jobs:
 
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: '20'
+          node-version: '22'
+
+      - name: Install shell test prerequisites
+        run: sudo apt-get update && sudo apt-get install -y python3-markdown
 
       - name: Run the shell suites
         run: bash tests/run-all.sh
