@@ -17,7 +17,7 @@
 # Both symlinks point at ${CLAUDE_PLUGIN_ROOT}/cli/bin/acstack.js, which is a
 # tiny node wrapper that loads ../dist/index.js.
 #
-# When a project is initialized (acstack/project.yaml exists), the hook also
+# When a project is initialized (.acstack/project.yaml exists), the hook also
 # injects the plugin's orchestrator instructions as additionalContext so installs
 # stay version-agnostic. Otherwise prints a one-line reminder.
 
@@ -181,7 +181,14 @@ if [ -n "$plugin_root" ]; then
   esac
 fi
 
-if [ ! -f acstack/project.yaml ]; then
+# Install the ignore baseline even when setup has not written project.yaml.
+source "${plugin_root}/hooks/project-data.sh"
+project_root=$(acstack_project_root)
+if ! acstack_ensure_project_data "$project_root" "$cli_wrapper"; then
+  exit 0
+fi
+
+if [ ! -f "$project_root/.acstack/project.yaml" ]; then
   echo 'acstack: no project config found. Run /acstack:setup to set up.' >&2
   exit 0
 fi

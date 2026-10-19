@@ -1,7 +1,11 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
-export const ACSTACK_DIR = 'acstack';
+export const ACSTACK_DIR = '.acstack';
+export const LEGACY_ACSTACK_DIR = 'acstack';
+export const DECISIONS_DIR = 'decisions';
+export const DECISION_LOGS_DIR = 'decision-logs';
+export const VERIFICATION_DIR = 'verification';
 export const CHANGES_DIR = 'changes';
 export const MAPS_DIR = 'maps';
 export const SPECS_DIR = 'specs';
@@ -10,7 +14,7 @@ export const PROJECT_FILE = 'project.yaml';
 export const DOMAIN_MAP_FILE = 'domain-map.yaml';
 
 /**
- * One file under a project's `acstack/`, either as an absolute path or - with
+ * One file under a project's `.acstack/`, either as an absolute path or - with
  * no `root` to give - as the relative path a message names it by.
  *
  * Functions rather than constants like `GLOBAL_CONFIG_FILE`, because the root
@@ -18,7 +22,7 @@ export const DOMAIN_MAP_FILE = 'domain-map.yaml';
  * the names they join, so the several readers and writers of each file cannot
  * end up naming it in several ways.
  */
-function acstackFile(name: string, root?: string): string {
+export function acstackFile(name: string, root?: string): string {
   const relative = join(ACSTACK_DIR, name);
   return root === undefined ? relative : join(root, relative);
 }
@@ -41,13 +45,13 @@ export function domainMapFile(root?: string): string {
 export const PROFILES_DIR = 'profiles';
 
 /**
- * Files a project carries outside acstack/, written by the setup skill and
+ * Files a project carries under .acstack/, written by the setup skill and
  * read back by `acstack config check`. Named here rather than at the point of
  * use so the skill that writes one and the check that looks for it can never
  * drift on to different filenames.
  */
-export const AGENT_BROWSER_JSON_FILE = 'agent-browser.json';
-export const VERIFICATION_KNOWLEDGE_FILE = 'VERIFICATION-KNOWLEDGE.md';
+export const AGENT_BROWSER_JSON_FILE = join(ACSTACK_DIR, 'agent-browser.json');
+export const VERIFICATION_KNOWLEDGE_FILE = join(ACSTACK_DIR, VERIFICATION_DIR, 'VERIFICATION-KNOWLEDGE.md');
 
 /** The agent-browser CLI, as it is named on PATH and installed from npm. */
 export const AGENT_BROWSER_BIN = 'agent-browser';

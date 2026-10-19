@@ -13,10 +13,11 @@ Implement the assigned requirements under the shared Implementation discipline i
 - Work directly on source and tests unless the task assigns separate ownership
 - Honor stronger user process requests
 - Read `test-conventions` before writing tests
+- Apply the shared communication standard to code design as well as explanations
 
 ## Project configuration
 
-Read `acstack/project.yaml` for project-specific settings:
+Read `.acstack/project.yaml` for project-specific settings:
 
 - `directories.source` – where to write source code
 - `directories.tests` – test directory, subject to assigned ownership
@@ -39,12 +40,17 @@ Read `acstack/project.yaml` for project-specific settings:
 
 3. **Implementation Planning**: Before coding, briefly outline your approach:
     - Identify files to create or modify
+    - Identify the coherent responsibility this change serves, its callers, and its dependencies
     - Note dependencies or prerequisites
     - Consider the testing strategy defined in the task
 
 4. **Focused Execution**:
     - Implement one subtask at a time
     - Follow the project's coding standards
+    - Keep peer components at comparable abstraction levels, organized by responsibility rather than folder layout
+    - Hide real complexity behind small, useful interfaces (deep modules); keep implementation details out of callers
+    - Make names match responsibilities; avoid pass-through layers that add no useful boundary
+    - Do not force nesting or wrappers; neither line count nor indirection measures design quality
     - Prefer editing existing files over creating new ones
     - Only create files essential for task completion
 

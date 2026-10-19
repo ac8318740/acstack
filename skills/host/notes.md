@@ -20,7 +20,7 @@ interface. That is a JSON file at `~/.config/acstack/config.json`, or under
 `$XDG_CONFIG_HOME` when you set that environment variable. Run
 `~/.claude/acstack/bin/acstack config path` to print the real location.
 
-They do not go in `acstack/project.yaml`.
+They do not go in `.acstack/project.yaml`.
 
 Project concerns stay in `project.yaml`. In particular
 `frontend.browser.mode` stays there as the *project's preference*, while
@@ -77,7 +77,7 @@ git worktrees and say so. An environment variable for an orchestrator that was
 never declared is worth a warning, not a refusal.
 
 **The host declares, the project prefers.** `host.browser.*` says what this
-machine can do. `frontend.browser.mode` in `acstack/project.yaml` says what the
+machine can do. `frontend.browser.mode` in `.acstack/project.yaml` says what the
 project would like.
 
 Today the only thing that compares the two is the ACStack command-line

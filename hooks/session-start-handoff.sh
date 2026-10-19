@@ -9,13 +9,13 @@
 # the load-bearing state the summary may have compressed away (next action, task
 # ledger, agent-team file ownership, blockers).
 #
-# Active (pending) handoff lives at the fixed path acstack/HANDOFF.md, so this
+# Active (pending) handoff lives at the fixed path .acstack/HANDOFF.md, so this
 # hook reads one known file with no CLI call. The file's frontmatter records the
 # change it belongs to. On consume, the file is MOVED into that change's own
 # folder, accumulating a per-change history:
 #
-#   acstack/changes/<change>/handoffs/<timestamp>.md   (when the change dir exists)
-#   acstack/handoffs/<change>/<timestamp>.md           (ad-hoc, or change archived)
+#   .acstack/changes/<change>/handoffs/<timestamp>.md   (when the change dir exists)
+#   .acstack/handoffs/<change>/<timestamp>.md           (ad-hoc, or change archived)
 #
 # Storing consumed handoffs inside the change dir means they travel with the
 # change when /acstack:archive moves it. Names are timestamped with a numeric
@@ -32,6 +32,12 @@
 set -u
 
 command -v python3 >/dev/null 2>&1 || exit 0
+source "$(dirname "${BASH_SOURCE[0]}")/project-data.sh"
+project_root=$(acstack_project_root)
+export ACSTACK_LEGACY_PROJECT_DATA=0
+acstack_has_legacy_project_data "$project_root" && ACSTACK_LEGACY_PROJECT_DATA=1
+export ACSTACK_BUNDLED_CLI="${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/cli/bin/acstack.js"
+cd "$project_root" || exit 0
 
 # Capture the hook payload from stdin before running python. The heredoc below
 # becomes python's stdin (the program source), so the payload must travel via an
@@ -40,7 +46,7 @@ ACSTACK_HOOK_INPUT="$(cat)"
 export ACSTACK_HOOK_INPUT
 
 python3 <<'PY'
-import json, os, re, shutil, sys
+import json, os, re, shutil, subprocess, sys
 
 try:
     data = json.loads(os.environ.get("ACSTACK_HOOK_INPUT", ""))
@@ -53,7 +59,7 @@ if not isinstance(data, dict):
 if data.get("source") != "compact":
     sys.exit(0)
 
-active = os.path.join("acstack", "HANDOFF.md")
+active = os.path.join(".acstack", "HANDOFF.md")
 try:
     with open(active, encoding="utf-8") as f:
         raw = f.read()
@@ -115,14 +121,22 @@ if not stamp:
 # Route to the change's own folder when that change dir exists, so consumed
 # handoffs travel with the change on /acstack:archive. Otherwise fall back to a
 # neutral top-level handoffs dir (ad-hoc work, or a change already archived).
-change_dir = os.path.join("acstack", "changes", change)
+change_dir = os.path.join(".acstack", "changes", change)
 if change != "ad-hoc" and os.path.isdir(change_dir):
     archive_dir = os.path.join(change_dir, "handoffs")
 else:
-    archive_dir = os.path.join("acstack", "handoffs", change)
+    archive_dir = os.path.join(".acstack", "handoffs", change)
 
 # Find a non-colliding destination: <stamp>.md, then <stamp>-2.md, -3.md, ...
 dest = None
+try:
+    subprocess.run([os.environ["ACSTACK_BUNDLED_CLI"], "project-data", "ensure"],
+                   check=True, stdout=sys.stderr, stderr=sys.stderr)
+    if os.environ["ACSTACK_LEGACY_PROJECT_DATA"] == "1":
+        raise OSError("Legacy project data found; run ~/.claude/acstack/bin/acstack project-data migrate first")
+except (OSError, subprocess.CalledProcessError) as error:
+    print("acstack: project-data ensure failed; ignore policy is not confirmed installed. Leaving the active handoff untouched. " + str(error), file=sys.stderr)
+    sys.exit(0)
 try:
     os.makedirs(archive_dir, exist_ok=True)
     candidate = os.path.join(archive_dir, stamp + ".md")

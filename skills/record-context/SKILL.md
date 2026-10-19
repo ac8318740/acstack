@@ -25,7 +25,7 @@ an obvious choice buries the ones that matter.
 
 ### Writing one
 
-- Path: `docs/adr/NNNN-slug.md`. The number is the highest existing number plus
+- Path: `.acstack/decisions/NNNN-slug.md`. The number is the highest existing number plus
   one, zero-padded to four digits. Create the directory lazily.
 
     If the file for that number appeared since you scanned (a parallel teammate
@@ -41,7 +41,7 @@ an obvious choice buries the ones that matter.
 
 ### Example
 
-`docs/adr/0004-invariant-tool-path.md`:
+`.acstack/decisions/0004-invariant-tool-path.md`:
 
 ```markdown
 # One invariant path for the command line tool
@@ -64,7 +64,7 @@ the hook has not run. The fix is to restart the agent session.
 
 ### You generate the index
 
-After writing any ADR, rewrite `docs/adr/index.md` in full, with one line
+After writing any ADR, rewrite `.acstack/decisions/index.md` in full, with one line
 per ADR. Sort the lines by number, ascending. Each line takes its number
 and slug from the filename, and its title from the file's first heading:
 
@@ -80,9 +80,9 @@ If you find hand edits in it, regenerate; the files are the truth.
 If the decision fixed what a word means – picked between competing names,
 sharpened a fuzzy term, coined one – record it:
 
-- **Cross-domain terms** go in `CONTEXT.md` at the repo root.
-- **Domain terms** go in `acstack/specs/<domain>/CONTEXT.md`, beside that
-  domain's `spec.md`. Find the domain in `acstack/domain-map.yaml`.
+- **Cross-domain terms** go in `.acstack/CONTEXT.md`.
+- **Domain terms** go in `.acstack/specs/<domain>/CONTEXT.md`, beside that
+  domain's `spec.md`. Find the domain in `.acstack/domain-map.yaml`.
 
 - Create both files lazily; there is no index file –
   `domain-map.yaml` already lists every domain.

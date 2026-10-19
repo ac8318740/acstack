@@ -37,10 +37,10 @@ Write the answer as `remote`, `headless` or `local`. Write the port beside it:
 ~/.claude/acstack/bin/acstack config set frontend.browser.cdp_port 19988
 ```
 
-Then write `agent-browser.json` with the same port, the way Step 9c in `row-fixes.md` does.
+Then write `.acstack/agent-browser.json` with the same port, the way Step 9c in `row-fixes.md` does.
 
 On **Skip for now**, leave `frontend.browser` unset and write no
-`agent-browser.json`. Say that `docs/config-reference.md` documents the three
+`.acstack/agent-browser.json`. Say that `docs/config-reference.md` documents the three
 keys for later.
 
 On **Headless**, no setup follows. Tell the user the frontend verifier launches

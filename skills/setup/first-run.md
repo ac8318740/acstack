@@ -1,9 +1,9 @@
 # Setup: first run
 
-`SKILL.md` decides when to read this file: Step 2 found no `acstack/project.yaml`, so the first-run path runs Steps 3 to 6 from here.
+`SKILL.md` decides when to read this file: Step 2 found no `.acstack/project.yaml`, so the first-run path runs Steps 3 to 6 from here.
 
-The file keeps its schema on both paths, so nothing migrates. `docs/config-reference.md`
-lists every key it can hold.
+First-run setup does not migrate legacy records; use the procedure in `docs/config-reference.md`.
+That reference also lists every configuration key.
 
 ## Step 3: Detect the project type and propose defaults
 
@@ -70,7 +70,7 @@ user did not select.
   Recommend `tool`. It writes `workflow.grilling.questions`.
 
 - Apply the shared Implementation discipline in `orchestrator/AGENTS.md` without adding workflow switches
-- Do not offer or generate the deprecated TDD booleans
+- Do not offer or generate the deprecated TDD booleans or retired `workflow.alignment_packs` settings
 
 
 - **Spec sync** – ask enabled against disabled.
@@ -81,12 +81,23 @@ paths reach Step 10 through the health check.
 
 ## Step 6: Write the config
 
-1. Create the `acstack/` directory.
-2. Write `acstack/project.yaml` from the profile and the answers.
-3. Leave the project CLAUDE.md alone. The SessionStart hook loads the
+1. Create the `.acstack/` directory.
+2. Immediately run `~/.claude/acstack/bin/acstack project-data ensure`, before writing any metadata.
+3. Write `.acstack/project.yaml` from the profile and the answers.
+4. Ask which project-data parts to track with a multi-select question, with nothing selected by default.
+   Offer the parts listed in `docs/config-reference.md` under "Project data stays local by default" in batches if the host limits options.
+   Include every part, not only the files setup creates today.
+5. Leave all parts ignored when the user selects none.
+6. Append native exceptions after existing root `.gitignore` rules, outside the managed baseline.
+    - When the user selects any part, append `!/.acstack/` once before that part's exceptions.
+    - A directory needs both `!/.acstack/specs/` and `!/.acstack/specs/**` (replace `specs` with the selected directory).
+    - A root-level file needs one exception, such as `!/.acstack/project.yaml`.
+    - Reopen parent directories before exceptions for nested files, such as `!/.acstack/verification/`.
+    - Preserve existing user rules; never force-add ignored files or change the Git index.
+7. Leave the project CLAUDE.md alone. The SessionStart hook loads the
    orchestrator instructions.
 
-4. Remove a legacy `@import` line from the project CLAUDE.md, if one is there.
+8. Remove a legacy `@import` line from the project CLAUDE.md, if one is there.
    It points at `.../plugins/cache/ac8318740-plugins/acstack/<version>/CLAUDE.md`.
 
 Then go to Step 7. Everything a fresh project still lacks shows up there as a

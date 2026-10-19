@@ -17,13 +17,22 @@ flowchart TD
 
 ## 0. Load design context before a UI edit (mandatory)
 
+- Frontend content fills its component's available width with equal horizontal padding; text wraps only after filling that width
+- Reuse the project's font family and a small type scale; equivalent text uses identical typography, with variations reserved for meaningful hierarchy
+- Align related elements to shared edges or baselines; use consistent spacing and indentation to show their hierarchy
+- Center status text and controls on the same row, including inside nested action groups; a centered parent does not align its children
+- Use shared spacing tokens or repeated gaps and padding; avoid one-off offsets that conceal a layout error
+- Reserve scrollbar space in scrollable panels so overflow never shifts text or changes line wrapping
+- Render dropdown menus with shared project components and tokens, not browser-native option menus or per-screen copies
+- Preserve keyboard navigation, screen-reader semantics, visible focus, dismissal, and viewport fit in shared dropdowns
+
 impeccable is a third-party design plugin. It holds the project's design context, meaning the files that state the design rules and the token definitions a UI file follows.
 
 Load that context before your first edit under `frontend.directory`. Load it once per task.
 
 **Check the design gate first**
 
-The design gate is the set of optional checks impeccable adds to acstack's pipeline. `workflow.design_review` in `acstack/project.yaml` turns the gate on. Ask acstack for the answer:
+The design gate is the set of optional checks impeccable adds to acstack's pipeline. `workflow.design_review` in `.acstack/project.yaml` turns the gate on. Ask acstack for the answer:
 
 ```bash
 ~/.claude/acstack/bin/acstack design-gate --json
@@ -85,7 +94,7 @@ impeccable installs its own PostToolUse hook, a check Claude Code runs right aft
 - Follow the shared Implementation discipline in `orchestrator/AGENTS.md`
 - The verification owner gathers the file list, completes static checks, and handles the detector
     - A delegated task-checker may own this work, but its presence is optional
-- Read `acstack/project.yaml` before deriving paths
+- Read `.acstack/project.yaml` before deriving paths
     - This pass requires a configured `frontend`
     - `frontend.directory` defaults to `frontend/` when omitted
     - If the project configures no frontend, warn that `frontend.directory` is missing and skip this pass
@@ -107,6 +116,11 @@ git status --porcelain -- <frontend.directory>
 
 ## 2. Run the design detector
 
+- Verify shared edges, text baselines, control centers, gaps, and padding before running the detector
+- Check nested groups as well as their parents; a shared row must not leave status text aligned to a button's top edge
+- Check normal, pending, error, and narrow layouts; compare bounding boxes or text baselines in the browser rather than judging a screenshot alone
+- Verify dropdowns reuse the shared component and project tokens before running the detector
+- Check arrow keys, Home/End, Enter/Space, Escape, Tab, focus, and viewport fit when a shared dropdown changes
 - Check the design gate before running the detector
 
 ```bash

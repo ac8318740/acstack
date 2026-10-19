@@ -1,0 +1,22 @@
+id: skills
+name: Agent skills
+summary: Guide the agent through authoring and exporting a design for review.
+kind: component
+parent: acstack
+channels: [agent]
+relationships:
+  - id: author-design
+    from: user
+    to: skills
+    direction: one-way
+    label: Requests design guidance from
+  - id: export-design
+    from: skills
+    to: review-runtime
+    direction: one-way
+    label: Guides the agent to run
+  - id: load-skills
+    from: host
+    to: skills
+    direction: one-way
+    label: Registers

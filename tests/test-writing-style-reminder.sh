@@ -8,7 +8,7 @@
 # hand-typed copy and drifted within one release, which is what these checks
 # exist to stop happening again.
 #
-# The checks cover the output-style gate, the two extracted sections, the
+# The checks cover the output-style gate, the complete marked block, the
 # no-drift guarantee, JSON validity and escaping, the missing-file fallbacks,
 # and the wiring in hooks.json.
 #
@@ -98,17 +98,17 @@ ctx="$(run_hook "ac-writing-style" "$ROOT" | context_of)"
 check "names itself in the first line" \
   '[ "$(echo "$ctx" | head -1)" = "ac-writing-style reminder" ]'
 
-check "carries the persona opener" \
-  'echo "$ctx" | grep -q "You are the best developer in the world"'
+check "carries the canonical communication rules" \
+  'echo "$ctx" | grep -q "Use the fewest clear words that preserve all necessary information"'
 
 check "carries the Before you send heading" \
   'echo "$ctx" | grep -q "^## Before you send$"'
 
-check "carries every checklist item, all nine" \
-  '[ "$(echo "$ctx" | grep -cE "^[1-9]\. ")" -eq 9 ]'
+check "carries the complete shared block, including nested guidance" \
+  'STYLE="$STYLE" CTX="$ctx" python3 -c '\''import os; text=open(os.environ["STYLE"]).read(); block=text.split("<!-- acstack:communication:start -->\n")[1].split("<!-- acstack:communication:end -->")[0]; assert os.environ["CTX"] == "ac-writing-style reminder\n\n" + block.rstrip("\n")'\'''
 
-check "drops the persona sub-bullets, which the file itself argues" \
-  '! echo "$ctx" | grep -q "Other developers envy how easily"'
+check "does not leak source markers or frontmatter" \
+  '! echo "$ctx" | grep -Eq "acstack:communication:|keep-coding-instructions:"'
 
 echo ""
 
@@ -132,11 +132,15 @@ check "every reminder line appears verbatim in the output style" '[ "$drifted" -
 # The reverse guarantee: edit the style, and the reminder changes with it.
 fake="$WORK/fake_root"
 mkdir -p "$fake/output-styles"
-sed 's/^1\. The first bullet is the answer$/1. The first bullet is the ANSWER, edited/' \
-  "$STYLE" > "$fake/output-styles/ac-writing-style.md"
+python3 - "$STYLE" "$fake/output-styles/ac-writing-style.md" <<'PY'
+import sys
+text = open(sys.argv[1]).read()
+text = text.replace('<!-- acstack:communication:end -->', '12. Preserve "quoted" paths like `C:\\work`\n<!-- acstack:communication:end -->\nDo not inject this footer')
+open(sys.argv[2], 'w').write(text)
+PY
 edited="$(run_hook "ac-writing-style" "$fake" | context_of)"
 check "an edit to the style reaches the reminder" \
-  'echo "$edited" | grep -q "The first bullet is the ANSWER, edited"'
+  'echo "$edited" | grep -Fq '\''12. Preserve "quoted" paths like `C:\work`'\'' && ! echo "$edited" | grep -q "Do not inject this footer"'
 
 echo ""
 
@@ -146,6 +150,7 @@ echo ""
 
 echo "4. Output contract"
 
+# shellcheck disable=SC2034 # check evaluates the assertions below with eval.
 out="$(run_hook "ac-writing-style" "$ROOT")"
 
 check "emits one line of valid JSON" \
@@ -157,16 +162,10 @@ check "sets suppressOutput, so nothing reaches the transcript" \
 check "names the UserPromptSubmit event" \
   'echo "$out" | python3 -c "import json,sys; raise SystemExit(0 if json.load(sys.stdin)[\"hookSpecificOutput\"][\"hookEventName\"] == \"UserPromptSubmit\" else 1)"'
 
-# The style quotes double quotes and backslashes at it, so the escaping has to
-# survive a round trip through JSON rather than merely produce parseable output.
-# The "Search your own reply" checklist item holds the most double quotes in the
-# style, so it is the one that proves the escaping survives a round trip.
-#
-# The pattern leaves the item number open. The checklist gets items inserted
-# above this one, and the round trip is what the check is about, not the number.
-quoted='^[0-9]+\. Search your own reply for ", and ", ", so ", ", which ", and ", because "$'
-check "round-trips a line the style fills with double quotes" \
-  'echo "$ctx" | grep -Eq -- "$quoted"'
+# A source edit containing quotes and backslashes must survive JSON escaping.
+# Item 12 also guards against extracting only single-digit checklist items.
+check "round-trips double quotes and backslashes from the source" \
+  'echo "$edited" | grep -Fxq '\''12. Preserve "quoted" paths like `C:\work`'\'''
 
 echo ""
 
@@ -178,16 +177,18 @@ echo "5. Fallbacks"
 
 empty="$WORK/empty_root"
 mkdir -p "$empty/output-styles"
-out="$(run_hook "ac-writing-style" "$empty")"
-check "stays silent when the output style file is missing" '[ "$out" = "{}" ]'
+check "stays silent when the output style file is missing" \
+  '[ "$(run_hook "ac-writing-style" "$empty")" = "{}" ]'
 
 blank="$WORK/blank_root"
 mkdir -p "$blank/output-styles"
 printf '# nothing to extract\n' > "$blank/output-styles/ac-writing-style.md"
-out="$(run_hook "ac-writing-style" "$blank")"
-check "stays silent when the file holds neither section" '[ "$out" = "{}" ]'
+check "stays silent when the file has no shared block" \
+  '[ "$(run_hook "ac-writing-style" "$blank")" = "{}" ]'
 
-check "exits 0 in every case above" 'true'
+printf '<!-- acstack:communication:start -->\nIncomplete guidance\n' > "$blank/output-styles/ac-writing-style.md"
+check "stays silent when the shared block is unterminated" \
+  '[ "$(run_hook "ac-writing-style" "$blank")" = "{}" ]'
 
 echo ""
 

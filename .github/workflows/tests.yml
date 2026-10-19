@@ -13,16 +13,21 @@ jobs:
     name: tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          node-version: '20'
+          persist-credentials: false
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+
+      - name: Install shell test prerequisites
+        run: sudo apt-get update && sudo apt-get install -y python3-markdown
 
       - name: Run the shell suites
         run: bash tests/run-all.sh
 
-      # `npm ci` needs a lockfile. Fall back to `npm install` when there is none.
+      # `npm ci` needs a lockfile; otherwise use `npm install`.
       - name: Install the CLI dependencies
         run: |
           set -euo pipefail
@@ -34,3 +39,8 @@ jobs:
 
       - name: Run the CLI tests
         run: npm --prefix cli test
+
+      - name: Run the compatibility integration tests
+        run: |
+          python3 -m unittest discover -s tests/integration \
+            -p 'test_adaptive_verification.py'

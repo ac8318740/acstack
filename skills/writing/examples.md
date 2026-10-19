@@ -1,153 +1,86 @@
 # Writing examples
 
-The `Write:` and `Not:` pair for each rule in `SKILL.md`, except rules 3 and 11, which keep theirs inline.
+These examples apply the shared communication standard in `../../output-styles/ac-writing-style.md` without prescribing one shape for every answer.
 
-### 1. Cap a descriptive sentence at 25 words, and an instruction at 20 words (ASD-STE100)
+## A short reply needs only the answer
 
-- Write: The SessionStart hook creates the symlink at `~/.claude/acstack/bin/acstack`.
-- Not: The SessionStart hook, which runs whenever a session begins and which the plugin installs for you, is responsible for creating the symlink that points at the CLI inside the current plugin cache.
+- Write: The build passes
+- Avoid: `## Context`, `## Problem`, and `## Solution` sections to report a successful build
 
-### 2. Give each sentence one instruction (ASD-STE100)
+## Preserve the reason when it changes the action
 
-- Write: Run the tests. Stage the spec files.
-- Not: Run the tests and stage the spec files, then check the baseline count.
+- Write: Don't cache the token; it expires in five minutes
+- Avoid: Don't cache the token
+    - The shorter version omits the constraint that explains the recommendation
+- Write: The hook writes the symlink
+- Avoid: The hook writes the symlink, which means the symlink gets created
+    - The second clause adds no information
 
-### 4. Break a paragraph at three sentences
+## Give each level one question to answer
 
-- Write: Three sentences, then a new paragraph, even mid-argument.
-- Not: A sixth sentence of setup inside the same block.
+- Write: The release is blocked by two failed checks
+    - The CLI build fails on a missing import
+    - The hook suite fails on malformed JSON
+- Avoid: The release is blocked by these items
+    - The CLI build fails on a missing import
+    - Run `npm test`
+    - Yesterday we considered changing the hook
 
-### 5. Open a paragraph with its point
+The first list names blockers at the same level.
+The second mixes a blocker, an action, and history.
 
-- Write: Spec sync runs at commit time. It maps changed files to domains, then rewrites each spec.
-- Not: Specs can drift. One option is to update them by hand. Spec sync runs at commit time.
+## Keep the overview connected to the detail
 
-### 6. Use one term for one meaning across a document (ASD-STE100)
+- Write: The SessionStart hook creates the CLI symlink
+    - `hooks/session-start.sh` links the bundled CLI to `~/.claude/acstack/bin/acstack`
+- Avoid: The startup mechanism prepares the launcher
+    - `hooks/session-start.sh` creates a symlink
 
-- Write: The map holds nodes. Each node has a status.
-- Not: The map holds nodes. Each item has a status.
+The first version ties the readable name to the file and its output.
+The second makes the reader guess whether the names identify the same thing.
 
-### 7. Define a term of art in plain words, before you first use it
+## Define unfamiliar terms before relying on them
 
-- Write: Work the frontier, the nodes ready to work now.
-- Not: Work the frontier, the unblocked open nodes the tracker returns.
+- Write: Work the frontier, meaning the nodes ready to work now
+- Avoid: Work the frontier returned by the tracker
+- Write: The map holds nodes; each node has a status
+- Avoid: The map holds nodes; each item has a status
 
-- Write: define `map` and `node`, then say what `/acstack:map` does
-- Not: say what `/acstack:map` does, then define `map` in the next subsection
+## Separate the current decision from its history
 
-### 8. Spell out an abbreviation at first use
+- Write: Use the files backend because it works offline
+    - Decision history: We rejected the issues backend because this deployment has no network access
+- Avoid: We first considered issues, then investigated files, and eventually chose files
 
-- Write: an architecture decision record (ADR)
-- Not: an ADR
+## Keep necessary qualifications and evidence
 
-### 9. Cap a noun string at three words (ASD-STE100)
+- Write: The unit tests pass; browser verification is blocked because Chrome is unavailable
+- Avoid: All checks pass
+- Write: The parser rejects duplicate keys
+- Avoid: The parser offers comprehensive validation
 
-- Write: the knowledge base for browser verification
-- Not: the browser verification knowledge base file
+## Choose clear words without enforcing word counts
 
-### 10. Keep the articles (ASD-STE100)
+- Write: Use the bundled CLI
+- Avoid: Utilize the bundled CLI
+- Write: The browser verification knowledge base records selectors that survived a page reload
+- Avoid: Removing a necessary term to meet a three-word noun limit
+- Write: The file was deleted before the hook ran
+- Avoid: Inventing an actor to force active voice when the logs do not identify who deleted the file
 
-- Write: Update the spec in the domain directory.
-- Not: Update spec in domain directory.
+## Show relationships without inventing containment
 
-### 12. Use the short form
+- Write: The API and worker both use the authentication module
+- Avoid: Nesting the worker under the API because both depend on authentication
+- Write: The parser exposes `parse(text)` and keeps tokenization internal
+- Avoid: Listing every tokenizer helper before explaining the parser's interface
 
-- Write: To stage the specs, run the commit skill. It warns because the cap is a heuristic.
-- Not: In order to stage the specs, run the commit skill. It warns due to the fact that the cap is a heuristic.
+## Use formatting to clarify the content
 
-### 13. Name the actor and put it in front of the verb (ASD-STE100)
-
-- Write: The task-checker runs the full suite.
-- Not: The full suite is run.
-
-### 14. Write descriptions in the present tense and procedures in the imperative (ASD-STE100)
-
-- Write: The hook writes the symlink. Run the hook after you install the plugin.
-- Not: The hook will have written the symlink. You should then probably run it.
-
-### 15. Make a claim once, at the strength the evidence supports
-
-- Write: The cap misfires inside tables.
-- Not: It may possibly be the case that the cap could sometimes misfire inside tables.
-
-### 16. Name the source of a claim
-
-- Write: ASD-STE100 caps a descriptive sentence at 25 words.
-- Not: Experts believe that shorter sentences read better.
-
-### 17. Describe a thing by what it does
-
-- Write: The tunnel forwards port 19988 to Chrome on the laptop.
-- Not: The tunnel offers a seamless, robust bridge to your browser.
-
-### 18. Name the file, the number, and the actor
-
-- Write: Three of the eleven skills restate these rules, `commit` among them.
-- Not: Several files restate these rules.
-
-### 19. Recommend one option and give the reason
-
-- Write: Use the files backend. It needs no network.
-- Not: There is a files backend and an issues backend. Both carry trade-offs.
-
-### 20. State what a thing is, then stop
-
-- Write: The skill holds the rules. The CLI checks them.
-- Not: The skill is not just a style guide but a contract.
-- Not: The hook writes the symlink rather than copying it.
-
-### 21. List as many items as there are
-
-- Write: The lint warns and never blocks.
-- Not: The lint is fast, focused, and forgiving.
-
-### 22. Name the thing a pronoun stands for
-
-- Write: Only `/acstack:map` creates a map.
-- Not: Only `/acstack:map` creates one.
-
-### 23. Write for a developer who has never seen this repository
-
-- Write: Node 14 asks which tracker backend ships first.
-- Not: The node from this morning's grill.
-
-- Write: the frontier, meaning the nodes you can work right now
-- Not: work the frontier
-
-### 24. State what you checked, and when
-
-- Write: `acstack lint-prose` does not exist yet, as of 2026-08-22.
-- Not: My knowledge has a cutoff, so this may have changed since.
-
-### 25. Connect clauses with a period or a comma, and set an aside off with an en dash
-
-- Write: The lint warns. It never blocks. The rule – a heuristic – misfires inside tables.
-- Not: The same two sentences joined by an em dash, or by a colon in mid sentence.
-
-- Write: proposals, designs, and tasks
-- Not: proposals, designs and tasks
-
-### 26. Write a heading in sentence case, and end a fragment with no period
-
-- Write: `## Before you finish`, and a table cell that reads `make sure`
-- Not: `## Before You Finish.`, and a table cell that reads `make sure.`
-
-### 27. Give a heading content that its paragraph does not repeat
-
-- Write: `## Sentences`
-- Not: `## This section covers the rules that apply to sentences`
-
-### 28. Bold a single term for emphasis
-
-- Write: **fog** names whatever nobody can state precisely yet.
-- Not: **ACStack** ships a **CLI** that **many** skills call.
-
-### 29. Carry the meaning in words
-
-- Write: Done. 12 tests pass.
-- Not: The same line with a tick emoji in front and a rocket after.
-
-### 30. End with the last fact
-
-- Write: The build passes. The baseline holds at 214 tests.
-- Not: Let me know if you would like me to help with anything else.
+- Use bullets for distinct checks and numbered steps for actions that must happen in order
+- Use a table when each option needs the same comparison fields
+- Keep a connected explanation in prose when splitting it would hide the causal relationship
+- Indent nested Markdown bullets four spaces and leave a blank line before a list
+- Write `## Before you finish`, not `## Before You Finish.`
+- Write `proposals, designs, and tasks`, with the Oxford comma
+- Report `12 tests pass` in words rather than relying on an icon

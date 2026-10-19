@@ -1,9 +1,7 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { rm } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 
-import { ACSTACK_DIR, projectFile } from './constants.js';
-import { getProjectKey, projectKeyDefaultFlag } from './project-config.js';
+import { ACSTACK_DIR } from './constants.js';
+import { ensureProjectGitignore } from './project-data.js';
 
 export const ALIGNMENT_PACK_AUTO_GENERATE_KEY = 'workflow.alignment_packs.auto_generate';
 export const ALIGNMENT_PACK_APPROVAL_GATE_KEY = 'workflow.alignment_packs.approval_gate';
@@ -37,24 +35,13 @@ export interface ArchiveAlignmentPackWorkingStateOptions {
   durableResidueExtracted: boolean;
 }
 
-function booleanProjectValue(file: string, key: string): boolean {
-  const read = getProjectKey(file, key);
-  if (read.status === 'unset') return projectKeyDefaultFlag(key);
-  if (typeof read.value !== 'boolean') throw new Error(`${key} must be a boolean.`);
-  return read.value;
-}
-
 function storageName(value: string): string {
   return value.replace(/[^a-zA-Z0-9._@-]+/g, '-');
 }
 
 export function loadAlignmentPackConfig(root: string): Promise<AlignmentPackConfig> {
-  const file = projectFile(root);
-  return Promise.resolve({
-    autoGenerate: booleanProjectValue(file, ALIGNMENT_PACK_AUTO_GENERATE_KEY),
-    approvalGate: booleanProjectValue(file, ALIGNMENT_PACK_APPROVAL_GATE_KEY),
-    commitGeneratedPacks: booleanProjectValue(file, ALIGNMENT_PACK_COMMIT_GENERATED_PACKS_KEY),
-  });
+  void root;
+  return Promise.resolve({ autoGenerate: false, approvalGate: false, commitGeneratedPacks: false });
 }
 
 export function alignmentPackStoragePaths(options: AlignmentPackStorageOptions): AlignmentPackStoragePaths {
@@ -69,24 +56,16 @@ export function alignmentPackStoragePaths(options: AlignmentPackStorageOptions):
   };
 }
 
-export async function archiveAlignmentPackWorkingState(options: ArchiveAlignmentPackWorkingStateOptions): Promise<void> {
+export function archiveAlignmentPackWorkingState(options: ArchiveAlignmentPackWorkingStateOptions): Promise<void> {
   if (!options.durableResidueExtracted) {
     throw new Error('Cannot archive alignment pack working state before durable residue has been extracted.');
   }
 
-  const paths = alignmentPackStoragePaths({
-    root: options.root,
-    map: options.map,
-    packVersion: options.map,
-  });
-  await rm(paths.directory, { recursive: true, force: true });
+  // Legacy review artifacts remain available for explicit migration.
+  return Promise.resolve();
 }
 
-// Generated packs stay out of git unless the project opts in; an ignore file inside the folder
-// does that without touching the project's own .gitignore.
+// Git's root ignore rules alone control tracking; commit_generated_packs is compatibility-only.
 export function ignoreGeneratedPacks(root: string): void {
-  const ignore = join(root, ACSTACK_DIR, ALIGNMENT_PACKS_DIR, '.gitignore');
-  if (existsSync(ignore) || booleanProjectValue(projectFile(root), ALIGNMENT_PACK_COMMIT_GENERATED_PACKS_KEY)) return;
-  mkdirSync(dirname(ignore), { recursive: true });
-  writeFileSync(ignore, `# Written by acstack. Delete this file and set ${ALIGNMENT_PACK_COMMIT_GENERATED_PACKS_KEY}: true to commit packs.\n*\n`);
+  ensureProjectGitignore(root);
 }

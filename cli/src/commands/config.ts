@@ -1,3 +1,4 @@
+import { assertCanonicalProject } from '../lib/project-data.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { GLOBAL_CONFIG_FILE, projectFile } from '../lib/constants.js';
@@ -119,7 +120,7 @@ export interface LoadedProject {
    */
   workflow: ProjectWorkflow;
   /**
-   * The directory holding acstack/, or null when there is no project here.
+   * The directory holding .acstack/, or null when there is no project here.
    * Carried so the checks that stat the project's own files have somewhere to
    * stat them from.
    */
@@ -163,6 +164,7 @@ function loadProject(): LoadedProject {
     };
   }
 
+  assertCanonicalProject(root);
   const yaml = readYaml(projectFile(root));
   return {
     root,
@@ -235,7 +237,7 @@ function browserModeReason(resolved: ResolvedBrowserMode): string {
 /**
  * Which file a key belongs in. A `host.*` key describes the machine, so it
  * goes to the global config; every other key ACStack knows describes the
- * project, so it goes to `acstack/project.yaml`. Bare `host` counts as a host
+ * project, so it goes to `.acstack/project.yaml`. Bare `host` counts as a host
  * key so the "that is a section" message keeps coming from the host schema.
  */
 function isHostKey(key: string): boolean {
@@ -305,11 +307,12 @@ function projectFileFor(key: string, use: ProjectKeyUse): string {
         );
     }
   }
+  assertCanonicalProject(root);
   return projectFile(root);
 }
 
 /**
- * Write one key to the project's `acstack/project.yaml`.
+ * Write one key to the project's `.acstack/project.yaml`.
  *
  * The value is validated before the file is opened, so a value the schema
  * refuses leaves the file exactly as it was.
@@ -355,7 +358,7 @@ function unsetHostKey(key: string): void {
 }
 
 /**
- * Print one key of the project's `acstack/project.yaml`, exiting 2 when the
+ * Print one key of the project's `.acstack/project.yaml`, exiting 2 when the
  * file states no value for it.
  *
  * Exit 2 is the code the host axes use for the same answer, so a caller
@@ -376,7 +379,7 @@ function getProjectFileKey(key: string): void {
   printConfigValue(result.value);
 }
 
-/** Remove one key from the project's `acstack/project.yaml`. */
+/** Remove one key from the project's `.acstack/project.yaml`. */
 function unsetProjectFileKey(key: string): void {
   const file = projectFileFor(key, 'unset');
   if (!unsetProjectKey(file, key)) {
@@ -392,7 +395,7 @@ function unsetProjectFileKey(key: string): void {
 const UNKNOWN_KEY_MARK = '(unknown key)';
 
 /**
- * Print what the project's `acstack/project.yaml` states, above the host lines.
+ * Print what the project's `.acstack/project.yaml` states, above the host lines.
  *
  * Each side is headed by the file it came out of. The two sets of keys are
  * edited in completely different places, so a listing that ran them together
@@ -428,6 +431,7 @@ function listConfig(asJson: boolean): void {
   // No key argument, so there is no project key to refuse: outside a
   // project the host axes are still the machine's, and still readable.
   const root = findProjectRoot();
+  if (root) assertCanonicalProject(root);
 
   if (asJson) {
     // The host side keeps the shape it has always had - the config's own
@@ -612,7 +616,7 @@ export function register(program: Command): void {
     .addHelpText(
       'after',
       '\nReference: docs/dev-setups.md for the host.* axes, ' +
-        'docs/config-reference.md for the acstack/project.yaml keys.\n'
+        'docs/config-reference.md for the .acstack/project.yaml keys.\n'
     )
     .action((key: string, value: string) => {
       reportingUserErrors(() => {

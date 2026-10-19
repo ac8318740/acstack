@@ -3,7 +3,7 @@
 # setup.sh apply.
 #
 # This is machine-level, not per-project. It installs binaries and writes
-# keybindings for your user, so it does not belong in acstack/project.yaml.
+# keybindings for your user, so it does not belong in .acstack/project.yaml.
 #
 # What each component is, every key, and the traps worth knowing:
 # docs/terminal-workspace.md in the ACStack plugin.

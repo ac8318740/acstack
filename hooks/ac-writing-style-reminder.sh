@@ -8,11 +8,9 @@
 #
 # The reminder text is EXTRACTED from output-styles/ac-writing-style.md on every
 # turn, never stored. A hand-typed copy drifts from the style the moment either
-# one changes, and that is exactly what happened to the first version of this
-# hook. Two parts come out of the file:
-#
-#   1. "## Who you are", top-level lines only, which is the persona
-#   2. "## Before you send", in full, which is the checklist
+# one changes. The marked communication block is the canonical standard for
+# chat and durable writing. Extract it in full, including nested guidance;
+# headings and checklist item counts are not an extraction contract.
 #
 # Output is JSON only, with suppressOutput true, so nothing reaches the user's
 # transcript. The hook stays silent unless the active output style is this one.
@@ -66,21 +64,12 @@ awk '
   }
   function emit(s) { out = out esc(s) "\\n" }
 
-  # "## Who you are" holds the persona. Keep its top-level lines: the italic
-  # opener, the bold rules, and the unindented bullets. Drop the sub-bullets,
-  # because the reminder names each rule and the file itself argues for it.
-  /^## Who you are$/            { persona = 1; next }
-  /^## Shape: Minto pyramid$/   { persona = 0 }
-  persona && /^### /            { emit(""); emit($0); next }
-  persona && /^[*-]/            { emit($0); next }
-  persona && /^\*\*/            { emit($0); next }
-
-  # "## Before you send" is the checklist, and it runs to the end of the file.
-  /^## Before you send$/        { checklist = 1; emit(""); emit($0); next }
-  checklist                     { emit($0); next }
+  /^<!-- acstack:communication:start -->$/ { shared = 1; next }
+  /^<!-- acstack:communication:end -->$/   { complete = shared; exit }
+  shared                                  { emit($0) }
 
   END {
-    if (out == "") exit 1
+    if (!complete || out == "") exit 1
     printf "{\"suppressOutput\": true, \"hookSpecificOutput\": {\"hookEventName\": \"UserPromptSubmit\", \"additionalContext\": \"ac-writing-style reminder\\n\\n%s\"}}\n", out
   }
 ' "$style_file" || silent

@@ -21,7 +21,7 @@ flowchart TD
     F --> T
     T --> C["Commit<br/>(acstack:commit)"]
     C --> Y["Sync specs from the diff<br/>(domain-map.yaml)"]
-    Y --> L[("Living specs<br/>acstack/specs/")]
+    Y --> L[("Living specs<br/>.acstack/specs/")]
     M -->|"every question answered"| A["Archive<br/>(check the decisions landed,<br/>then delete the nodes)"]
     A --> L
 ```
@@ -102,7 +102,7 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
     - The first line of every issue body carries all of that node's edges
     - One list call therefore returns the whole graph
     - A sub-issue and a dependency mirror those edges, so GitHub's own interface draws the map
-- Files under `acstack/maps/<name>/` are the fallback
+- Files under `.acstack/maps/<name>/` are the fallback
     - Frontmatter holds the edges, so those files carry no header line
 - Frontier, claim, and resolve build on those four operations
     - No tracker implements them itself
@@ -152,9 +152,9 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
     - There is no question cap
     - The set of answerable questions bounds itself
 - **`record-context`** fires when a decision lands
-    - It writes an ADR under `docs/adr/` only when the decision is hard to reverse *and* surprising *and* a real trade-off
-    - It writes a glossary term when a term got settled, in root `CONTEXT.md` for cross-domain vocabulary
-    - It writes a domain term in `acstack/specs/<domain>/CONTEXT.md` instead
+    - It writes an ADR under `.acstack/decisions/` only when the decision is hard to reverse *and* surprising *and* a real trade-off
+    - It writes a glossary term when a term got settled, in `.acstack/CONTEXT.md` for cross-domain vocabulary
+    - It writes a domain term in `.acstack/specs/<domain>/CONTEXT.md` instead
     - It can write both, or neither
     - ACStack generates the ADR index from the files
     - Nobody hand-edits it
@@ -194,9 +194,9 @@ flowchart LR
 
 `/acstack:commit` groups changes into MECE commits. MECE means mutually exclusive and collectively exhaustive: no change appears twice, and no change goes missing. Before writing them it does five things.
 
-1. Reads `acstack/domain-map.yaml` to map each changed file to a domain.
+1. Reads `.acstack/domain-map.yaml` to map each changed file to a domain.
 2. Works out what the diff adds, modifies or removes, for each affected domain with a `spec.md`.
-3. Writes those entries into the domain's spec and stages them in the same commit.
+3. Writes those entries into the domain's spec; it stages tracked specs and preserves ignored specs locally without force-adding them.
 4. Flags source files that match no domain.
 5. Checks the glossaries.
 
@@ -214,7 +214,7 @@ Four cases stop sync.
 - no file matching a domain
 - a change that touches only docs and config
 
-**Without `acstack/domain-map.yaml` this step does nothing, silently.**
+**Without `.acstack/domain-map.yaml` this step does nothing, silently.**
 
 - `/acstack:setup` generates that file
 - `acstack config check` reports it as missing on a project set up before that existed
@@ -223,11 +223,16 @@ Four cases stop sync.
 
 *A map is working state, not a record you keep. Archive checks the decisions reached your specs, your decision notes, and your glossary, then deletes the nodes.*
 
-- `/acstack:archive` checks for a cleared map: empty frontier, no fog, no claims
-- It spot-checks that the specs, the decision notes and the glossary captured what the effort settled
+- `/acstack:archive` checks all nodes, not just the frontier: no open questions, fog, or claims apart from the root
+- A bound design requires completed feedback reconciliation and current exact-revision approval
+- Archive checks living specs against implemented behavior, not proposals
+- Archive applies `record-context`'s existing ADR and glossary criteria
+- Archive records dropped scope, unresolved limits, and durable node provenance before disposal
+- Design source, canonical review evidence, imported history, and decision logs survive regardless of `workflow.maps.persist`
+- Archive never recursively deletes review artifacts or evidence-bearing handoffs
 - It then disposes of the nodes
     - It deletes them by default
-    - It moves them to `acstack/archive/<date>-<name>/nodes/` when `workflow.maps.persist` is `true`
+    - It moves them to `.acstack/archive/<date>-<name>/nodes/` when `workflow.maps.persist` is `true`
     - Keeping nodes is off by default
     - A kept map is a second copy of every decision
     - The two drift apart
@@ -237,14 +242,14 @@ Four cases stop sync.
     - The user types `/acstack:archive`
     - `/acstack:map` hands off to it once every node resolves
     - The disposal step then asks you first
-- Legacy `acstack/changes/` directories from the pre-map workflow still archive the old way
+- Legacy `.acstack/changes/` directories from the pre-map workflow still archive the old way
     - An upgrade therefore never strands work
 
 ## 7. Living specs
 
-*What the project keeps. ACStack deletes a map once every question resolves. `acstack/specs/` outlives it.*
+*What the project keeps. ACStack deletes a map once every question resolves. `.acstack/specs/` outlives it.*
 
-- Specs live at `acstack/specs/<domain>/spec.md`, organised by the domains in `domain-map.yaml`
+- Specs live at `.acstack/specs/<domain>/spec.md`, organised by the domains in `domain-map.yaml`
 - Each spec states numbered functional requirements (`FR-NNN`) in Given, When, Then form
 - They are cumulative
 - They describe only what the code already does
@@ -257,8 +262,9 @@ Two rules keep them honest.
     - Archive verifies a completed map left nothing behind
     - Both converge on the same files
 - **Fix it when you see it**
-    - Any agent that finds a spec contradicting the code corrects the spec immediately
-    - It rewrites wrong behaviour, appends missing requirements, and deletes stale references
+    - An agent that finds a contradiction corrects the spec or routes the correction to its owner
+    - A read-only reviewer reports the discrepancy to the completion owner
+    - The owner rewrites wrong behaviour, appends missing requirements, and deletes stale references
 
 `/acstack:bootstrap` generates the first set from an existing codebase. A project never starts from an empty directory.
 

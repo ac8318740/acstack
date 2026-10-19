@@ -1,6 +1,6 @@
-import { existsSync } from 'node:fs';
+import { existsSync, lstatSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { ACSTACK_DIR } from './constants.js';
+import { ACSTACK_DIR, LEGACY_ACSTACK_DIR, PROJECT_FILE, DOMAIN_MAP_FILE, MAPS_DIR, SPECS_DIR, CHANGES_DIR, ARCHIVE_DIR, DECISION_LOGS_DIR } from './constants.js';
 
 const PLUGIN_MARKER = join('.claude-plugin', 'plugin.json');
 
@@ -21,11 +21,29 @@ export function findUp(startDir: string, marker: string): string | null {
   }
 }
 
-/**
- * Find the project root by walking up looking for an acstack/ directory.
- */
+/** Recognize project records without mistaking an authored acstack source directory for metadata. */
+export function hasLegacyProjectData(root: string): boolean {
+  const legacy = join(root, LEGACY_ACSTACK_DIR);
+  if (!lstatSync(legacy, { throwIfNoEntry: false })?.isDirectory()) return false;
+  // Keep known record links recognizable when another checkout moves first.
+  return [PROJECT_FILE, DOMAIN_MAP_FILE].some(name => {
+    const entry = lstatSync(join(legacy, name), { throwIfNoEntry: false });
+    return entry?.isFile() || entry?.isSymbolicLink();
+  }) || ['alignment-packs', 'design-reviews', MAPS_DIR, SPECS_DIR, CHANGES_DIR, ARCHIVE_DIR, DECISION_LOGS_DIR].some(name => {
+    const entry = lstatSync(join(legacy, name), { throwIfNoEntry: false });
+    return entry?.isDirectory() || entry?.isSymbolicLink();
+  });
+}
+
+/** Find the nearest canonical directory or recognized legacy project records. */
 export function findProjectRoot(from: string = process.cwd()): string | null {
-  return findUp(from, ACSTACK_DIR);
+  let dir = resolve(from);
+  while (true) {
+    if (existsSync(join(dir, ACSTACK_DIR)) || hasLegacyProjectData(dir)) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 /**

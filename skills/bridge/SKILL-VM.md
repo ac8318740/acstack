@@ -10,7 +10,7 @@
   binds `127.0.0.1:19988` on this host.
 
 - `agent-browser` (installed per the `browser-verify` skill) pointed at
-  that endpoint via `agent-browser.json`.
+  that endpoint via `.acstack/agent-browser.json`.
 
 - `vm-free-port.sh` for clearing a stuck port 19988 after a dropped
   session.
@@ -42,11 +42,20 @@ and is driving a real Chrome on the laptop.
 
 See the `browser-verify` skill for the install command.
 
-### 2. Create `agent-browser.json` in each project root
+### 2. Create `.acstack/agent-browser.json` in each configured project
 
 ```json
 { "cdp": "19988" }
 ```
+
+Run `~/.claude/acstack/bin/acstack project-data ensure` after creating `.acstack/`.
+Select the config explicitly from the project root before browser commands:
+
+```bash
+export AGENT_BROWSER_CONFIG="$(pwd)/.acstack/agent-browser.json"
+```
+
+For manual CDP checks without project configuration, use `agent-browser --cdp 19988 ...` instead; do not pass a missing config.
 
 ### 3. Accept the laptop's key
 

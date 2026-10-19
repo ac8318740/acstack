@@ -1,8 +1,6 @@
 import { Command } from 'commander';
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:http';
-import { hostname } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { z } from 'zod';
@@ -10,14 +8,13 @@ import { createAnnotationFeedbackHandoff, exportAnnotationFeedbackMarkdown } fro
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { alignmentPackStoragePaths, ignoreGeneratedPacks } from '../lib/alignment-pack-lifecycle.js';
 import { AlignmentPackSchema, type AlignmentPack, ReviewAnnotationSchema, ReviewStateSchema } from '../lib/alignment-packs.js';
-import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alignment-review-protocol.js';
+import { REVIEW_PATH } from '../lib/alignment-review-protocol.js';
+import { createReviewServer, listenForReview, REVIEW_PORT } from '../lib/review-server.js';
 import { ACSTACK_DIR, MAPS_DIR } from '../lib/constants.js';
 import { type MapNode, loadNodes, mapDir } from '../lib/nodes.js';
 import { ensureDir, fail, inProject } from '../lib/utils.js';
 
 const OPENER_BIN = 'acstack-open';
-// Next to the Playwriter bridge (19988) and the opener (19989), so one SSH config covers all three.
-const REVIEW_PORT = 19990;
 
 const FeedbackSchema = z
   .object({
@@ -27,8 +24,6 @@ const FeedbackSchema = z
   })
   .strict();
 
-// A review body is a few comments; anything bigger is not from the page this run served.
-const MAX_REVIEW_BYTES = 1_000_000;
 
 type Feedback = z.infer<typeof FeedbackSchema>;
 
@@ -42,7 +37,7 @@ interface AlignOptions extends MapOptions {
 
 function requireMapName(map: string | undefined): string {
   if (!map) fail('Name a map with --map <name>.');
-  // The name becomes a folder under acstack/maps and acstack/alignment-packs, so it may not climb out of them.
+  // The name becomes a folder under .acstack/maps and .acstack/alignment-packs, so it may not climb out of them.
   if (!/^[\w.-]+$/.test(map) || map === '.' || map === '..') fail(`Map name "${map}" may use only letters, digits, ".", "_" and "-".`);
   return map;
 }
@@ -198,71 +193,18 @@ async function applyFeedback(root: string, map: string, pack: AlignmentPack, fee
 // Serves the pack on localhost until the reviewer approves or requests changes, then records the review and stops.
 function serveReview(root: string, map: string, pack: AlignmentPack): Promise<void> {
   const port = Number(process.env.ACSTACK_ALIGN_PORT ?? REVIEW_PORT);
-  // Only the page this run served knows the token, so another site open in the browser cannot post a review.
-  const token = randomBytes(16).toString('hex');
-  const html = renderAlignmentPackHtml(pack).replace('</head>', `<meta name="${REVIEW_TOKEN_META}" content="${token}">\n</head>`);
-  // Set while one review is being recorded, so a double click cannot write two decisions.
-  let busy = false;
-  return new Promise((resolve, reject) => {
-    const server = createServer((req, res) => {
-      const reply = (status: number, body: unknown) => {
-        res.writeHead(status, { 'content-type': 'application/json' });
-        res.end(JSON.stringify(body));
-      };
-      // A DNS-rebinding page reaches 127.0.0.1 under its own host name; refusing it keeps the token unreadable.
-      if (!/^(localhost|127\.0\.0\.1):\d+$/.test(req.headers.host ?? '')) return reply(421, { error: 'Unknown host' });
-      if (req.method === 'GET' && req.url === '/') {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-        res.end(html);
-        return;
-      }
-      if (req.method !== 'POST' || req.url !== REVIEW_PATH) return reply(404, { error: 'Not found' });
-      if (req.headers[REVIEW_TOKEN_HEADER] !== token) return reply(403, { error: 'This page is from an older review. Reload it.' });
-      if (busy) return reply(409, { error: 'A review is already being recorded.' });
-      let body = '';
-      req.setEncoding('utf8');
-      req.on('data', (chunk: string) => {
-        body += chunk;
-        if (body.length > MAX_REVIEW_BYTES) {
-          reply(413, { error: 'Review too large' });
-          req.destroy();
-        }
-      });
-      req.on('end', () => {
-        void (async () => {
-          busy = true;
-          try {
-            const { lines, prompt } = await applyFeedback(root, map, pack, FeedbackSchema.parse(JSON.parse(body)));
-            reply(200, { ok: true, prompt });
-            for (const line of lines) console.log(line);
-            server.close();
-            server.closeAllConnections();
-            resolve();
-          } catch (err) {
-            busy = false;
-            reply(400, { error: err instanceof Error ? err.message : String(err) });
-          }
-        })();
-      });
-    });
-    server.on('error', (err: NodeJS.ErrnoException) =>
-      reject(err.code === 'EADDRINUSE' ? new Error(`Port ${port} is busy. Close the other review, or set ACSTACK_ALIGN_PORT.`) : err)
-    );
-    server.listen(port, '127.0.0.1', () => {
-      const url = `http://localhost:${port}/`;
-      console.log(`Review ${map} at ${url}`);
-      if (process.env.SSH_CONNECTION) {
-        console.log(`Over SSH, forward the port from your own machine first:`);
-        console.log(`  ssh -N -L ${port}:localhost:${port} ${hostname()}`);
-        console.log(`Or add "LocalForward ${port} localhost:${port}" to that host in ~/.ssh/config to make it automatic.`);
-      }
-      console.log('Waiting for your review. Ctrl+C stops.');
-      try {
-        openArtifact(url);
-      } catch {
-        // The printed link still works; the opener is only a shortcut.
-      }
-    });
+  const server = createReviewServer({
+    html: renderAlignmentPackHtml(pack),
+    path: REVIEW_PATH,
+    post: async body => {
+      const { lines, prompt } = await applyFeedback(root, map, pack, FeedbackSchema.parse(body));
+      for (const line of lines) console.log(line);
+      return { ok: true, prompt };
+    },
+    recorded: () => { server.close(); server.closeAllConnections(); },
+  });
+  return listenForReview(server, port, map, url => {
+    try { openArtifact(url); } catch { /* The printed link still works. */ }
   });
 }
 

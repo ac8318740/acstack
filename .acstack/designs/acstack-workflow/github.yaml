@@ -1,0 +1,12 @@
+id: github
+name: GitHub
+summary: Hosts a published copy of the Markdown companion when the developer chooses to share it.
+kind: external-system
+channels: [web]
+detail: publication.md
+relationships:
+  - id: publish-companion
+    from: user
+    to: github
+    direction: one-way
+    label: Optionally publishes the Markdown companion to

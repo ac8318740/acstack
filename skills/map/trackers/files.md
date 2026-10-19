@@ -1,16 +1,16 @@
 # Files tracker
 
 The fallback backend: no auth, works offline, works on any remote. One
-markdown file per node under `acstack/maps/<name>/`, managed by the ACStack
+markdown file per node under `.acstack/maps/<name>/`, managed by the ACStack
 CLI. Nodes here are transient working state – scratch discarded once the map
 clears.
 
-Suggest adding `acstack/maps/` to `.gitignore` when you first create the
-map.
+The root managed baseline ignores `.acstack/maps/` by default.
+Native exceptions after that baseline let the user opt in to tracking any part.
 
 CLI path: `~/.claude/acstack/bin/acstack`
 
-To enumerate a project's maps: `ls acstack/maps/`.
+To enumerate a project's maps: `ls .acstack/maps/`.
 
 ## The four operations
 
@@ -73,5 +73,3 @@ Both commands drop every diagram block a node body holds. A diagram block is
 the rendered map that sits between the `<!-- acstack:diagram -->` markers
 `node diagram` writes. `--visuals` prints the blocks. `--json` always carries
 the whole body.
-
-See `docs/adr/0014-reading-a-node-hides-its-generated-diagram.md` for why.

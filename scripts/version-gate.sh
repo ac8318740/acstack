@@ -25,15 +25,13 @@ set -euo pipefail
 INERT_PATHS=(
   "README.md"
   "CONTRIBUTING.md"
-  "CONTEXT.md"
   "LICENSE"
   "THIRD_PARTY_NOTICES"
-  "docs/adr/**"
   "docs/migrate-0.8.md"
   "tests/**"
   ".github/**"
   ".claude/**"
-  "acstack/**"
+  ".acstack/**"
 )
 
 MANIFEST=".claude-plugin/plugin.json"

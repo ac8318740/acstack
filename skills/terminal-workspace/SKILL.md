@@ -58,7 +58,7 @@ flowchart TD
 
 This is **machine-level, not per-project**. It installs binaries and writes
 keybindings for the user account, so it does not belong in
-`acstack/project.yaml`.
+`.acstack/project.yaml`.
 
 Count components when you mean config keys, and tools when you mean binaries.
 The config holds twelve component sections, plus an `enabled` master switch

@@ -151,11 +151,11 @@ function countOccurrences(haystack: string, needle: string): number {
   return (haystack.match(new RegExp(escapeRegExp(needle), 'g')) ?? []).length;
 }
 
-/** A temp ACStack project root: a directory holding acstack/project.yaml. */
+/** A temp ACStack project root: a directory holding .acstack/project.yaml. */
 function makeProject(): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-node-project-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
-  writeFileSync(join(root, 'acstack', 'project.yaml'), '# test project\n');
+  mkdirSync(join(root, '.acstack'), { recursive: true });
+  writeFileSync(join(root, '.acstack', 'project.yaml'), '# test project\n');
   return root;
 }
 
@@ -169,7 +169,7 @@ interface NodeFixture {
 
 /** Writes one node file, in the exact frontmatter+title+body shape nodes.ts reads. */
 function writeNodeFile(root: string, map: string, fixture: NodeFixture): void {
-  const dir = join(root, 'acstack', 'maps', map);
+  const dir = join(root, '.acstack', 'maps', map);
   mkdirSync(dir, { recursive: true });
   const frontmatter = ['status: open', 'mode: hitl', 'kind: work', `label: ${JSON.stringify(fixture.title)}`];
   if (fixture.answers) frontmatter.push(`answers: "${fixture.answers}"`);
@@ -778,7 +778,7 @@ describe('enum rejections', () => {
 
 describe('kind from a stored file and from a label', () => {
   it('refuses a hand-edited file in the file schema wording, not the flag sentence', () => {
-    const dir = join(root, 'acstack', 'maps', 'm');
+    const dir = join(root, '.acstack', 'maps', 'm');
     mkdirSync(dir, { recursive: true });
     const content =
       '---\nstatus: open\nmode: hitl\nkind: bogus\nlabel: "L"\nblocked-by: []\n---\n\n# T\n\nBody.\n';
@@ -1008,7 +1008,7 @@ describe('node diagram refusals', () => {
     const result = runCli(['node', 'diagram', '--map', 'nope'], { cwd: root });
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Map 'nope' does not exist");
-    expect(result.stderr).toContain(join(root, 'acstack', 'maps', 'nope'));
+    expect(result.stderr).toContain(join(root, '.acstack', 'maps', 'nope'));
     expect(result.stderr).toContain('directory');
   });
 
@@ -1038,9 +1038,9 @@ describe('node diagram refusals', () => {
 // map and is the one wrong answer nobody checks.
 // ---------------------------------------------------------------------------
 
-/** Writes acstack/project.yaml with the tracker set, or with no tracker key. */
+/** Writes .acstack/project.yaml with the tracker set, or with no tracker key. */
 function setTracker(value: 'github' | 'files' | null): void {
-  const path = join(root, 'acstack', 'project.yaml');
+  const path = join(root, '.acstack', 'project.yaml');
   const body = value === null ? '# test project\n' : `workflow:\n  maps:\n    tracker: ${value}\n`;
   writeFileSync(path, body);
 }
@@ -1183,7 +1183,7 @@ describe('a map directory that does not exist', () => {
 
       it.each(MISSING_MAP_COMMANDS)('$name names the missing directory', ({ args }) => {
         const result = runCli(args, { cwd: root });
-        expect(result.stderr).toContain(join(root, 'acstack', 'maps', 'nope'));
+        expect(result.stderr).toContain(join(root, '.acstack', 'maps', 'nope'));
         expect(result.stderr).toContain('directory');
       });
 

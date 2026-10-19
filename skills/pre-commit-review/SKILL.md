@@ -59,7 +59,7 @@ git status --short
 git log --oneline -3  # recent context
 ```
 
-Read `acstack/project.yaml` to understand the project's directory layout, commands, and conventions.
+Read `.acstack/project.yaml` to understand the project's directory layout, commands, and conventions.
 
 Categorize changed files into scopes using the project configuration:
 
@@ -78,13 +78,15 @@ Follow the shared Implementation discipline in `orchestrator/AGENTS.md` for dele
 Investigate these dimensions directly or through useful delegation.
 Discover current conventions rather than hardcoding them.
 
+Read `../../output-styles/ac-writing-style.md` relative to this skill directory; apply its shared standard to code design as well as explanations.
+
 **Living specs and architecture:**
 
 ```
 Read the living specs relevant to this change:
-- Check acstack/specs/ directory listing
+- Check .acstack/specs/ directory listing
 - Read spec.md files for domains touched by the changed files
-  (use acstack/domain-map.yaml to map files -> domains)
+  (use .acstack/domain-map.yaml to map files -> domains)
 - Extract documented conventions, patterns, and requirements (FR-NNN entries)
 Report: list of project conventions and patterns relevant to these changes.
 ```
@@ -105,7 +107,7 @@ Report: established patterns, common approaches, naming conventions observed.
 ```
 For each changed file, read:
 - The full file (to see surrounding code context)
-- Import targets (what does this file import? read those files' signatures)
+- Connected callers and dependencies (read beyond signatures where needed to understand responsibilities and interface costs)
 - Config that governs this area (linter rules, compiler config, etc.)
 Report: local conventions, related code patterns, existing abstractions nearby.
 ```
@@ -137,13 +139,17 @@ For each finding, report:
 
 ```
 Examine the diff for:
-- Functions > 40 lines or > 3 levels of nesting
-- God functions doing too many things
-- Unclear variable/function names
-- Missing or premature abstractions
+- Tangled control flow, repeated decisions, or mixed responsibilities, with concrete evidence of the complexity
+- Incoherent boundaries or peer components at mismatched abstraction levels
+- Interfaces that expose internals instead of hiding real complexity behind small, useful operations (deep modules)
+- Names that misrepresent meaning, or structure driven by folder layout rather than responsibility
+- Missing useful boundaries or pass-through layers that add no useful boundary
 - Complex conditionals that could be simplified
 - Code that would be hard for a new developer to understand
 - Performance concerns (N+1 queries, unnecessary re-renders, blocking I/O)
+
+Do not require nesting or wrappers; neither line count nor indirection measures design quality.
+Support design findings with effects on connected callers and dependencies.
 
 For each finding, report:
   FILE:LINE | SEVERITY (MUST/SHOULD/CONSIDER) | WHAT | WHY | SUGGESTED FIX
@@ -175,7 +181,7 @@ Run the lint on the changed Markdown files, and on nothing else. Skip the comman
 
 The lint exits 0 even when it reports findings. It groups findings by file with line numbers, then prints a summary per file. It skips `skills/writing/vocabulary.md` on purpose.
 
-Add each finding to the review as `SHOULD | PROSE`, at the `file:line` it names. The writing standard is a project convention, so it sits at the same severity as other convention drift.
+Review each warning in context before treating it as a defect. Preserve necessary technical terms, quotations, and wording that would lose accuracy if changed. Report confirmed clarity or convention problems as `SHOULD | PROSE`, with the `file:line` and their effect on the reader.
 
 ## Step 4: ADJACENT – Check surrounding code for rot
 

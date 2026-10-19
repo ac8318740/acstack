@@ -191,8 +191,16 @@ case "$ROUTE" in
     # That also means the new tab becomes the active one for any agent
     # driving that browser. ACSTACK_OPEN_BRIDGE=off trades the one-key open
     # for never touching it.
-    if timeout 20 agent-browser --cdp "$BRIDGE" tab new >/dev/null 2>&1 \
-       && timeout 30 agent-browser --cdp "$BRIDGE" open "$URL" >/dev/null 2>&1; then
+    project_root="$PWD"
+    while [ "$project_root" != / ] && [ ! -d "$project_root/.acstack" ]; do
+      project_root=$(dirname "$project_root")
+    done
+    [ "$project_root" != / ] || project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+    browser_config="$project_root/.acstack/agent-browser.json"
+    browser_args=()
+    [ ! -f "$browser_config" ] || browser_args=(--config "$browser_config")
+    if timeout 20 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" tab new >/dev/null 2>&1 \
+       && timeout 30 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" open "$URL" >/dev/null 2>&1; then
       log "bridge $BRIDGE: $URL"
       exit 0
     fi

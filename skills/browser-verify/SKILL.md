@@ -1,6 +1,6 @@
 ---
 name: browser-verify
-description: How to interact with a browser for frontend verification using agent-browser CLI and CDP. ALWAYS use when UI or frontend files are modified and workflow.frontend_verification is true in acstack/project.yaml. Also use before running agent-browser commands, when element refs go stale, when CDP connection fails, or when verifying UI behavior. Covers all commands (snapshot, screenshot, click, fill, type), element ref strategy, DOM staleness rules, selector priority, and remote/headless/local environment troubleshooting.
+description: How to interact with a browser for frontend verification using agent-browser CLI and CDP. ALWAYS use when UI or frontend files are modified and workflow.frontend_verification is true in .acstack/project.yaml. Also use before running agent-browser commands, when element refs go stale, when CDP connection fails, or when verifying UI behavior. Covers all commands (snapshot, screenshot, click, fill, type), element ref strategy, DOM staleness rules, selector priority, and remote/headless/local environment troubleshooting.
 ---
 
 # Browser helpers
@@ -13,11 +13,11 @@ For setup (installing agent-browser, creating config files, scaffolding knowledg
 
 ## Project configuration
 
-Read `acstack/project.yaml` for:
+Read `.acstack/project.yaml` for:
 
 - `frontend.directory` – frontend source directory
 - `frontend.dev_server_url` – dev server URL
-- `frontend.helpers_dir` – path to verification knowledge (default: `<frontend.directory>/tests/helpers/`)
+- `frontend.helpers_dir` – helper programs, not verification metadata
 - `frontend.browser.mode` – the browser environment this project prefers: `remote`, `headless`, or `local`
 - `frontend.browser.fallback` – set it to `none` to forbid any other mode standing in. Every other value allows one
 - `frontend.browser.cdp_port` – CDP port. Default `19988` for `mode: remote` (Playwriter bridge), `9555` for `headless`/`local`.
@@ -181,7 +181,16 @@ Omit `--headless` to see the browser. Useful during development.
 
 ## agent-browser command reference
 
-All commands assume `agent-browser.json` exists in the project root.
+For configured verification, explicitly select the absolute `.acstack/agent-browser.json` path before running the commands below:
+
+```bash
+export AGENT_BROWSER_CONFIG="$(pwd)/.acstack/agent-browser.json"
+```
+
+- Run this from the project root only when the file exists; alternatively pass `--config /absolute/project/.acstack/agent-browser.json`
+- Do not rely on root config autodiscovery
+- Manual CDP quality checks remain available without project configuration or a configured browser mode
+- For those checks, omit the missing config and use `agent-browser --cdp <port> ...` with the explicitly chosen endpoint
 
 | Command | Purpose |
 |---------|---------|
@@ -225,5 +234,5 @@ The snapshot gives you accessible names and roles automatically. Use these to fi
 - **frontend-verifier agent** uses agent-browser for configured real-browser verification – this skill is its reference
 - **verification owner** completes static and design checks under `skills/implement/design-pass.md` before configured browser verification
 - **/acstack:setup** runs the setup interviews (install, config, knowledge base scaffolding) and offers a fix for each row the health check fails
-- **`acstack config check`** audits the browser infrastructure and changes nothing
+- **`acstack config check`** reports browser infrastructure gaps without changing browser settings
 - **/acstack:quick-fix** uses agent-browser for visual verification of bug fixes

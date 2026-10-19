@@ -5,7 +5,8 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execFileSync } from 'node:child_process';
+import childProcess, { execFileSync } from 'node:child_process';
+import { syncBuiltinESMExports } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 
@@ -61,8 +62,8 @@ async function fire(reg, event, payload, ctx) {
 
 function newProject(name, { acstack = true } = {}) {
   const dir = path.join(work, name);
-  fs.mkdirSync(path.join(dir, 'acstack'), { recursive: true });
-  if (acstack) fs.writeFileSync(path.join(dir, 'acstack', 'project.yaml'), 'profile: generic\n');
+  fs.mkdirSync(path.join(dir, '.acstack'), { recursive: true });
+  if (acstack) fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'), 'profile: generic\n');
   return dir;
 }
 
@@ -182,7 +183,29 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 {
   const reg = load();
   const ctx = makeCtx(newProject('links'));
-  await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  const realExecFileSync = childProcess.execFileSync;
+  let ensureCall;
+  childProcess.execFileSync = (file, args, options) => {
+    if (file === wrapper || args?.includes(wrapper)) {
+      ensureCall = { file, args, options };
+      // Native Windows cannot execute a JavaScript shebang directly.
+      if (file === wrapper) throw new Error('spawnSync acstack.js EINVAL');
+    }
+    return realExecFileSync(file, args, options);
+  };
+  syncBuiltinESMExports();
+  try {
+    await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  } finally {
+    childProcess.execFileSync = realExecFileSync;
+    syncBuiltinESMExports();
+  }
+  check('startup runs the real ensure CLI through Node',
+    ensureCall?.file === process.execPath
+      && JSON.stringify(ensureCall.args) === JSON.stringify([wrapper, 'project-data', 'ensure'])
+      && ensureCall.options.cwd === ctx.cwd
+      && fs.existsSync(path.join(ctx.cwd, '.gitignore'))
+      && !ctx.notes.some(n => n.msg.includes('project-data ensure failed')));
   check('creates the agent CLI symlink', fs.readlinkSync(agentLink) === wrapper);
   check('creates the human CLI symlink', fs.readlinkSync(humanLink) === wrapper);
 
@@ -289,13 +312,20 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   const style = on.systemPromptOptions.sections['acstack-writing-style'] ?? '';
   check('adds the default style to the system prompt without its frontmatter',
     style.startsWith('# ac writing style') && style.includes('## Before you send'));
-  check('the reminder rides along as a hidden message for user turns',
-    onResult?.message?.customType === 'acstack-writing-style-reminder' && onResult.message.display === false);
+  const shared = style.split('<!-- acstack:communication:start -->\n')[1]?.split('<!-- acstack:communication:end -->')[0];
+  check('the complete canonical block rides along as a hidden message for user turns',
+    onResult?.message?.customType === 'acstack-writing-style-reminder' && onResult.message.display === false
+      && shared?.trim() && onResult.message.content === `ac-writing-style reminder\n\n${shared}`);
 
   const custom = customEvent();
   const customResult = await fire(reg, 'before_agent_start', custom, ctx);
   check('custom-triggered turns get the style without the reminder',
     custom.systemPromptOptions.sections['acstack-writing-style'] === style && customResult === undefined);
+
+  check('an unterminated shared block produces no reminder',
+    ext.extractWritingReminder('<!-- acstack:communication:start -->\nPartial guidance\n') === undefined);
+  check('an empty shared block produces no reminder',
+    ext.extractWritingReminder('<!-- acstack:communication:start -->\n\n<!-- acstack:communication:end -->') === undefined);
 
   // The reminder must match what the Claude hook emits from the same file.
   const hookHome = path.join(work, 'hook-home');
@@ -392,7 +422,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir, { sessionId: 'press-1' }));
   check('a compaction restarts the ladder', (await settle(250000))?.continue === true);
 
-  fs.writeFileSync(path.join(dir, 'acstack', 'project.yaml'),
+  fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'),
     'workflow:\n  handoff:\n    context_thresholds:\n      - "10%"\n    nudge_step: 0\n');
   const pct = await fire(reg, 'agent_before_settle', { outcome: 'completed' },
     makeCtx(dir, { tokens: 120000, contextWindow: 1000000, sessionId: 'press-3' }));
@@ -420,7 +450,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   // through the extension must produce the same nudge.
   const reg = load();
   const dir = newProject('pressure-parity');
-  fs.writeFileSync(path.join(dir, 'acstack', 'project.yaml'),
+  fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'),
     'workflow:\n  handoff:\n    context_window: 400000\n    nudge_severe: 300000\n' +
     '    context_thresholds:\n      - "50%"\n      - "75%"\n');
   const hookState = path.join(work, 'hook-pressure');
@@ -457,11 +487,11 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 {
   const reg = load();
   const dir = newProject('handoff');
-  const active = path.join(dir, 'acstack', 'HANDOFF.md');
+  const active = path.join(dir, '.acstack', 'HANDOFF.md');
   fs.writeFileSync(active, '---\nacstack_handoff: 1\nmap: my map\ncreated: 2026-10-11T04:00:00Z\n---\n\n## Next action\nShip it\n');
 
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir));
-  const archived = path.join(dir, 'acstack', 'handoffs', 'my-map', '2026-10-11T04-00-00Z.md');
+  const archived = path.join(dir, '.acstack', 'handoffs', 'my-map', '2026-10-11T04-00-00Z.md');
   check('moves the handoff into the archive', !fs.existsSync(active) && fs.existsSync(archived));
   const msg = reg.sent[0];
   check('injects the handoff on the next turn',
@@ -469,7 +499,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 
   // The message must match what the Claude hook injects from the same file.
   const parity = newProject('handoff-parity');
-  const parityFile = path.join(parity, 'acstack', 'HANDOFF.md');
+  const parityFile = path.join(parity, '.acstack', 'HANDOFF.md');
   const anchor = '---\nacstack_handoff: 1\nmap: parity\ncreated: 2026-10-11T05:00:00Z\n---\n\n## Next action\nShip it\n';
   fs.writeFileSync(parityFile, anchor);
   const hookOut = execFileSync('bash', [path.join(root, 'hooks', 'session-start-handoff.sh')], {

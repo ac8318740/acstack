@@ -40,7 +40,7 @@ interface StoredConfig {
 }
 
 /**
- * The `acstack/project.yaml` keys this file's project-key assertions read
+ * The `.acstack/project.yaml` keys this file's project-key assertions read
  * back. Values are `unknown` rather than their documented type on purpose:
  * half the point of the validation tests is that a boolean key holds a real
  * boolean and a numeric key a real number, and a typed field would hide the
@@ -269,16 +269,16 @@ const ORCA_READY_JSON = orcaStatusJson(true, 'ready');
 /** The docs URL a failing Orca probe must point the user at. */
 const ORCA_DOCS_URL = 'https://github.com/stablyai/orca/blob/main/docs/reference/headless-linux-server.md';
 
-/** Create a temp project root containing acstack/project.yaml with `yaml` as its body. */
+/** Create a temp project root containing .acstack/project.yaml with `yaml` as its body. */
 function makeProject(yaml: string): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
-  writeFileSync(join(root, 'acstack', 'project.yaml'), yaml);
+  mkdirSync(join(root, '.acstack'), { recursive: true });
+  writeFileSync(join(root, '.acstack', 'project.yaml'), yaml);
   return root;
 }
 
 /**
- * A temp project root whose `acstack/project.yaml` is a SYMLINK to a file
+ * A temp project root whose `.acstack/project.yaml` is a SYMLINK to a file
  * held elsewhere, handing back the root, the link and the file behind it.
  *
  * A shared project.yaml is linked in exactly this way: one copy kept in a
@@ -288,11 +288,11 @@ function makeProject(yaml: string): string {
  */
 function makeSymlinkedProject(yaml: string): { root: string; link: string; target: string } {
   const root = mkdtempSync(join(tmpdir(), 'acstack-symlinked-project-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
+  mkdirSync(join(root, '.acstack'), { recursive: true });
   mkdirSync(join(root, 'real'), { recursive: true });
   const target = join(root, 'real', 'project.yaml');
   writeFileSync(target, yaml);
-  const link = join(root, 'acstack', 'project.yaml');
+  const link = join(root, '.acstack', 'project.yaml');
   symlinkSync(target, link);
   return { root, link, target };
 }
@@ -308,23 +308,23 @@ function noProjectDir(): string {
  */
 function projectWithoutYaml(): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
+  mkdirSync(join(root, '.acstack'), { recursive: true });
   return root;
 }
 
 /**
- * The raw text of a project's `acstack/project.yaml`, comments and all.
+ * The raw text of a project's `.acstack/project.yaml`, comments and all.
  *
  * Read as text rather than parsed because most of what the project-key tests
  * below pin - a header comment, an inline comment, the order of the keys, the
  * quoting of a value - has no representation in the parsed object at all.
  */
 function readProjectYaml(root: string): string {
-  return readFileSync(join(root, 'acstack', 'project.yaml'), 'utf-8');
+  return readFileSync(join(root, '.acstack', 'project.yaml'), 'utf-8');
 }
 
 /**
- * The raw bytes of a project's `acstack/project.yaml`.
+ * The raw bytes of a project's `.acstack/project.yaml`.
  *
  * `readProjectYaml` decodes as UTF-8, and a byte that is not valid UTF-8 comes
  * back through it as U+FFFD - so a decoded read cannot tell a file whose bytes
@@ -332,27 +332,27 @@ function readProjectYaml(root: string): string {
  * are the only evidence.
  */
 function readProjectYamlBytes(root: string): Buffer {
-  return readFileSync(join(root, 'acstack', 'project.yaml'));
+  return readFileSync(join(root, '.acstack', 'project.yaml'));
 }
 
 /**
- * Overwrite an existing project's `acstack/project.yaml` with raw `bytes`.
+ * Overwrite an existing project's `.acstack/project.yaml` with raw `bytes`.
  *
  * `makeProject` takes a string, which node encodes as UTF-8 on the way out, so
  * a fixture that has to put a specific byte on disk - a latin-1 `0xE9` that no
  * UTF-8 decoder will accept - cannot be written as one.
  */
 function writeProjectYamlBytes(root: string, bytes: Buffer): void {
-  writeFileSync(join(root, 'acstack', 'project.yaml'), bytes);
+  writeFileSync(join(root, '.acstack', 'project.yaml'), bytes);
 }
 
-/** A project's `acstack/project.yaml` parsed, for assertions about values rather than formatting. */
+/** A project's `.acstack/project.yaml` parsed, for assertions about values rather than formatting. */
 function parseProjectYaml(root: string): StoredProjectYaml {
   return parseYaml(readProjectYaml(root)) as StoredProjectYaml;
 }
 
 /**
- * A project's `acstack/project.yaml` parsed, reported with the file's own text
+ * A project's `.acstack/project.yaml` parsed, reported with the file's own text
  * when it no longer parses.
  *
  * `parseProjectYaml` throws the parser's message, which names a line and a
@@ -366,7 +366,7 @@ function parseProjectYamlShowingFile(root: string): StoredProjectYaml {
     return parseProjectYaml(root);
   } catch (err) {
     throw new Error(
-      `acstack/project.yaml no longer parses after the write: ${(err as Error).message}\n` +
+      `.acstack/project.yaml no longer parses after the write: ${(err as Error).message}\n` +
         `----- file on disk -----\n${readProjectYaml(root)}\n----- end of file -----`
     );
   }
@@ -401,10 +401,10 @@ function keysAt(parsed: unknown, key: string): string[] {
   return Object.keys(node).sort();
 }
 
-/** Write `body` to `acstack/domain-map.yaml` under an existing project root. */
+/** Write `body` to `.acstack/domain-map.yaml` under an existing project root. */
 function writeDomainMap(root: string, body: string): void {
-  mkdirSync(join(root, 'acstack'), { recursive: true });
-  writeFileSync(join(root, 'acstack', 'domain-map.yaml'), body);
+  mkdirSync(join(root, '.acstack'), { recursive: true });
+  writeFileSync(join(root, '.acstack', 'domain-map.yaml'), body);
 }
 
 /** A well-formed domain map holding exactly three domains. */
@@ -424,7 +424,7 @@ const DOMAIN_MAP_THREE = [
 
 /** Write `body` verbatim to `agent-browser.json` in the project root. */
 function writeAgentBrowserJson(root: string, body: string): void {
-  writeFileSync(join(root, 'agent-browser.json'), body);
+  writeFileSync(join(root, '.acstack', 'agent-browser.json'), body);
 }
 
 /**
@@ -436,7 +436,7 @@ function agentBrowserJsonFor(port: number): string {
 }
 
 /** The `frontend.helpers_dir` every frontend fixture in this file names. */
-const HELPERS_DIR = 'fe/helpers/';
+const HELPERS_DIR = '.acstack/verification/';
 
 /** Create `<root>/<HELPERS_DIR>/VERIFICATION-KNOWLEDGE.md` with a stub body. */
 function writeVerificationKnowledge(root: string): void {
@@ -1031,7 +1031,7 @@ describe('acstack config set host.orca.topology warns unless orca is declared', 
 //
 // `acstack config set` writes two files, not one. A `host.*` key describes
 // the machine and belongs in the global config; every other key ACStack
-// knows describes the project and belongs in `acstack/project.yaml`. The
+// knows describes the project and belongs in `.acstack/project.yaml`. The
 // tests above pin the machine half. These pin the project half, and the two
 // rules that make it worth having at all: a key nobody knows is refused
 // rather than stored somewhere no reader looks, and a write into a file
@@ -1138,7 +1138,7 @@ const HAND_EDITED_PROJECT = [
 
 describe('acstack config set, project keys', () => {
   describe('routing', () => {
-    it('writes a project key to acstack/project.yaml and creates no global config file at all', () => {
+    it('writes a project key to .acstack/project.yaml and creates no global config file at all', () => {
       const root = makeProject('name: routed-project\n');
 
       const result = runSet('workflow.tdd.strict', 'false', root);
@@ -1151,7 +1151,7 @@ describe('acstack config set, project keys', () => {
       expect(existsSync(result.globalConfigFile)).toBe(false);
     });
 
-    it('leaves acstack/project.yaml byte-identical when the key is a host axis', () => {
+    it('leaves .acstack/project.yaml byte-identical when the key is a host axis', () => {
       const root = makeProject(HAND_EDITED_PROJECT);
       const before = readProjectYaml(root);
 
@@ -1197,7 +1197,7 @@ describe('acstack config set, project keys', () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/no ACStack project/i);
-      expect(existsSync(join(cwd, 'acstack'))).toBe(false);
+      expect(existsSync(join(cwd, '.acstack'))).toBe(false);
       expect(existsSync(result.globalConfigFile)).toBe(false);
     });
   });
@@ -1809,13 +1809,13 @@ describe('acstack config set, project keys', () => {
   });
 
   describe('a project with acstack/ but no project.yaml', () => {
-    it('creates acstack/project.yaml holding the key it was given', () => {
+    it('creates .acstack/project.yaml holding the key it was given', () => {
       const root = projectWithoutYaml();
 
       const result = runSet('workflow.maps.tracker', 'files', root);
 
       expect(result.status).toBe(0);
-      expect(existsSync(join(root, 'acstack', 'project.yaml'))).toBe(true);
+      expect(existsSync(join(root, '.acstack', 'project.yaml'))).toBe(true);
       expect(atKey(parseProjectYaml(root), 'workflow.maps.tracker')).toBe('files');
     });
   });
@@ -2025,7 +2025,7 @@ describe('acstack config set, project keys', () => {
   });
 
   describe('a rejected value writes nothing at all', () => {
-    it('leaves acstack/project.yaml byte-identical after a value the schema refuses', () => {
+    it('leaves .acstack/project.yaml byte-identical after a value the schema refuses', () => {
       const root = makeProject(HAND_EDITED_PROJECT);
       const before = readProjectYaml(root);
 
@@ -2274,7 +2274,7 @@ describe('acstack config set on a file that is not valid UTF-8', () => {
     expect(result.status).toBe(1);
     expectNoStackTrace(result);
     expect(result.stderr).toMatch(/UTF-?8/i);
-    expect(result.stderr).toContain(join(root, 'acstack', 'project.yaml'));
+    expect(result.stderr).toContain(join(root, '.acstack', 'project.yaml'));
   });
 
   it('leaves the file byte-identical, the undecodable byte included', () => {
@@ -2311,7 +2311,7 @@ describe('acstack config set on a file it may not write', () => {
   it.skipIf(asRoot)('refuses with exit 1, naming the file and the reason', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
     const before = readProjectYaml(root);
-    const file = join(root, 'acstack', 'project.yaml');
+    const file = join(root, '.acstack', 'project.yaml');
     chmodSync(file, 0o444);
 
     try {
@@ -2545,7 +2545,7 @@ describe('acstack config set on a document that is not a mapping', () => {
 
     const lines = result.stderr.trim().split('\n');
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain(join(root, 'acstack', 'project.yaml'));
+    expect(lines[0]).toContain(join(root, '.acstack', 'project.yaml'));
     expect(lines[0]).toMatch(/mapping|block|keys|collection|section/i);
   });
 
@@ -2664,18 +2664,18 @@ describe('acstack config set and unset, a leading byte-order mark', () => {
  * their own tests below - the mode of the file it replaces, and the refusal
  * to write a file the user made read-only.
  */
-describe('acstack config set replaces acstack/project.yaml atomically', () => {
+describe('acstack config set replaces .acstack/project.yaml atomically', () => {
   // Root ignores the mode bits, so the read-only case has nothing to arrange.
   const asRoot = typeof process.getuid === 'function' && process.getuid() === 0;
 
   /** Everything `acstack/` holds after the write, sorted. */
   function acstackDirEntries(root: string): string[] {
-    return readdirSync(join(root, 'acstack')).sort();
+    return readdirSync(join(root, '.acstack')).sort();
   }
 
   it('puts a different file in place, rather than rewriting the one it was given', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
-    const file = join(root, 'acstack', 'project.yaml');
+    const file = join(root, '.acstack', 'project.yaml');
     const before = statSync(file).ino;
 
     const result = runSet('workflow.tdd.strict', 'false', root);
@@ -2701,7 +2701,7 @@ describe('acstack config set replaces acstack/project.yaml atomically', () => {
 
   it('keeps the permission mode the file already had', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
-    const file = join(root, 'acstack', 'project.yaml');
+    const file = join(root, '.acstack', 'project.yaml');
     chmodSync(file, 0o640);
 
     const result = runSet('workflow.tdd.strict', 'false', root);
@@ -2715,7 +2715,7 @@ describe('acstack config set replaces acstack/project.yaml atomically', () => {
 
   it.skipIf(asRoot)('still refuses a read-only file, and leaves no temp file behind', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
-    const file = join(root, 'acstack', 'project.yaml');
+    const file = join(root, '.acstack', 'project.yaml');
     const before = readProjectYaml(root);
     chmodSync(file, 0o444);
 
@@ -2742,7 +2742,7 @@ describe('acstack config set replaces acstack/project.yaml atomically', () => {
 /**
  * A write into a symlinked project.yaml follows the link.
  *
- * `acstack/project.yaml` is a symlink whenever one file is shared between
+ * `.acstack/project.yaml` is a symlink whenever one file is shared between
  * checkouts - kept in a dotfiles directory, or in the main clone with every
  * worktree linking to it. The link is the only path any command here is
  * handed, and the file behind it is the one that is edited and tracked.
@@ -2759,7 +2759,7 @@ describe('acstack config set replaces acstack/project.yaml atomically', () => {
  * a fix applied to one is not applied to the other. `unset` too - it writes
  * the same way, and losing a link there costs the same.
  */
-describe('acstack config set and unset through a symlinked acstack/project.yaml', () => {
+describe('acstack config set and unset through a symlinked .acstack/project.yaml', () => {
   /** The project the link points at, parsed. Never read through the link. */
   function parseTarget(target: string): unknown {
     return parseYaml(readFileSync(target, 'utf-8'));
@@ -3161,7 +3161,7 @@ describe('acstack config get host.<axis>', () => {
 //
 // `config set` already routes by key: a `host.*` key describes the machine
 // and goes to the global config, and every other key ACStack knows describes
-// the project and goes to `acstack/project.yaml`. The three commands that
+// the project and goes to `.acstack/project.yaml`. The three commands that
 // read and remove have to route the same way, or a key `set` just wrote reads
 // back as unset and cannot be removed at all.
 //
@@ -3189,7 +3189,7 @@ describe('acstack config get, project keys', () => {
     it.each([
       ['workflow.spec_sync', 'true'],
       ['workflow.tdd.orchestrator_strict', 'true'],
-    ])('prints %s as %s, read out of acstack/project.yaml', (key, printed) => {
+    ])('prints %s as %s, read out of .acstack/project.yaml', (key, printed) => {
       const result = runGet(key, makeProject(HAND_EDITED_PROJECT));
 
       expect(result.status).toBe(0);
@@ -3270,7 +3270,7 @@ describe('acstack config get, project keys', () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/no ACStack project/i);
-      expect(existsSync(join(cwd, 'acstack'))).toBe(false);
+      expect(existsSync(join(cwd, '.acstack'))).toBe(false);
       expect(existsSync(result.globalConfigFile)).toBe(false);
     });
 
@@ -3407,7 +3407,7 @@ describe('acstack config unset, project keys', () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/no ACStack project/i);
-      expect(existsSync(join(cwd, 'acstack'))).toBe(false);
+      expect(existsSync(join(cwd, '.acstack'))).toBe(false);
       expect(existsSync(result.globalConfigFile)).toBe(false);
     });
 
@@ -4180,7 +4180,7 @@ describe('acstack config show', () => {
 // acstack config show — Project section (text mode)
 //
 // `show` reports the project before the host: a `Project` heading, then the
-// facts read from acstack/project.yaml, then the existing `Host` heading and
+// facts read from .acstack/project.yaml, then the existing `Host` heading and
 // its table. The old dim one-line project summary that used to trail the
 // Host table is gone - those facts now live only in the Project section.
 // -----------------------------------------------------------------------
@@ -5827,8 +5827,8 @@ describe('acstack config check', () => {
         expect(line).toContain('PASS');
       });
 
-      it('passes the verification knowledge base row when it exists under frontend.helpers_dir', () => {
-        const line = lineContaining(result.stdout, 'fe/helpers');
+      it('passes the verification knowledge base row at the canonical project path', () => {
+        const line = lineContaining(result.stdout, '.acstack/verification');
         expect(line).toBeDefined();
         expect(line).toContain('PASS');
       });
@@ -5846,7 +5846,7 @@ describe('acstack config check', () => {
       expect(fails[0]).toContain('npm install -g agent-browser');
     });
 
-    it('fails when agent-browser.json is absent from the project root', () => {
+    it('fails when agent-browser.json is absent from .acstack', () => {
       const cwd = frontendProjectWithoutBrowserJson();
 
       const result = runCheck({ cwd, path: agentBrowserOnPath() });
@@ -5885,7 +5885,7 @@ describe('acstack config check', () => {
       expect(result.status).toBe(1);
     });
 
-    it('fails when nothing exists at the path frontend.helpers_dir names', () => {
+    it('fails when the canonical project verification knowledge file is missing', () => {
       const root = makeProject(frontendProjectYaml(9222));
       writeDomainMap(root, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(root, agentBrowserJsonFor(9222));
@@ -5895,7 +5895,7 @@ describe('acstack config check', () => {
       expect(result.status).toBe(1);
       const fails = failLines(result.stdout);
       expect(fails).toHaveLength(1);
-      expect(fails[0]).toContain('fe/helpers');
+      expect(fails[0]).toContain('.acstack/verification');
     });
 
     it('fails a project with no frontend for none of the frontend-only rows, with nothing at all on PATH', () => {

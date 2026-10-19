@@ -293,7 +293,7 @@ function refuseBlockedByCycles(nodes: DiagramNode[]): void {
 }
 
 /** Turns `gh issue list --json ...` output into the nodes the renderer draws. */
-export function nodesFromIssues(json: string): IssueNode[] {
+export function nodesFromIssues(json: string, map?: string): IssueNode[] {
   let raw: unknown;
   try {
     raw = JSON.parse(json);
@@ -303,7 +303,12 @@ export function nodesFromIssues(json: string): IssueNode[] {
   if (!Array.isArray(raw)) {
     throw new Error('the issue list must be a JSON array, as `gh issue list --json` emits it');
   }
-  const nodes = (raw as unknown[]).map(nodeFromIssue);
+  const selected = map === undefined ? raw as unknown[] : (raw as unknown[]).filter(entry => {
+    if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) return false;
+    const body = (entry as Record<string, unknown>).body;
+    return typeof body === 'string' && parseHeader(firstNonBlankLine(body))?.get('map') === map;
+  });
+  const nodes = selected.map(nodeFromIssue);
   refuseDuplicateNumbers(nodes);
   refuseUnknownBlockers(nodes);
   refuseBlockedByCycles(nodes);

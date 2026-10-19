@@ -1,25 +1,26 @@
-import { type CSSProperties, StrictMode, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { StrictMode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ReactFlowProvider } from '@xyflow/react';
 import { Check, CircleCheck, Copy } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import './viewer.css';
-import { buildDiagram, type Diagram as DiagramModel, initialExpandedGroups, NODE_HEIGHT } from './alignment-graph.js';
-import { Diagram, type Zoom } from './diagram.js';
-import { CommentForm, Drawer } from './drawer.js';
+import { buildDiagram, type Diagram as DiagramModel, type DiagramNode, initialExpandedGroups, projectDiagram, reconcileSelection, type MeasuredGeometry } from './alignment-graph.js';
+import { Diagram, MeasureDiagram, type Zoom } from './diagram.js';
+import { CommentForm, Drawer, commentScopeForSelection, type CommentScope, type DrawerView } from './drawer.js';
+import { commentPosition } from './comment-position.js';
+import { bindTextSelection } from './text-selection.js';
+import { captureQuoteAnchor, toReviewAnnotation } from './quote-anchors.js';
+import { usePostedComments } from './posted-comments.js';
+import { AppTooltipLayer } from './tooltip.js';
 import type { ReviewStatus } from '../lib/alignment-packs.js';
 import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alignment-review-protocol.js';
-import { type Annotation, type Draft, diagramId, pack, useStored } from './pack.js';
+import { copy, ReviewHandoff } from './review-handoff.js';
+import { DesignApproval, DesignApprovalProvider } from './design-approval.js';
+import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, useReviewAnnotations } from './pack.js';
 
 // Present only when `acstack align-viewer` served this page; a file opened directly is read-only.
 const REVIEW_TOKEN = document.querySelector<HTMLMetaElement>(`meta[name="${REVIEW_TOKEN_META}"]`)?.content;
 
-// Browsers can refuse clipboard access; the caller then shows the prompt with a Copy button instead.
-const copy = (text: string): Promise<boolean> =>
-  navigator.clipboard?.writeText(text).then(
-    () => true,
-    () => false
-  ) ?? Promise.resolve(false);
 
 const STATUS_TEXT: Record<ReviewStatus | 'pending', string> = {
   pending: 'Awaiting review',
@@ -28,23 +29,14 @@ const STATUS_TEXT: Record<ReviewStatus | 'pending', string> = {
 };
 
 // Highlighting text inside anything marked data-annotate-* opens a comment popover, as in plannotator.
-function useTextSelection(popover: React.RefObject<HTMLDivElement | null>, onDraft: (draft: Draft) => void) {
+function useTextSelection(popover: React.RefObject<HTMLDivElement | null>, onDraft: (draft: Draft | null) => void) {
+  const binding = useRef<ReturnType<typeof bindTextSelection> | null>(null);
   useEffect(() => {
-    const onMouseUp = (event: MouseEvent) => {
-      if (popover.current?.contains(event.target as Node)) return;
-      const selection = window.getSelection();
-      const text = selection?.toString().trim();
-      const host = selection?.anchorNode?.parentElement?.closest<HTMLElement>('[data-annotate-type]');
-      if (!selection || !text || !host?.dataset.annotateType || !host.dataset.annotateId) return;
-      onDraft({
-        target: { type: host.dataset.annotateType as Annotation['target']['type'], id: host.dataset.annotateId },
-        selectedText: text,
-        anchor: selection.getRangeAt(0).getBoundingClientRect(),
-      });
-    };
-    document.addEventListener('mouseup', onMouseUp);
-    return () => document.removeEventListener('mouseup', onMouseUp);
+    const current = bindTextSelection(popover, onDraft);
+    binding.current = current;
+    return () => { current.dispose(); binding.current = null; };
   }, [popover, onDraft]);
+  return useCallback(() => binding.current?.dismiss(), []);
 }
 
 function App() {
@@ -52,7 +44,9 @@ function App() {
   const [zoom, setZoom] = useState<Zoom>(pack.viewState.semanticZoom === 'technical' ? 'technical' : 'business');
   const [selected, setSelected] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(true);
-  const [annotations, setAnnotations] = useStored<Annotation[]>('annotations', []);
+  const [drawerView, setDrawerView] = useState<DrawerView>('details');
+  const [commentScope, setCommentScope] = useState<CommentScope>('all');
+  const { annotations, setAnnotations, syncState, retry, flush } = useReviewAnnotations();
   const [status, setStatus] = useState<ReviewStatus | 'pending'>(pack.reviewState.approval?.status ?? 'pending');
   // Set once the review is recorded: the prompt for the agent, and whether it reached the clipboard.
   const [sent, setSent] = useState<{ prompt: string; copied: boolean } | null>(null);
@@ -62,43 +56,96 @@ function App() {
   const confirm = useRef<HTMLDialogElement>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [focusKey, setFocusKey] = useState(0);
-  const [diagram, setDiagram] = useState<DiagramModel>({ nodes: [], edges: [] });
+  const [diagram, setDiagram] = useState<DiagramModel>({ nodes: [], edges: [], nodeToVisible: {} });
+  const [layoutKey, setLayoutKey] = useState('');
+  const [layoutZoom, setLayoutZoom] = useState(zoom);
+  const [layoutError, setLayoutError] = useState<string | null>(null);
+  const requestedKey = `${[...expanded].sort().join('|')}:${zoom}`;
+  const layoutAnchor = useRef<{ key: string; node: Pick<DiagramNode, 'id' | 'x' | 'y'> } | null>(null);
+  const changeExpanded = (ids: string[], anchorId?: string) => {
+    generation.current += 1;
+    const node = diagram.nodes.find(node => node.id === anchorId);
+    layoutAnchor.current = node ? { key: `${[...ids].sort().join('|')}:${zoom}`, node: { id: node.id, x: node.x, y: node.y } } : null;
+    setExpanded(ids);
+  };
+  const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded]);
+  const [measurement, setMeasurement] = useState<{ key: string; geometry: MeasuredGeometry } | null>(null);
+  const onMeasured = useCallback((geometry: MeasuredGeometry) => {
+    setMeasurement(previous => previous?.key === requestedKey && JSON.stringify(previous.geometry) === JSON.stringify(geometry) ? previous : { key: requestedKey, geometry });
+  }, [requestedKey]);
+  const generation = useRef(0);
   const popover = useRef<HTMLDivElement>(null);
-  useTextSelection(popover, setDraft);
-  // Beside the selection, never over it: left first, right if the left has no room, kept 8px inside the window.
-  const [popoverPosition, setPopoverPosition] = useState<CSSProperties>({ visibility: 'hidden' });
+  const dismissDraft = useTextSelection(popover, setDraft);
+  const editComment = (id: string, comment: string) => {
+    setAnnotations(annotations.map(annotation => annotation.id === id ? { ...annotation, comment } : annotation));
+  };
+  const postedComments = usePostedComments(annotations, Boolean(draft), dismissDraft, editComment);
+  // Observe the visible canvas, not the window: resizing the drawer must move an open comment too.
   useLayoutEffect(() => {
-    if (!draft || !popover.current) return setPopoverPosition({ visibility: 'hidden' });
-    const { width, height } = popover.current.getBoundingClientRect();
-    const { anchor } = draft;
-    const gap = 12;
-    const margin = 8;
-    const left = anchor.left - gap - width >= margin ? anchor.left - gap - width : Math.min(anchor.right + gap, innerWidth - width - margin);
-    const top = Math.min(Math.max(anchor.top + anchor.height / 2 - height / 2, margin), innerHeight - height - margin);
-    setPopoverPosition({ left: Math.max(left, margin), top });
-  }, [draft]);
-  useEffect(() => {
-    let current = true;
-    // The technical view adds an id and source line, so its boxes are taller.
-    void buildDiagram(pack.graph, expanded, zoom === 'technical' ? NODE_HEIGHT + 20 : NODE_HEIGHT).then(next => current && setDiagram(next));
-    return () => {
-      current = false;
+    const element = popover.current;
+    const app = element?.closest('.app');
+    const canvas = app?.querySelector<HTMLElement>('.canvas');
+    const drawer = app?.querySelector<HTMLElement>('.drawer');
+    if (!draft || !element || !canvas) return;
+    const range = draft.range;
+    const fromDrawer = Boolean(range && drawer?.contains(range.commonAncestorContainer));
+    const position = () => {
+      const anchor = range?.startContainer.isConnected ? range.getBoundingClientRect() : draft.anchor;
+      const canvasRect = canvas.getBoundingClientRect();
+      const drawerRect = drawer?.getBoundingClientRect();
+      const viewport = { width: innerWidth, height: innerHeight };
+      const bounds = commentPosition(anchor, canvasRect, drawerRect, element.getBoundingClientRect(), viewport, fromDrawer);
+      element.style.maxWidth = `${bounds.maxWidth}px`;
+      element.style.maxHeight = `${bounds.maxHeight}px`;
+      const placed = commentPosition(anchor, canvasRect, drawerRect, element.getBoundingClientRect(), viewport, fromDrawer);
+      element.style.left = `${placed.left}px`;
+      element.style.top = `${placed.top}px`;
+      element.style.visibility = 'visible';
     };
-  }, [expanded, zoom]);
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(canvas);
+    observer.observe(element);
+    if (drawer) observer.observe(drawer);
+    window.addEventListener('resize', position);
+    document.addEventListener('scroll', position, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', position);
+      document.removeEventListener('scroll', position, true);
+    };
+  }, [draft, drawerOpen]);
   useEffect(() => {
-    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !(event.target instanceof HTMLTextAreaElement) && setSelected(null);
+    const request = ++generation.current;
+    if (measurement?.key !== requestedKey) return;
+    const anchor = layoutAnchor.current?.key === requestedKey ? layoutAnchor.current.node : undefined;
+    void buildDiagram(pack.graph, expanded, measurement.geometry, anchor).then(next => {
+      if (request !== generation.current) return;
+      setDiagram(next);
+      setLayoutKey(requestedKey);
+      setLayoutZoom(zoom);
+      setSelected(previous => reconcileSelection(previous, next, pack.graph));
+      setLayoutError(null);
+    }).catch((error: unknown) => {
+      if (request === generation.current) setLayoutError(error instanceof Error ? error.message : String(error));
+    });
+    return () => { generation.current += 1; };
+  }, [expanded, measurement, requestedKey, zoom]);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !(event.target as Element | null)?.closest?.('[data-review-handoff]') && !event.defaultPrevented && !(event.target instanceof HTMLTextAreaElement) && setSelected(null);
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, []);
 
-  const addComment = (target: Annotation['target'], comment: string, selectedText?: string) => {
+  const addComment = (target: Annotation['target'], comment: string, selectedText?: string, quoteAnchor?: Annotation['quoteAnchor']) => {
     setAnnotations([
       ...annotations,
       {
-        id: crypto.randomUUID(),
+        id: annotationId(),
         packVersion: pack.packVersion,
         target,
         selectedText,
+        quoteAnchor,
         comment,
         time: new Date().toISOString(),
       },
@@ -116,7 +163,7 @@ function App() {
       const res = await fetch(REVIEW_PATH, {
         method: 'POST',
         headers: { 'content-type': 'application/json', [REVIEW_TOKEN_HEADER]: REVIEW_TOKEN ?? '' },
-        body: JSON.stringify({ packVersion: pack.packVersion, reviewState: { approval }, annotations: annotations.map(({ id: _id, ...rest }) => rest) }),
+        body: JSON.stringify({ packVersion: pack.packVersion, reviewState: { approval }, annotations: annotations.map(toReviewAnnotation) }),
       });
       const body = (await res.json()) as { error?: string; prompt?: string };
       if (!res.ok) throw new Error(body.error ?? `Review failed (${res.status})`);
@@ -130,64 +177,92 @@ function App() {
       setSubmitting(false);
     }
   };
-  const commentCounts = new Map<string, number>();
-  for (const annotation of annotations) {
-    const id = diagramId(annotation.target);
-    commentCounts.set(id, (commentCounts.get(id) ?? 0) + 1);
-  }
+  const commentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const annotation of annotations) {
+      const id = diagramId(annotation.target);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    return counts;
+  }, [annotations]);
   const select = (id: string | null) => {
-    setSelected(id);
-    if (id) setDrawerOpen(true);
+    setSelected(reconcileSelection(id, diagram, pack.graph));
+    if (id) {
+      setDrawerOpen(true);
+      if (drawerView !== 'details') setCommentScope(commentScopeForSelection(id, diagram));
+    }
   };
 
   return (
     <div className="app">
+      <AppTooltipLayer />
       <header className="masthead">
         <h1>{pack.source.map.id}</h1>
         <span className="status" data-status={status}>
-          {STATUS_TEXT[status] ?? status}
-        </span>
-        <span className="version" title="Your review applies to this pack version only">
-          {pack.packVersion}
+          {pack.documentKind === 'design' ? 'Design document' : STATUS_TEXT[status] ?? status}
         </span>
         {error && (
           <span className="error" role="alert">
             {error}
           </span>
         )}
-        {REVIEW_TOKEN ? (
-          <div className="actions">
-            {/* Approve stays rightmost so it never moves when Request changes appears. */}
-            {annotations.length > 0 && (
-              <button type="button" className="btn" disabled={submitting} onClick={() => void submit('changes-requested')}>
-                Request changes <span className="count-pill">{annotations.length}</span>
+        <div className="row review-controls">
+          <span className="version" tabIndex={0} data-tooltip={`Pack version: ${pack.packVersion}. Comments apply to this version.`}>
+            {pack.packVersion.slice(-8)}
+          </span>
+          {liveComments ? (
+            <div className="actions">
+              <span className="hint" role="status">{syncState?.status ?? 'Saving'}</span>
+              {syncState?.status === 'Not synced' && <button type="button" className="btn" onClick={retry}>Retry</button>}
+              <DesignApproval compact />
+              {handoffPrompt && flush && <ReviewHandoff prompt={handoffPrompt} flush={flush} />}
+            </div>
+          ) : REVIEW_TOKEN ? (
+            <div className="actions">
+              {/* Approve stays rightmost so it never moves when Request changes appears. */}
+              {annotations.length > 0 && (
+                <button type="button" className="btn" disabled={submitting} onClick={() => void submit('changes-requested')}>
+                  Request changes <span className="count-pill">{annotations.length}</span>
+                </button>
+              )}
+              <button
+                type="button"
+                className="btn primary"
+                disabled={submitting}
+                onClick={() => (annotations.length ? confirm.current?.showModal() : void submit('approved'))}
+              >
+                Approve
               </button>
-            )}
-            <button
-              type="button"
-              className="btn primary"
-              disabled={submitting}
-              onClick={() => (annotations.length ? confirm.current?.showModal() : void submit('approved'))}
-            >
-              Approve
-            </button>
-          </div>
-        ) : (
-          <span className="hint">Read-only copy. Run acstack align-viewer --map {pack.source.map.id} to review.</span>
-        )}
+            </div>
+          ) : (
+            <span className="hint">{pack.documentKind === 'design' ? 'Comments stay in this browser. Approval is not recorded.' : 'Read-only legacy copy. Use design-review migrate with an authored entry and explicit mapping, then open design-doc.'}</span>
+          )}
+          {liveComments && syncState?.error && <span className="error" role="alert">{syncState.error}</span>}
+        </div>
       </header>
       <main className="canvas">
+        <MeasureDiagram diagram={projection} zoom={zoom} commentCounts={commentCounts} onMeasured={onMeasured} />
+        {layoutError && <div className="layout-error" role="alert">{layoutError} The previous valid diagram remains visible.</div>}
         <ReactFlowProvider>
           <Diagram
             diagram={diagram}
+            layoutKey={layoutKey}
             expanded={expanded}
-            setExpanded={setExpanded}
+            setExpanded={changeExpanded}
             zoom={zoom}
-            setZoom={setZoom}
+            contentZoom={layoutZoom}
+            setZoom={value => {
+              if (value === zoom) return;
+              generation.current += 1;
+              layoutAnchor.current = null;
+              setZoom(value);
+            }}
             selected={selected}
             onSelect={select}
             onAnnotate={id => {
               select(id);
+              setCommentScope(commentScopeForSelection(id, diagram));
+              setDrawerView('comments');
               setFocusKey(focusKey + 1);
             }}
             commentCounts={commentCounts}
@@ -197,16 +272,28 @@ function App() {
       <Drawer
         open={drawerOpen}
         setOpen={setDrawerOpen}
+        view={drawerView}
+        setView={setDrawerView}
+        commentScope={commentScope}
+        setCommentScope={setCommentScope}
         selected={selected}
         diagram={diagram}
         focusKey={focusKey}
         annotations={annotations}
         setAnnotations={setAnnotations}
-        onSelect={select}
+        onEdit={editComment}
+        onShowComment={postedComments.show}
+        onSelect={id => {
+          setDrawerView('details');
+          if (id === 'group:design:root') setSelected(null);
+          else if (id?.startsWith('edge:')) setSelected(id);
+          else setSelected(reconcileSelection(id, diagram, pack.graph));
+          setDrawerOpen(true);
+        }}
         onComment={addComment}
         onOpenGroup={groupId => {
           setSelected(null);
-          setExpanded([...expanded, groupId]);
+          changeExpanded([...expanded, groupId], `group:${groupId}`);
         }}
       />
       <dialog ref={confirm} className="modal" aria-labelledby="confirm-title">
@@ -239,16 +326,16 @@ function App() {
           <p className="hint">You can close this tab.</p>
         </div>
       )}
+      {postedComments.content}
       {draft && (
-        <div ref={popover} className="popover" role="dialog" aria-label="Comment on selection" style={popoverPosition}>
+        <div ref={popover} className="popover" role="dialog" aria-label="Comment on selection">
           <blockquote>{draft.selectedText}</blockquote>
           <CommentForm
             focusKey={1}
-            onCancel={() => setDraft(null)}
+            onCancel={dismissDraft}
             onSave={comment => {
-              addComment(draft.target, comment, draft.selectedText);
-              setDraft(null);
-              window.getSelection()?.removeAllRanges();
+              addComment(draft.target, comment, draft.selectedText, draft.selectedText ? captureQuoteAnchor(draft.range, draft.target, draft.selectedText) ?? null : undefined);
+              dismissDraft();
             }}
           />
         </div>
@@ -259,6 +346,6 @@ function App() {
 
 createRoot(document.getElementById('root') as HTMLElement).render(
   <StrictMode>
-    <App />
+    <DesignApprovalProvider><App /></DesignApprovalProvider>
   </StrictMode>
 );

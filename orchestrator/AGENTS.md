@@ -66,7 +66,17 @@ ACStack runs on Claude Code, Codex, and pi. The skills name each capability once
 
 ## Project configuration
 
-All project-specific commands and paths come from `acstack/project.yaml`. Read this file before you run any build, test or lint command. If it doesn't exist, prompt the user to run `/acstack:setup`.
+- All ACStack-owned project data lives under `.acstack/` and stays local by default
+- The root `.gitignore` is the sole tracking policy; user exceptions after its managed baseline opt individual parts in
+- Before a configuration gate, CLI and host session startup run `~/.claude/acstack/bin/acstack project-data ensure`
+- When creating `.acstack/` manually, run that command immediately; it needs no project config
+- Filesystem creation alone triggers nothing; the next CLI invocation or session startup enforces the baseline, without a watcher
+- Never force-add ignored project data, change the Git index, or create automatic tracking exceptions
+- For legacy layouts, follow the explicit migration procedure in `docs/config-reference.md`
+- Update installed tools first, stop old agents and reviews, migrate the selected checkout, then restart with updated tools
+- Never silently migrate another checkout or work around legacy data by creating a partial `.acstack/` there
+
+All project-specific commands and paths come from `.acstack/project.yaml`. Read this file before you run any build, test or lint command. If it doesn't exist, prompt the user to run `/acstack:setup`.
 
 Key fields:
 
@@ -250,18 +260,19 @@ flowchart TD
 
 Spec sync keeps living specs current, whichever workflow you ran. It runs as part of every `/acstack:commit`.
 
-When `workflow.spec_sync` is `true` in `acstack/project.yaml`:
+When `workflow.spec_sync` is `true` in `.acstack/project.yaml`:
 
 1. Run `git diff --staged` to see what is changing
-2. Map changed files to spec domains via `acstack/domain-map.yaml`
-3. For each affected domain with a `acstack/specs/[domain]/spec.md`:
+2. Map changed files to spec domains via `.acstack/domain-map.yaml`
+3. For each affected domain with a `.acstack/specs/[domain]/spec.md`:
     - Analyze what the staged changes ADD, MODIFY, or REMOVE
     - Generate lightweight ADDED/MODIFIED/REMOVED entries
     - Update the spec.md
-4. Stage updated spec files in the same commit
+4. Stage updated specs only when native `.gitignore` rules allow tracking
+    - Keep ignored specs updated locally; never force-add them or change the Git index to bypass the user's choice
 5. Flag unmapped source files. Prompt the user to map them.
 
-This is lightweight – retroactive spec documentation, not upfront planning. Specs converge toward reality with every commit.
+Spec sync updates local records with every commit, including when those records stay ignored.
 
 ---
 
@@ -278,9 +289,9 @@ This is lightweight – retroactive spec documentation, not upfront planning. Sp
 
 ## Living specs
 
-- `acstack/specs/` contains the cumulative source of truth for the system
+- `.acstack/specs/` contains the cumulative source of truth for the system
 - `/acstack:commit` updates them automatically through spec sync; `/acstack:archive` closes out a cleared map
-- Domain-organized per `acstack/domain-map.yaml`
+- Domain-organized per `.acstack/domain-map.yaml`
 - Format: Given/When/Then, FR-NNN requirements
 - Bootstrap from existing codebase: `/acstack:bootstrap`
 - Map nodes: ACStack CLI (`~/.claude/acstack/bin/acstack node create | read | update | list`, plus the composed `node frontier` and `node walk` queries)
@@ -303,13 +314,13 @@ Read-only reviewers report discrepancies to the completion owner.
 
 **Before marking ANY task as complete, you MUST verify the project builds.**
 
-Read `acstack/project.yaml` for the specific commands. The general pattern:
+Read `.acstack/project.yaml` for the specific commands. The general pattern:
 
 1. Run the build command if the project configures one
 2. Run lint
 3. Run typecheck if the project configures one
 4. Run the full test suite – ALL tests must pass
-5. Compare the test count against `.test-baseline`. The count must not drop.
+5. Compare the test count against `.acstack/.test-baseline`. The count must not drop.
 6. Run the frontend build and lint if the project configures a frontend
 
 ### When to run
@@ -329,7 +340,7 @@ Read `acstack/project.yaml` for the specific commands. The general pattern:
 
 ## Frontend visual verification
 
-**This section applies only when `acstack/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`.**
+**This section applies only when `.acstack/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`.**
 
 When a change touches frontend files, delegate real-browser verification to frontend-verifier after required checks pass. Never substitute a confidence claim for browser evidence.
 
@@ -337,7 +348,7 @@ The design pass runs before browser verification when the design gate is on, fol
 
 The frontend-verifier agent:
 
-1. Reads the project's verification knowledge base (`<helpers_dir>/VERIFICATION-KNOWLEDGE.md`)
+1. Reads the project's verification knowledge base (`.acstack/verification/VERIFICATION-KNOWLEDGE.md`)
 2. Checks what frontend files changed
 3. Starts the dev server if it's not running
 4. Connects to a browser through the Chrome DevTools Protocol (CDP), over a remote tunnel or local headless Chromium
@@ -350,8 +361,8 @@ The frontend-verifier agent:
 
 Run `/acstack:setup` to set up browser verification. This creates:
 
-- **agent-browser.json** – CDP connection config in the project root
-- **VERIFICATION-KNOWLEDGE.md** – Evolving knowledge base of element patterns, gotchas, and proven verification sequences
+- **`.acstack/agent-browser.json`** – CDP connection config, selected by an absolute `--config` path or `AGENT_BROWSER_CONFIG`
+- **`.acstack/verification/VERIFICATION-KNOWLEDGE.md`** – Evolving knowledge base of element patterns, gotchas, and proven verification sequences
 
 `frontend.browser.mode` in project.yaml holds the browser environment: remote, headless, or local.
 

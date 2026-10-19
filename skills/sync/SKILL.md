@@ -1,6 +1,6 @@
 ---
 name: sync
-description: Update living specs in acstack/specs/ from recent code changes. Called automatically by /commit for retroactive spec updates. Can also be invoked manually.
+description: Update living specs in .acstack/specs/ from recent code changes. Called automatically by /commit for retroactive spec updates. Can also be invoked manually.
 argument-hint: "[file-paths or 'staged']"
 ---
 
@@ -15,7 +15,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 ## Purpose
 
 This skill analyzes code changes. It updates the cumulative living specs in
-`acstack/specs/` to reflect what changed. It is the "fast path" mechanism
+`.acstack/specs/` to reflect what changed. It is the "fast path" mechanism
 that keeps specs current even when a workflow skips full spec planning.
 
 ## Step 1: determine change scope
@@ -81,11 +81,11 @@ domain.
 5. Stage what `document` wrote
 
     `document` writes `DESIGN.md` and `.impeccable/design.json`. Stage both
-    with the commit, the same way this skill stages an updated spec file.
+    with the commit; stage updated specs only when the user opted into tracking them.
 
 ## Step 3: map changes to domains
 
-1. Read `acstack/domain-map.yaml`
+1. Read `.acstack/domain-map.yaml`
 2. Match changed files against domain path patterns
 3. Group changes by domain
 4. Skip files outside all domains (tests, config, docs)
@@ -96,7 +96,7 @@ If the diff affects no domains, report "No spec-relevant changes". Then exit.
 
 For each affected domain:
 
-1. Read `acstack/specs/[domain]/spec.md` (if it exists)
+1. Read `.acstack/specs/[domain]/spec.md` (if it exists)
 2. Analyze changes:
     - New functions/endpoints/components -> ADDED requirements
     - Modified signatures or behavior -> MODIFIED requirements
@@ -109,9 +109,9 @@ Write each functional requirement (FR) entry per the `writing` skill.
 ```markdown
 ### FR-014: The handoff anchor loads once
 
-- **Description**: The SessionStart hook injects `acstack/HANDOFF.md` after a
-  compaction, then moves the file into `acstack/handoffs/`.
-- **Behavior**: Given `acstack/HANDOFF.md` carries the `acstack_handoff`
+- **Description**: The SessionStart hook injects `.acstack/HANDOFF.md` after a
+  compaction, then moves the file into `.acstack/handoffs/`.
+- **Behavior**: Given `.acstack/HANDOFF.md` carries the `acstack_handoff`
   marker, When a session starts with source `compact`, Then the hook injects
   the file and retires it.
 - **Source**: `hooks/session-start-handoff.sh`
@@ -129,8 +129,8 @@ Write each merged FR per the `writing` skill.
 
 ## Step 6: glossary check
 
-Glossaries live in `CONTEXT.md` at the repo root (cross-domain terms) and
-`acstack/specs/[domain]/CONTEXT.md` (domain terms). If neither exists, skip.
+Glossaries live in `.acstack/CONTEXT.md` (cross-domain terms) and
+`.acstack/specs/[domain]/CONTEXT.md` (domain terms). If neither exists, skip.
 
 For each glossary term, check the diff. Look for a renamed or deleted
 identifier that matches it: function, class, table, config key, route. If
@@ -162,7 +162,8 @@ When `/commit` calls this skill:
 
 1. Receives the staged diff as context
 2. Runs silently (no user prompts)
-3. Returns a list of modified spec files for staging
+3. Returns modified specs for staging only when native `.gitignore` rules allow tracking
+    - Keep ignored specs updated locally; never force-add them or change the Git index to bypass the user's choice
 4. Adds `DESIGN.md` and `.impeccable/design.json` when Step 2 refreshed them
 5. Outputs minimal detail so it does not interrupt the commit flow
 

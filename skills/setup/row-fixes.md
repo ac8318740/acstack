@@ -1,6 +1,52 @@
 # Setup: row fixes
 
-`SKILL.md` decides when to read this file: Step 9 is fixing a `browser-mode:<mode>`, `frontend-verification`, `domain-map`, `agent-browser`, `agent-browser-json`, `verification-knowledge` or `output-style` row.
+[The setup skill](SKILL.md) loads Step 8 on every run and Step 9 for the selected row fixes.
+
+## Step 8: Offer the rows that need a fix
+
+Build one multi-select question in the question tool (AskUserQuestion with
+`multiSelect: true` on Claude Code). Put one option in it per row you are going
+to offer, and say in each description what the row reported. This is the pre-selection the user sees: only real gaps reach the menu.
+
+Offer a row when any of these holds:
+
+- Its `status` is `fail`.
+- Its `id` is `preferred-browser-mode`, its `status` is `info`, and
+  `.acstack/project.yaml` configures a `frontend` block. The project has a
+  frontend and has named no browser mode for it.
+
+- Its `id` is `output-style` and its `status` is `info`. The row passes when the
+  settings files select `acstack:ac-writing-style`, so `info` means they select
+  some other style, or select none.
+
+- Its `id` is `frontend-verification` and its `status` is `info`. The project
+  configures a frontend and `workflow.frontend_verification` is not `true`.
+
+Each of those rules reads the `status` and the `id`. Read neither row's message
+to decide, for the reason Step 7 gives: the message is prose and it gets
+reworded.
+
+Add three options at the end of the list, whatever the check reported:
+
+- **Re-declare this machine** – invoke the `host` skill. It re-asks every axis,
+  required and optional, and starts from the current answers.
+
+    The check reports an `optional-axis:<key>` row as `info`, never as `fail`.
+    So this option is the only way one of them reaches a question.
+
+- **Change one setting** – for a key the check has no opinion about, such as
+  `workflow.maps.persist`. Point the user at `docs/config-reference.md`, which
+  lists every key, its values and its default. Then write the key:
+
+  ```bash
+  ~/.claude/acstack/bin/acstack config set workflow.maps.persist true
+  ```
+
+  Do not restate the reference here.
+
+- **Skip** – leave everything as it is.
+
+## Step 9: Fix one row at a time
 
 Five rows describe the machine: `required-axis`, `orchestrator`, `browser-mode`,
 `preferred-browser-mode` and `optional-axis`. Invoke the `host` skill for each of
@@ -45,7 +91,7 @@ frontend and has not turned browser verification on. Turn it on:
 
 ### 9a. Generate the domain map
 
-`acstack/domain-map.yaml` maps source paths to spec domains. Spec sync,
+`.acstack/domain-map.yaml` maps source paths to spec domains. Spec sync,
 `/acstack:archive`, `/acstack:bootstrap` and `/acstack:pre-commit-review` all
 read it. Without it, every path through spec sync skips in silence, and the
 living specs never update.
@@ -65,7 +111,7 @@ Guidance for the proposal:
 - Leave tests, config, build files and docs unmapped. Consumers skip a path that
   no domain covers.
 
-If `acstack/specs/` already holds domain directories, propose those names first
+If `.acstack/specs/` already holds domain directories, propose those names first
 and map the paths onto them. Renaming a domain here orphans its `spec.md`.
 
 Print the proposal and confirm it with the question tool (AskUserQuestion on Claude Code). Ask "Use this domain map,
@@ -97,23 +143,24 @@ with. Offer to install it:
 npm install -g agent-browser
 ```
 
-### 9c. Write agent-browser.json
+### 9c. Write the browser configuration
 
-This file tells `agent-browser` which port to dial. Write it in the project root:
+Create `.acstack/` if needed, then run `~/.claude/acstack/bin/acstack project-data ensure`.
+Write `.acstack/agent-browser.json` to name the CDP port:
 
 ```json
 {"cdp": "<cdp_port>"}
 ```
 
-Take `<cdp_port>` from `frontend.browser.cdp_port` in `acstack/project.yaml`. With
+Take `<cdp_port>` from `frontend.browser.cdp_port` in `.acstack/project.yaml`. With
 no value there, the default is `19988` under `mode: remote` and `9555` otherwise.
 The row fails when the two files name different ports, so change one of them.
 
 ### 9d. Create the knowledge base for verification
 
-The frontend verifier keeps what it learns in `VERIFICATION-KNOWLEDGE.md`, under
-the directory `frontend.helpers_dir` names. If that key states nothing, ask for a
-directory and write the key first. Then create the file:
+Create `.acstack/verification/VERIFICATION-KNOWLEDGE.md` for the frontend verifier.
+Keep helper programs in `frontend.helpers_dir`; do not move that directory or require it for metadata.
+Run `~/.claude/acstack/bin/acstack project-data ensure` after creating `.acstack/`, then write:
 
 ```markdown
 # Verification Knowledge Base

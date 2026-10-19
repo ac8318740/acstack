@@ -1,0 +1,40 @@
+id: acstack-workflow
+name: ACStack design-review workflow
+summary: >-
+  Review the proposed map-to-approval integration and evidence retention for
+  ACStack's design-doc map, without redesigning the existing review viewer.
+planning: {tracker: github, map: design-doc}
+detail: journey.md
+elements:
+  - user.yaml
+  - acstack.yaml
+  - skills.yaml
+  - host.yaml
+  - cli.yaml
+  - review-runtime.yaml
+  - viewer.yaml
+  - store.yaml
+  - github.yaml
+concerns:
+  - id: offline-review
+    name: Offline review
+    elements: [review-runtime, viewer, design-source]
+    requirement: >-
+      Reviewers can inspect the design without uploading project details
+      or fetching browser assets.
+    response: >-
+      The review command and server read bounded local source files and
+      embed validated graph data with bundled browser assets, without uploading
+      the design. Agent-side reads of GitHub-bound maps still require
+      network access.
+  - id: honest-scope
+    name: Honest review status
+    elements: [skills, review-runtime, viewer]
+    requirement: >-
+      An exported review artifact must not imply that a reviewer approved
+      a map or implementation.
+    response: >-
+      Comments and exports are not approval. Approval requires reconciled
+      feedback and contributions, resolved blocking questions, and the exact
+      source, review, comments, and map-input tuple. Implementation checks
+      remain separate.
