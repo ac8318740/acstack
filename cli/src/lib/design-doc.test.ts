@@ -25,6 +25,23 @@ function fixture() {
 }
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 describe('authored design documents', () => {
+  it('changes presentation orientation without changing source or review identities', () => {
+    const f = fixture();
+    const doc = f.load();
+    const original = JSON.stringify(doc);
+    const vertical = designDocToPack(doc, 'top-to-bottom');
+    const horizontal = designDocToPack(doc, 'left-to-right');
+    expect(designDocToPack(doc)).toEqual(vertical);
+    expect(vertical.viewState.orientation).toBe('top-to-bottom');
+    expect(horizontal.viewState.orientation).toBe('left-to-right');
+    expect({ ...horizontal, viewState: vertical.viewState }).toEqual(vertical);
+    expect(JSON.stringify(doc)).toBe(original);
+    expect(renderDesignDocMarkdown(doc)).toBe(renderDesignDocMarkdown(doc, 'top-to-bottom'));
+    expect(renderDesignDocMarkdown(doc, 'left-to-right')).toBe(renderDesignDocMarkdown(doc).replace('flowchart TD', 'flowchart LR'));
+    generateDesignDoc(join(f.dir, 'design.yaml'), join(f.dir, 'horizontal.html'), join(f.dir, 'horizontal.md'), 'left-to-right');
+    expect(readFileSync(join(f.dir, 'horizontal.html'), 'utf8')).toContain('"orientation":"left-to-right"');
+    expect(readFileSync(join(f.dir, 'horizontal.md'), 'utf8')).toBe(renderDesignDocMarkdown(doc, 'left-to-right'));
+  });
   it('generates safe offline HTML and the same-source Markdown through the helper', () => {
     const f = fixture();
     writeFileSync(join(f.dir, 'detail.md'), '# Worked journey\n\n- Review </script><script>alert(1)</script>');

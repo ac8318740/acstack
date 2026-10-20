@@ -113,6 +113,9 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: Markdown creation refuses existing files, including symlinks
 - **Then**: The command prints a localhost review URL, feedback location, and SSH forwarding instructions when running over SSH
 - **Then**: The review defaults to port 19990 and accepts a different port through `--port`
+- **Then**: `--orientation` accepts `top-to-bottom` or `left-to-right`, defaulting to `top-to-bottom`
+- **Then**: The browser and Mermaid follow the selected orientation without changing source identity, comment scope, or approval
+- **Then**: The CLI rejects invalid orientations before creating review or Markdown files
 - **Source**: `cli/src/commands/design-doc.ts`, `cli/src/lib/design-doc.ts`, `cli/src/lib/alignment-pack-renderer.ts`
 
 ### FR-010: Validate architecture identities and mirrored relationships
@@ -142,9 +145,26 @@ This spec covers the bundled `acstack` command-line interface.
 - **When**: A reviewer expands or folds a component
 - **Then**: The component appears once, as a folded responsibility card or an expanded selectable container
 - **Then**: Folding preserves the selected visible entity or redirects a hidden selection to its visible ancestor
-- **Then**: Expansion preserves the component's exact top-left screen position and zoom without a corrective viewport movement
+- **Then**: A focused toggle returns focus to its replacement control unless the reviewer moves focus elsewhere
+- **Then**: Expansion preserves the clicked component's top-left screen position and zoom by moving the camera when necessary
+- **Then**: The previous layout guides sibling order without replacing measured content sizes or routing checks
+- **Then**: Design containers favor aligned cards and straight connectors when attachment, label, and route-clearance checks permit them
+- **Then**: Straightening preserves card positions and shared connection slots, retaining bends when a straight route would be unsafe
+- **Then**: Connections crossing a containing component's header can use measured whitespace, with small gaps around intersected subtitle text
+- **Then**: Layout first tries compact spacing, with connections entering containers through the top
+- **Then**: If the renderer cannot place a route or label safely, it falls back to side entry with wider spacing
+- **Then**: Titles, badges, source metadata, and unrelated headers remain protected
+- **Then**: Routes and relationship labels avoid measured controls, including comment actions above cards and containers
+- **Then**: Missing or stale header measurements keep the whole header blocked
+- **Then**: The renderer tries nearby tracks for parallel-route conflicts before increasing diagram-wide spacing
+- **Then**: The renderer makes diagonal layout bends orthogonal only when the route preserves its ports and clears cards and headers
+- **Then**: If no safe route exists, the viewer retains the previous valid diagram
 - **Then**: Relationship names identify their source, action, and target
 - **Then**: Source metadata uses a separate toggle
+- **When**: A reviewer edits a comment without changing comment counts
+- **Then**: The accepted layout remains unchanged
+- **When**: Comment counts change
+- **Then**: The viewer refreshes header geometry while retaining accepted layout guidance
 - **When**: A reviewer hovers over a card, container, or relationship label, or focuses it with the keyboard
 - **Then**: Its comment action appears above its top-right corner without changing the content layout
 - **Then**: Touch users can reveal the action by selecting the item

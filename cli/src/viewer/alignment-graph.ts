@@ -1,6 +1,6 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js';
-import type { AlignmentGraph, AlignmentPack } from '../lib/alignment-packs.js';
+import type { AlignmentGraph, AlignmentPack, DiagramOrientation } from '../lib/alignment-packs.js';
 
 export const CARD_WIDTH = 300;
 export const LABEL_WIDTH = 196;
@@ -11,10 +11,13 @@ const CORNER_RADIUS = 6;
 const ARROW_INSET = 2;
 const LABEL_CHARS = 24;
 const EDGE_SPACING = 80;
+const COMPACT_EDGE_SPACING = 24;
 const ROUTE_CLEARANCE = 12;
 
 export type Point = { x: number; y: number };
 export type Box = Point & { width: number; height: number };
+export type HeaderGeometry = { width: number; hardObstacles: Box[]; subtitleLines: Box[] };
+export type HeaderMeasurer = (nodes: readonly DiagramNode[]) => Record<string, HeaderGeometry>;
 
 export type DiagramNode = Box & {
   id: string;
@@ -186,7 +189,7 @@ export function projectDiagram(graph: AlignmentGraph, expandedGroups: string[]):
   return { nodes: [...nodes.values()].sort((a, b) => depth(a) - depth(b)), edges: [...merged.values()], nodeToVisible };
 }
 
-export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string[], measured?: MeasuredGeometry, anchor?: Pick<DiagramNode, 'id' | 'x' | 'y'>): Promise<Diagram> {
+export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string[], measured?: MeasuredGeometry, anchor?: Pick<DiagramNode, 'id' | 'x' | 'y'>, previous?: Diagram, orientation?: DiagramOrientation, measureHeaders?: HeaderMeasurer): Promise<Diagram> {
   const diagram = projectDiagram(graph, expandedGroups);
   for (const node of diagram.nodes) {
     const size = measured?.nodes[node.id];
@@ -194,16 +197,44 @@ export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string
     node.headerHeight = node.height;
   }
   const design = graph.groups.some(group => group.id === 'design:root');
+  const horizontal = design && orientation === 'left-to-right';
+  let headers: Record<string, HeaderGeometry> = {};
   let unresolved: string[] = [];
   let routeAttempt = 0;
   let labelAttempt = 0;
   const labelSpacing = new Map<string, number>();
-  for (let attempt = 0; attempt < 4; attempt += 1) {
-    await layout(diagram.nodes, diagram.edges, measured, design ? routeAttempt : attempt, design, labelSpacing);
-    const routeConflicts = design
-      ? [...orderRoutePorts(diagram.nodes, diagram.edges), ...repairRouteClearance(diagram.nodes, diagram.edges)] : [];
+  // Compact top entry crosses only measured header whitespace; any route failure falls back to side entry.
+  let compact = design;
+  // Leaving compact mode restarts the side-entry ladder from scratch.
+  const leaveCompact = () => {
+    compact = false;
+    labelAttempt = 0;
+    labelSpacing.clear();
+  };
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await layout(diagram.nodes, diagram.edges, measured, design ? routeAttempt : attempt, design, labelSpacing, previous, horizontal, compact);
+    headers = measureHeaders?.(diagram.nodes) ?? {};
+    unresolved = design ? diagram.edges.filter(edge => !normalizeDiagonalBends(diagram.nodes, edge, headers)).map(edge => `orthogonal route: ${edge.id}`) : [];
+    if (unresolved.length) {
+      if (compact) leaveCompact();
+      else routeAttempt += 1;
+      continue;
+    }
+    const routeConflicts: string[] = [];
+    if (design) {
+      routeConflicts.push(...orderRoutePorts(diagram.nodes, diagram.edges, horizontal, headers), ...repairRouteObstacles(diagram.nodes, diagram.edges, headers));
+      // Retry jog normalization after raw control collisions no longer block whole-route validation.
+      for (const edge of diagram.edges) normalizeEndpointJogs(diagram.nodes, edge, horizontal, headers);
+      routeConflicts.push(...repairRouteClearance(diagram.nodes, diagram.edges, headers));
+    }
+    if (design && !routeConflicts.length) preferStraightRoutes(diagram.nodes, diagram.edges, horizontal, headers);
     const failedLabels: DiagramEdge[] = [];
-    unresolved = [...routeConflicts, ...placeLabels(diagram.nodes, diagram.edges, failedLabels)];
+    unresolved = [...routeConflicts, ...placeLabels(diagram.nodes, diagram.edges, failedLabels, headers)];
+    // One label-only retry stays compact; anything else falls back to side entry.
+    if (compact && (routeConflicts.length || (failedLabels.length && labelAttempt))) {
+      leaveCompact();
+      continue;
+    }
     if (routeConflicts.length) routeAttempt += 1;
     // Label-only retries widen their tracks and ports, not every card gap and container border.
     for (const edge of design ? failedLabels : []) {
@@ -233,16 +264,29 @@ export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string
         anchored.x = anchor.x;
         anchored.y = anchor.y;
       }
-      for (const edge of diagram.edges) edge.path = edgePath(edge.points, crossings(edge, diagram.edges), edge.labelBox);
+      for (const edge of diagram.edges) {
+        const subtitleGaps = boundaryHeaders(diagram.nodes, edge, headers).flatMap(({ node, header }) =>
+          header.subtitleLines.map(box => ({ ...box, x: box.x + node.x, y: box.y + node.y })));
+        edge.path = edgePath(edge.points, crossings(edge, diagram.edges), edge.labelBox, subtitleGaps);
+      }
       return diagram;
     }
   }
   throw new Error(`Cannot route relationships or place labels without overlap: ${unresolved.join('; ')}`);
 }
 
-async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: MeasuredGeometry | undefined, attempt: number, design: boolean, labelSpacing: Map<string, number>): Promise<void> {
+async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: MeasuredGeometry | undefined, attempt: number, design: boolean, labelSpacing: Map<string, number>, previous?: Diagram, horizontal = false, compact = false): Promise<void> {
   const byId = new Map(nodes.map(node => [node.id, node]));
-  const edgeSpacing = (id: string) => Math.max(EDGE_SPACING + attempt * 32, labelSpacing.get(id) ?? 0);
+  const previousById = new Map(previous?.nodes.map(node => [node.id, node]));
+  const preserveOrder: Record<string, string> = previousById.size ? {
+    'elk.layered.crossingMinimization.semiInteractive': 'true',
+    'elk.layered.interactiveReferencePoint': 'TOP_LEFT',
+  } : {};
+  const portSpacing = (id: string) => Math.max(EDGE_SPACING + attempt * 32, labelSpacing.get(id) ?? 0);
+  // Compact layouts tighten routing channels only; card ports keep their wide slots.
+  const edgeSpacing = (id: string) => compact ? Math.max(COMPACT_EDGE_SPACING, labelSpacing.get(id) ?? 0) : portSpacing(id);
+  const padding = compact ? 24 : 64 + attempt * 48;
+  const nodeSpacing = String((compact ? 32 : 64) + attempt * 32);
   // Side ports reserve the measured header above both external and parent-to-child routes.
   const toElk = (node: DiagramNode): ElkNode => {
     const ports = design && node.kind !== 'group' ? (['source', 'target'] as const).flatMap(role => {
@@ -252,26 +296,39 @@ async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: Meas
         const crossing = Number(neighborParent(a) !== node.parentId) - Number(neighborParent(b) !== node.parentId);
         return role === 'source' ? crossing : -crossing;
       });
-      const gap = connected.length > 1 ? Math.min(edgeSpacing(node.id), Math.max(0, node.width - 48) / (connected.length - 1)) : 0;
-      return connected.map((edge, index) => ({
-        id: `${edge.id}:${role}`,
-        x: (node.width - gap * (connected.length - 1)) / 2 + index * gap,
-        y: role === 'source' ? node.height : 0,
-        layoutOptions: { 'elk.port.side': role === 'source' ? 'SOUTH' : 'NORTH' },
-      }));
+      const span = horizontal ? node.height : node.width;
+      const gap = connected.length > 1 ? Math.min(portSpacing(node.id), Math.max(0, span - 48) / (connected.length - 1)) : 0;
+      const local = connected.filter(edge => neighborParent(edge) === node.parentId);
+      const centered = connected.length === 2 && local.length === 1 ? connected.indexOf(local[0]) : undefined;
+      return connected.map((edge, index) => {
+        // A unique local continuation owns the center; boundary traffic keeps a separate corner-safe slot.
+        const across = centered === undefined ? (span - gap * (connected.length - 1)) / 2 + index * gap
+          : span / 2 + (index - centered) * Math.min(gap, Math.max(0, span / 2 - 24));
+        return {
+          id: `${edge.id}:${role}`,
+          x: horizontal ? (role === 'source' ? node.width : 0) : across,
+          y: horizontal ? across : (role === 'source' ? node.height : 0),
+          layoutOptions: { 'elk.port.side': horizontal ? (role === 'source' ? 'EAST' : 'WEST') : (role === 'source' ? 'SOUTH' : 'NORTH') },
+        };
+      });
     }) : [];
-    return node.kind === 'group'
+    const result: ElkNode = node.kind === 'group'
       ? {
           id: node.id,
           width: node.width,
           layoutOptions: {
-            'elk.direction': 'RIGHT',
-            'elk.portConstraints': 'FIXED_SIDE',
-            'elk.spacing.portsSurrounding': `[top=${(node.headerHeight ?? 120) + 32},left=0,bottom=32,right=0]`,
-            'elk.padding': `[top=${(node.headerHeight ?? 120) + 32},left=${64 + attempt * 48},bottom=${64 + attempt * 48},right=${64 + attempt * 48}]`,
+            ...preserveOrder,
+            'elk.direction': horizontal ? 'DOWN' : 'RIGHT',
+            // Side entry keeps boundary routes below the header; compact entry lets ELK use the top edge.
+            ...(compact ? {} : {
+              ...(design ? { 'elk.layered.nodePlacement.strategy': 'SIMPLE' } : {}),
+              'elk.portConstraints': 'FIXED_SIDE',
+              'elk.spacing.portsSurrounding': `[top=${(node.headerHeight ?? 120) + 32},left=0,bottom=32,right=0]`,
+            }),
+            'elk.padding': `[top=${(node.headerHeight ?? 120) + 32},left=${padding},bottom=${padding},right=${padding}]`,
             'elk.layered.spacing.nodeNodeBetweenLayers': String(24 + attempt * 32),
             'elk.layered.spacing.edgeNodeBetweenLayers': String(12 + attempt * 12),
-            'elk.spacing.nodeNode': String(64 + attempt * 32),
+            'elk.spacing.nodeNode': nodeSpacing,
             ...(design ? { 'elk.spacing.portPort': String(EDGE_SPACING) } : {}),
             'elk.spacing.edgeEdge': String(edgeSpacing(node.id)),
             'elk.layered.spacing.edgeEdgeBetweenLayers': String(edgeSpacing(node.id)),
@@ -289,6 +346,14 @@ async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: Meas
             ports,
           } : {}),
         };
+    const prior = previousById.get(node.id);
+    if (prior) {
+      const parent = prior.parentId ? previousById.get(prior.parentId) : undefined;
+      const x = prior.x - (parent?.x ?? 0);
+      const y = prior.y - (parent?.y ?? 0);
+      Object.assign(result, { x, y, layoutOptions: { ...result.layoutOptions, 'elk.position': `(${x},${y})` } });
+    }
+    return result;
   };
   const elkEdges: ElkExtendedEdge[] = edges.map(edge => {
     const lines = wrapLabel(edge.label);
@@ -298,8 +363,9 @@ async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: Meas
   const result = await new ELK.default().layout({
     id: 'root',
     layoutOptions: {
+      ...preserveOrder,
       'elk.algorithm': 'layered',
-      'elk.direction': design ? 'DOWN' : 'RIGHT',
+      'elk.direction': design && !horizontal ? 'DOWN' : 'RIGHT',
       'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
       'elk.edgeRouting': 'ORTHOGONAL',
       'elk.layered.considerModelOrder.strategy': 'NODES_AND_EDGES',
@@ -309,7 +375,7 @@ async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: Meas
       ...(design ? { 'elk.layered.nodePlacement.bk.fixedAlignment': 'BALANCED' } : {}),
       'elk.layered.spacing.nodeNodeBetweenLayers': String(24 + attempt * 32),
       'elk.layered.spacing.edgeNodeBetweenLayers': String(12 + attempt * 12),
-      'elk.spacing.nodeNode': String(64 + attempt * 32),
+      'elk.spacing.nodeNode': nodeSpacing,
       ...(design ? { 'elk.spacing.portPort': String(EDGE_SPACING) } : {}),
       'elk.spacing.edgeEdge': String(edgeSpacing('root')),
       'elk.layered.spacing.edgeEdgeBetweenLayers': String(edgeSpacing('root')),
@@ -352,17 +418,48 @@ async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: Meas
   }
 }
 
-// ELK can insert sub-clearance endpoint jogs that hide the actual departure or approach direction.
-function normalizeEndpointJogs(nodes: DiagramNode[], edge: DiagramEdge): void {
-  for (const reverse of [false, true]) {
+// ELK can emit diagonal compound-edge bends; try both elbows without moving either port.
+function normalizeDiagonalBends(nodes: DiagramNode[], edge: DiagramEdge, headers: Record<string, HeaderGeometry>): boolean {
+  const original = edge.points;
+  if (original.every((point, index) => !index || point.x === original[index - 1].x || point.y === original[index - 1].y)) return true;
+  for (const verticalFirst of [true, false]) {
+    const points: Point[] = [];
+    const append = (point: Point) => {
+      const last = points.at(-1);
+      if (last?.x === point.x && last.y === point.y) return;
+      while (points.length >= 2) {
+        const [a, b] = points.slice(-2);
+        if (!((a.x === b.x && b.x === point.x) || (a.y === b.y && b.y === point.y))) break;
+        points.pop();
+      }
+      points.push(point);
+    };
+    for (const point of original) {
+      const before = points.at(-1);
+      if (before && before.x !== point.x && before.y !== point.y) append(verticalFirst ? { x: before.x, y: point.y } : { x: point.x, y: before.y });
+      append(point);
+    }
+    edge.points = points;
+    if (routeIsSafe(nodes, edge, headers)) return true;
+  }
+  edge.points = original;
+  return false;
+}
+
+// Safe endpoint jogs can hide the departure direction or crowd a horizontal label.
+function normalizeEndpointJogs(nodes: DiagramNode[], edge: DiagramEdge, horizontal: boolean, headers: Record<string, HeaderGeometry>): void {
+  const across = horizontal ? 'y' : 'x';
+  const along = horizontal ? 'x' : 'y';
+  const limit = horizontal ? Math.max(ROUTE_CLEARANCE, (edge.labelBox?.height ?? 0) / 2 + 8) : ROUTE_CLEARANCE;
+  for (const reverse of horizontal ? [true, false] : [false, true]) {
     while (edge.points.length >= 5) {
       const original = edge.points;
       const points = reverse ? [...original].reverse() : original;
       const [start, first, second, third] = points;
-      if (start.x !== first.x || first.y !== second.y || second.x !== third.x
-        || Math.abs(first.x - second.x) >= ROUTE_CLEARANCE) break;
+      if (start[across] !== first[across] || first[along] !== second[along] || second[across] !== third[across]
+        || Math.abs(first[across] - second[across]) >= limit) break;
       const simplified: Point[] = [];
-      for (const point of [start, { x: start.x, y: third.y }, ...points.slice(4)]) {
+      for (const point of [start, { ...start, [along]: third[along] }, ...points.slice(4)]) {
         const last = simplified.at(-1);
         if (last?.x === point.x && last.y === point.y) continue;
         while (simplified.length >= 2) {
@@ -373,42 +470,74 @@ function normalizeEndpointJogs(nodes: DiagramNode[], edge: DiagramEdge): void {
         simplified.push(point);
       }
       edge.points = reverse ? simplified.reverse() : simplified;
-      if (!routeIsSafe(nodes, edge)) { edge.points = original; break; }
+      if (!routeIsSafe(nodes, edge, headers)) { edge.points = original; break; }
     }
   }
 }
 
 // Uncross only the endpoint elbows, retaining every node, port slot, and interior route.
-function orderRoutePorts(nodes: DiagramNode[], edges: DiagramEdge[]): string[] {
-  for (const edge of edges) normalizeEndpointJogs(nodes, edge);
+function orderRoutePorts(nodes: DiagramNode[], edges: DiagramEdge[], horizontal: boolean, headers: Record<string, HeaderGeometry>): string[] {
+  const across = horizontal ? 'y' : 'x';
+  const along = horizontal ? 'x' : 'y';
+  for (const edge of edges) normalizeEndpointJogs(nodes, edge, horizontal, headers);
   const unresolved: string[] = [];
   for (const node of nodes.filter(node => node.kind !== 'group')) for (const role of ['source', 'target'] as const) {
     const connected = edges.filter(edge => edge[role] === node.id).map(edge => {
       const indices = role === 'source' ? [0, 1, 2] : [edge.points.length - 1, edge.points.length - 2, edge.points.length - 3];
       const neighbor = nodes.find(candidate => candidate.id === edge[role === 'source' ? 'target' : 'source'])!;
-      return { edge, indices, neighborX: neighbor.x + neighbor.width / 2 };
+      return { edge, indices, neighborAcross: neighbor[across] + (horizontal ? neighbor.height : neighbor.width) / 2 };
     });
     // A straight route needs new bends to move its port; leave that entire port group alone.
     if (connected.length < 2 || connected.some(({ edge, indices: [a, b, c] }) => edge.points.length < 4
-      || edge.points[a].x !== edge.points[b].x || edge.points[b].y !== edge.points[c].y)) continue;
-    const slots = connected.map(({ edge, indices }) => edge.points[indices[0]].x).sort((a, b) => a - b);
-    connected.sort((a, b) => a.edge.points[a.indices[2]].x - b.edge.points[b.indices[2]].x
-      || a.neighborX - b.neighborX || a.edge.id.localeCompare(b.edge.id));
-    if (connected.every(({ edge, indices }, index) => edge.points[indices[0]].x === slots[index])) continue;
-    const original = connected.map(({ edge }) => edge.points);
+      || edge.points[a][across] !== edge.points[b][across] || edge.points[b][along] !== edge.points[c][along])) continue;
+    const slots = connected.map(({ edge, indices }) => edge.points[indices[0]][across]).sort((a, b) => a - b);
+    connected.sort((a, b) => a.edge.points[a.indices[2]][across] - b.edge.points[b.indices[2]][across]
+      || a.neighborAcross - b.neighborAcross || a.edge.id.localeCompare(b.edge.id));
+    if (connected.every(({ edge, indices }, index) => edge.points[indices[0]][across] === slots[index])) continue;
+    const original = edges.map(edge => edge.points);
     connected.forEach(({ edge, indices }, index) => {
-      edge.points = edge.points.map((point, i) => i === indices[0] || i === indices[1] ? { ...point, x: slots[index] } : point);
+      edge.points = edge.points.map((point, i) => i === indices[0] || i === indices[1] ? { ...point, [across]: slots[index] } : point);
     });
-    if (connected.some(({ edge }) => !routeIsSafe(nodes, edge))) {
-      connected.forEach(({ edge }, index) => { edge.points = original[index]; });
+    // An existing interior control collision can be repaired without undoing safe port ordering.
+    if (connected.some(({ edge }) => !routeIsSafe(nodes, edge, headers))) repairRouteObstacles(nodes, edges, headers);
+    if (connected.some(({ edge }) => !routeIsSafe(nodes, edge, headers))) {
+      edges.forEach((edge, index) => { edge.points = original[index]; });
       unresolved.push(`port order: ${node.id} ${role}`);
     }
   }
   return unresolved;
 }
 
-function routeIsSafe(nodes: DiagramNode[], edge: DiagramEdge): boolean {
-  const obstacles = nodes.map(node => node.kind === 'group' ? { ...node, height: node.headerHeight ?? 120 } : node);
+// Only a genuine ancestor boundary crossing can use measured header whitespace.
+function boundaryHeaders(nodes: DiagramNode[], edge: DiagramEdge, headers: Record<string, HeaderGeometry>) {
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  const inside = (id: string, ancestor: string): boolean => {
+    for (let parent = byId.get(id)?.parentId; parent; parent = byId.get(parent)?.parentId) {
+      if (parent === ancestor) return true;
+    }
+    return false;
+  };
+  return nodes.flatMap(node => {
+    const header = headers[node.id];
+    return node.kind === 'group' && edge.source !== node.id && edge.target !== node.id && header
+      && Math.abs(header.width - node.width) < 1e-6 && inside(edge.source, node.id) !== inside(edge.target, node.id)
+      ? [{ node, header }] : [];
+  });
+}
+
+function routeObstacles(nodes: DiagramNode[], edge: DiagramEdge, headers: Record<string, HeaderGeometry>): (Box & { id?: string })[] {
+  const boundaries = new Set(boundaryHeaders(nodes, edge, headers).map(value => value.node.id));
+  return nodes.flatMap<Box & { id?: string }>(node => {
+    const header = headers[node.id];
+    const controls = header && Math.abs(header.width - node.width) < 1e-6
+      ? header.hardObstacles.map(box => ({ ...box, x: node.x + box.x, y: node.y + box.y })) : [];
+    // Measured controls never inherit the endpoint exemption, even on their own container.
+    return [...(boundaries.has(node.id) ? [] : [node.kind === 'group' ? { ...node, height: node.headerHeight ?? 120 } : node]), ...controls];
+  });
+}
+
+function routeIsSafe(nodes: DiagramNode[], edge: DiagramEdge, headers: Record<string, HeaderGeometry>): boolean {
+  const obstacles = routeObstacles(nodes, edge, headers);
   const runs = edge.points.slice(1).map((b, index) => ({ index, a: edge.points[index], b }));
   for (const { a, b, index } of runs) {
     if (a.x === b.x && a.y === b.y) return false;
@@ -430,27 +559,56 @@ function routeIsSafe(nodes: DiagramNode[], edge: DiagramEdge): boolean {
   return true;
 }
 
-// Compound-boundary edges can share interior tracks despite ELK's edge spacing.
-// Move only interior bends; dedicated ports and arrow endpoints remain untouched.
-function repairRouteClearance(nodes: DiagramNode[], edges: DiagramEdge[]): string[] {
+function routeClearanceConflicts(edges: DiagramEdge[], only?: DiagramEdge) {
   const clearance = ROUTE_CLEARANCE;
   const segments = (edge: DiagramEdge) => edge.points.slice(1).map((b, index) => ({ edge, index, a: edge.points[index], b }));
-  const conflicts = (only?: DiagramEdge) => {
-    const hits: { first: ReturnType<typeof segments>[number]; second: ReturnType<typeof segments>[number] }[] = [];
-    for (const [index, edge] of (only ? [only] : edges).entries()) for (const other of (only ? edges.filter(other => other !== edge) : edges.slice(index + 1))) {
-      for (const first of segments(edge)) for (const second of segments(other)) {
-        const vertical = first.a.x === first.b.x && second.a.x === second.b.x;
-        const horizontal = first.a.y === first.b.y && second.a.y === second.b.y;
-        if (!vertical && !horizontal) continue;
-        const axis = vertical ? 'y' : 'x';
-        const across = vertical ? 'x' : 'y';
-        const overlap = Math.min(Math.max(first.a[axis], first.b[axis]), Math.max(second.a[axis], second.b[axis]))
-          - Math.max(Math.min(first.a[axis], first.b[axis]), Math.min(second.a[axis], second.b[axis]));
-        if (overlap > clearance && Math.abs(first.a[across] - second.a[across]) < clearance) hits.push({ first, second });
+  const hits: { first: ReturnType<typeof segments>[number]; second: ReturnType<typeof segments>[number] }[] = [];
+  for (const [index, edge] of (only ? [only] : edges).entries()) for (const other of (only ? edges.filter(other => other !== edge) : edges.slice(index + 1))) {
+    for (const first of segments(edge)) for (const second of segments(other)) {
+      const vertical = first.a.x === first.b.x && second.a.x === second.b.x;
+      const horizontal = first.a.y === first.b.y && second.a.y === second.b.y;
+      if (!vertical && !horizontal) continue;
+      const axis = vertical ? 'y' : 'x';
+      const across = vertical ? 'x' : 'y';
+      const overlap = Math.min(Math.max(first.a[axis], first.b[axis]), Math.max(second.a[axis], second.b[axis]))
+        - Math.max(Math.min(first.a[axis], first.b[axis]), Math.min(second.a[axis], second.b[axis]));
+      if (overlap > clearance && Math.abs(first.a[across] - second.a[across]) < clearance) hits.push({ first, second });
+    }
+  }
+  return hits;
+}
+
+// Check raw ELK routes too; shift one interior track before asking ELK for a wider layout.
+function repairRouteObstacles(nodes: DiagramNode[], edges: DiagramEdge[], headers: Record<string, HeaderGeometry>): string[] {
+  const unresolved: string[] = [];
+  for (const edge of edges) {
+    if (routeIsSafe(nodes, edge, headers)) continue;
+    const original = edge.points;
+    let best: { points: Point[]; distance: number } | undefined;
+    for (let index = 1; index < original.length - 2; index += 1) {
+      const a = original[index];
+      const b = original[index + 1];
+      const axis = a.x === b.x ? 'x' : 'y';
+      const span = axis === 'x' ? 'width' : 'height';
+      for (let end = index + 1; end < original.length - 1; end += 2) {
+        for (const box of routeObstacles(nodes, edge, headers)) for (const value of [box[axis] - 8, box[axis] + box[span] + 8]) {
+          edge.points = [...original.slice(0, index), { ...a, [axis]: value }, { ...original[end], [axis]: value }, ...original.slice(end + 1)];
+          const distance = Math.abs(value - a[axis]);
+          if ((!best || distance < best.distance) && routeIsSafe(nodes, edge, headers) && !routeClearanceConflicts(edges, edge).length) best = { points: edge.points, distance };
+        }
       }
     }
-    return hits;
-  };
+    edge.points = best?.points ?? original;
+    if (!best) unresolved.push(`route obstacle: ${edge.id}`);
+  }
+  return unresolved;
+}
+
+// Compound-boundary edges can share interior tracks despite ELK's edge spacing.
+// Move only interior bends; dedicated ports and arrow endpoints remain untouched.
+function repairRouteClearance(nodes: DiagramNode[], edges: DiagramEdge[], headers: Record<string, HeaderGeometry>): string[] {
+  const clearance = ROUTE_CLEARANCE;
+  const conflicts = (only?: DiagramEdge) => routeClearanceConflicts(edges, only);
   for (let iteration = 0; iteration < 32; iteration += 1) {
     const hits = conflicts();
     if (!hits.length) return [];
@@ -463,11 +621,11 @@ function repairRouteClearance(nodes: DiagramNode[], edges: DiagramEdge[]): strin
       const { edge, index, a, b } = run;
       if (index === 0 || index === edge.points.length - 2) continue;
       const axis = a.x === b.x ? 'x' : 'y';
-      for (const sign of [-1, 1]) {
-        const value = reference.a[axis] + sign * EDGE_SPACING;
+      for (const spacing of [clearance, EDGE_SPACING]) for (const sign of [-1, 1]) {
+        const value = reference.a[axis] + sign * spacing;
         const original = edge.points;
         edge.points = original.map((point, i) => i === index || i === index + 1 ? { ...point, [axis]: value } : point);
-        const count = routeIsSafe(nodes, edge) ? hits.length - (incidentCounts.get(edge) ?? 0) + conflicts(edge).length : hits.length;
+        const count = routeIsSafe(nodes, edge, headers) ? hits.length - (incidentCounts.get(edge) ?? 0) + conflicts(edge).length : hits.length;
         const distance = Math.abs(value - a[axis]);
         if (count < hits.length && (!best || count < best.count || (count === best.count && distance < best.distance))) {
           best = { edge, points: edge.points, count, distance };
@@ -481,12 +639,52 @@ function repairRouteClearance(nodes: DiagramNode[], edges: DiagramEdge[]): strin
   return conflicts().map(({ first, second }) => `route clearance: ${first.edge.id} / ${second.edge.id}`);
 }
 
+// ELK's inline labels can leave doglegs after their positions are discarded.
+function preferStraightRoutes(nodes: DiagramNode[], edges: DiagramEdge[], horizontal: boolean, headers: Record<string, HeaderGeometry>): void {
+  const across = horizontal ? 'y' : 'x';
+  const along = horizontal ? 'x' : 'y';
+  const span = horizontal ? 'height' : 'width';
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  for (const edge of edges) {
+    if (edge.points.length <= 2) continue;
+    const source = byId.get(edge.source)!;
+    const target = byId.get(edge.target)!;
+    // Container ports belong to ELK's boundary routing, not ordinary card sides.
+    if (source.kind === 'group' || target.kind === 'group') continue;
+    const start = { ...edge.points[0] };
+    const end = { ...edge.points.at(-1)! };
+    const sourcePorts = edges.filter(other => other.source === source.id).length;
+    const targetPorts = edges.filter(other => other.target === target.id).length;
+    if (start[across] !== end[across]) {
+      if (targetPorts === 1) end[across] = start[across];
+      else if (sourcePorts === 1) start[across] = end[across];
+      else continue;
+    }
+    const onSide = (point: Point, node: DiagramNode, role: 'source' | 'target') => {
+      const normal = node[along] + (role === 'source' ? node[horizontal ? 'width' : 'height'] : -ARROW_INSET);
+      return point[along] === Math.round(normal * 10) / 10
+        && point[across] >= node[across] + 24 && point[across] <= node[across] + node[span] - 24;
+    };
+    if (!onSide(start, source, 'source') || !onSide(end, target, 'target') || end[along] <= start[along]) continue;
+    const trial = edges.map(other => ({ ...other, points: other === edge ? [start, end] : other.points,
+      labelBox: other.labelBox ? { ...other.labelBox } : undefined }));
+    const candidate = trial[edges.indexOf(edge)];
+    if (!routeIsSafe(nodes, candidate, headers) || routeClearanceConflicts(trial, candidate).length || placeLabels(nodes, trial, [], headers).length) continue;
+    edge.points = candidate.points;
+    edges.forEach((other, index) => { other.labelBox = trial[index].labelBox; });
+  }
+}
+
 // ELK misplaces labels on edges that cross group borders, so each label tries spots along its own straight runs,
 // longest first, and takes the first that clears every box, group header, and earlier label.
-export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLabels: DiagramEdge[] = []): string[] {
+export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLabels: DiagramEdge[] = [], headers: Record<string, HeaderGeometry> = {}): string[] {
   const pad = 8;
   const unresolved: string[] = [];
   const taken: Box[] = nodes.map(node => (node.kind === 'group' ? { ...node, height: node.headerHeight ?? 120 } : node));
+  for (const node of nodes) {
+    const header = headers[node.id];
+    if (header && Math.abs(header.width - node.width) < 1e-6) taken.push(...header.hardObstacles.map(box => ({ ...box, x: node.x + box.x, y: node.y + box.y })));
+  }
   const clear = (box: Box) =>
     taken.every(other => box.x + box.width + pad <= other.x || other.x + other.width + pad <= box.x || box.y + box.height + pad <= other.y || other.y + other.height + pad <= box.y);
   for (const edge of edges) {
@@ -543,9 +741,11 @@ function crossings(edge: DiagramEdge, edges: DiagramEdge[]): Point[] {
 
 // An orthogonal route with rounded corners, a semicircle hop wherever it jumps over another edge,
 // and a break where its label sits so the line never runs through text.
-export function edgePath(points: Point[], hops: Point[], gap?: Box): string {
+export function edgePath(points: Point[], hops: Point[], gap?: Box, additionalGaps: Box[] = []): string {
   if (points.length < 2) return '';
+  const gaps = [...(gap ? [gap] : []), ...additionalGaps];
   const parts = [`M ${points[0].x} ${points[0].y}`];
+  let previousRadius = 0;
   for (let index = 1; index < points.length; index += 1) {
     const [from, to] = [points[index - 1], points[index]];
     const next = points[index + 1];
@@ -559,29 +759,44 @@ export function edgePath(points: Point[], hops: Point[], gap?: Box): string {
       const hopGap = Math.min(...hops.filter(hop => hop.y === to.y).map(hop => Math.abs(hop.x - to.x) - HOP_RADIUS));
       radius = Math.max(0, Math.min(CORNER_RADIUS, Math.hypot(to.x - from.x, to.y - from.y) / 2, Math.hypot(next.x - to.x, next.y - to.y) / 2, hopGap));
     }
-    // Distance along this segment, so hops and the label gap can be drawn in order.
+    // Don't round a corner through text that either adjoining run must clip.
+    if (gaps.some(box => box.x < to.x + radius && box.x + box.width > to.x - radius
+      && box.y < to.y + radius && box.y + box.height > to.y - radius)) radius = 0;
+    // Distance along this segment, so hops and text gaps can be drawn in order.
     const along = (point: Point) => (point.x - from.x) * dx + (point.y - from.y) * dy;
     const at = (distance: number) => `${from.x + dx * distance} ${from.y + dy * distance}`;
     const end = along(to) - radius;
-    const events: { start: number; draw: string }[] = [];
+    const intervals: { start: number; end: number }[] = [];
+    for (const box of gaps) {
+      const across = dy === 0 ? from.y : from.x;
+      const [low, high] = dy === 0 ? [box.y, box.y + box.height] : [box.x, box.x + box.width];
+      if (across <= low || across >= high) continue;
+      const corners = dy === 0 ? [box.x, box.x + box.width] : [box.y, box.y + box.height];
+      const [enter, exit] = corners.map(value => along(dy === 0 ? { x: value, y: from.y } : { x: from.x, y: value })).sort((a, b) => a - b);
+      const start = Math.max(previousRadius, enter);
+      const stop = Math.min(end, exit);
+      if (stop > start) intervals.push({ start, end: stop });
+    }
+    const merged: typeof intervals = [];
+    for (const interval of intervals.sort((a, b) => a.start - b.start)) {
+      const last = merged.at(-1);
+      if (last && interval.start <= last.end) last.end = Math.max(last.end, interval.end);
+      else merged.push({ ...interval });
+    }
+    const events = merged.map(interval => ({ start: interval.start, draw: `L ${at(interval.start)} M ${at(interval.end)}` }));
     if (dy === 0) {
       for (const hop of hops) {
         const distance = along(hop);
-        if (hop.y !== from.y || distance <= 0 || distance >= along(to)) continue;
-        if (gap && hop.x + HOP_RADIUS >= gap.x && hop.x - HOP_RADIUS <= gap.x + gap.width && hop.y + HOP_RADIUS >= gap.y && hop.y - HOP_RADIUS <= gap.y + gap.height) continue;
+        if (hop.y !== from.y || distance - HOP_RADIUS < previousRadius || distance + HOP_RADIUS > end) continue;
+        if (gaps.some(box => hop.x + HOP_RADIUS >= box.x && hop.x - HOP_RADIUS <= box.x + box.width
+          && hop.y + HOP_RADIUS >= box.y && hop.y - HOP_RADIUS <= box.y + box.height)) continue;
         events.push({ start: distance - HOP_RADIUS, draw: `L ${at(distance - HOP_RADIUS)} A ${HOP_RADIUS} ${HOP_RADIUS} 0 0 ${dx > 0 ? 1 : 0} ${at(distance + HOP_RADIUS)}` });
       }
-    }
-    if (gap) {
-      const across = dy === 0 ? from.y : from.x;
-      const [low, high] = dy === 0 ? [gap.y, gap.y + gap.height] : [gap.x, gap.x + gap.width];
-      const corners = dy === 0 ? [gap.x, gap.x + gap.width] : [gap.y, gap.y + gap.height];
-      const [enter, exit] = corners.map(value => along(dy === 0 ? { x: value, y: from.y } : { x: from.x, y: value })).sort((a, b) => a - b);
-      if (across > low && across < high && enter > 0 && exit < end) events.push({ start: enter, draw: `L ${at(enter)} M ${at(exit)}` });
     }
     for (const event of events.sort((a, b) => a.start - b.start)) parts.push(event.draw);
     parts.push(`L ${at(end)}`);
     if (next) parts.push(`Q ${to.x} ${to.y} ${to.x + Math.sign(next.x - to.x) * radius} ${to.y + Math.sign(next.y - to.y) * radius}`);
+    previousRadius = radius;
   }
   return parts.join(' ');
 }

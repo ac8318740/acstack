@@ -1,16 +1,18 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type Ref, type RefObject } from 'react';
 import {
   Background, BaseEdge, type Edge, EdgeLabelRenderer, type EdgeProps,
-  Handle, MarkerType, type Node, type NodeProps, Panel, Position, ReactFlow, useReactFlow,
+  Handle, MarkerType, type Node, type NodeProps, Panel, Position, ReactFlow, useInternalNode, useReactFlow,
 } from '@xyflow/react';
 import { ChevronDown, MessageSquarePlus, Minus, Plus } from 'lucide-react';
 import { ElementMetadata } from './element-metadata.js';
-import { CARD_WIDTH, LABEL_WIDTH, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type MeasuredGeometry } from './alignment-graph.js';
+import { CARD_WIDTH, LABEL_WIDTH, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
+import type { DiagramOrientation } from '../lib/alignment-packs.js';
 import { pack } from './pack.js';
 
 export type Zoom = 'business' | 'technical';
+export type ViewportAnchor = { key: string; before: DiagramModel; node: Pick<DiagramNode, 'id' | 'x' | 'y'> };
 type Actions = { onToggle: (groupId: string) => void; onSelect: (id: string) => void; onAnnotate: (id: string) => void };
-type BoxData = DiagramNode & Actions & { zoom: Zoom; dimmed: boolean; comments: number };
+type BoxData = DiagramNode & Actions & { zoom: Zoom; dimmed: boolean; comments: number; orientation?: DiagramOrientation };
 type RouteData = DiagramEdge & Actions & { state: 'idle' | 'active' | 'dimmed'; selectId: string; comments: number; selected: boolean };
 const ACCENT = 'oklch(42% 0.14 262)';
 const EDGE = 'oklch(55% 0.035 262)';
@@ -56,11 +58,11 @@ function BoxContent({ data }: { data: BoxData }) {
 }
 function ItemBox({ data, selected }: NodeProps<Node<BoxData>>) {
   return <div className={`box${data.kind === 'folded-group' ? ' folded' : ''}${selected ? ' selected' : ''}${data.dimmed ? ' dimmed' : ''}`} onClick={() => !window.getSelection()?.toString() && data.onSelect(data.id)}>
-    <Handle type="target" position={Position.Top} /><BoxContent data={data} /><Handle type="source" position={Position.Bottom} />
+    <Handle type="target" position={data.orientation === 'left-to-right' ? Position.Left : Position.Top} /><BoxContent data={data} /><Handle type="source" position={data.orientation === 'left-to-right' ? Position.Right : Position.Bottom} />
   </div>;
 }
 function GroupFrame({ data, selected }: NodeProps<Node<BoxData>>) {
-  return <div className={`frame${selected ? ' selected' : ''}`}><Handle type="target" position={Position.Top} /><BoxContent data={data} /><Handle type="source" position={Position.Bottom} /></div>;
+  return <div className={`frame${selected ? ' selected' : ''}`}><Handle type="target" position={data.orientation === 'left-to-right' ? Position.Left : Position.Top} /><BoxContent data={data} /><Handle type="source" position={data.orientation === 'left-to-right' ? Position.Right : Position.Bottom} /></div>;
 }
 function LabelContent({ edge, actions = noActions, comments = 0 }: { edge: DiagramEdge; actions?: Actions; comments?: number }) {
   const selectId = `edge:${edge.childEdgeIds[0]}`;
@@ -70,8 +72,72 @@ function LabelContent({ edge, actions = noActions, comments = 0 }: { edge: Diagr
     {comments > 0 && <span className="count-pill">{comments}</span>}
   </div>;
 }
-export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts }: { diagram: DiagramModel; zoom: Zoom; onMeasured: (geometry: MeasuredGeometry) => void; commentCounts?: Map<string, number> }) {
+export type MeasureDiagramHandle = { measureHeaders: HeaderMeasurer };
+
+export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }: { diagram: DiagramModel; zoom: Zoom; onMeasured: (geometry: MeasuredGeometry) => void; commentCounts?: Map<string, number>; ref?: Ref<MeasureDiagramHandle> }) {
   const tree = useRef<HTMLDivElement>(null);
+  useImperativeHandle(ref, () => ({
+    measureHeaders: nodes => {
+      const headers: ReturnType<HeaderMeasurer> = {};
+      if (!tree.current) return headers;
+      const elements = new Map([...tree.current.querySelectorAll<HTMLElement>('[data-measure="node"]')].map(element => [element.dataset.key, element]));
+      const frames = nodes.flatMap(node => {
+        const element = elements.get(node.id);
+        return element ? [{ node, element, style: element.getAttribute('style'), className: element.className }] : [];
+      });
+      try {
+        // Batch writes before reading geometry; match the live border and floating control origin.
+        for (const { node, element } of frames) {
+          element.className = node.kind === 'group' ? 'frame' : 'box';
+          element.style.width = `${node.width}px`;
+          element.style.height = `${node.height}px`;
+        }
+        for (const { node, element } of frames) {
+          try {
+            const origin = element.getBoundingClientRect();
+            // Browser subpixel rounding must not turn the requested frame width into stale input.
+            if (origin.height <= 0 || Math.abs(origin.width - node.width) >= 0.5) continue;
+            const local = (rect: DOMRect) => ({ x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height });
+            if (node.kind !== 'group') {
+              const hardObstacles = [...element.querySelectorAll('.annotation-actions button')].map(control => local(control.getBoundingClientRect()));
+              if (hardObstacles.length && hardObstacles.every(box => Object.values(box).every(Number.isFinite) && box.width > 0 && box.height > 0)) headers[node.id] = { width: node.width, hardObstacles, subtitleLines: [] };
+              continue;
+            }
+            if (!element.querySelector('.group-content') || !element.querySelector('.box-sub')) continue;
+            const textRects = (selector: string) => [...element.querySelectorAll(selector)].flatMap(content => {
+              const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+              const boxes = [];
+              for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+                if (!text.textContent?.trim()) continue;
+                const range = document.createRange();
+                range.selectNodeContents(text);
+                boxes.push(...[...range.getClientRects()].map(local));
+              }
+              return boxes;
+            });
+            const titles = textRects('.header-select');
+            const hardObstacles = [
+              ...titles,
+              ...textRects('.box-meta, .box-kind'),
+              ...[...element.querySelectorAll('.type-pill, .channel-pill, .card-controls button, .count-pill, .annotation-actions button')].map(control => local(control.getBoundingClientRect())),
+            ];
+            const subtitleLines = textRects('.box-sub');
+            if (!titles.length || [...hardObstacles, ...subtitleLines].some(box => !Object.values(box).every(Number.isFinite) || box.width <= 0 || box.height <= 0)) continue;
+            headers[node.id] = { width: node.width, hardObstacles, subtitleLines };
+          } catch {
+            // Missing DOM geometry keeps this header conservatively blocked.
+          }
+        }
+      } finally {
+        for (const { element, style, className } of frames) {
+          element.className = className;
+          if (style === null) element.removeAttribute('style');
+          else element.setAttribute('style', style);
+        }
+      }
+      return headers;
+    },
+  }), [diagram, zoom, commentCounts]);
   useLayoutEffect(() => {
     let current = true;
     void document.fonts.ready.then(() => {
@@ -94,7 +160,8 @@ function RoutedEdge({ id, data, markerEnd, markerStart }: EdgeProps<Edge<RouteDa
   if (!data) return null;
   const box = data.labelBox;
   return <>
-    <BaseEdge id={id} path={data.path} markerStart={markerStart} markerEnd={markerEnd} className={data.state} interactionWidth={16} />
+    <BaseEdge id={id} path={data.path} className={data.state} interactionWidth={16} />
+    <path d={data.points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ')} fill="none" stroke="none" strokeWidth={data.state === 'active' ? 2 : 1.5} opacity={data.state === 'dimmed' ? 0.2 : 1} markerStart={markerStart} markerEnd={markerEnd} pointerEvents="none" />
     {box && <EdgeLabelRenderer><div className={`edge-label ${data.state}`} data-selected={data.selected} data-tooltip={data.summary} style={{ transform: `translate(${box.x}px, ${box.y}px)`, width: box.width, height: box.height }}><LabelContent edge={data} actions={data} comments={data.comments} /></div></EdgeLabelRenderer>}
   </>;
 }
@@ -103,13 +170,53 @@ const edgeTypes = { routed: RoutedEdge };
 const expansionKey = (ids: string[]) => [...ids].sort().join('|');
 const reducedMotion = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selected, onSelect, onAnnotate, commentCounts, layoutKey = '', contentZoom = zoom }: {
-  diagram: DiagramModel; expanded: string[]; setExpanded: (ids: string[], anchorId?: string) => void; zoom: Zoom; setZoom: (zoom: Zoom) => void;
-  selected: string | null; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; commentCounts: Map<string, number>; layoutKey?: string; contentZoom?: Zoom;
+type ToggleFocus = { groupId: string; key: string; before: DiagramModel; origin: HTMLElement };
+
+// Keep readiness updates out of Diagram so they do not recreate ReactFlow's node inputs.
+function RestoreToggleFocus({ diagram, layoutKey, requestedKey, expanded, pending, canvas }: {
+  diagram: DiagramModel; layoutKey: string; requestedKey: string; expanded: string[];
+  pending: RefObject<ToggleFocus | null>; canvas: RefObject<HTMLDivElement | null>;
 }) {
-  const { fitView, zoomIn, zoomOut } = useReactFlow();
+  const target = useInternalNode(pending.current ? `group:${pending.current.groupId}` : '');
+  const { getNodes } = useReactFlow();
+  useEffect(() => {
+    const cancel = (event: FocusEvent) => {
+      const focus = pending.current;
+      if (focus && event.target !== document.body && event.target !== focus.origin && !(event.target instanceof HTMLElement && canvas.current?.contains(event.target) && event.target.dataset.groupToggle === focus.groupId)) pending.current = null;
+    };
+    document.addEventListener('focusin', cancel);
+    return () => document.removeEventListener('focusin', cancel);
+  }, [pending, canvas]);
+  useEffect(() => {
+    const focus = pending.current;
+    if (!focus) return;
+    if (focus.key !== requestedKey) { pending.current = null; return; }
+    if (focus.key !== layoutKey || diagram === focus.before || !target?.internals.handleBounds) return;
+    // The target subscription retries when ReactFlow adopts and measures the replacement.
+    const live = getNodes();
+    if (live.length !== diagram.nodes.length || diagram.nodes.some(node => !live.some(current => current.id === node.id && current.type === node.kind && current.data.x === node.x && current.data.y === node.y))) return;
+    const active = document.activeElement;
+    if (active !== document.body && active !== focus.origin && !(active instanceof HTMLElement && canvas.current?.contains(active) && active.dataset.groupToggle === focus.groupId)) { pending.current = null; return; }
+    const button = [...canvas.current?.querySelectorAll<HTMLElement>('[data-group-toggle]') ?? []].find(button => button.dataset.groupToggle === focus.groupId);
+    if (button?.getAttribute('aria-expanded') !== String(expanded.includes(focus.groupId))) return;
+    button.focus({ preventScroll: true });
+    // Keep the request through the replacement commit; consume only sustained focus.
+    const frame = requestAnimationFrame(() => {
+      if (pending.current === focus && button.isConnected && document.activeElement === button) pending.current = null;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [diagram, layoutKey, target, requestedKey, expanded, getNodes, pending, canvas]);
+  return null;
+}
+
+export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selected, onSelect, onAnnotate, commentCounts, layoutKey = '', anchor, contentZoom = zoom, orientation = 'top-to-bottom' }: {
+  diagram: DiagramModel; expanded: string[]; setExpanded: (ids: string[], anchorId?: string) => void; zoom: Zoom; setZoom: (zoom: Zoom) => void; anchor?: ViewportAnchor | null;
+  selected: string | null; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; commentCounts: Map<string, number>; layoutKey?: string; contentZoom?: Zoom; orientation?: DiagramOrientation;
+}) {
+  const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
   const fitted = useRef(false);
-  const pending = useRef<{ groupId: string; key: string } | null>(null);
+  const appliedAnchor = useRef<ViewportAnchor | null>(null);
+  const pending = useRef<ToggleFocus | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const fit = () => {
     pending.current = null;
@@ -126,15 +233,17 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
   }, [diagram, fitView]);
   useLayoutEffect(() => {
-    const focus = pending.current;
-    if (!focus || focus.key !== layoutKey) return;
-    const button = [...canvas.current?.querySelectorAll<HTMLElement>('[data-group-toggle]') ?? []].find(button => button.dataset.groupToggle === focus.groupId);
-    button?.focus({ preventScroll: true });
-    pending.current = null;
-  }, [diagram, layoutKey]);
+    if (!anchor || anchor === appliedAnchor.current || anchor.key !== layoutKey || diagram === anchor.before) return;
+    const node = diagram.nodes.find(node => node.id === anchor.node.id);
+    if (!node) return;
+    const viewport = getViewport();
+    // Keep the clicked component on screen without constraining its world position or changing zoom.
+    void setViewport({ ...viewport, x: viewport.x + (anchor.node.x - node.x) * viewport.zoom, y: viewport.y + (anchor.node.y - node.y) * viewport.zoom }, { duration: 0 });
+    appliedAnchor.current = anchor;
+  }, [anchor, diagram, layoutKey, getViewport, setViewport]);
   const toggle = (groupId: string) => {
     const next = expanded.includes(groupId) ? expanded.filter(id => id !== groupId) : [...expanded, groupId];
-    pending.current = typeof document !== 'undefined' && document.activeElement instanceof HTMLElement && document.activeElement.dataset.groupToggle === groupId ? { groupId, key: `${expansionKey(next)}:${zoom}` } : null;
+    pending.current = typeof document !== 'undefined' && document.activeElement instanceof HTMLElement && document.activeElement.dataset.groupToggle === groupId ? { groupId, key: `${expansionKey(next)}:${zoom}`, before: diagram, origin: document.activeElement } : null;
     setExpanded(next, `group:${groupId}`);
   };
   const selectedEdge = selected?.startsWith('edge:') ? diagram.edges.find(edge => edge.childEdgeIds.includes(selected.slice(5))) : undefined;
@@ -149,7 +258,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     for (let ancestor = parent; ancestor; ancestor = ancestor.parentId ? byId.get(ancestor.parentId) : undefined) depth++;
     // ReactFlow puts children above their parents; keep every frame below routes at z-index 0.
     const zIndex = node.kind === 'group' ? depth - diagram.nodes.length : 1;
-    return { id: node.id, type: node.kind, parentId: node.parentId, position: { x: node.x - (parent?.x ?? 0), y: node.y - (parent?.y ?? 0) }, style: { width: node.width, height: node.height }, selectable: true, draggable: false, selected: node.id === selected, zIndex, data: { ...node, ...actions, zoom: contentZoom, dimmed: Boolean(selected) && !linked.has(node.id), comments } };
+    return { id: node.id, type: node.kind, parentId: node.parentId, position: { x: node.x - (parent?.x ?? 0), y: node.y - (parent?.y ?? 0) }, initialWidth: node.width, initialHeight: node.height, style: { width: node.width, height: node.height }, selectable: true, draggable: false, selected: node.id === selected, zIndex, data: { ...node, ...actions, orientation, zoom: contentZoom, dimmed: Boolean(selected) && !linked.has(node.id), comments } };
   });
   const edges: Edge<RouteData>[] = diagram.edges.map(edge => {
     const state = !selected ? 'idle' : edge === selectedEdge || edge.source === selected || edge.target === selected ? 'active' : 'dimmed';
@@ -168,6 +277,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
       const selectId = nodes.find(node => node.id === id)?.id ?? edges.find(edge => edge.id === id)?.data?.selectId;
       if (selectId) { event.preventDefault(); onSelect(selectId); }
     }} onPaneClick={() => onSelect(null)} proOptions={{ hideAttribution: true }}>
+    <RestoreToggleFocus diagram={diagram} layoutKey={layoutKey} requestedKey={`${expansionKey(expanded)}:${zoom}`} expanded={expanded} pending={pending} canvas={canvas} />
     <Background gap={20} size={1.2} />
     <Panel position="top-left" className="toolbar">
       {pack.documentKind === 'design' ? <label className="metadata-toggle"><input type="checkbox" checked={zoom === 'technical'} onChange={event => { pending.current = null; setZoom(event.target.checked ? 'technical' : 'business'); }} /> Show source metadata</label>

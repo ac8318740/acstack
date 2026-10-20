@@ -210,13 +210,16 @@ describe('alignment diagram', () => {
     expect(diagram.nodes.find(node => node.id === 'item:viewer')?.parentId).toBe('group:design:container:cli');
     const developer = diagram.edges.find(edge => edge.childEdgeIds.includes('author-design'))!;
     const host = diagram.edges.find(edge => edge.childEdgeIds.includes('load-skills'))!;
-    expect(host.points).toHaveLength(2);
-    expect(host.points[0].x).toBe(host.points[1].x);
+    const source = diagram.nodes.find(node => node.id === host.source)!;
+    const target = diagram.nodes.find(node => node.id === host.target)!;
+    expect(host.points[0].y).toBe(source.y + source.height);
+    expect(host.points.at(-1)!.y).toBe(target.y - 2);
     expect(host.points.at(-1)!.x - developer.points.at(-1)!.x).toBeGreaterThanOrEqual(80);
     for (const card of diagram.nodes) expect(card.width).toBeGreaterThanOrEqual(300);
     expect(diagram.edges.flatMap(edge => edge.childEdgeIds).sort()).toEqual(pack.graph.edges.map(edge => edge.id).sort());
     for (const route of diagram.edges) {
       expect(route.path.match(/M /g)).toHaveLength(2);
+      expect(route.points.slice(1).every((point, i) => point.x === route.points[i].x || point.y === route.points[i].y)).toBe(true);
       for (const card of diagram.nodes.filter(node => node.kind !== 'group')) expect(overlaps(route.labelBox!, card)).toBe(false);
       for (const other of diagram.edges) if (other !== route) expect(overlaps(route.labelBox!, other.labelBox!)).toBe(false);
       for (const header of diagram.nodes.filter(node => node.kind === 'group')) {
@@ -276,7 +279,10 @@ describe('alignment diagram', () => {
     }
     for (const route of diagram.edges) {
       const source = diagram.nodes.find(node => node.id === route.source)!;
-      expect(route.points[0]).toEqual({ x: source.x + 150, y: source.y + 164 });
+      // Straightening may slide a source's only port along its bottom edge, inside the corner insets.
+      expect(route.points[0].y).toBe(source.y + 164);
+      expect(route.points[0].x).toBeGreaterThanOrEqual(source.x + 24);
+      expect(route.points[0].x).toBeLessThanOrEqual(source.x + source.width - 24);
       for (const card of diagram.nodes) expect(overlaps(route.labelBox!, card)).toBe(false);
       for (const other of diagram.edges) if (other !== route) expect(overlaps(route.labelBox!, other.labelBox!)).toBe(false);
     }
