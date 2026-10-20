@@ -129,6 +129,8 @@ relationships:
 - Open the printed localhost URL when the browser and agent share a device
 - On separate devices, run the printed SSH forwarding command from the browser's device, then open the localhost URL
 - Use `--port <port>` when another review already uses the default port
+- Choose `--orientation left-to-right` for horizontal flow in the browser and Mermaid; the default is `top-to-bottom`
+- Changing orientation preserves source identity, comments, and approval
 - Use a new Markdown path to protect existing files
 - Keep Markdown beside source files when its relative source links must resolve on GitHub
 - Generate the companion from the same YAML and supporting Markdown; revise the source instead of hand-editing its Mermaid
@@ -145,6 +147,7 @@ relationships:
 - Check that each entity appears once, whether collapsed or expanded
 - Inspect both collapsed and expanded views at a readable zoom
     - Keep related elements close, with consistent padding around their group
+    - Prefer shared card edges for related elements; allow connector bends around headers instead of unnecessary staggering
     - Reserve room for labels without spreading unrelated groups apart
     - Compare width, height, and text readability; a smaller area alone can hide a taller diagram
 - Read every relationship aloud as source → verb → target

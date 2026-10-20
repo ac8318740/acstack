@@ -53,6 +53,7 @@ it('serves exact quoted review and authored paths separately from unchanged anno
   const { html, url } = await page(server);
   const version = readdirSync(join(root, '.acstack/design-reviews/example'))[0];
   const reviewPath = join(root, '.acstack/design-reviews/example', version, 'review.json');
+  expect(html).toContain('"orientation":"top-to-bottom"');
   const prompt = embeddedPrompt(html)!;
   expect(prompt).toContain(JSON.stringify(reviewPath));
   expect(prompt).toContain(JSON.stringify(entry));
@@ -82,4 +83,29 @@ it('does not expose a live handoff on legacy pages', async () => {
   expect(embeddedPrompt(html)).toBeUndefined();
   expect(html).toContain('acstack-review-token');
   expect(html).not.toContain('acstack-review-mode');
+});
+
+it.each(['top-to-bottom', 'left-to-right'] as const)('passes %s through live HTML and Markdown', async orientation => {
+  const root = mkdtempSync(join(tmpdir(), 'orientation-'));
+  roots.push(root);
+  const entry = new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname;
+  context.root = root;
+  vi.spyOn(console, 'log').mockImplementation(() => {});
+  const command = new Command();
+  register(command);
+  const markdown = join(root, 'README.md');
+  await command.parseAsync(['design-doc', entry, '--orientation', orientation, '--markdown', markdown], { from: 'user' });
+  const { html } = await page(context.server!);
+  expect(html).toContain(`"orientation":"${orientation}"`);
+  expect(readFileSync(markdown, 'utf8')).toContain(`flowchart ${orientation === 'left-to-right' ? 'LR' : 'TD'}`);
+});
+
+it('rejects invalid orientation before any filesystem side effects', async () => {
+  const root = mkdtempSync(join(tmpdir(), 'orientation-'));
+  roots.push(root);
+  context.root = root;
+  const command = new Command().exitOverride().configureOutput({ writeErr: () => {} });
+  register(command);
+  await expect(command.parseAsync(['design-doc', new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname, '--markdown', join(root, 'README.md'), '--orientation', 'diagonal'], { from: 'user' })).rejects.toThrow(/Allowed choices/);
+  expect(readdirSync(root)).toEqual([]);
 });

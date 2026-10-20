@@ -4,8 +4,8 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { Check, CircleCheck, Copy } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import './viewer.css';
-import { buildDiagram, type Diagram as DiagramModel, type DiagramNode, initialExpandedGroups, projectDiagram, reconcileSelection, type MeasuredGeometry } from './alignment-graph.js';
-import { Diagram, MeasureDiagram, type Zoom } from './diagram.js';
+import { buildDiagram, type Diagram as DiagramModel, initialExpandedGroups, projectDiagram, reconcileSelection, type MeasuredGeometry } from './alignment-graph.js';
+import { Diagram, MeasureDiagram, type MeasureDiagramHandle, type ViewportAnchor, type Zoom } from './diagram.js';
 import { CommentForm, Drawer, commentScopeForSelection, type CommentScope, type DrawerView } from './drawer.js';
 import { commentPosition } from './comment-position.js';
 import { bindTextSelection } from './text-selection.js';
@@ -17,6 +17,8 @@ import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alig
 import { copy, ReviewHandoff } from './review-handoff.js';
 import { DesignApproval, DesignApprovalProvider } from './design-approval.js';
 import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, useReviewAnnotations } from './pack.js';
+
+const orientation = pack.viewState.orientation ?? (pack.documentKind === 'design' ? 'top-to-bottom' : 'left-to-right');
 
 // Present only when `acstack align-viewer` served this page; a file opened directly is read-only.
 const REVIEW_TOKEN = document.querySelector<HTMLMetaElement>(`meta[name="${REVIEW_TOKEN_META}"]`)?.content;
@@ -61,11 +63,15 @@ function App() {
   const [layoutZoom, setLayoutZoom] = useState(zoom);
   const [layoutError, setLayoutError] = useState<string | null>(null);
   const requestedKey = `${[...expanded].sort().join('|')}:${zoom}`;
-  const layoutAnchor = useRef<{ key: string; node: Pick<DiagramNode, 'id' | 'x' | 'y'> } | null>(null);
+  const previousLayout = useRef<{ key: string; diagram: DiagramModel } | null>(null);
+  const acceptedLayout = useRef<DiagramModel | undefined>(undefined);
+  const viewportAnchor = useRef<ViewportAnchor | null>(null);
   const changeExpanded = (ids: string[], anchorId?: string) => {
     generation.current += 1;
+    const key = `${[...ids].sort().join('|')}:${zoom}`;
     const node = diagram.nodes.find(node => node.id === anchorId);
-    layoutAnchor.current = node ? { key: `${[...ids].sort().join('|')}:${zoom}`, node: { id: node.id, x: node.x, y: node.y } } : null;
+    previousLayout.current = { key, diagram };
+    viewportAnchor.current = node ? { key, before: diagram, node: { id: node.id, x: node.x, y: node.y } } : null;
     setExpanded(ids);
   };
   const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded]);
@@ -74,6 +80,7 @@ function App() {
     setMeasurement(previous => previous?.key === requestedKey && JSON.stringify(previous.geometry) === JSON.stringify(geometry) ? previous : { key: requestedKey, geometry });
   }, [requestedKey]);
   const generation = useRef(0);
+  const measurementTree = useRef<MeasureDiagramHandle>(null);
   const popover = useRef<HTMLDivElement>(null);
   const dismissDraft = useTextSelection(popover, setDraft);
   const editComment = (id: string, comment: string) => {
@@ -115,22 +122,41 @@ function App() {
       document.removeEventListener('scroll', position, true);
     };
   }, [draft, drawerOpen]);
+  const previousCounts = useRef(new Map<string, number>());
+  const commentCounts = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const annotation of annotations) {
+      const id = diagramId(annotation.target);
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+    if (counts.size === previousCounts.current.size && [...counts].every(([id, count]) => previousCounts.current.get(id) === count)) return previousCounts.current;
+    previousCounts.current = counts;
+    return counts;
+  }, [annotations]);
   useEffect(() => {
     const request = ++generation.current;
     if (measurement?.key !== requestedKey) return;
-    const anchor = layoutAnchor.current?.key === requestedKey ? layoutAnchor.current.node : undefined;
-    void buildDiagram(pack.graph, expanded, measurement.geometry, anchor).then(next => {
+    const previous = previousLayout.current?.key === requestedKey ? previousLayout.current.diagram : acceptedLayout.current;
+    const measurer = measurementTree.current;
+    void buildDiagram(pack.graph, expanded, measurement.geometry, undefined, previous, orientation, nodes => {
+      if (request !== generation.current || measurementTree.current !== measurer) throw new Error('Layout request superseded');
+      return measurer?.measureHeaders(nodes) ?? {};
+    }).then(next => {
       if (request !== generation.current) return;
+      if (measurementTree.current !== measurer) return;
+      previousLayout.current = null;
+      acceptedLayout.current = next;
       setDiagram(next);
       setLayoutKey(requestedKey);
       setLayoutZoom(zoom);
       setSelected(previous => reconcileSelection(previous, next, pack.graph));
       setLayoutError(null);
     }).catch((error: unknown) => {
+      if (measurementTree.current !== measurer) return;
       if (request === generation.current) setLayoutError(error instanceof Error ? error.message : String(error));
     });
     return () => { generation.current += 1; };
-  }, [expanded, measurement, requestedKey, zoom]);
+  }, [expanded, measurement, requestedKey, zoom, commentCounts]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !(event.target as Element | null)?.closest?.('[data-review-handoff]') && !event.defaultPrevented && !(event.target instanceof HTMLTextAreaElement) && setSelected(null);
     document.addEventListener('keydown', onKey);
@@ -177,14 +203,6 @@ function App() {
       setSubmitting(false);
     }
   };
-  const commentCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const annotation of annotations) {
-      const id = diagramId(annotation.target);
-      counts.set(id, (counts.get(id) ?? 0) + 1);
-    }
-    return counts;
-  }, [annotations]);
   const select = (id: string | null) => {
     setSelected(reconcileSelection(id, diagram, pack.graph));
     if (id) {
@@ -241,12 +259,14 @@ function App() {
         </div>
       </header>
       <main className="canvas">
-        <MeasureDiagram diagram={projection} zoom={zoom} commentCounts={commentCounts} onMeasured={onMeasured} />
+        <MeasureDiagram ref={measurementTree} diagram={projection} zoom={zoom} commentCounts={commentCounts} onMeasured={onMeasured} />
         {layoutError && <div className="layout-error" role="alert">{layoutError} The previous valid diagram remains visible.</div>}
         <ReactFlowProvider>
           <Diagram
             diagram={diagram}
+            orientation={orientation}
             layoutKey={layoutKey}
+            anchor={viewportAnchor.current}
             expanded={expanded}
             setExpanded={changeExpanded}
             zoom={zoom}
@@ -254,7 +274,8 @@ function App() {
             setZoom={value => {
               if (value === zoom) return;
               generation.current += 1;
-              layoutAnchor.current = null;
+              previousLayout.current = null;
+              viewportAnchor.current = null;
               setZoom(value);
             }}
             selected={selected}

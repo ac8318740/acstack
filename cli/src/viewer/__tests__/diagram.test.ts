@@ -2,7 +2,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { createElement, type KeyboardEvent, type KeyboardEventHandler, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Diagram, MeasureDiagram } from '../diagram.js';
-import type { ReactFlowProps } from '@xyflow/react';
+import { Position, ReactFlowProvider, type ReactFlowProps } from '@xyflow/react';
 import { adoptUserNodes, updateAbsolutePositions } from '@xyflow/system';
 
 let keyDown: KeyboardEventHandler<HTMLDivElement> | undefined;
@@ -17,7 +17,9 @@ const { mockPack } = vi.hoisted(() => ({ mockPack: {
 vi.mock('@xyflow/react', async importOriginal => ({
   ...await importOriginal<typeof import('@xyflow/react')>(),
   useReactFlow: () => ({ fitView: vi.fn() }),
+  useInternalNode: () => undefined, // SSR has no mounted nodes or DOM measurements.
   Controls: () => null, Background: () => null,
+  Handle: (props: { type: string; position: string }) => createElement('span', { 'data-handle': props.type, 'data-position': props.position }),
   Panel: (props: { children?: ReactNode }) => props.children,
   ReactFlow: (props: ReactFlowProps) => {
     flowProps = props;
@@ -95,6 +97,44 @@ it('distinguishes the selected relationship from links highlighted by a selected
   expect(flowProps.edges?.[0].data).toMatchObject({ state: 'idle', selected: false });
 });
 
+it('renders endpoint arrows only at the real ends of a route with text gaps', () => {
+  const path = 'M 0 0 L 40 0 M 60 0 L 120 0 M 160 0 L 200 0';
+  renderToStaticMarkup(createElement(Diagram, {
+    diagram: { nodeToVisible: {}, nodes: [], edges: [{
+      id: 'route', source: 'item:app', target: 'item:data', childEdgeIds: ['reads'], label: 'Reads',
+      points: [{ x: 0, y: 0 }, { x: 200, y: 0 }], path, bidirectional: true,
+    }] },
+    expanded: [], setExpanded: vi.fn(), zoom: 'business', setZoom: vi.fn(),
+    selected: null, onSelect: vi.fn(), onAnnotate: vi.fn(), commentCounts: new Map(),
+  }));
+  const html = renderToStaticMarkup(createElement(ReactFlowProvider, null,
+    createElement('svg', null, createElement(flowProps.edgeTypes!.routed, {
+      ...flowProps.edges![0], type: 'routed', data: flowProps.edges![0].data!,
+      sourceX: 0, sourceY: 0, targetX: 200, targetY: 0,
+      sourcePosition: Position.Right, targetPosition: Position.Left,
+      markerStart: 'url(#start)', markerEnd: 'url(#end)',
+    })),
+  ));
+  const paths = [...html.matchAll(/<path\b[^>]*>/g)].map(([tag]) => ({
+    tag, d: /\bd="([^"]*)"/.exec(tag)?.[1] ?? '',
+  }));
+  const gapped = paths.filter(({ d }) => d === path);
+  expect(gapped.map(({ d }) => d)).toContain(path);
+  for (const { tag, d } of paths) {
+    if ((d.match(/[Mm]/g)?.length ?? 0) > 1) expect(tag).not.toMatch(/marker-(?:start|mid|end)=/);
+  }
+  for (const marker of ['start', 'end']) {
+    const marked = paths.filter(({ tag }) => tag.includes(`marker-${marker}="url(#${marker})"`));
+    expect(marked).toHaveLength(1);
+    for (const { tag, d } of marked) {
+      expect(d.match(/[Mm]/g)).toHaveLength(1);
+      const coordinates = d.match(/-?\d+(?:\.\d+)?/g)?.map(Number);
+      expect(marker === 'start' ? coordinates?.slice(0, 2) : coordinates?.slice(-2)).toEqual(marker === 'start' ? [0, 0] : [200, 0]);
+      expect(tag).toMatch(/(?:stroke="(?:transparent|none)"|stroke:(?:transparent|none)|(?:stroke-)?opacity[=:]"?0(?:[;" ]))/);
+    }
+  }
+});
+
 it('keeps comment actions separate from card controls and relationship text', () => {
   const html = renderToStaticMarkup(createElement(MeasureDiagram, {
     diagram: { nodeToVisible: {}, nodes: [{ id: 'item:app', refId: 'app', kind: 'item', label: 'App', summary: 'Runs commands', x: 0, y: 0, width: 300, height: 100 }], edges: [{ id: 'reads', source: 'item:app', target: 'item:data', childEdgeIds: ['reads'], label: 'Reads', points: [], path: '' }] },
@@ -144,4 +184,19 @@ it('activates focused node and edge wrappers with Enter or Space, not nested con
   }
   expect(press('ArrowDown', new Target(true, 'item:app'))).not.toHaveBeenCalled();
   expect(onSelect).not.toHaveBeenCalled();
+});
+
+it.each(['top-to-bottom', 'left-to-right'] as const)('places card and frame handles for %s flow', orientation => {
+  renderToStaticMarkup(createElement(Diagram, {
+    diagram: { nodeToVisible: {}, nodes: [{ id: 'item:app', kind: 'item', refId: 'app', label: 'App', summary: 'Runs commands', x: 0, y: 0, width: 300, height: 100 }], edges: [] },
+    orientation, expanded: [], setExpanded: vi.fn(), zoom: 'business', setZoom: vi.fn(),
+    selected: null, onSelect: vi.fn(), onAnnotate: vi.fn(), commentCounts: new Map(),
+  }));
+  for (const type of ['item', 'folded-group', 'group']) {
+    const html = renderToStaticMarkup(createElement(flowProps.nodeTypes![type], {
+      ...flowProps.nodes![0], type, selected: false, selectable: true, deletable: false, draggable: false, isConnectable: false, dragging: false, zIndex: 1, positionAbsoluteX: 0, positionAbsoluteY: 0,
+    }));
+    expect(html).toContain(`data-handle="target" data-position="${orientation === 'left-to-right' ? 'left' : 'top'}"`);
+    expect(html).toContain(`data-handle="source" data-position="${orientation === 'left-to-right' ? 'right' : 'bottom'}"`);
+  }
 });

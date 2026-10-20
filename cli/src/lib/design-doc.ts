@@ -3,7 +3,7 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import { AlignmentPackSchema, type AlignmentPack } from './alignment-packs.js';
+import { AlignmentPackSchema, type AlignmentPack, type DiagramOrientation } from './alignment-packs.js';
 
 const text = z.string().trim().min(1).max(16000);
 const identity = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/);
@@ -137,7 +137,7 @@ function markdownPath(value: string): string {
 function itemDetail(doc: DesignDoc, item: Element): string {
   return [item.detailText, ...doc.concerns.filter(c => c.elements.includes(item.id)).map(c => `## ${markdownText(c.name)}\n\n- Requirement: ${markdownText(c.requirement)}\n- Design response: ${markdownText(c.response)}\n- Applies to: ${c.elements.join(', ')}`)].filter(Boolean).join('\n\n');
 }
-export function designDocToPack(doc: DesignDoc): AlignmentPack {
+export function designDocToPack(doc: DesignDoc, orientation: DiagramOrientation = 'top-to-bottom'): AlignmentPack {
   const containers = new Set(doc.items.flatMap(item => item.parent ? [item.parent] : []));
   const edges = [...new Map(doc.items.flatMap(item => item.relationships).map(edge => [edge.id, edge])).values()];
   const content = { ...doc };
@@ -155,13 +155,13 @@ export function designDocToPack(doc: DesignDoc): AlignmentPack {
       })),
       edges: edges.map(edge => ({ id: edge.id, fromNodeId: edge.from, toNodeId: edge.to, direction: edge.direction, relationship: 'design', label: edge.label, summary: edge.label, sourceRefs: [edge.from, edge.to] })), aggregateEdges: [],
     },
-    viewState: { globalDepth: 1, expandedGroups: [], semanticZoom: 'business' }, reviewState: {},
+    viewState: { orientation, globalDepth: 1, expandedGroups: [], semanticZoom: 'business' }, reviewState: {},
   });
 }
 // Both the GitHub companion and HTML derive from the same validated source.
-export function renderDesignDocMarkdown(doc: DesignDoc): string {
+export function renderDesignDocMarkdown(doc: DesignDoc, orientation: DiagramOrientation = 'top-to-bottom'): string {
   const label = (value: string) => value.replace(/[&<>"\n\r]/g, char => `&#${char.charCodeAt(0)};`);
-  const lines = ['flowchart TD'];
+  const lines = [`flowchart ${orientation === 'left-to-right' ? 'LR' : 'TD'}`];
   const walk = (parent?: string, indent = '    ') => {
     for (const item of doc.items.filter(item => item.parent === parent)) {
       const children = doc.items.some(child => child.parent === item.id);

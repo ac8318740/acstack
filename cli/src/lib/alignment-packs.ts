@@ -70,8 +70,12 @@ const AlignmentGraphSchema = z
   })
   .strict();
 
+export const DiagramOrientationSchema = z.enum(['top-to-bottom', 'left-to-right']);
+export type DiagramOrientation = z.infer<typeof DiagramOrientationSchema>;
+
 const ViewStateSchema = z
   .object({
+    orientation: DiagramOrientationSchema.optional(),
     globalDepth: z.number().int().nonnegative(),
     expandedGroups: z.array(z.string().min(1)).default([]),
     semanticZoom: z.string().min(1),
