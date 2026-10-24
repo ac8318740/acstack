@@ -94,15 +94,13 @@ Apply the shared policy to the minimal fix.
 
 ## Step 6: Verify
 
-Run build verification using commands from `.acstack/project.yaml`:
+Use focused regression checks while fixing. One verification owner gathers the
+required final checks from `.acstack/project.yaml` under Build verification in
+`orchestrator/AGENTS.md`, reusing valid evidence rather than rerunning commands
+for every fix or handoff.
 
-```bash
-# Run the project's configured test, lint, and typecheck commands
-# Read these from project.yaml – do not hardcode
-```
-
-Use the configured frontend gates under the shared policy.
-Do not proceed with failed required checks or unverified configured browser behavior.
+Preserve configured frontend gates. Do not claim completion with failed or blocked
+required checks or unverified configured browser behavior.
 
 
 ## Step 7: Report

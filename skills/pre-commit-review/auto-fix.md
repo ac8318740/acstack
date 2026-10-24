@@ -2,18 +2,18 @@
 
 Step 6 of `SKILL.md` in auto-fix mode.
 
-For each finding (MUST first, then SHOULD, then CONSIDER):
+Fix in-scope findings (MUST first, then SHOULD, then CONSIDER). Adjacent cleanup
+stays advisory unless the user approves it; auto-fix is not approval to expand scope.
 
-1. Apply the shared Implementation discipline in `orchestrator/AGENTS.md` to the finding, directly or through a task-executor
-2. Verify the fix doesn't break anything (run lint, typecheck, and test commands from project.yaml)
-3. If fix breaks something, revert and try alternate approach
-4. Move to next finding
+1. Apply the shared Implementation discipline in `orchestrator/AGENTS.md`, directly or through a task-executor
+2. Run focused checks for the fix and affected behavior
+3. If the fix breaks something, revert only your own conflicting changes and try another approach
+4. Move to the next finding
 
-After all fixes, run full verification using commands from `.acstack/project.yaml`:
+One verification owner gathers required completion evidence for the final revision,
+reusing valid results under Build verification in `orchestrator/AGENTS.md`.
+Do not repeat all completion commands for every finding.
+Approved adjacent work may run in parallel with non-overlapping ownership or isolated
+worktrees, without blocking the main change.
 
-```bash
-# Run the project's configured test, lint, and typecheck commands
-# Read these from project.yaml – do not hardcode
-```
-
-Report a summary of the fixes.
+Report fixes, evidence, blockers, and advisory suggestions separately.

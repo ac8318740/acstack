@@ -102,14 +102,16 @@ it should run the command.
 | Map state and reading order | `~/.claude/acstack/bin/acstack node walk --map <name>` (reading order of the map)  |
 | What can be worked next     | `~/.claude/acstack/bin/acstack node frontier --map <name>` (what is workable now)  |
 | Files in flight             | `git status --short` and `git diff`                                                |
-| Test baseline, last result  | `.acstack/.test-baseline`, then run the suite                                               |
+| Test baseline, last result  | `.acstack/.test-baseline` and referenced check logs; reuse valid evidence under the shared policy |
 | What the code does          | the living specs in `.acstack/specs/`                                               |
 
 On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
 map skill's `trackers/github.md`.
 
 The same applies to specs, architecture decision records, issues and commits.
-Reference them by path or URL.
+Reference them by path or URL. Preserve references to check evidence with its tested
+revision, relevant environment, command, and result; a handoff alone does not require
+a suite rerun. If evidence exists only in the conversation, anchor it rather than lose it.
 
 **You do not search the codebase for this.** Build the handoff from what is already
 in context. If you are about to search source files, stop – the conversation holds it.

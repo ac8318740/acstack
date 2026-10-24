@@ -158,11 +158,13 @@ decision landed. With a map, then:
 - Reopen design review when source, saved comments, or contribution inputs change.
 - Recompute the frontier – resolutions unblock nodes.
 
-### 7. Build verification
+### 7. Completion verification
 
-After each node (and before ending the session), run the commands from
-`.acstack/project.yaml`: build, full test suite, lint and typecheck. All must
-pass before claiming the next node.
+Use focused checks within each node. One verification owner gathers the required
+completion evidence for the final revision under Build verification in
+`orchestrator/AGENTS.md`, reusing valid results. Full completion checks belong at
+the end of the request or parent effort, not after every node or handoff.
+Do not report the effort complete with failed or blocked required gates.
 
 ### 8. Completion
 

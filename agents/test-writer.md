@@ -19,6 +19,9 @@ You write tests from requirements and application programming interface (API) co
 - Prefer intended failing-first evidence when practical
 - If implementation already exists, leave it unread and report the available evidence honestly
 - Report mismatches instead of reshaping assertions to fit the code
+- Stay within assigned behavior and plausible failures; do not turn optional independent interpretation into a general audit
+- Reuse existing fixtures and adequate coverage; add only tests that detect an unmet requirement or realistic regression
+- Run the assigned tests, not every completion command; share commands, tested revision, relevant environment, and results with the verification owner
 
 
 ## Project configuration

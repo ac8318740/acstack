@@ -12,6 +12,8 @@ ACStack is an agentic coding stack. It helps coding agents clarify requirements,
     - Verification fits the change under a shared policy in `orchestrator/AGENTS.md`
     - Every commit updates your specs from the diff
 - Straightforward work can stay with one agent, including investigation, tests, implementation, and verification
+    - One verification owner gathers final completion evidence, reusing valid results instead of repeating checks at every handoff
+    - Review depth follows affected risks; adjacent cleanup is advisory unless the user approves it
 
 ```mermaid
 flowchart TD
@@ -293,7 +295,7 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 | --- | --- |
 | `test-writer` | Optional independent tests from requirements and interfaces |
 | `task-executor` | Implements source and tests unless tests have a separate owner |
-| `task-checker` | Independent review of behavior, coverage, regressions, and integration |
+| `task-checker` | Bounded independent review; owns completion checks only when assigned |
 | `frontend-verifier` | Configured real-browser verification on final frontend code |
 
 - `orchestrator/AGENTS.md` owns the shared Implementation discipline

@@ -7,9 +7,13 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Given**: An agent runs implement, quick-fix, or map work
 - **When**: The agent chooses testing and delegation
 - **Then**: The skill refers to `orchestrator/AGENTS.md` rather than requiring a universal agent sequence
+- **Then**: Focused checks verify individual nodes and fixes; one owner gathers final completion evidence and reuses valid results
 - **Given**: Pre-commit review runs
 - **When**: The reviewer assesses the change
 - **Then**: The reviewer assesses coverage without assuming another checker already did so
+- **Then**: Relevant review dimensions follow plausible failures instead of requiring blanket audits or repeated discovery
+- **Then**: Adjacent suggestions remain separate and advisory in interactive and auto-fix modes
+- **Then**: The reviewer asks before expanding scope; approved independent cleanup may run in parallel without blocking the main change
 - **Source**: `skills/implement/SKILL.md`, `skills/quick-fix/SKILL.md`, `skills/map/SKILL.md`, `skills/pre-commit-review/SKILL.md`
 
 ## FR-002: Assign frontend checks to the verification owner
@@ -160,3 +164,12 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: The skill explains lowercase `i` opens Markdown in Frogmouth and gives `pipx install frogmouth` for the separate installation
 - **Then**: The skill states existing `i` bindings take precedence and `e` keeps editing in `$EDITOR`
 - **Source**: `skills/terminal-workspace/SKILL.md`
+
+## FR-012: Preserve valid check evidence across continuation
+
+- **Given**: A session prepares a handoff or compaction anchor
+- **When**: It references prior check evidence
+- **Then**: It preserves the tested revision, relevant environment, command, and result or log references
+- **Then**: The handoff or compaction alone does not require rerunning the suite
+- **Then**: Evidence held only in conversation is anchored rather than lost
+- **Source**: `skills/handoff/SKILL.md`, `skills/compact-and-continue/SKILL.md`
