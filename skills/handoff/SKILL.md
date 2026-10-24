@@ -14,9 +14,8 @@ Treat the argument as the focus for the receiving agent.
 
 # Hand the work over
 
-A handoff moves the current work to an agent a human can see – a named session
-in a visible pane, or a session already running. To keep the work in THIS
-session across a context compaction instead, use `compact-and-continue`.
+A handoff moves work to a visible agent. To continue in this session after
+compaction, use `compact-and-continue`.
 
 ## Only the lead session runs this
 
@@ -102,14 +101,15 @@ it should run the command.
 | Map state and reading order | `~/.claude/acstack/bin/acstack node walk --map <name>` (reading order of the map)  |
 | What can be worked next     | `~/.claude/acstack/bin/acstack node frontier --map <name>` (what is workable now)  |
 | Files in flight             | `git status --short` and `git diff`                                                |
-| Test baseline, last result  | `.acstack/.test-baseline`, then run the suite                                               |
+| Test baseline, last result  | `.acstack/.test-baseline` and referenced check logs; reuse valid evidence under the shared policy |
 | What the code does          | the living specs in `.acstack/specs/`                                               |
 
 On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
 map skill's `trackers/github.md`.
 
 The same applies to specs, architecture decision records, issues and commits.
-Reference them by path or URL.
+Reference records and check logs by path or URL; retain the tested revision, environment, command, and result.
+A handoff alone does not require a suite rerun. Anchor evidence held only in conversation.
 
 **You do not search the codebase for this.** Build the handoff from what is already
 in context. If you are about to search source files, stop – the conversation holds it.

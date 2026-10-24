@@ -189,6 +189,11 @@ flowchart TD
     - Never declare consequential behavior safe without evidence
 - Derive assertions from requirements and observable behavior, not the implementation's current answers
 - Test counts and mocked assertions alone never prove adequate coverage
+- Tie review depth to plausible failures in the changed behavior and connected paths
+    - Inspect authentication, authorization, trust boundaries, and sensitive data handling when affected
+    - Inspect resource ownership and cleanup for leaks, cancellation, and concurrency when affected
+    - Check expensive paths for query amplification, blocking work, and unbounded memory or runtime; measure when performance claims matter
+    - Expand scope when evidence reveals wider risk, not merely because another file is nearby
 
 ### Investigate, test, and implement
 
@@ -202,6 +207,9 @@ flowchart TD
     - Investigate source, interfaces, living specs, and existing tests for an answer
     - Prefer narrower behavior and assertions that still detect unmet requirements
     - Report any blocked requirement and the question that settles it
+- Prefer deep modules: hide substantial complexity behind small, useful interfaces
+    - Ask whether callers need fewer facts, each rule has one owner, and the interface hides complexity rather than moving it
+    - Keep names and control flow readable; more helpers, shorter functions, and fewer lines are not goals by themselves
 - Read `test-conventions` before writing tests
 - Before the first edit under configured `frontend.directory`, read the pre-edit procedure in `skills/implement/design-pass.md`
     - Check the design gate and load design context once per task when it is on
@@ -219,7 +227,14 @@ flowchart TD
     - Route incorrect or incomplete tests back to their owner
 - Without separate ownership, the implementer may write source and tests
 - A task-checker is an optional independent verifier, not a required step after every executor
+- Give each reviewer a bounded question, affected paths, requirements, known risks, and available check evidence
+    - A focused reviewer checks that question; it does not inherit ownership of every completion gate
+    - Expand the review when findings reveal wider risk, and report the reason
 - Assign non-overlapping files when delegating concurrent work
+- Adjacent cleanup is advisory by default, not a delivery gate or an automatic source edit
+    - Report worthwhile cleanup separately; ask the user before adding it to scope
+    - Approved cleanup may run in parallel on non-overlapping files or isolated worktrees, without blocking the main change
+    - A defect that prevents the requested behavior or exposes a consequential risk is not merely cleanup; fix it within scope or report the blocker
 
 ### Complete required gates
 
@@ -229,7 +244,8 @@ flowchart TD
 - Audit whether checks detect realistic mistakes, including circular mock assertions and missing integration
 - Respect separate test ownership when reviewing changes
 - For changed frontend files, the verification owner runs configured frontend build, lint, and tests
-- The verification owner is the session responsible for completion, or a delegated verifier with that responsibility
+- Choose one verification owner: the session responsible for completion, or a delegated verifier explicitly assigned that responsibility
+- Reuse valid command evidence under Build verification; do not make every agent repeat completion checks
 - When the design gate is on and configured frontend files changed, complete the design pass in `skills/implement/design-pass.md`
     - File discovery, static checks, and the detector may belong to a delegated verifier
     - The parent session types audit and polish; a read-only checker returns its file list and findings without editing
@@ -312,29 +328,34 @@ Read-only reviewers report discrepancies to the completion owner.
 
 ## Build verification (mandatory)
 
-**Before marking ANY task as complete, you MUST verify the project builds.**
+The verification owner gathers passing completion evidence for the final revision before declaring the request or parent effort complete or creating a PR.
 
-Read `.acstack/project.yaml` for the specific commands. The general pattern:
+Read `.acstack/project.yaml` for the specific commands:
 
-1. Run the build command if the project configures one
-2. Run lint
-3. Run typecheck if the project configures one
-4. Run the full test suite – ALL tests must pass
-5. Compare the test count against `.acstack/.test-baseline`. The count must not drop.
-6. Run the frontend build and lint if the project configures a frontend
+1. Run the configured build, lint, and typecheck commands
+2. Run the configured full test suite; all tests must pass
+3. When `commands.test_collect` is configured, compare the count against `.acstack/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
+4. Run configured frontend build, lint, and tests when frontend files changed
+5. Complete configured design and browser gates when applicable
 
-### When to run
+### During implementation
 
-- **After EVERY commit** that touches source code
-- **Before marking parent task as done**
-- **Before creating a PR**
+Use focused checks for each change, fix, or map node. Resolve a node only when its behavior and applicable risk review are verified; do not claim the whole effort is verified until completion gates pass.
+Do not rerun all completion commands after every node, review finding, agent handoff, or commit solely because that event occurred.
+Project-specific and explicit user requirements for additional checks still apply.
+
+### Reuse evidence without hiding stale results
+
+- Record each command, working directory, tested revision (including uncommitted changes), relevant environment, and result
+- Share result or log references with reviewers and receiving agents
+- Reuse a result only when its relevant source, tests, configuration, dependencies, generated inputs, and environment are unchanged
+- Rerun affected checks after changes; rerun when validity is uncertain or the check depends on external state that may have changed
+- A commit alone does not invalidate evidence; hook edits or generated changes can
+- Independent review still examines the assigned behavior and test adequacy; a passing command is not a substitute
 
 ### If verification fails
 
-1. **DO NOT mark task complete**
-2. Fix the error immediately
-3. Re-run verification
-4. Only proceed when all checks pass
+Do not claim completion with failed or blocked required checks. Investigate, fix, and rerun affected checks. Report unresolved failures and remaining risk.
 
 ---
 

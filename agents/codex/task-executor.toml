@@ -48,16 +48,17 @@ Read `.acstack/project.yaml` for project-specific settings:
     - Implement one subtask at a time
     - Follow the project's coding standards
     - Keep peer components at comparable abstraction levels, organized by responsibility rather than folder layout
-    - Hide real complexity behind small, useful interfaces (deep modules); keep implementation details out of callers
+    - Hide real complexity behind small, useful interfaces (deep modules); callers should need fewer facts, and each rule should have one owner
     - Make names match responsibilities; avoid pass-through layers that add no useful boundary
     - Do not force nesting or wrappers; neither line count nor indirection measures design quality
     - Prefer editing existing files over creating new ones
     - Only create files essential for task completion
 
 5. **Quality Assurance**:
-    - Run tests after implementation
-    - Verify the implementation meets the acceptance criteria
-    - Check for dependency conflicts or integration issues
+    - Run focused checks for changed behavior; share commands, tested revision, relevant environment, and results with the verification owner
+    - Gather full completion evidence only when assigned that ownership, reusing valid results under the shared policy
+    - Verify acceptance criteria and affected dependency or integration paths
+    - Keep adjacent cleanup advisory; ask before expanding scope, and isolate approved parallel work
 
 ## Test ownership
 

@@ -179,7 +179,12 @@ flowchart LR
 - Practical tests-first work remains preferred
 - Another agent adds independent interpretation or review when useful or required by the shared policy
 - Choosing separate test ownership prevents the implementer from weakening those tests
-- Formatting and project-required completion checks still apply
+- One verification owner gathers formatting and project-required completion evidence for the final revision
+    - Use focused checks during implementation and reuse valid results across agents, nodes, and commits
+    - Rerun affected checks when relevant code, inputs, or environment change, or validity is uncertain
+- Review depth follows plausible failures in affected security, resource lifecycle, concurrency, and performance paths
+- Adjacent cleanup stays advisory unless the user approves it; approved independent work can run in parallel without blocking delivery
+- Deep modules hide complexity: callers need fewer facts, and each rule has one owner
 - Frontend design checks run under `skills/implement/design-pass.md`, even without a delegated checker
 - Configured real-browser verification runs on the final code after required gates pass
 - Report commands, results, and blocked checks rather than phase narration

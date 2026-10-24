@@ -21,6 +21,8 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: Nonbehavioral edits require no new tests, and the agent judges configuration by its effect
 - **Then**: Impractical automated testing requires an explanation, the nearest executable check, and disclosure of missing regression protection
 - **Then**: Test counts and mocked assertions alone do not establish adequacy
+- **Then**: Review depth follows plausible failures in affected security, resource lifecycle, concurrency, and performance paths
+- **Then**: Evidence of connected risk, rather than file proximity, justifies wider scope
 - **Source**: `orchestrator/AGENTS.md`, Implementation discipline
 
 ## FR-003: Prefer practical tests-first development
@@ -53,7 +55,11 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 
 - **Given**: A project configures completion, release, formatting, design, or browser checks
 - **When**: An agent verifies work
-- **Then**: The verification owner completes applicable checks even without a delegated task-checker
+- **Then**: One verification owner gathers applicable checks for the final revision, even without a delegated task-checker
+- **Then**: Focused checks verify individual changes and nodes without repeating all completion commands at every handoff or commit
+- **Then**: Reused evidence names its command, working directory, tested revision, relevant environment, and result
+- **Then**: Relevant source, test, configuration, dependency, generated-input, or environment changes invalidate affected results
+- **Then**: Uncertain validity or changed external state requires rerunning affected checks
 - **Then**: Security, validation, accessibility, data-loss protection, and commit-time spec sync remain required
 - **Then**: The report names evidence, blocked checks, and remaining risks
 - **Source**: `orchestrator/AGENTS.md`, `skills/implement/design-pass.md`
@@ -105,3 +111,24 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: The extension warns once per extension instance and names both packages with their `pi install` instructions
 - **Then**: Either supported tool suppresses the missing-tool warning
 - **Source**: `orchestrator/AGENTS.md`, Host tools; `pi/extension.ts`
+
+## FR-010: Bound review and keep adjacent cleanup advisory
+
+- **Given**: A session delegates review
+- **When**: The reviewer receives the assignment
+- **Then**: The assignment names a bounded question, affected paths, requirements, known risks, and available evidence
+- **Then**: A focused reviewer does not inherit completion ownership without explicit assignment
+- **Given**: Review reveals worthwhile adjacent cleanup
+- **When**: The session reports it
+- **Then**: The cleanup remains advisory until the user approves scope expansion
+- **Then**: Approved independent cleanup may run in parallel without blocking the main change or conflicting with other writers
+- **Then**: A defect preventing requested behavior or exposing consequential risk remains an in-scope fix or reported blocker
+- **Source**: `orchestrator/AGENTS.md`, Implementation discipline
+
+## FR-011: Prefer interfaces that hide complexity
+
+- **Given**: An agent implements or reviews code
+- **When**: It assesses module boundaries
+- **Then**: It prefers interfaces that reduce facts callers need and give each rule one owner
+- **Then**: Readable names and control flow matter more than helper counts, shorter functions, or fewer lines
+- **Source**: `orchestrator/AGENTS.md`, Implementation discipline

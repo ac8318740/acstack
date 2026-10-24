@@ -24,8 +24,8 @@ Mirror the source directory structure. Example: `src/auth/sessions.py` → `test
 - Cross-cutting integration tests → `<tests-dir>/integration/`
 - Shared fixtures → `<tests-dir>/conftest.py` (Python) or shared setup files
 - Use markers for slow/integration tests (configured in `test_markers.exclude`)
-- Run with the `commands.test` command from project.yaml
-- Baseline: `.acstack/.test-baseline` – count must never drop
+- Use the project's test runner for focused checks; the verification owner gathers full completion evidence under `orchestrator/AGENTS.md`
+- When test collection is configured, compare `.acstack/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
 
 ## Layer 2: Frontend Unit Tests
 

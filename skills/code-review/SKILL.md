@@ -32,6 +32,7 @@ When reviewing code or making design decisions, ask these questions in order:
 3. **What are the core data relationships?** – Read connected callers and dependencies, not only the diff
     - Do boundaries group coherent responsibilities, with peer components at comparable abstraction levels?
     - Do small, useful interfaces hide real complexity (deep modules), without exposing internals or adding pass-through layers?
+    - Do callers need fewer facts, and does each rule have one owner, rather than complexity merely moving into more helpers?
     - Do names match meaning and structure follow responsibility rather than folder layout?
     - Do not force nesting or wrappers; judge effects on callers, not line count or indirection
 4. **Can we eliminate special cases?** – Redesign to avoid if/else branches
@@ -46,5 +47,7 @@ Use this philosophy when:
 - Evaluating proposed solutions
 - Refactoring existing code
 - Designing new features
+
+Follow the shared Implementation discipline in `orchestrator/AGENTS.md` for risk-based depth and evidence reuse. Keep adjacent cleanup advisory unless the user approves it.
 
 The goal is always: **maximum simplicity, minimum special cases, optimal data structures**.

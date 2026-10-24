@@ -2,7 +2,13 @@
 
 Step 6 of `SKILL.md` in interactive mode, the default.
 
-Present findings in **waves of up to 4** using the question tool (AskUserQuestion on Claude Code). On a host without one, use a numbered list in chat. Group related findings together.
+Present in-scope findings in **waves of up to 4** using the question tool (AskUserQuestion on Claude Code). On a host without one, use a numbered list in chat. Group related findings together.
+
+Keep adjacent suggestions in a separate advisory list, not the required fix waves.
+If one is worth pursuing, ask for explicit approval to add it to scope. "Fix all"
+for the main review does not include that advisory list. Approved cleanup may run
+in parallel with non-overlapping ownership or isolated worktrees, without delaying
+the main change.
 
 Format each wave like:
 
@@ -17,9 +23,9 @@ I found these issues in your changes. For each, choose: FIX / SKIP / DISCUSS
    Duplicated error handling pattern – same try/catch in 3 functions.
    Suggested fix: Extract shared wrapper function.
 
-3. [CONSIDER | ADJACENT] `path/to/component.tsx:88`
-   Existing code (not your change) has a magic string – should use constant.
-   Suggested fix: Add constant, use in both places.
+3. [SHOULD | READABILITY] `path/to/component.tsx:88`
+   The new helper exposes parsing state its caller should not need.
+   Suggested fix: Return the parsed result and keep parsing state internal.
 
 4. [SHOULD | EDGE-CASE] `path/to/manager.py:120`
    No null check on response before accessing `.status`.
@@ -32,4 +38,5 @@ After user responds:
 
 - Fix selected items under the shared Implementation discipline in `orchestrator/AGENTS.md`, directly or through useful delegation
 - Present next wave if more findings remain
-- Continue until all findings addressed or user says "done" / "skip the rest"
+- Continue until all in-scope findings are addressed or the user says "done" / "skip the rest"
+- Use focused checks while fixing; one verification owner gathers final completion evidence under the shared policy, reusing valid results

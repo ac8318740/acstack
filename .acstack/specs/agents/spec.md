@@ -7,7 +7,8 @@ ACStack supplies optional specialized agents that follow the shared implementati
 - **Given**: A task-executor receives implementation work
 - **When**: The task assigns no separate test owner
 - **Then**: The executor may write source and tests after reading test-conventions
-- **Then**: The executor checks responsibilities, comparable abstraction levels, and the interfaces callers need without adding unnecessary layers
+- **Then**: The executor checks responsibilities and interfaces that reduce facts callers need, with one owner for each rule
+- **Then**: The executor shares focused check evidence and gathers full completion evidence only when assigned that ownership
 - **Given**: The task assigns a separate test owner
 - **When**: The executor implements the change
 - **Then**: The executor leaves those tests to their owner
@@ -23,7 +24,10 @@ ACStack supplies optional specialized agents that follow the shared implementati
 - **When**: The checker reviews a change
 - **Then**: The checker assesses coverage, realistic mistakes, regressions, integration, and applicable ownership constraints
 - **Then**: The checker examines connected callers and dependencies for coherent boundaries, consistent names, and interfaces that hide implementation complexity
-- **Then**: The checker requires neither fresh tests for every edit nor source mutation
+- **Then**: The checker is read-only and requires neither fresh tests for every edit nor source mutation
+- **Then**: The checker reuses valid evidence and gathers completion gates only when explicitly assigned ownership
+- **Then**: PASS, FAIL, and BLOCKED describe the assigned question rather than unreviewed behavior
+- **Then**: Adjacent cleanup remains advisory and requires user approval
 - **Then**: For design work, the checker returns file discovery and detector findings to the parent without running source-editing polish
 - **Then**: The checker independently rechecks polished code returned by the parent before configured browser verification
 - **Given**: A frontend-verifier receives final code
@@ -37,6 +41,8 @@ ACStack supplies optional specialized agents that follow the shared implementati
 - **When**: The writer derives assertions
 - **Then**: The writer uses requirements, acceptance criteria, and interfaces rather than implementation plans or current answers
 - **Then**: The writer reports unsettled requirements instead of inventing behavior
+- **Then**: The writer stays within assigned behavior and plausible failures, reusing adequate fixtures and coverage
+- **Then**: The writer runs assigned tests and shares evidence rather than repeating every completion command
 - **Source**: `agents/test-writer.md`
 
 ## FR-004: Include the canonical standard in generated agents
