@@ -118,7 +118,7 @@ describe('straight connectors with measured content and real ELK', () => {
     async ({ orientation, id }) => {
       const graph = fixture();
       const sizes = measured(graph, ['frame']);
-      const diagram = await buildDiagram(graph, ['frame'], sizes, undefined, undefined, orientation);
+      const diagram = await buildDiagram(graph, ['frame'], sizes, undefined, orientation);
       expectSafe(diagram, graph, sizes, orientation);
       const edge = diagram.edges.find(candidate => candidate.childEdgeIds.includes(id))!;
       const start = edge.points[0];
@@ -144,7 +144,7 @@ describe('straight connectors with measured content and real ELK', () => {
     graph.edges.push({ id: 'bypass', fromNodeId: 'sender', toNodeId: 'receiver', label: 'Bypass', summary: 'Bypass', relationship: 'design', sourceRefs: [] });
     const sizes = measured(graph, []);
     if (orientation === 'left-to-right') sizes.nodes['item:worker'].height = 400;
-    const diagram = await buildDiagram(graph, [], sizes, undefined, undefined, orientation);
+    const diagram = await buildDiagram(graph, [], sizes, undefined, orientation);
     expectSafe(diagram, graph, sizes, orientation);
     const edge = diagram.edges.find(candidate => candidate.childEdgeIds.includes('bypass'))!;
     const worker = diagram.nodes.find(node => node.refId === 'worker')!;
@@ -224,24 +224,23 @@ function drawsAt(edge: DiagramEdge, point: Point): boolean {
 }
 
 const expandedBoundary = ['outer', 'frame'];
-const translatedAnchor = { id: 'group:outer', x: -125.125, y: 87.375 };
 
 describe('measured ancestor header whitespace and subtitle ink', () => {
   it.each([
-    { shortOnly: false, translated: false },
-    { shortOnly: false, translated: true },
-    { shortOnly: true, translated: false },
-  ])('straightens a boundary route with local subtitle gaps, shortOnly=$shortOnly translated=$translated', async ({ shortOnly, translated }) => {
+    { shortOnly: false, widthNoise: false },
+    { shortOnly: false, widthNoise: true },
+    { shortOnly: true, widthNoise: false },
+  ])('straightens a boundary route with local subtitle gaps, shortOnly=$shortOnly widthNoise=$widthNoise', async ({ shortOnly, widthNoise }) => {
     const graph = boundaryFixture();
     const sizes = measured(graph, expandedBoundary);
     const calls: Record<string, HeaderGeometry>[] = [];
     const measureHeaders: HeaderMeasurer = nodes => {
       const headers = headerContent(nodes, shortOnly);
-      if (translated) for (const header of Object.values(headers)) header.width += 1e-8;
+      if (widthNoise) for (const header of Object.values(headers)) header.width += 1e-8;
       calls.push(headers);
       return headers;
     };
-    const diagram = await buildDiagram(graph, expandedBoundary, sizes, translated ? translatedAnchor : undefined, undefined, 'top-to-bottom', measureHeaders);
+    const diagram = await buildDiagram(graph, expandedBoundary, sizes, undefined, 'top-to-bottom', measureHeaders);
     const headers = headerContent(diagram.nodes, shortOnly);
     const edge = diagram.edges.find(candidate => candidate.childEdgeIds.includes('send'))!;
     const start = edge.points[0];
@@ -272,14 +271,13 @@ describe('measured ancestor header whitespace and subtitle ink', () => {
     } else expect.soft(inkAt(76), 'no gap where the subtitle has no glyphs').toBe(true);
     for (const node of diagram.nodes.filter(node => node.kind === 'group')) expect(node.headerHeight, 'header dimensions stay conservative').toBe(sizes.nodes[node.id].height);
     expect.soft(calls.some(call => Object.entries(headers).every(([id, header]) => Math.abs((call[id]?.width ?? NaN) - header.width) < epsilon)), 'measurements use final frame widths').toBe(true);
-    if (translated) expect(diagram.nodes.find(node => node.id === translatedAnchor.id)).toMatchObject(translatedAnchor);
   });
 
   it('keeps hard header content blocked even when subtitle gaps are allowed', async () => {
     const graph = boundaryFixture();
     const sizes = measured(graph, expandedBoundary);
     const measureHeaders: HeaderMeasurer = nodes => headerContent(nodes, false, true);
-    const diagram = await buildDiagram(graph, expandedBoundary, sizes, undefined, undefined, 'top-to-bottom', measureHeaders);
+    const diagram = await buildDiagram(graph, expandedBoundary, sizes, undefined, 'top-to-bottom', measureHeaders);
     const headers = headerContent(diagram.nodes, false, true);
     expectSafe(diagram, graph, sizes, 'top-to-bottom', headers);
     const edge = diagram.edges.find(candidate => candidate.childEdgeIds.includes('send'))!;
@@ -300,7 +298,7 @@ describe('measured ancestor header whitespace and subtitle ink', () => {
       else headers['group:frame'].width -= 1;
       return headers;
     };
-    const diagram = await buildDiagram(graph, expandedBoundary, sizes, undefined, undefined, 'top-to-bottom', measureHeaders);
+    const diagram = await buildDiagram(graph, expandedBoundary, sizes, undefined, 'top-to-bottom', measureHeaders);
     // No valid authorization is supplied to the safety oracle either.
     expectSafe(diagram, graph, sizes, 'top-to-bottom');
     const edge = diagram.edges.find(candidate => candidate.childEdgeIds.includes('send'))!;
@@ -331,7 +329,7 @@ it('keeps an unrelated header fully blocked despite valid measurements of whites
     unrelated.subtitleLines = [{ x: 100, y: 70, width: 100, height: 12 }];
     return headers;
   };
-  const diagram = await buildDiagram(graph, expanded, sizes, undefined, undefined, 'top-to-bottom', measureHeaders);
+  const diagram = await buildDiagram(graph, expanded, sizes, undefined, 'top-to-bottom', measureHeaders);
   const headers = measureHeaders(diagram.nodes);
   expectSafe(diagram, graph, sizes, 'top-to-bottom', headers);
   const unrelated = diagram.nodes.find(node => node.id === 'group:unrelated')!;
@@ -380,7 +378,7 @@ it.each(orientations)('avoids measured hover controls outside an unrelated expan
       : { x: 0, y: -80, width: 160, height: 32 });
     return headers;
   };
-  const diagram = await buildDiagram(graph, expanded, sizes, undefined, undefined, orientation, measureHeaders);
+  const diagram = await buildDiagram(graph, expanded, sizes, undefined, orientation, measureHeaders);
   const headers = measureHeaders(diagram.nodes);
   const group = diagram.nodes.find(node => node.id === 'group:unrelated')!;
   const local = headers[group.id].hardObstacles.at(-1)!;
@@ -412,7 +410,7 @@ it('avoids measured comment actions above an unrelated leaf without opening its 
     hardObstacles: [{ x: node.width - 32, y: -40, width: 32, height: 32 }],
     subtitleLines: [{ x: 24, y: 70, width: 72, height: 12 }],
   }]));
-  const diagram = await buildDiagram(graph, [], sizes, undefined, undefined, 'left-to-right', measureHeaders);
+  const diagram = await buildDiagram(graph, [], sizes, undefined, 'left-to-right', measureHeaders);
   const headers = measureHeaders(diagram.nodes);
   const worker = diagram.nodes.find(node => node.id === 'item:worker')!;
   const local = headers[worker.id].hardObstacles[0];
@@ -449,8 +447,8 @@ it.each(orientations)('uses measured header whitespace to shrink the expanded pu
   const sizes = measured(graph, expanded);
   const measureHeaders: HeaderMeasurer = nodes => headerContent(nodes);
   // Without header measurements every boundary route enters from the side, as before compact top entry.
-  const sideEntry = await buildDiagram(graph, expanded, sizes, undefined, undefined, orientation);
-  const diagram = await buildDiagram(graph, expanded, sizes, undefined, undefined, orientation, measureHeaders);
+  const sideEntry = await buildDiagram(graph, expanded, sizes, undefined, orientation);
+  const diagram = await buildDiagram(graph, expanded, sizes, undefined, orientation, measureHeaders);
   expectSafe(diagram, graph, sizes, orientation, measureHeaders(diagram.nodes));
   // Left-to-right routes reach containers from the side anyway, so only top-to-bottom changes. Measured: 1963520 px2 and 20 bends become 1392384 and 4.
   if (orientation === 'top-to-bottom') {

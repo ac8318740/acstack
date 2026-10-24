@@ -169,7 +169,7 @@ describe('full expansion of an invented nested design', () => {
     const previous = prior ? await buildDiagram(graph, [], measured(graph, [], 'collapsed')) : undefined;
     const expanded = graph.groups.map(group => group.id);
     const sizes = measured(graph, expanded, mode);
-    const diagram = await buildDiagram(graph, expanded, sizes, undefined, previous);
+    const diagram = await buildDiagram(graph, expanded, sizes, previous);
     expectReadable(diagram, sizes);
   });
 });

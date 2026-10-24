@@ -138,7 +138,7 @@ function App() {
     if (measurement?.key !== requestedKey) return;
     const previous = previousLayout.current?.key === requestedKey ? previousLayout.current.diagram : acceptedLayout.current;
     const measurer = measurementTree.current;
-    void buildDiagram(pack.graph, expanded, measurement.geometry, undefined, previous, orientation, nodes => {
+    void buildDiagram(pack.graph, expanded, measurement.geometry, previous, orientation, nodes => {
       if (request !== generation.current || measurementTree.current !== measurer) throw new Error('Layout request superseded');
       return measurer?.measureHeaders(nodes) ?? {};
     }).then(next => {

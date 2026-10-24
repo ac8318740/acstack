@@ -71,7 +71,7 @@ describe('previous accepted diagram stability', () => {
     const before = await acceptedPrior(graph);
     const sizes = measured(graph, ['a', 'b']);
     const fresh = await buildDiagram(graph, ['a', 'b'], sizes);
-    const incremental = await buildDiagram(graph, ['a', 'b'], sizes, undefined, before);
+    const incremental = await buildDiagram(graph, ['a', 'b'], sizes, before);
     expectValidGeometry(before, measured(graph, ['a']));
     expectValidGeometry(incremental, sizes);
     expect(unrelated(before).map(node => node.y)).toEqual(Array(3).fill(unrelated(before)[0].y));
@@ -91,7 +91,7 @@ describe('previous accepted diagram stability', () => {
     sizes.nodes['group:a'] = { width: 370, height: 159 };
     sizes.nodes['group:b'] = { width: 354, height: 147 };
     const snapshot = structuredClone({ graph, previous, expanded, sizes });
-    const next = await buildDiagram(graph, expanded, sizes, undefined, previous);
+    const next = await buildDiagram(graph, expanded, sizes, previous);
     expectValidGeometry(next, sizes);
     expect(next.nodes.find(node => node.id === 'item:a0')).toMatchObject({ width: 348, height: 193 });
     expect(next.nodes.find(node => node.id === 'item:b0')).toMatchObject({ width: 326, height: 181 });
@@ -100,19 +100,16 @@ describe('previous accepted diagram stability', () => {
     expect({ graph, previous, expanded, sizes }).toEqual(snapshot);
   });
 
-  it('does not accumulate unrelated sibling drift over repeated anchored expand-collapse cycles', async () => {
+  it('does not accumulate unrelated sibling drift over repeated expand-collapse cycles', async () => {
     const graph = fixture();
     const initial = await acceptedPrior(graph);
-    const container = initial.nodes.find(node => node.id === 'group:a')!;
-    const anchor = { id: container.id, x: container.x, y: container.y };
     let previous = initial;
     for (let cycle = 0; cycle < 3; cycle += 1) {
       for (const expanded of [['a', 'b'], ['a']]) {
         const sizes = measured(graph, expanded);
-        previous = await buildDiagram(graph, expanded, sizes, anchor, previous);
+        previous = await buildDiagram(graph, expanded, sizes, previous);
         expectValidGeometry(previous, sizes);
         expect(order(previous)).toEqual(order(initial));
-        expect(previous.nodes.find(node => node.id === anchor.id)).toMatchObject(anchor);
       }
       for (const [index, node] of unrelated(previous).entries()) {
         expect(node.x, `${node.id} x drift after cycle ${cycle + 1}`).toBeCloseTo(unrelated(initial)[index].x, 6);
