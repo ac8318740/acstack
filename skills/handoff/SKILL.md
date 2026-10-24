@@ -14,9 +14,8 @@ Treat the argument as the focus for the receiving agent.
 
 # Hand the work over
 
-A handoff moves the current work to an agent a human can see – a named session
-in a visible pane, or a session already running. To keep the work in THIS
-session across a context compaction instead, use `compact-and-continue`.
+A handoff moves work to a visible agent. To continue in this session after
+compaction, use `compact-and-continue`.
 
 ## Only the lead session runs this
 
@@ -109,9 +108,8 @@ On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
 map skill's `trackers/github.md`.
 
 The same applies to specs, architecture decision records, issues and commits.
-Reference them by path or URL. Preserve references to check evidence with its tested
-revision, relevant environment, command, and result; a handoff alone does not require
-a suite rerun. If evidence exists only in the conversation, anchor it rather than lose it.
+Reference records and check logs by path or URL; retain the tested revision, environment, command, and result.
+A handoff alone does not require a suite rerun. Anchor evidence held only in conversation.
 
 **You do not search the codebase for this.** Build the handoff from what is already
 in context. If you are about to search source files, stop – the conversation holds it.

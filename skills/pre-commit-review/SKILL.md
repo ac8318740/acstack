@@ -222,13 +222,8 @@ For each in-scope finding, make sure it has:
 - Why it matters (1 sentence)
 - Suggested fix (concrete, actionable – code snippet or approach)
 
-If a finding needs deeper analysis, investigate directly or delegate with this brief:
-
-```
-This code has [problem]. The file is [path]. Here's the surrounding context: [context].
-Think through 2-3 possible fixes, evaluate trade-offs, and recommend the best approach.
-Consider: does a fix here require changes in other files? What's the minimal change?
-```
+For deeper analysis, investigate directly or delegate the problem, file, and context.
+Compare useful alternatives and recommend the smallest complete fix, including affected callers.
 
 ## Step 6: FIX – Auto-fix or interactive waves
 
