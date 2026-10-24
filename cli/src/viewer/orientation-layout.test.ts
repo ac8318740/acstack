@@ -78,7 +78,7 @@ describe('axis-aware design placement', () => {
   it.each(orientations)('advances a measured chain along %s with ports on the flow axis', async orientation => {
     const graph = chain();
     const sizes = measured(graph, []);
-    const diagram = await buildDiagram(graph, [], sizes, undefined, undefined, orientation);
+    const diagram = await buildDiagram(graph, [], sizes, undefined, orientation);
     const axis = orientation === 'left-to-right' ? 'x' : 'y';
     const nodes = graph.nodes.map(n => diagram.nodes.find(node => node.refId === n.id)!);
     expect(nodes[1][axis]).toBeGreaterThan(nodes[0][axis] + (axis === 'x' ? nodes[0].width : nodes[0].height));
@@ -97,7 +97,7 @@ describe('axis-aware design placement', () => {
     expectSafe(diagram, sizes, 'top-to-bottom');
   });
 
-  it.each([{ orientation: 'top-to-bottom' as const, tall: false }, { orientation: 'top-to-bottom' as const, tall: true }, { orientation: 'left-to-right' as const, tall: false }])('preserves nested public geometry, hints, and exact anchors in $orientation, tall=$tall', async ({ orientation, tall }) => {
+  it.each([{ orientation: 'top-to-bottom' as const, tall: false }, { orientation: 'top-to-bottom' as const, tall: true }, { orientation: 'left-to-right' as const, tall: false }])('preserves nested public geometry and hints in $orientation, tall=$tall', async ({ orientation, tall }) => {
     const graph = authored();
     graph.edges.reverse();
     let previous: Diagram | undefined;
@@ -108,9 +108,7 @@ describe('axis-aware design placement', () => {
         for (const size of Object.values(sizes.labels)) { size.width = 220; size.height = 92; }
       }
       const snapshot = structuredClone({ graph, expanded, sizes, previous });
-      const anchor = { id: 'group:design:container:acstack', x: -125.125, y: 87.375 };
-      const diagram = await buildDiagram(graph, expanded, sizes, anchor, previous, orientation);
-      expect(diagram.nodes.find(n => n.id === anchor.id)).toMatchObject(anchor);
+      const diagram = await buildDiagram(graph, expanded, sizes, previous, orientation);
       expect({ graph, expanded, sizes, previous }).toEqual(snapshot);
       expectSafe(diagram, sizes, orientation);
       previous = diagram;
@@ -126,7 +124,7 @@ describe('axis-aware design placement', () => {
     const sizes = measured(graph, ['frame']);
     sizes.nodes['group:frame'].height = 220;
     for (const label of Object.values(sizes.labels)) label.width = 64;
-    const diagram = await buildDiagram(graph, ['frame'], sizes, undefined, undefined, orientation);
+    const diagram = await buildDiagram(graph, ['frame'], sizes, undefined, orientation);
     expectSafe(diagram, sizes, orientation);
     expect(diagram.nodeToVisible.second).toBe('group:frame');
     const frame = diagram.nodes.find(n => n.id === 'group:frame')!;
@@ -145,7 +143,7 @@ describe('axis-aware design placement', () => {
     const snapshot = structuredClone({ graph, expanded, sizes });
     let diagram: Diagram;
     try {
-      diagram = await buildDiagram(graph, expanded, sizes, undefined, undefined, 'left-to-right');
+      diagram = await buildDiagram(graph, expanded, sizes, undefined, 'left-to-right');
     } catch (error) {
       expect(error).toBeInstanceOf(Error);
       expect((error as Error).message).toContain('Cannot route relationships or place labels without overlap');
@@ -159,7 +157,7 @@ describe('axis-aware design placement', () => {
   it('keeps default legacy placement and explicit default design placement unchanged', async () => {
     const graph = chain();
     const sizes = measured(graph, []);
-    expect(await buildDiagram(graph, [], sizes)).toEqual(await buildDiagram(graph, [], sizes, undefined, undefined, 'top-to-bottom'));
+    expect(await buildDiagram(graph, [], sizes)).toEqual(await buildDiagram(graph, [], sizes, undefined, 'top-to-bottom'));
     graph.groups[0].id = 'legacy';
     for (const node of graph.nodes) node.groupId = 'legacy';
     const legacy = await buildDiagram(graph, ['legacy']);

@@ -152,7 +152,7 @@ describe('compound edge routing clearance', () => {
     expect(parallelConflicts(diagram.edges)).toEqual([]);
   });
 
-  it('keeps both reversed authored relationships readable with fractional measured labels and an anchor', async () => {
+  it('keeps both reversed authored relationships readable with fractional measured labels', async () => {
     const graph = designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)).graph;
     for (const edge of graph.edges.filter(edge => ['read-source', 'review-session'].includes(edge.id))) {
       [edge.fromNodeId, edge.toNodeId] = [edge.toNodeId, edge.fromNodeId];
@@ -175,16 +175,6 @@ describe('compound edge routing clearance', () => {
         expect(overlapsLabel(other.labelBox!), `${route.id} label overlaps ${other.id} label`).toBe(false);
         for (const segment of segments(other)) expect(entersBox(segment, label), `${other.id} crosses ${route.id} label`).toBe(false);
       }
-    }
-    const anchor = { id: 'group:design:container:cli', x: -125.5, y: 87.25 };
-    const original = diagram.nodes.find(node => node.id === anchor.id)!;
-    const anchored = await buildDiagram(graph, expanded, measured, anchor);
-    const dx = anchor.x - original.x;
-    const dy = anchor.y - original.y;
-    expect(anchored.nodes.find(node => node.id === anchor.id)).toMatchObject(anchor);
-    expect(anchored.edges.map(route => route.id)).toEqual(diagram.edges.map(route => route.id));
-    for (const [index, route] of anchored.edges.entries()) {
-      expect(route.points).toEqual(diagram.edges[index].points.map(point => ({ x: point.x + dx, y: point.y + dy })));
     }
   });
 

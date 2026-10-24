@@ -80,51 +80,6 @@ describe('alignment diagram', () => {
     }
   });
 
-  it.each([
-    { id: 'group:platform', before: ['journey'], after: ['journey', 'platform', 'payments'], x: -400.125, y: 275.375 },
-    { id: 'group:payments', before: ['journey', 'platform', 'payments'], after: ['journey', 'platform'], x: 812.125, y: -325.375 },
-    { id: 'group:payments', before: ['journey', 'platform'], after: ['journey', 'platform', 'payments'], x: -120.125, y: -80.375 },
-    { id: 'group:platform', before: ['journey', 'platform'], after: ['journey'], x: 0.1, y: -0.2 },
-  ])('keeps $id exactly at its captured top left through a toggle', async ({ id, before, after, x, y }) => {
-    const graph = samplePack().graph;
-    const previous = await buildDiagram(graph, before, undefined, { id, x, y });
-    const anchor = previous.nodes.find(node => node.id === id)!;
-    const ordinary = await buildDiagram(graph, after);
-    const anchored = await buildDiagram(graph, after, undefined, anchor);
-    const original = ordinary.nodes.find(node => node.id === id)!;
-    const dx = x - original.x;
-    const dy = y - original.y;
-    expect(anchored.nodes.find(node => node.id === id)).toMatchObject({ x, y });
-    expect(anchored.nodeToVisible).toEqual(ordinary.nodeToVisible);
-    expect(ordinary.nodes.every(node => node.x >= 0 && node.y >= 0)).toBe(true);
-    for (const [index, node] of anchored.nodes.entries()) {
-      const baseline = ordinary.nodes[index];
-      expect(node).toEqual({ ...baseline, x: node.id === id ? x : baseline.x + dx, y: node.id === id ? y : baseline.y + dy });
-    }
-    // Translate only coordinates, leaving arc radii and flags intact.
-    const translatedPath = (path: string) => path.replace(/([MLQA]) ([^MLQA]+)/g, (_, command: string, values: string) => {
-      const numbers = values.trim().split(/\s+/).map(Number);
-      const start = command === 'A' ? numbers.length - 2 : 0;
-      for (let i = start; i < numbers.length; i += 2) { numbers[i] += dx; numbers[i + 1] += dy; }
-      return `${command} ${numbers.join(' ')} `;
-    }).trim();
-    expect(anchored.edges).toHaveLength(ordinary.edges.length);
-    for (const [index, route] of anchored.edges.entries()) {
-      const baseline = ordinary.edges[index];
-      expect(route).toMatchObject({ id: baseline.id, source: baseline.source, target: baseline.target, childEdgeIds: baseline.childEdgeIds });
-      expect(route.points).toEqual(baseline.points.map(point => ({ x: point.x + dx, y: point.y + dy })));
-      expect(route.labelBox).toEqual({ ...baseline.labelBox!, x: baseline.labelBox!.x + dx, y: baseline.labelBox!.y + dy });
-      const withoutFloatNoise = (path: string) => path.replace(/-?\d+(?:\.\d+)?/g, value => Number(value).toFixed(8));
-      expect(withoutFloatNoise(route.path)).toBe(withoutFloatNoise(translatedPath(baseline.path)));
-      expect(route.path.match(/M /g)).toHaveLength(2);
-    }
-  });
-
-  it('leaves the ordinary layout unchanged when the requested anchor is absent', async () => {
-    const graph = samplePack().graph;
-    expect(await buildDiagram(graph, [], undefined, { id: 'group:payments', x: -100, y: 50 })).toEqual(await buildDiagram(graph, []));
-  });
-
   it('folds a collapsed group into one box and merges the edges it hides', async () => {
     const diagram = await buildDiagram(samplePack().graph, ['journey']);
 
@@ -232,24 +187,6 @@ describe('alignment diagram', () => {
           expect(hits, `${route.label} crosses ${header.label} header`).toBe(false);
         }
       }
-    }
-  });
-
-  it.each([false, true])('anchors the actual design container while expanding=%s', async expanding => {
-    const pack = designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname));
-    const all = pack.graph.groups.map(group => group.id);
-    const previous = await buildDiagram(pack.graph, expanding ? ['design:root'] : all);
-    const anchor = previous.nodes.find(node => node.id === 'group:design:container:acstack')!;
-    const expanded = expanding ? all : ['design:root'];
-    const ordinary = await buildDiagram(pack.graph, expanded);
-    const anchored = await buildDiagram(pack.graph, expanded, undefined, anchor);
-    const container = ordinary.nodes.find(node => node.id === anchor.id)!;
-    const dx = anchor.x - container.x;
-    const dy = anchor.y - container.y;
-    expect(anchored.nodes.find(node => node.id === anchor.id)).toMatchObject({ x: anchor.x, y: anchor.y });
-    for (const [index, route] of anchored.edges.entries()) {
-      expect(route.points).toEqual(ordinary.edges[index].points.map(point => ({ x: point.x + dx, y: point.y + dy })));
-      expect(route.path.match(/M /g)).toHaveLength(2);
     }
   });
 

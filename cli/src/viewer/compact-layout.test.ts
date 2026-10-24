@@ -270,15 +270,6 @@ describe('measured compact design layout', () => {
     expect(result.height).toBeLessThanOrEqual(568);
   });
 
-  it('keeps the captured toggle anchor exact with measured content in both states', async () => {
-    const graph = authoredGraph();
-    const anchor = { id: 'group:design:container:acstack', x: -125.125, y: 87.375 };
-    for (const expanded of [graph.groups.map(group => group.id), ['design:root']]) {
-      const diagram = await buildDiagram(graph, expanded, measuredGeometry(graph, expanded), anchor);
-      expect(diagram.nodes.find(node => node.id === anchor.id)).toMatchObject(anchor);
-    }
-  });
-
   it('keeps longer measured labels readable when relationship declaration order changes', async () => {
     const graph = authoredGraph();
     graph.edges.reverse();

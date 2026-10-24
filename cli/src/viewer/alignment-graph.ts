@@ -189,7 +189,7 @@ export function projectDiagram(graph: AlignmentGraph, expandedGroups: string[]):
   return { nodes: [...nodes.values()].sort((a, b) => depth(a) - depth(b)), edges: [...merged.values()], nodeToVisible };
 }
 
-export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string[], measured?: MeasuredGeometry, anchor?: Pick<DiagramNode, 'id' | 'x' | 'y'>, previous?: Diagram, orientation?: DiagramOrientation, measureHeaders?: HeaderMeasurer): Promise<Diagram> {
+export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string[], measured?: MeasuredGeometry, previous?: Diagram, orientation?: DiagramOrientation, measureHeaders?: HeaderMeasurer): Promise<Diagram> {
   const diagram = projectDiagram(graph, expandedGroups);
   for (const node of diagram.nodes) {
     const size = measured?.nodes[node.id];
@@ -253,17 +253,6 @@ export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string
     }
     if (failedLabels.length) labelAttempt += 1;
     if (!unresolved.length) {
-      const anchored = anchor && diagram.nodes.find(node => node.id === anchor.id);
-      if (anchored && anchor) {
-        const dx = anchor.x - anchored.x;
-        const dy = anchor.y - anchored.y;
-        for (const point of [...diagram.nodes, ...diagram.edges.flatMap(edge => [...edge.points, ...(edge.labelBox ? [edge.labelBox] : [])])]) {
-          point.x += dx;
-          point.y += dy;
-        }
-        anchored.x = anchor.x;
-        anchored.y = anchor.y;
-      }
       for (const edge of diagram.edges) {
         const subtitleGaps = boundaryHeaders(diagram.nodes, edge, headers).flatMap(({ node, header }) =>
           header.subtitleLines.map(box => ({ ...box, x: box.x + node.x, y: box.y + node.y })));
@@ -508,6 +497,12 @@ function orderRoutePorts(nodes: DiagramNode[], edges: DiagramEdge[], horizontal:
   return unresolved;
 }
 
+// A header measured at another width is stale and must not unblock anything.
+const freshHeader = (node: DiagramNode, headers: Record<string, HeaderGeometry>) => {
+  const header = headers[node.id];
+  return header && Math.abs(header.width - node.width) < 1e-6 ? header : undefined;
+};
+
 // Only a genuine ancestor boundary crossing can use measured header whitespace.
 function boundaryHeaders(nodes: DiagramNode[], edge: DiagramEdge, headers: Record<string, HeaderGeometry>) {
   const byId = new Map(nodes.map(node => [node.id, node]));
@@ -518,9 +513,9 @@ function boundaryHeaders(nodes: DiagramNode[], edge: DiagramEdge, headers: Recor
     return false;
   };
   return nodes.flatMap(node => {
-    const header = headers[node.id];
+    const header = freshHeader(node, headers);
     return node.kind === 'group' && edge.source !== node.id && edge.target !== node.id && header
-      && Math.abs(header.width - node.width) < 1e-6 && inside(edge.source, node.id) !== inside(edge.target, node.id)
+      && inside(edge.source, node.id) !== inside(edge.target, node.id)
       ? [{ node, header }] : [];
   });
 }
@@ -528,9 +523,7 @@ function boundaryHeaders(nodes: DiagramNode[], edge: DiagramEdge, headers: Recor
 function routeObstacles(nodes: DiagramNode[], edge: DiagramEdge, headers: Record<string, HeaderGeometry>): (Box & { id?: string })[] {
   const boundaries = new Set(boundaryHeaders(nodes, edge, headers).map(value => value.node.id));
   return nodes.flatMap<Box & { id?: string }>(node => {
-    const header = headers[node.id];
-    const controls = header && Math.abs(header.width - node.width) < 1e-6
-      ? header.hardObstacles.map(box => ({ ...box, x: node.x + box.x, y: node.y + box.y })) : [];
+    const controls = freshHeader(node, headers)?.hardObstacles.map(box => ({ ...box, x: node.x + box.x, y: node.y + box.y })) ?? [];
     // Measured controls never inherit the endpoint exemption, even on their own container.
     return [...(boundaries.has(node.id) ? [] : [node.kind === 'group' ? { ...node, height: node.headerHeight ?? 120 } : node]), ...controls];
   });
@@ -682,8 +675,8 @@ export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLa
   const unresolved: string[] = [];
   const taken: Box[] = nodes.map(node => (node.kind === 'group' ? { ...node, height: node.headerHeight ?? 120 } : node));
   for (const node of nodes) {
-    const header = headers[node.id];
-    if (header && Math.abs(header.width - node.width) < 1e-6) taken.push(...header.hardObstacles.map(box => ({ ...box, x: node.x + box.x, y: node.y + box.y })));
+    const header = freshHeader(node, headers);
+    if (header) taken.push(...header.hardObstacles.map(box => ({ ...box, x: node.x + box.x, y: node.y + box.y })));
   }
   const clear = (box: Box) =>
     taken.every(other => box.x + box.width + pad <= other.x || other.x + other.width + pad <= box.x || box.y + box.height + pad <= other.y || other.y + other.height + pad <= box.y);
