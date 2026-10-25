@@ -16,6 +16,19 @@
 #
 # Idempotent. Only ever edits between managed markers, so hand-written config
 # around it survives.
+#
+# Layout, top to bottom. Search for the name.
+#   have, cfg_get, install_binary   shared plumbing
+#   write_helpers    every mapflow-* script written to $BIN, each as a heredoc.
+#                    About 1,800 lines; skip past it to reach the config steps.
+#   apply_<tool>     one function per tool that writes its config, such as
+#                    apply_herdr or apply_pi
+#   pi_state         the Python helper that edits pi's JSON files
+#   outdated_report, upgrade_one   version checks and upgrades
+#   case "$ACTION"   the entry point, at the bottom. status, disable and
+#                    uninstall are written inline there, so a change to one
+#                    tool usually touches its apply_<tool>, its status line
+#                    and its disable branch.
 set -uo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
