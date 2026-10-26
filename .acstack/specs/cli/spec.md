@@ -407,8 +407,10 @@ This spec covers the bundled `acstack` command-line interface.
 - **Given**: An authored design branches toward destinations inside and outside component boundaries
 - **When**: The viewer positions its measured nodes
 - **Then**: It uses balanced horizontal placement while retaining downward flow and nested component boundaries
+- **Then**: It lets the layered layout choose local connector order before assigning fixed, corner-safe attachment slots
+- **Then**: Local connectors can change slots while cross-boundary connectors keep their reserved slots
 - **Then**: Route clearance, label placement, and expand/collapse anchor checks still apply
-- **Source**: `cli/src/viewer/alignment-graph.ts`, `cli/src/viewer/compact-layout.test.ts`
+- **Source**: `cli/src/viewer/alignment-graph.ts`, `cli/src/viewer/compact-layout.test.ts`, `cli/src/viewer/crossing-layout.test.ts`
 
 ### FR-026: Trace authored design contributions to map nodes
 
