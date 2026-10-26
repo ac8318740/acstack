@@ -56,7 +56,10 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Given**: A project configures completion, release, formatting, design, or browser checks
 - **When**: An agent verifies work
 - **Then**: One verification owner gathers applicable checks for the final revision, even without a delegated task-checker
-- **Then**: Focused checks verify individual changes and nodes without repeating all completion commands at every handoff or commit
+- **Then**: Focused local checks cover changed behavior, affected callers, and relevant integrations without repeating all completion commands at every handoff or commit
+- **Then**: A configured command alone does not require its entire suite; full local runs require explicit instructions or impact that narrower checks cannot adequately cover
+- **Then**: Opening a PR does not require running every test locally; required CI checks pass before merge
+- **Then**: Agents confirm CI covers deferred checks and report local results, deferred checks, and unverified behavior separately
 - **Then**: Reused evidence names its command, working directory, tested revision, relevant environment, and result
 - **Then**: Relevant source, test, configuration, dependency, generated-input, or environment changes invalidate affected results
 - **Then**: Uncertain validity or changed external state requires rerunning affected checks
