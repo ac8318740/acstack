@@ -223,7 +223,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   fs.rmSync(humanLink);
 }
 
-// --- session_start: pi-subagents and the setup reminder ----------------------
+// --- session_start: delegation tools and the setup reminder ------------------
 
 {
   const reg = load({ tools: ['read', 'bash'] });
@@ -231,18 +231,32 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   await fire(reg, 'session_start', { reason: 'startup' }, ctx);
   await fire(reg, 'session_start', { reason: 'new' }, ctx);
   const warnings = ctx.notes.filter((n) => n.msg.includes('no supported subagent tool is loaded'));
-  check('warns once when pi-subagents is missing', warnings.length === 1, `${warnings.length} warnings`);
+  check('warns once and recommends ac-teams when delegation is missing',
+    warnings.length === 1 && warnings[0].msg.includes('Install `npm:ac-teams`')
+      && !warnings[0].msg.includes('pi-subagents'), `${warnings.length} warnings`);
 
   const reg2 = load();
   const ctx2 = makeCtx(newProject('with-subagents'));
   await fire(reg2, 'session_start', { reason: 'startup' }, ctx2);
-  check('stays quiet when pi-subagents is loaded', !ctx2.notes.some((n) => n.msg.includes('pi-subagents')));
+  check('stays quiet when subagent is loaded', !ctx2.notes.some((n) => n.level === 'warning'));
 
   const agentReg = load({ tools: ['read', 'bash', 'Agent'] });
   const agentCtx = makeCtx(newProject('with-agent-tool'));
   await fire(agentReg, 'session_start', { reason: 'startup' }, agentCtx);
   check('stays quiet when @tintinweb/pi-subagents supplies Agent',
     !agentCtx.notes.some((n) => n.level === 'warning'));
+
+  const teamReg = load({ tools: ['read', 'bash', 'team_agent'] });
+  const teamCtx = makeCtx(newProject('with-team-agent'));
+  await fire(teamReg, 'session_start', { reason: 'startup' }, teamCtx);
+  check('stays quiet when ac-teams supplies team_agent',
+    !teamCtx.notes.some((n) => n.level === 'warning'));
+
+  const taskReg = load({ tools: ['read', 'bash', 'team_task', 'team_message'] });
+  const taskCtx = makeCtx(newProject('team-without-launcher'));
+  await fire(taskReg, 'session_start', { reason: 'startup' }, taskCtx);
+  check('team task and message tools alone do not suppress the missing-agent warning',
+    taskCtx.notes.some((n) => n.level === 'warning' && n.msg.includes('no supported subagent tool is loaded')));
 
   const workflowReg = load({ tools: ['read', 'bash', 'SubagentWorkflow'] });
   const workflowCtx = makeCtx(newProject('workflow-only'));

@@ -70,8 +70,6 @@ acstack_tw_main() {
       grep -qsF "$PI_MD_BEGIN" "$PI_DIR"/AGENTS.override.md "$PI_DIR"/AGENTS.md "$PI_DIR"/AGENTS.MD \
         "$PI_DIR"/CLAUDE.md "$PI_DIR"/CLAUDE.MD \
         && say "pi delegation line: present" || say "pi delegation line: absent"
-      ta=$(json_field "$PI_SUBAGENT_CFG" toolActivation)
-      say "pi toolActivation: ${ta:-not set}"
       [ -f "$PI_DIR/auth.json" ] && say "pi login: logged in" \
         || say "pi login: not logged in - run pi, then /login"
     fi

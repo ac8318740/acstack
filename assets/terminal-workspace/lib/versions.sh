@@ -11,9 +11,8 @@ herdr	herdr	herdr	-	-
 gh-dash	gh_dash	ghext	dlvhdr/gh-dash	-
 harlequin	harlequin	pypi	harlequin	-
 pi	pi	npm	@earendil-works/pi-coding-agent	-
-pi-subagents	pi	npm	pi-subagents	-
+ac-teams	pi	npm	ac-teams	-
 billion-context	pi	npm	billion-context	-
-@juicesharp/rpiv-todo	pi	npm	@juicesharp/rpiv-todo	-
 pi-plugin-manager	pi	npm	pi-plugin-manager	-
 @juicesharp/rpiv-ask-user-question	pi	npm	@juicesharp/rpiv-ask-user-question	-
 pi-web-access	pi	npm	pi-web-access	-

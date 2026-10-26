@@ -67,7 +67,7 @@ above them. Eleven of those sections install thirteen tools between them:
 - Five tools the user drives day to day: herdr, gh-dash, diffnav, lazygit and harlequin. tuicr joins them once a review starts
 - Five tools that support them: delta, tuicr, yazi, mermaid-ascii and glow
 - Two helpers of ACStack's own: acstack-md, and the acstack-clip and acstack-open pair
-- The pi coding agent, with ACStack and pi-subagents installed into it
+- The pi coding agent, with ACStack and ac-teams installed into it
 
 The twelfth, `neovim`, installs nothing. It writes one file into a neovim config
 the user already has. `neovim` and `pi` both start off, because each writes into a config the user built.

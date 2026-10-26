@@ -25,7 +25,7 @@ and leaves the rest of the user's neovim config alone. Neither `disable` nor
 `pi` undoes only what `apply` added, because pi's config is the user's:
 
 - It removes the pi packages `apply` installed, and keeps any the user installed first
-- It releases the four settings and `toolActivation`, unless the user has changed one since
+- It releases the settings and keybinding it wrote, unless the user has changed one since
     - A value `apply` replaced goes back to what the user had, and a key `apply` added goes
 - It puts back an ACStack pin `apply` moved forward, unless the user has moved it since
 - It removes the delegation block from pi's context file, and the user's text stays byte for byte
@@ -84,8 +84,8 @@ bash "$SETUP" upgrade yazi delta   # only these
 
 pi adds four rows of its own:
 
-- `pi`, `pi-subagents` and `pi-compact-tools` compare against npm, and `upgrade` runs `pi update` for each
-    - A package the user pinned, such as `npm:pi-subagents@1.0.0`, reports `unknown`, because `pi update` never moves it
+- `pi`, `ac-teams` and `pi-compact-tools` compare against npm, and `upgrade` runs `pi update` for each
+    - A package the user pinned, such as `npm:ac-teams@1.0.0`, reports `unknown`, because `pi update` never moves it
 - `pi-acstack` compares ACStack's pin in pi against this plugin's version, with no network at all
     - `upgrade pi-acstack` moves the pin forward, and so does `apply`
     - Neither moves a pin newer than this plugin, because the user chose it
