@@ -1,6 +1,6 @@
 {
   "name": "acstack-cli",
-  "version": "0.52.2",
+  "version": "0.52.3",
   "description": "CLI for the ACStack agentic coding stack",
   "type": "module",
   "license": "MIT",

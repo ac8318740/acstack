@@ -349,7 +349,7 @@ async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: Meas
     const size = measured?.labels[edge.id] ?? { width: Math.max(0, ...lines.map(line => line.length)) * 6.6 + 44, height: lines.length * 16 + 16 };
     return { id: edge.id, sources: [design || byId.get(edge.source)?.kind === 'group' ? `${edge.id}:source` : edge.source], targets: [design || byId.get(edge.target)?.kind === 'group' ? `${edge.id}:target` : edge.target], labels: [{ text: edge.label, ...size }] };
   });
-  const result = await new ELK.default().layout({
+  const input: ElkNode = {
     id: 'root',
     layoutOptions: {
       ...preserveOrder,
@@ -372,7 +372,33 @@ async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: Meas
     },
     children: nodes.filter(node => !node.parentId).map(toElk),
     edges: elkEdges,
-  });
+  };
+  const elk = new ELK.default();
+  if (design) {
+    // Solve node and port order together before reserving fixed, corner-safe slots.
+    const relax = (node: ElkNode): ElkNode => ({
+      ...node,
+      ...(byId.get(node.id)?.kind !== 'group' && node.ports?.length ? {
+        layoutOptions: { ...node.layoutOptions, 'elk.portConstraints': 'FIXED_SIDE' },
+        ports: node.ports.map(port => ({ id: port.id, layoutOptions: port.layoutOptions })),
+      } : {}),
+      children: node.children?.map(relax),
+    });
+    const ordered = await elk.layout(relax(input));
+    const assign = (node: ElkNode, target: ElkNode): void => {
+      if (byId.get(node.id)?.kind !== 'group') for (const role of ['source', 'target'] as const) {
+        const local = new Set(edges.filter(edge => edge[role] === node.id
+          && byId.get(edge.source)?.parentId === byId.get(edge.target)?.parentId).map(edge => `${edge.id}:${role}`));
+        const across = horizontal ? 'y' : 'x';
+        const ports = target.ports?.filter(port => local.has(port.id)).sort((a, b) => a[across]! - b[across]!) ?? [];
+        const order = node.ports?.filter(port => local.has(port.id)).sort((a, b) => a[across]! - b[across]!) ?? [];
+        ports.forEach((port, index) => { port.id = order[index].id; });
+      }
+      node.children?.forEach(child => assign(child, target.children!.find(candidate => candidate.id === child.id)!));
+    };
+    assign(ordered, input);
+  }
+  const result = await elk.layout(input);
 
   // ELK reports positions relative to the parent and edge geometry relative to the edge's container.
   const origin = new Map<string, Point>([['root', { x: 0, y: 0 }]]);
