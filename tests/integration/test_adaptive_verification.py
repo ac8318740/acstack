@@ -80,6 +80,16 @@ class AdaptiveVerificationTests(unittest.TestCase):
             r"TDD strictness|orchestrator|all three phases", json.dumps(option), re.I)]
         self.assertEqual(obsolete, [], "New setup must not offer the deprecated pipeline switches")
 
+    def test_pr_verification_is_scoped_and_ci_remains_a_merge_gate(self):
+        policy = (ROOT / "orchestrator/AGENTS.md").read_text()
+        verification = policy.split("## Build verification (mandatory)", 1)[1].split("\n---", 1)[0]
+        self.assertIn("Use focused local checks by default", verification)
+        self.assertIn("A configured command is not a requirement to run its entire suite", verification)
+        self.assertIn("Run the full suite locally only when", verification)
+        self.assertIn("Required CI checks must pass before merge, not before opening a PR", verification)
+        self.assertIn("Report which checks passed locally, which are deferred to CI", verification)
+        self.assertNotIn("Run the configured full test suite; all tests must pass", policy)
+
     def test_generated_pi_executor_loads_test_conventions(self):
         # Run the shipped generator in a fixture tree, never rewrite committed output.
         (self.root / "scripts").mkdir()

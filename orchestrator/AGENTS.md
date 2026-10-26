@@ -240,7 +240,7 @@ flowchart TD
 
 - Run `commands.format` over touched files before final verification when configured
     - Report a non-zero exit as a formatting problem, not proof of incorrect behavior
-- Run the project's required build, lint, typecheck, and test checks (see Build verification)
+- Run checks covering the change and explicit project requirements (see Build verification)
 - Audit whether checks detect realistic mistakes, including circular mock assertions and missing integration
 - Respect separate test ownership when reviewing changes
 - For changed frontend files, the verification owner runs configured frontend build, lint, and tests
@@ -328,15 +328,18 @@ Read-only reviewers report discrepancies to the completion owner.
 
 ## Build verification (mandatory)
 
-The verification owner gathers passing completion evidence for the final revision before declaring the request or parent effort complete or creating a PR.
+The verification owner gathers evidence for the final revision. Opening a PR does not require running every test locally.
 
-Read `.acstack/project.yaml` for the specific commands:
+Read `.acstack/project.yaml` for the available commands and inspect the project's CI configuration before relying on it:
 
-1. Run the configured build, lint, and typecheck commands
-2. Run the configured full test suite; all tests must pass
-3. When `commands.test_collect` is configured, compare the count against `.acstack/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
-4. Run configured frontend build, lint, and tests when frontend files changed
-5. Complete configured design and browser gates when applicable
+1. Use focused local checks by default: cover changed behavior, affected callers, and relevant integration paths
+2. Run applicable build, lint, and typecheck checks; scope them when the tooling supports it
+3. A configured command is not a requirement to run its entire suite. Run the full suite locally only when explicitly required by the user or project instructions, or when broad or uncertain impact cannot be covered adequately by narrower checks
+4. When `commands.test_collect` is configured, compare the count against `.acstack/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
+5. Run configured frontend build, lint, and tests when frontend files changed, and complete applicable design and browser gates
+
+Required CI checks must pass before merge, not before opening a PR. Defer broader checks to CI only after confirming it runs them for this change; do not assume CI runs every test.
+Report which checks passed locally, which are deferred to CI, and which remain unverified. Do not describe pending CI checks as passing or the whole effort as verified.
 
 ### During implementation
 
