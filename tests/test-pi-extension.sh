@@ -19,7 +19,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARNESS="${SCRIPT_DIR}/pi-extension-harness.mjs"
-CHECKS=107
+CHECKS=109
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT

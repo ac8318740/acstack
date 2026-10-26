@@ -107,9 +107,10 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: The agent uses `Agent` with `subagent_type`, or `subagent` with `agent`
 - **Then**: Read-only searches use `Explore` through `Agent`, or `scout` through `subagent`
 - **Given**: A pi session passes project-data policy enforcement
-- **When**: pi exposes neither supported subagent tool
-- **Then**: The extension warns once per extension instance and names both packages with their `pi install` instructions
-- **Then**: Either supported tool suppresses the missing-tool warning
+- **When**: pi exposes none of `Agent`, `subagent`, or `team_agent`
+- **Then**: The extension warns once per extension instance and recommends `pi install npm:ac-teams`
+- **Then**: Any of those three tools suppresses the missing-tool warning
+- **Then**: Task, messaging, and workflow tools alone do not suppress that warning
 - **Source**: `orchestrator/AGENTS.md`, Host tools; `pi/extension.ts`
 
 ## FR-010: Bound review and keep adjacent cleanup advisory

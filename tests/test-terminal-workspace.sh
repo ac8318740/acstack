@@ -4458,7 +4458,9 @@ S="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/settings.json"
 case "$1" in
   --version) echo 1.1.0 ;;
   update) ;;
-  install|remove) python3 - "$S" "$1" "$2" <<'PY'
+  install|remove)
+    if [ "$1" = install ] && [ "$2" = npm:ac-teams ] && [ -e "$HOME/fail-teams-install" ]; then exit 1; fi
+    python3 - "$S" "$1" "$2" <<'PY'
 import json, os, sys
 p, op, src = sys.argv[1:]
 d = json.load(open(p)) if os.path.exists(p) else {}
@@ -4608,24 +4610,22 @@ if [ "$PI_APPLY" = "1" ]; then
     no "apply installs pi with npm when it is missing (said: $(flat "$out"))"
   fi
   pkgs=$(jget "$ISET" packages)
-  if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
+  if printf '%s' "$pkgs" | grep -qF '"npm:ac-teams"' \
+     && ! printf '%s' "$pkgs" | grep -qE 'pi-subagents|rpiv-todo' \
      && printf '%s' "$pkgs" | grep -qF "\"npm:acstack@$IVER\"" \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-compact-tools"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:billion-context"' \
-     && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-slash-anywhere"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-zentui"'; then
-    ok "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui"
+    ok "apply installs ac-teams, ACStack pinned to $IVER, pi-compact-tools, billion-context, pi-plugin-manager, pi-slash-anywhere and pi-zentui without retired packages"
   else
-    no "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui (packages: $pkgs)"
+    no "apply installs ac-teams and supported packages without retired packages (packages: $pkgs)"
   fi
-  if printf '%s' "$out" | grep -qF 'todo tool installed' \
-     && printf '%s' "$out" | grep -qF 'hand-edit' \
-     && printf '%s' "$out" | grep -qF 'When using a todo list, keep it current as work completes.'; then
-    ok "apply suggests a user-owned Pi todo discipline instruction"
+  if ! printf '%s' "$out" | grep -qE 'todo tool installed|pi-subagents|rpiv-todo'; then
+    ok "apply does not recommend retired delegation or todo packages"
   else
-    no "apply suggests a user-owned Pi todo discipline instruction (said: $(flat "$out"))"
+    no "apply does not recommend retired delegation or todo packages (said: $(flat "$out"))"
   fi
   if grep -q '^pi .*billion-context' "$IHOME/pi.log" \
      && grep -q '^bili plugin install pi' "$IHOME/bili.log" 2>/dev/null \
@@ -4664,7 +4664,7 @@ if [ "$PI_APPLY" = "1" ]; then
     no "apply writes the quiet Zentui, theme and pi-lens UI config"
   fi
   if [ "$(jget "$ISET" deviceId)" = '"dev-1"' ] && grep -qF '"note": "café"' "$ISET" \
-     && [ "$(jget "$ISUB" maxDepth)" = "2" ] && [ "$(jget "$ISUB" toolActivation)" = '"eager"' ]; then
+     && [ "$(jget "$ISUB" maxDepth)" = "2" ] && [ "$(jget "$ISUB" toolActivation)" = "MISSING" ]; then
     ok "the JSON merge keeps every key it does not claim, unescaped"
   else
     no "the JSON merge keeps every key it does not claim ($(flat "$(cat "$ISET" "$ISUB")"))"
@@ -4705,16 +4705,16 @@ if [ "$PI_APPLY" = "1" ]; then
   if printf '%s' "$out" | grep -q 'pi: 1.1.0' \
      && printf '%s' "$out" | grep -qF "pi package: npm:acstack@$IVER" \
      && printf '%s' "$out" | grep -qF 'pi package: npm:billion-context' \
-     && printf '%s' "$out" | grep -qF 'pi package: npm:@juicesharp/rpiv-todo' \
+     && printf '%s' "$out" | grep -qF 'pi package: npm:ac-teams' \
+     && ! printf '%s' "$out" | grep -qE 'pi-subagents|rpiv-todo|toolActivation' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-plugin-manager' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-slash-anywhere' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-zentui' \
      && printf '%s' "$out" | grep -q 'pi delegation line: present' \
-     && printf '%s' "$out" | grep -q 'pi toolActivation: eager' \
      && printf '%s' "$out" | grep -q 'pi login: not logged in'; then
-    ok "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui, delegation line, toolActivation and login"
+    ok "status reports pi's version, ac-teams and other packages, delegation line and login without retired packages"
   else
-    no "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui, delegation line, toolActivation and login (said: $(flat "$out"))"
+    no "status reports pi's version, ac-teams and other packages, delegation line and login without retired packages (said: $(flat "$out"))"
   fi
   : > "$IAGENT/auth.json"
   out=$(iw status)
@@ -4776,7 +4776,7 @@ if [ "$PI_APPLY" = "1" ]; then
      && [ "$(jget "$ILENS" ui.hideLspStatus)" = "MISSING" ] \
      && [ -x "$INPM/bin/pi" ] \
      && grep -Eq '^pi (remove|uninstall|disable).*billion-context|^pi .*billion-context.*(remove|uninstall|disable)' "$IHOME/pi.log" \
-     && grep -Eq '^pi (remove|uninstall|disable).*@juicesharp/rpiv-todo|^pi .*@juicesharp/rpiv-todo.*(remove|uninstall|disable)' "$IHOME/pi.log" \
+     && grep -q '^pi remove npm:ac-teams' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-plugin-manager|^pi .*pi-plugin-manager.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-slash-anywhere|^pi .*pi-slash-anywhere.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-zentui|^pi .*pi-zentui.*(remove|uninstall|disable)' "$IHOME/pi.log" \
@@ -4798,6 +4798,35 @@ if [ "$PI_APPLY" = "1" ]; then
     no "apply skips billion-context when its acp_delegate setting cannot be written (said: $(flat "$out"); packages: $(jget "$ISET" packages); bili: $(flat "$(cat "$IHOME/bili.log")"))"
   fi
   iw disable pi >/dev/null
+
+  # Older setup-owned tools retire only once their replacement is available.
+  for replacement in failed installed; do
+    printf '{"packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo"]}\n' > "$ISET"
+    printf '{"toolActivation": "eager", "maxDepth": 2}\n' > "$ISUB"
+    printf '{"packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo"], "subagent": {"toolActivation": "eager"}, "subagent_prior": {"toolActivation": "dynamic"}}\n' > "$IHOME/.config/acstack/terminal-workspace.pi.json"
+    [ "$replacement" = failed ] && touch "$IHOME/fail-teams-install"
+    iw apply >/dev/null
+    pkgs=$(jget "$ISET" packages)
+    if [ "$replacement" = failed ]; then
+      if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
+         && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
+         && ! printf '%s' "$pkgs" | grep -qF '"npm:ac-teams"' \
+         && [ "$(jget "$ISUB" toolActivation)" = '"eager"' ]; then
+        ok "failed ac-teams installation preserves previous delegation and todo tools"
+      else
+        no "failed ac-teams installation preserves previous delegation and todo tools (packages: $pkgs)"
+      fi
+    elif printf '%s' "$pkgs" | grep -qF '"npm:ac-teams"' \
+         && ! printf '%s' "$pkgs" | grep -qE 'pi-subagents|rpiv-todo' \
+         && [ "$(jget "$ISUB" toolActivation)" = '"dynamic"' ] \
+         && [ "$(jget "$ISUB" maxDepth)" = 2 ]; then
+      ok "ac-teams replaces setup-owned tools and restores prior delegation config"
+    else
+      no "ac-teams replaces setup-owned tools and restores prior delegation config (packages: $pkgs)"
+    fi
+    rm -f "$IHOME/fail-teams-install"
+    iw disable pi >/dev/null
+  done
 
   # What the user had before apply stays theirs: their pi-subagents, their
   # rpiv-todo, their plugin manager, their slash-anywhere package, their older
@@ -4956,7 +4985,7 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
 
   # A value the user had before apply goes back on disable, not away. Their
-  # own toolActivation is the case the subagent config adds.
+  # own legacy toolActivation stays untouched throughout.
   iw disable pi >/dev/null
   printf '{\n  "theme": "dark",\n  "markdown": {"mermaid": "final"}\n}\n' > "$ISET"
   printf '{\n  "toolActivation": "dynamic"\n}\n' > "$ISUB"
@@ -4965,8 +4994,8 @@ if [ "$PI_APPLY" = "1" ]; then
   mid="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation) $(jget_key "$IAGENT/keybindings.json" app.message.dequeue)"
   iw disable pi >/dev/null
   after="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation) $(jget_key "$IAGENT/keybindings.json" app.message.dequeue)"
-  if [ "$mid" = '"alex-mid-grey" "streaming" "eager" "ctrl+enter"' ] && [ "$after" = '"dark" "final" "dynamic" "ctrl+r"' ]; then
-    ok "disable puts back the values apply replaced in settings.json, keybindings.json and the subagent config"
+  if [ "$mid" = '"alex-mid-grey" "streaming" "dynamic" "ctrl+enter"' ] && [ "$after" = '"dark" "final" "dynamic" "ctrl+r"' ]; then
+    ok "disable restores settings and keybindings while leaving legacy delegation config alone"
   else
     no "disable puts back the values apply replaced (after apply: $mid; after disable: $after)"
   fi
@@ -5033,49 +5062,44 @@ PY
   printf '%s\n' "$USER_MD" > "$IMD"
 
   # A pinned npm package never moves under pi update, so it is no finding and
-  # upgrade leaves it. billion-context, rpiv-todo, pi-plugin-manager,
+  # upgrade leaves it. billion-context, pi-plugin-manager,
   # pi-lens and pi-slash-anywhere are covered here too, because they are pi
   # npm packages with the same version, outdated and upgrade behaviour.
-  printf '{\n  "packages": ["npm:pi-subagents@1.0.0", "npm:billion-context@1.0.0", "npm:@juicesharp/rpiv-todo@1.0.0", "npm:pi-plugin-manager@1.0.0", "npm:pi-lens@1.0.0", "npm:pi-slash-anywhere@1.0.0"]\n}\n' > "$ISET"
-  mkdir -p "$IAGENT/npm/node_modules/pi-subagents" "$IAGENT/npm/node_modules/billion-context" \
-           "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo" "$IAGENT/npm/node_modules/pi-plugin-manager" \
+  printf '{\n  "packages": ["npm:ac-teams@1.0.0", "npm:billion-context@1.0.0", "npm:pi-plugin-manager@1.0.0", "npm:pi-lens@1.0.0", "npm:pi-slash-anywhere@1.0.0"]\n}\n' > "$ISET"
+  mkdir -p "$IAGENT/npm/node_modules/ac-teams" "$IAGENT/npm/node_modules/billion-context" \
+           "$IAGENT/npm/node_modules/pi-plugin-manager" \
            "$IAGENT/npm/node_modules/pi-lens" "$IAGENT/npm/node_modules/pi-slash-anywhere"
-  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-subagents/package.json"
+  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/ac-teams/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/billion-context/package.json"
-  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-plugin-manager/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-lens/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-slash-anywhere/package.json"
   out=$(iw outdated)
   : > "$IHOME/pi.log"
-  up=$(iw upgrade pi-subagents)
+  up=$(iw upgrade ac-teams)
   bup=$(iw upgrade billion-context)
-  tup=$(iw upgrade @juicesharp/rpiv-todo)
   pup=$(iw upgrade pi-plugin-manager)
   lup=$(iw upgrade pi-lens)
   sup=$(iw upgrade pi-slash-anywhere)
-  if printf '%s' "$out" | grep -qF "unknown	pi-subagents	pinned to npm:pi-subagents@1.0.0" \
+  if printf '%s' "$out" | grep -qF "unknown	ac-teams	pinned to npm:ac-teams@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	billion-context	pinned to npm:billion-context@1.0.0" \
-     && printf '%s' "$out" | grep -qF "unknown	@juicesharp/rpiv-todo	pinned to npm:@juicesharp/rpiv-todo@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-plugin-manager	pinned to npm:pi-plugin-manager@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-lens	pinned to npm:pi-lens@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-slash-anywhere	pinned to npm:pi-slash-anywhere@1.0.0" \
-     && ! printf '%s' "$out" | grep -q '^stale	pi-subagents' \
+     && ! printf '%s' "$out" | grep -q '^stale	ac-teams' \
      && ! printf '%s' "$out" | grep -q '^stale	billion-context' \
-     && ! printf '%s' "$out" | grep -q '^stale	@juicesharp/rpiv-todo' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-plugin-manager' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-lens' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-slash-anywhere' \
      && ! grep -q '^pi update' "$IHOME/pi.log" \
      && printf '%s' "$up" | grep -q 'pinned' \
      && printf '%s' "$bup" | grep -q 'pinned' \
-     && printf '%s' "$tup" | grep -q 'pinned' \
      && printf '%s' "$pup" | grep -q 'pinned' \
      && printf '%s' "$lup" | grep -q 'pinned' \
      && printf '%s' "$sup" | grep -q 'pinned'; then
-    ok "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them"
+    ok "pinned npm packages including ac-teams, billion-context, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them"
   else
-    no "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); todo upgrade: $(flat "$tup"); plugin manager upgrade: $(flat "$pup"); lens upgrade: $(flat "$lup"); slash upgrade: $(flat "$sup"))"
+    no "pinned npm packages including ac-teams, billion-context, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); plugin manager upgrade: $(flat "$pup"); lens upgrade: $(flat "$lup"); slash upgrade: $(flat "$sup"))"
   fi
   rm -rf "$IAGENT/npm"
 

@@ -4,8 +4,8 @@
  * The pi port of the Claude Code hooks in hooks/. Claude Code and Codex never
  * load this file, and nothing in hooks/ depends on it.
  *
- *   session_start        symlink the CLI, warn once if pi-subagents is
- *                        missing, and print the setup reminder outside a
+ *   session_start        symlink the CLI, warn once if delegation is
+ *                        unavailable, and print the setup reminder outside a
  *                        acstack project            (hooks/session-start.sh)
  *   before_agent_start   list ACStack's skills in the system prompt in every
  *                        session, and add orchestrator/AGENTS.md in a
@@ -659,11 +659,11 @@ export default function acstack(pi: ExtensionAPI): void {
 			return;
 		}
 
-		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent" || tool.name === "Agent")) {
+		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent" || tool.name === "Agent" || tool.name === "team_agent")) {
 			warnedSubagents = true;
 			report(
 				ctx,
-				"acstack: no supported subagent tool is loaded (Agent or subagent), so the test-writer, task-executor, task-checker, and frontend-verifier agents cannot run. Install `npm:@tintinweb/pi-subagents` or `npm:pi-subagents` with `pi install`.",
+				"acstack: no supported subagent tool is loaded (Agent, subagent, or team_agent), so the test-writer, task-executor, task-checker, and frontend-verifier agents cannot run. Install `npm:ac-teams` with `pi install`.",
 				"warning",
 			);
 		}

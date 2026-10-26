@@ -353,14 +353,14 @@ What `apply` does:
 - It installs pi with `npm install -g @earendil-works/pi-coding-agent` when pi is missing
 - It installs ACStack into pi, pinned to the version of this plugin
     - Re-running `apply` after a plugin update moves the pin forward, and never back
-- It installs `pi-subagents`, which ACStack on pi needs to launch a subagent
+- It installs `ac-teams` for agent delegation, shared tasks, and messaging
+    - Reapplying removes replaced delegation and todo packages only if this setup installed them; user-installed packages stay
 - It installs `billion-context` by default for context compression in pi
     - When the `bili` command is available, setup runs native plugin setup for pi
     - Setup leaves Claude Code and Codex alone, and removes bili from them if an older setup added it
     - Set `pi.billion_context: false` to leave it out, or to remove it later if this setup installed it
-- It installs `@juicesharp/rpiv-todo` and `pi-plugin-manager` by default
-    - When todo is on, `apply` suggests a todo-discipline line for the user's global Pi context file if it is missing
-    - Set `pi.todo: false` or `pi.plugin_manager: false` to leave either package out
+- It installs `pi-plugin-manager` by default
+    - Set `pi.plugin_manager: false` to leave it out
 - It installs `@juicesharp/rpiv-ask-user-question` as pi's question tool by default
     - ACStack uses it because decisions can include markdown, code and artifact previews
     - It accepts freeform answers and notes, and needs no full-event telemetry environment variable
@@ -390,16 +390,15 @@ What `apply` does:
     - The agentic-retro step needs the agentic-retro plugin installed first, and `apply` says so when it is not
 - It writes the delegation line into pi's context file in `~/.pi/agent`, between HTML comment markers
     - That is `AGENTS.md` by default, or the first of `AGENTS.override.md`, `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md` and `CLAUDE.MD` that exists, which is the one pi reads
-    - `pi-subagents` delegates only when your request or your instructions allow it
-- It sets `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json`
+    - Delegate only when your request or your instructions allow it
 - It binds `"app.message.dequeue"` to `"ctrl+enter"` in `~/.pi/agent/keybindings.json`
 - It writes the four keys under `pi.settings` into `~/.pi/agent/settings.json`
 - It patches pi's bundled TUI so Windows Terminal Win32 input records paste as text
     - `pi update` can replace the bundle, so `setup.sh upgrade pi` reapplies the patch
 - It patches an existing herdr Pi reporter to keep the parent working while background subagents run
     - Questions still show blocked, even when children are active
-    - The patch handles `pi-subagents` busy events and `@tintinweb/pi-subagents` Agent lifecycle events
-    - Tintin workflows and children already running during an extension reload lack lifecycle replay and remain outside this tracking
+    - The patch retains legacy delegation-event support; it does not track ac-teams sessions
+    - Children already running during an extension reload lack lifecycle replay and remain outside this tracking
     - `apply`, herdr integration installation, and `setup.sh upgrade herdr` reapply the patch
     - Direct `herdr integration install pi` overwrites the patch; run `apply` afterward, then restart Pi or use `/reload`
     - Setup leaves unknown reporter layouts unchanged and reports the skipped patch
@@ -419,10 +418,10 @@ How it treats pi's files:
     - A value you changed after `apply` stays as you set it
 - `apply` never touches `auth.json`
     - Run `pi`, then `/login`, yourself
-- `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether `auth.json` exists
+- `setup.sh status` reports pi's version, its packages, the delegation line, and whether `auth.json` exists
     - The question bridge line reports a managed asset, a user-owned path, or an absent asset
     - Start a new pi session or run `/reload` after setup changes extensions
-- `setup.sh outdated` and `setup.sh upgrade` include `billion-context`, `@juicesharp/rpiv-todo`, `pi-plugin-manager`, `@juicesharp/rpiv-ask-user-question`, `pi-web-access`, `pi-lens`, and `pi-slash-anywhere` like pi's other npm packages
+- `setup.sh outdated` and `setup.sh upgrade` include `ac-teams`, `billion-context`, `pi-plugin-manager`, `@juicesharp/rpiv-ask-user-question`, `pi-web-access`, `pi-lens`, and `pi-slash-anywhere` like pi's other npm packages
 
 ## 4. How you attach
 

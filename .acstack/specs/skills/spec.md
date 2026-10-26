@@ -173,3 +173,12 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: The handoff or compaction alone does not require rerunning the suite
 - **Then**: Evidence held only in conversation is anchored rather than lost
 - **Source**: `skills/handoff/SKILL.md`, `skills/compact-and-continue/SKILL.md`
+
+## FR-013: Recommend ac-teams for the terminal workspace
+
+- **Given**: A user enables pi in the terminal workspace
+- **When**: The agent explains setup, configuration, or updates
+- **Then**: The skill recommends ac-teams for delegation, shared tasks, and messaging
+- **Then**: The skill does not recommend separate delegation or todo packages, or offer `pi.todo`
+- **Then**: The update instructions use ac-teams for npm version checks and pinned-package examples
+- **Source**: `skills/terminal-workspace/SKILL.md`, `skills/terminal-workspace/components.md`, `skills/terminal-workspace/config-choices.md`, `skills/terminal-workspace/turn-off-and-update.md`
