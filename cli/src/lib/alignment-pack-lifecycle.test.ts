@@ -9,11 +9,11 @@ describe('historical alignment pack storage paths', () => {
     expect(
       alignmentPackStoragePaths({ root, map: 'checkout redesign', packVersion: 'checkout redesign@map:abc/123' })
     ).toEqual({
-      directory: join(root, '.acstack', 'alignment-packs', 'checkout-redesign'),
-      packHtml: join(root, '.acstack', 'alignment-packs', 'checkout-redesign', 'checkout-redesign@map-abc-123.html'),
-      annotationsJsonl: join(root, '.acstack', 'alignment-packs', 'checkout-redesign', 'annotations.jsonl'),
-      feedbackMarkdown: join(root, '.acstack', 'alignment-packs', 'checkout-redesign', 'feedback.md'),
-      localState: join(root, '.acstack', 'alignment-packs', 'checkout-redesign', 'state.json'),
+      directory: join(root, 'alignment-packs', 'checkout-redesign'),
+      packHtml: join(root, 'alignment-packs', 'checkout-redesign', 'checkout-redesign@map-abc-123.html'),
+      annotationsJsonl: join(root, 'alignment-packs', 'checkout-redesign', 'annotations.jsonl'),
+      feedbackMarkdown: join(root, 'alignment-packs', 'checkout-redesign', 'feedback.md'),
+      localState: join(root, 'alignment-packs', 'checkout-redesign', 'state.json'),
     });
   });
 

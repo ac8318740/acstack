@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Set up ACStack in a project, and change how an already configured project is set up. With no .acstack/project.yaml it detects the project type, writes the config, generates the domain map and offers browser verification. With one already there it leads with the health check, then offers to fix each row that failed. Both paths end in the same check, so it is safe to run on the first day and on any day after.
+description: Set up ACStack in a project, and change how an already configured project is set up. With no project.yaml in the project folder it detects the project type, writes the config, generates the domain map and offers browser verification. With one already there it leads with the health check, then offers to fix each row that failed. Both paths end in the same check, so it is safe to run on the first day and on any day after.
 argument-hint: "[what to set up or change]"
 disable-model-invocation: true
 ---
@@ -18,7 +18,7 @@ join at the health check, so this skill states every fix once.
 
 ```mermaid
 flowchart TD
-    HOST["Step 1<br/>declare this machine"] --> FORK{".acstack/project.yaml<br/>is here?"}
+    HOST["Step 1<br/>declare this machine"] --> FORK{"project.yaml in the<br/>project folder?"}
     FORK -- no --> FIRST["Steps 3 to 6<br/>detect, ask, write the config"]
     FORK -- yes --> CHECK
     FIRST --> CHECK["Step 7<br/>acstack config check --json"]
@@ -74,15 +74,24 @@ answers. Come back to Step 2 when it finishes.
 
 ## Step 2: Choose the path
 
-Run `~/.claude/acstack/bin/acstack project-data ensure` before checking for configuration.
-It needs no config, does nothing without `.acstack/`, and preserves user tracking exceptions.
-
-If legacy project records remain, explain the explicit migration procedure in `docs/config-reference.md` before proceeding.
-Never move them silently or run Git index commands.
+ACStack keeps project data in the project folder, one per repository and shared
+by all of its worktrees. `acstack project-data path` prints its absolute path,
+even before the folder exists. These files write its parts as
+`<project folder>/project.yaml` and so on.
 
 ```bash
-test -f .acstack/project.yaml && echo present || echo absent
+project="$(~/.claude/acstack/bin/acstack project-data path)" &&
+  { test -f "$project/project.yaml" && echo present || echo absent; }
 ```
+
+If `project-data path` fails, show its message and stop. Outside a Git
+repository there is no project folder. For legacy project records, orphaned
+entries, or conflicts, the message names the `acstack project-data` command
+that fixes it.
+
+For legacy records, explain the explicit migration procedure in
+`docs/config-reference.md` before proceeding. Never move data silently or run
+Git index commands.
 
 - **absent** – take the first-run path. Go to Step 3.
 - **present** – take the re-run path. Go straight to Step 7.
@@ -118,7 +127,7 @@ CLI. An agent testing this branch before the release runs
 It prints one object to standard output and nothing else:
 
 ```json
-{"checks": [{"id": "domain-map", "status": "pass", "message": ".acstack/domain-map.yaml maps 4 domains"}]}
+{"checks": [{"id": "domain-map", "status": "pass", "message": "domain-map.yaml maps 4 domains"}]}
 ```
 
 Each `status` is `pass`, `fail` or `info`. The exit codes carry the same news:
@@ -199,8 +208,8 @@ Read [`report.md`](report.md) on every run, as the last step.
 - `acstack config set <key> <value>` owns the single-key change, in both files.
   It reads the key to decide which one.
 
-    A `host.*` key goes to the global config at `~/.config/acstack/config.json`.
-    Every other key it knows goes to `.acstack/project.yaml`, and the write keeps
+    A `host.*` key goes to the global config at `~/.acstack/config.json`.
+    Every other key it knows goes to `<project folder>/project.yaml`, and the write keeps
     the comments and the key order. It refuses a key neither schema knows, so
     never fall back to editing the file.
 

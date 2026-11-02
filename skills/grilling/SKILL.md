@@ -65,7 +65,8 @@ session.
 
 ## Presentation
 
-`workflow.grilling.questions` in `.acstack/project.yaml` picks the mode:
+`workflow.grilling.questions` in `<project folder>/project.yaml` picks the mode.
+The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints.
 
 | Value            | Behaviour                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------ |
@@ -127,8 +128,8 @@ belong in git:
 ```markdown
 ## Answer
 
-Map nodes stay local by default under `.acstack/maps/`.
-The user can opt in through native root `.gitignore` exceptions.
+On the files backend, map nodes live under `<project folder>/maps/`.
+In global mode, the default, that folder sits outside the repository, so nodes are never committed.
 
 The durable output is the living specs, the architecture decision records and
 the glossary. The `record-context` skill extracts each one as a node

@@ -9,6 +9,7 @@
 // for the house style this follows.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { trackProject } from '../test-project.js';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
@@ -156,7 +157,7 @@ function makeProject(): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-node-project-'));
   mkdirSync(join(root, '.acstack'), { recursive: true });
   writeFileSync(join(root, '.acstack', 'project.yaml'), '# test project\n');
-  return root;
+  return trackProject(root);
 }
 
 interface NodeFixture {

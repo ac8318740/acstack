@@ -4,7 +4,7 @@ apply_markdown() {
   install_binary glow charmbracelet/glow Linux_x86_64
   # Vendored so the preview page pulls nothing from a CDN: it works offline,
   # and on a managed laptop there is no third-party fetch to explain.
-  local share="$HOME/.local/share/acstack"
+  local share="$ACSTACK_ROOT/cache"
   mkdir -p "$share"
   if [ ! -s "$share/mermaid.min.js" ]; then
     curl -fsSL -o "$share/mermaid.min.js" \

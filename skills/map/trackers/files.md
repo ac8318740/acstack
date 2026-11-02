@@ -1,16 +1,18 @@
 # Files tracker
 
 The fallback backend: no auth, works offline, works on any remote. One
-markdown file per node under `.acstack/maps/<name>/`, managed by the ACStack
+markdown file per node under `<project folder>/maps/<name>/`, managed by the ACStack
 CLI. Nodes here are transient working state – scratch discarded once the map
 clears.
 
-The root managed baseline ignores `.acstack/maps/` by default.
-Native exceptions after that baseline let the user opt in to tracking any part.
+The project folder is the path `~/.claude/acstack/bin/acstack project-data path`
+prints. In global mode, the default, it sits outside the repository, so nodes
+are never committed. In tracked mode it is the main checkout's committed
+`.acstack/`, and the developer decides what to commit.
 
 CLI path: `~/.claude/acstack/bin/acstack`
 
-To enumerate a project's maps: `ls .acstack/maps/`.
+To enumerate a project's maps: `ls "$(~/.claude/acstack/bin/acstack project-data path)/maps/"`.
 
 ## The four operations
 

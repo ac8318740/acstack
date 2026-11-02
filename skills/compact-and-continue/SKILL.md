@@ -55,7 +55,8 @@ instead – in your final message, or through your host's agent-messaging tool
 or compacts.
 
 A child session would write the lead's quiet marker and the shared
-`.acstack/HANDOFF.md` anchor. Both belong to the lead alone.
+`<project folder>/HANDOFF.md` anchor, where the project folder is the path
+`~/.claude/acstack/bin/acstack project-data path` prints. Both belong to the lead alone.
 
 Five facts sit behind that command, measured on Claude Code 2.1.241. Each one
 names a way the command has already been got wrong:
@@ -99,8 +100,8 @@ something by running a command, it should run the command.
 | Map state and reading order | `~/.claude/acstack/bin/acstack node walk --map <name>` (reading order of the map) |
 | What can be worked next     | `~/.claude/acstack/bin/acstack node frontier --map <name>` (what is workable now) |
 | Files in flight             | `git status --short` and `git diff`                                               |
-| Test baseline, last result  | `.acstack/.test-baseline` and referenced check logs; reuse valid evidence under the shared policy |
-| What the code does          | the living specs in `.acstack/specs/`                                              |
+| Test baseline, last result  | `<project folder>/.test-baseline` and referenced check logs; reuse valid evidence under the shared policy |
+| What the code does          | the living specs in `<project folder>/specs/`                                              |
 
 On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
 map skill's `trackers/github.md`.
@@ -143,7 +144,7 @@ not optional.
 
 ## Write the anchor
 
-Write `.acstack/HANDOFF.md`. The frontmatter is **mandatory and machine-read**.
+Write `"$(~/.claude/acstack/bin/acstack project-data path)/HANDOFF.md"`. The frontmatter is **mandatory and machine-read**.
 The hook ignores any file without the marker, so it never touches a user's own
 unrelated `HANDOFF.md`.
 
@@ -218,9 +219,10 @@ note.
 Tell them to run that `/compact` line, then to type `continue`. The hook
 re-injects the anchor and retires it, so the anchor never loads twice.
 
-`.acstack/HANDOFF.md` holds conversation content and stays local by default.
-Run `~/.claude/acstack/bin/acstack project-data ensure` after creating `.acstack/`.
-Warn if user exceptions expose the anchor or consumed handoffs to tracking.
+`<project folder>/HANDOFF.md` holds conversation content. In global mode, the
+default, it sits outside the repository. In tracked mode it sits in the main
+checkout's committed `.acstack/`, so warn the user not to commit the anchor or
+consumed handoffs.
 
 ## Notes
 
@@ -232,8 +234,8 @@ Warn if user exceptions expose the anchor or consumed handoffs to tracking.
     skill moves the work to a genuinely new session
 
 - **Consume-once.** The hook retires the anchor as it injects it, moving it to
-  `.acstack/handoffs/<map>/<created>.md` (legacy
-  `.acstack/changes/<name>/handoffs/` when that directory still exists).
+  `<project folder>/handoffs/<map>/<created>.md` (legacy
+  `<project folder>/changes/<name>/handoffs/` when that directory still exists).
   Collisions get a `-2` suffix
 
 - **Subagents and teammates have isolated context.** This protects the

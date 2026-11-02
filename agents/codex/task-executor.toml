@@ -17,7 +17,7 @@ Implement the assigned requirements under the shared Implementation discipline i
 
 ## Project configuration
 
-Read `.acstack/project.yaml` for project-specific settings:
+Read `project.yaml` in the project folder that `~/.claude/acstack/bin/acstack project-data path` prints for project-specific settings:
 
 - `directories.source` – where to write source code
 - `directories.tests` – test directory, subject to assigned ownership

@@ -43,6 +43,7 @@ mkdir -p "$WORK/home" "$WORK/tmp" "$WORK/projects"
 node_dir="$(dirname "$(command -v node)")"
 out="$(
   HOME="$WORK/home" TMPDIR="$WORK/tmp" PATH="${node_dir}:/usr/bin:/bin" \
+    ACSTACK_HOME="$WORK/home/.acstack" XDG_CONFIG_HOME= XDG_DATA_HOME= \
     ACSTACK_TEST_WORK="$WORK/projects" PI_CODING_AGENT_DIR= ACSTACK_CONTEXT_PRESSURE_DIR= HERDR_ENV= \
     PI_SUBAGENT_CHILD= PI_SUBAGENTS_HERDR_BRIDGE= AC_TEAMS_MEMBER= ACSTACK_AGENT_ROLE= \
     node --no-warnings "$HARNESS" 2>&1

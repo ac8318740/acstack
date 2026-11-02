@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { z } from 'zod';
 import { replaceFileAtomically } from './atomic-file.js';
-import { ACSTACK_DIR, MAPS_DIR } from './constants.js';
+import { MAPS_DIR } from './constants.js';
 import { ensureDir } from './utils.js';
 
 export const NODE_STATUSES = ['fog', 'open', 'claimed', 'resolved', 'out-of-scope'] as const;
@@ -179,7 +179,7 @@ export function bareId(reference: string): string {
 }
 
 export function mapDir(root: string, map: string): string {
-  return join(root, ACSTACK_DIR, MAPS_DIR, map);
+  return join(root, MAPS_DIR, map);
 }
 
 export function slugify(title: string): string {

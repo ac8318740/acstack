@@ -23,7 +23,7 @@ BRIDGE="${ACSTACK_BRIDGE_URL:-${AGENT_BROWSER_CDP:-http://127.0.0.1:19988}}"
 OPENER="${ACSTACK_OPENER_URL:-http://127.0.0.1:19989}"
 # The opener refuses anything without this, so its absence is the same as the
 # opener being down - which is exactly how the route probe treats it.
-OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/acstack/opener.token"
+OPENER_TOKEN="${ACSTACK_HOME:-$HOME/.acstack}/opener.token"
 
 WHY=0
 [ "${1:-}" = "--why" ] && { WHY=1; shift; }

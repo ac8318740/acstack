@@ -1,0 +1,28 @@
+id: locator
+name: Project locator
+kind: component
+parent: cli
+summary: Maps the current checkout to its project folder and reports whether the project is in global
+  or tracked mode.
+detail: locator.md
+relationships:
+- id: skills-locator
+  from: skills
+  to: locator
+  direction: one-way
+  label: Find project record paths with
+- id: locator-git
+  from: locator
+  to: git
+  direction: one-way
+  label: Reads the shared git folder from
+- id: locator-folders
+  from: locator
+  to: project-folders
+  direction: one-way
+  label: Resolves and auto-links entries in
+- id: settings-locator
+  from: settings
+  to: locator
+  direction: one-way
+  label: Finds the project folder with

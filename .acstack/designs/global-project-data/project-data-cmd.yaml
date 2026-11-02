@@ -1,0 +1,28 @@
+id: project-data-cmd
+name: Project data commands
+kind: component
+parent: cli
+summary: 'Run the explicit moves: legacy migration, switching between global and tracked mode, and relinking
+  a moved repo.'
+detail: commands.md
+relationships:
+- id: skills-commands
+  from: skills
+  to: project-data-cmd
+  direction: one-way
+  label: Run setup and migration with
+- id: cmd-legacy
+  from: project-data-cmd
+  to: legacy
+  direction: one-way
+  label: Moves data out of
+- id: cmd-folders
+  from: project-data-cmd
+  to: project-folders
+  direction: one-way
+  label: Writes data and links into
+- id: cmd-tracked
+  from: project-data-cmd
+  to: tracked-data
+  direction: one-way
+  label: Moves records into and out of

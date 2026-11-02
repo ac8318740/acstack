@@ -15,7 +15,7 @@ write_helpers() {
 
   # The one helper with a path in the config. The source holds the default, so
   # this carries nothing but a value the user chose.
-  ACSTACK_DB_CFG="$(cfg_get harlequin.config_path "~/.config/acstack/harlequin.toml")" \
+  ACSTACK_DB_CFG="$(cfg_get harlequin.config_path "~/.acstack/harlequin.toml")" \
     py "$BIN/acstack-db" <<'PY'
 import os, re, sys
 # A bash single-quoted literal, so a path with a space or a quote in it reaches

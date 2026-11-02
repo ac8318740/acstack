@@ -18,7 +18,8 @@ This is an optional setup for running several coding agents on a remote machine,
 - The server keeps every pane alive when your connection drops
 - The local client is what lets your own clipboard and browser reach the session, which an SSH shell cannot do
 - Run `/acstack:terminal-workspace` to install and configure all of it
-- One file, `~/.config/acstack/terminal-workspace.yaml`, turns each part on or off
+- One file, `~/.acstack/terminal-workspace.yaml`, turns each part on or off
+- `ACSTACK_HOME` moves that folder, `~/.acstack/`, for every ACStack file in it
 - The rest of this document explains what that sets up and why
 - Read it if you would rather configure it by hand or change the defaults
 
@@ -157,7 +158,7 @@ What `uninstall` removes:
 
 What the config holds:
 
-- The script reads `~/.config/acstack/terminal-workspace.yaml`, which the skill copies from `assets/terminal-workspace/config.example.yaml`
+- The script reads `~/.acstack/terminal-workspace.yaml`, which the skill copies from `assets/terminal-workspace/config.example.yaml`
 - The config holds twelve components, each with its own `enabled` key
     - You turn a part off there and run `apply` again
 - Eight components name a tool this setup installs: `herdr`, `gh_dash`, `diffnav`, `delta`, `tuicr`, `lazygit`, `yazi`, and `harlequin`
@@ -237,7 +238,7 @@ Three more steps `apply` handles that no release tarball covers:
 
 - `ya pkg add yazi-rs/plugins:piper`, the yazi plugin that lets `acstack-md` draw the preview pane
 - `pip install --user markdown`, which `acstack-md --serve` needs
-- a copy of `mermaid.min.js` at `~/.local/share/acstack/mermaid.min.js`
+- a copy of `mermaid.min.js` at `~/.acstack/cache/mermaid.min.js`
     - A served page fetches nothing from a content delivery network (CDN)
 
 ### 3.2. Let herdr read agent state from the agent
@@ -411,7 +412,7 @@ How it treats pi's files:
 - `apply` installs and removes packages through `pi install` and `pi remove`, and never edits `packages` itself
 - `apply` touches nothing in a file that does not parse, and names it
     - A broken `settings.json` stops the whole component, because `pi install` rewrites that file
-- `~/.config/acstack/terminal-workspace.pi.json` records what `apply` added
+- `~/.acstack/terminal-workspace.pi.json` records what `apply` added
     - `disable pi` and `uninstall` undo only what that file names
     - A package or a key you had before `apply` stays yours
     - A value of yours that `apply` replaced goes back, and so does an ACStack pin it moved forward
@@ -1120,7 +1121,7 @@ We measured one delivery rather than estimating it.
 *`alt+q` opens harlequin on a connection profile. `alt+shift+q` opens it in a tab.*
 
 - Query on the left, rows on the right, schema tree beside both
-- Profiles live in `~/.config/acstack/harlequin.toml`, which `acstack-db` writes once and never touches again
+- Profiles live in `~/.acstack/harlequin.toml`, which `acstack-db` writes once and never touches again
 - `acstack-db` with no argument launches the only profile, or opens an fzf menu when there is more than one
 - `acstack-db <profile>` skips the menu
 
@@ -1586,7 +1587,7 @@ cd $env:USERPROFILE\playwriter-bridge
 ```
 
 - That generates a shared secret and stores it at `%LOCALAPPDATA%\playwriter-bridge\opener.token`
-- It copies the secret to each dev machine at `~/.config/acstack/opener.token`, over the same ssh the tunnel uses
+- It copies the secret to each dev machine at `~/.acstack/opener.token`, over the same ssh the tunnel uses
 - Every request from the dev machine carries it
 - Loopback binding alone would not be enough
     - The reverse tunnel makes the port reachable by anything running on the dev machine

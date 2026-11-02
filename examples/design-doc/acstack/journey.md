@@ -82,4 +82,4 @@ The ACStack plugin contains Agent skills, Agent session setup, and the CLI packa
 - Choose `--port <port>` if another review uses the default port
 - Use an unused path for each Markdown export
 - Keep the companion beside source when its relative links must work on GitHub
-- New designs default to Git-ignored `.acstack/designs/`; this repository intentionally tracks this public example
+- New designs default to `designs/` in the project folder, outside the repository unless the project uses tracked mode; this repository intentionally tracks this public example

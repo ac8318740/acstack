@@ -36,7 +36,7 @@ Get the `Config:` line by running the command, not by writing the usual path in:
 ~/.claude/acstack/bin/acstack config path
 ```
 
-`~/.config/acstack/config.json` is only where the file lands by default. Setting
-the `XDG_CONFIG_HOME` environment variable moves it. On a machine that sets that
+`~/.acstack/config.json` is only where the file lands by default. Setting
+the `ACSTACK_HOME` environment variable moves it. On a machine that sets that
 variable, a hardcoded path in the report would point at a file that does not
 exist.

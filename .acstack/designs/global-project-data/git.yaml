@@ -1,0 +1,10 @@
+id: git
+name: Git
+kind: external-system
+summary: Reports the repository's shared git folder, which every worktree of one repo has in common.
+relationships:
+- id: locator-git
+  from: locator
+  to: git
+  direction: one-way
+  label: Reads the shared git folder from

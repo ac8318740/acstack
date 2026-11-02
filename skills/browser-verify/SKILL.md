@@ -1,6 +1,6 @@
 ---
 name: browser-verify
-description: How to interact with a browser for frontend verification using agent-browser CLI and CDP. ALWAYS use when UI or frontend files are modified and workflow.frontend_verification is true in .acstack/project.yaml. Also use before running agent-browser commands, when element refs go stale, when CDP connection fails, or when verifying UI behavior. Covers all commands (snapshot, screenshot, click, fill, type), element ref strategy, DOM staleness rules, selector priority, and remote/headless/local environment troubleshooting.
+description: How to interact with a browser for frontend verification using agent-browser CLI and CDP. ALWAYS use when UI or frontend files are modified and workflow.frontend_verification is true in the project's project.yaml. Also use before running agent-browser commands, when element refs go stale, when CDP connection fails, or when verifying UI behavior. Covers all commands (snapshot, screenshot, click, fill, type), element ref strategy, DOM staleness rules, selector priority, and remote/headless/local environment troubleshooting.
 ---
 
 # Browser helpers
@@ -13,7 +13,7 @@ For setup (installing agent-browser, creating config files, scaffolding knowledg
 
 ## Project configuration
 
-Read `.acstack/project.yaml` for:
+ACStack keeps project data in the project folder, the path `~/.claude/acstack/bin/acstack project-data path` prints. Read `<project folder>/project.yaml` for:
 
 - `frontend.directory` – frontend source directory
 - `frontend.dev_server_url` – dev server URL
@@ -52,7 +52,7 @@ Without `--json` it prints the same two facts on one line: the mode, then the re
 
 ### How it decides
 
-The host declares which modes this machine can provide. It does so on three axes in the global config at `~/.config/acstack/config.json`:
+The host declares which modes this machine can provide. It does so on three axes in the global config at `~/.acstack/config.json` (`$ACSTACK_HOME/config.json` when that variable is set):
 
 - `host.browser.remote` – this machine can reach a browser on another machine
 - `host.browser.headless` – this machine can launch headless Chromium
@@ -181,13 +181,13 @@ Omit `--headless` to see the browser. Useful during development.
 
 ## agent-browser command reference
 
-For configured verification, explicitly select the absolute `.acstack/agent-browser.json` path before running the commands below:
+For configured verification, explicitly select the absolute `<project folder>/agent-browser.json` path before running the commands below:
 
 ```bash
-export AGENT_BROWSER_CONFIG="$(pwd)/.acstack/agent-browser.json"
+export AGENT_BROWSER_CONFIG="$(~/.claude/acstack/bin/acstack project-data path)/agent-browser.json"
 ```
 
-- Run this from the project root only when the file exists; alternatively pass `--config /absolute/project/.acstack/agent-browser.json`
+- Run this only when the file exists; alternatively pass `--config` with the same absolute path
 - Do not rely on root config autodiscovery
 - Manual CDP quality checks remain available without project configuration or a configured browser mode
 - For those checks, omit the missing config and use `agent-browser --cdp <port> ...` with the explicitly chosen endpoint

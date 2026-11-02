@@ -54,7 +54,7 @@ SAFE_TOOLS_DIR="$WORK/.safe-bin"
 mkdir -p "$SAFE_TOOLS_DIR"
 for name in bash sh cat grep egrep fgrep sed awk gawk cut tr wc dirname \
             basename readlink realpath env uname mktemp head tail sort \
-            find stat expr date id pwd git; do
+            find stat expr date id pwd git node; do
   for d in /usr/bin /bin /usr/local/bin; do
     if [ -x "$d/$name" ] && [ ! -e "$SAFE_TOOLS_DIR/$name" ]; then
       ln -s "$d/$name" "$SAFE_TOOLS_DIR/$name"
@@ -429,6 +429,7 @@ new_case
 git init -q "$CWD_DIR"
 mkdir -p "$CWD_DIR/.acstack"
 printf 'frontend:\n  framework: react\n' > "$CWD_DIR/.acstack/project.yaml"
+git -C "$CWD_DIR" add .acstack/project.yaml
 EXPECTED_ROOT="$(git -C "$CWD_DIR" rev-parse --show-toplevel)"
 run_detect
 check "root matches the git repo top-level"           'field_is ".project.root" "'"$EXPECTED_ROOT"'"'
@@ -438,6 +439,7 @@ new_case
 git init -q "$CWD_DIR"
 mkdir -p "$CWD_DIR/.acstack"
 printf 'name: backend-only\n' > "$CWD_DIR/.acstack/project.yaml"
+git -C "$CWD_DIR" add .acstack/project.yaml
 run_detect
 check "no frontend key -> has_frontend false"            'field_is ".project.has_frontend" "false"'
 
@@ -445,6 +447,7 @@ new_case
 git init -q "$CWD_DIR"
 mkdir -p "$CWD_DIR/.acstack"
 printf 'workflow:\n  frontend: true\n' > "$CWD_DIR/.acstack/project.yaml"
+git -C "$CWD_DIR" add .acstack/project.yaml
 run_detect
 check "indented frontend key (not column 0) -> has_frontend false" 'field_is ".project.has_frontend" "false"'
 
@@ -458,6 +461,7 @@ new_case
 git init -q "$CWD_DIR"
 mkdir -p "$CWD_DIR/.acstack"
 printf 'frontend:\n  framework: vue\n' > "$CWD_DIR/.acstack/project.yaml"
+git -C "$CWD_DIR" add .acstack/project.yaml
 mkdir -p "$CWD_DIR/nested/deeper"
 EXPECTED_ROOT="$(git -C "$CWD_DIR" rev-parse --show-toplevel)"
 CWD_DIR="$CWD_DIR/nested/deeper"
@@ -483,6 +487,10 @@ printf 'orca hooks\n' > "$HOME_DIR/.claude/settings.json"
 git init -q "$CWD_DIR"
 mkdir -p "$CWD_DIR/.acstack"
 printf 'frontend:\n  framework: react\n' > "$CWD_DIR/.acstack/project.yaml"
+git -C "$CWD_DIR" add .acstack/project.yaml
+# The CLI links a committed .acstack/ into ~/.acstack on first lookup; do that
+# before the snapshot so it is not counted as a write by this script.
+(cd "$CWD_DIR" && env -i PATH="$RUN_PATH" HOME="$HOME_DIR" node "$SCRIPT_DIR/../cli/bin/acstack.js" project-data path >/dev/null)
 ENV_EXTRA=(DISPLAY=":0")
 BEFORE_HOME="$(snapshot_dir "$HOME_DIR")"
 BEFORE_CWD="$(snapshot_dir "$CWD_DIR")"

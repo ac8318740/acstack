@@ -59,7 +59,7 @@ git status --short
 git log --oneline -3  # recent context
 ```
 
-Read `.acstack/project.yaml` to understand the project's directory layout, commands, and conventions.
+Read `<project folder>/project.yaml` to understand the project's directory layout, commands, and conventions. ACStack keeps it in the project folder, the path `~/.claude/acstack/bin/acstack project-data path` prints.
 
 Categorize changed files into scopes using the project configuration:
 
@@ -86,9 +86,9 @@ Read `../../output-styles/ac-writing-style.md` relative to this skill directory;
 
 ```
 Read the living specs relevant to this change:
-- Check .acstack/specs/ directory listing
+- Check the <project folder>/specs/ directory listing
 - Read spec.md files for domains touched by the changed files
-  (use .acstack/domain-map.yaml to map files -> domains)
+  (use <project folder>/domain-map.yaml to map files -> domains)
 - Extract documented conventions, patterns, and requirements (FR-NNN entries)
 Report: list of project conventions and patterns relevant to these changes.
 ```

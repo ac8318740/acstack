@@ -1,3 +1,4 @@
+import { gitOnlyDir, linkProject, trackProject } from '../test-project.js';
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import { spawnSync, spawn } from 'node:child_process';
 import {
@@ -193,14 +194,15 @@ afterEach(() => {
  * PATH never breaks the ability to spawn node.
  *
  * `env`, when given, is applied LAST, so a test can override
- * `XDG_CONFIG_HOME` (to use a config file it wrote itself rather than the
+ * `ACSTACK_HOME` (to use a config file it wrote itself rather than the
  * per-test one) or `HOME` (to isolate reads of `~/.claude/settings.json`
  * from whatever the machine running the suite happens to have there).
  */
 function runCli(args: string[], opts: { cwd?: string; path?: string[]; env?: NodeJS.ProcessEnv } = {}) {
-  const env: NodeJS.ProcessEnv = { ...process.env, XDG_CONFIG_HOME: xdgConfigHome };
+  const env: NodeJS.ProcessEnv = { ...process.env, ACSTACK_HOME: xdgConfigHome };
   if (opts.path) {
-    env.PATH = opts.path.join(delimiter);
+    // git stays findable: the CLI locates the project folder through it.
+    env.PATH = [...opts.path, gitOnlyDir()].join(delimiter);
   }
   Object.assign(env, opts.env ?? {});
   return spawnSync(process.execPath, [CLI_BIN, ...args], {
@@ -216,7 +218,7 @@ function runCli(args: string[], opts: { cwd?: string; path?: string[]; env?: Nod
 }
 
 function configFilePath(): string {
-  return join(xdgConfigHome, 'acstack', 'config.json');
+  return join(xdgConfigHome, 'config.json');
 }
 
 /** An empty directory to use as PATH when a test wants NOTHING resolvable. */
@@ -274,7 +276,7 @@ function makeProject(yaml: string): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
   mkdirSync(join(root, '.acstack'), { recursive: true });
   writeFileSync(join(root, '.acstack', 'project.yaml'), yaml);
-  return root;
+  return trackProject(root);
 }
 
 /**
@@ -294,6 +296,7 @@ function makeSymlinkedProject(yaml: string): { root: string; link: string; targe
   writeFileSync(target, yaml);
   const link = join(root, '.acstack', 'project.yaml');
   symlinkSync(target, link);
+  trackProject(root);
   return { root, link, target };
 }
 
@@ -303,13 +306,13 @@ function noProjectDir(): string {
 }
 
 /**
- * A project root holding `acstack/` and nothing inside it - no project.yaml
- * at all. Still a project, because `findProjectRoot` looks for the directory.
+ * A project folder with nothing inside it - no project.yaml at all. Still a
+ * project, because the per-test ACStack home links it as one.
  */
 function projectWithoutYaml(): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
   mkdirSync(join(root, '.acstack'), { recursive: true });
-  return root;
+  return linkProject(root, xdgConfigHome);
 }
 
 /**
@@ -656,9 +659,9 @@ function runCheck(opts: {
   env?: NodeJS.ProcessEnv;
 }) {
   const xdg = mkdtempSync(join(tmpdir(), 'acstack-check-xdg-'));
-  mkdirSync(join(xdg, 'acstack'), { recursive: true });
+  mkdirSync(xdg, { recursive: true });
   writeFileSync(
-    join(xdg, 'acstack', 'config.json'),
+    join(xdg, 'config.json'),
     JSON.stringify({ host: opts.host ?? HOST_QUIET }, null, 2) + '\n'
   );
 
@@ -666,7 +669,7 @@ function runCheck(opts: {
     cwd: opts.cwd,
     path: opts.path ?? [emptyPathDir()],
     env: {
-      XDG_CONFIG_HOME: xdg,
+      ACSTACK_HOME: xdg,
       HOME: opts.home ?? fakeHome(),
       // Emptied for the same reason HOME is replaced: Claude Code reads its
       // config root from this variable, so a machine that happens to set it
@@ -1055,9 +1058,9 @@ function runSet(key: string, value: string, cwd: string) {
   const xdg = mkdtempSync(join(tmpdir(), 'acstack-set-xdg-'));
   const result = runCli(['config', 'set', key, value], {
     cwd,
-    env: { XDG_CONFIG_HOME: xdg },
+    env: { ACSTACK_HOME: xdg },
   });
-  return { ...result, globalConfigFile: join(xdg, 'acstack', 'config.json') };
+  return { ...result, globalConfigFile: join(xdg, 'config.json') };
 }
 
 /**
@@ -1074,8 +1077,8 @@ function runSet(key: string, value: string, cwd: string) {
  */
 function runProjectConfig(args: string[], cwd: string) {
   const xdg = mkdtempSync(join(tmpdir(), 'acstack-project-xdg-'));
-  const result = runCli(['config', ...args], { cwd, env: { XDG_CONFIG_HOME: xdg } });
-  return { ...result, globalConfigFile: join(xdg, 'acstack', 'config.json') };
+  const result = runCli(['config', ...args], { cwd, env: { ACSTACK_HOME: xdg } });
+  return { ...result, globalConfigFile: join(xdg, 'config.json') };
 }
 
 /** `acstack config get <key>` in `cwd`, isolated the way `runSet` is. */
@@ -1812,7 +1815,8 @@ describe('acstack config set, project keys', () => {
     it('creates .acstack/project.yaml holding the key it was given', () => {
       const root = projectWithoutYaml();
 
-      const result = runSet('workflow.maps.tracker', 'files', root);
+      // The per-test home holds the link that makes this a project.
+      const result = runCli(['config', 'set', 'workflow.maps.tracker', 'files'], { cwd: root });
 
       expect(result.status).toBe(0);
       expect(existsSync(join(root, '.acstack', 'project.yaml'))).toBe(true);
@@ -3538,9 +3542,9 @@ describe('acstack config list', () => {
    */
   function listWithHost(cwd: string, host: HostDeclarations, flags: string[] = []) {
     const xdg = mkdtempSync(join(tmpdir(), 'acstack-list-xdg-'));
-    mkdirSync(join(xdg, 'acstack'), { recursive: true });
-    writeFileSync(join(xdg, 'acstack', 'config.json'), JSON.stringify({ host }, null, 2) + '\n');
-    return runCli(['config', 'list', ...flags], { cwd, env: { XDG_CONFIG_HOME: xdg } });
+    mkdirSync(xdg, { recursive: true });
+    writeFileSync(join(xdg, 'config.json'), JSON.stringify({ host }, null, 2) + '\n');
+    return runCli(['config', 'list', ...flags], { cwd, env: { ACSTACK_HOME: xdg } });
   }
 
   describe('a project and a host that each state something', () => {

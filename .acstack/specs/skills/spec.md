@@ -97,32 +97,25 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: Implementation checks approval against the current authored files, comments, and map inputs
 - **Source**: `skills/design-doc/SKILL.md`, `skills/map/SKILL.md`, `skills/map/materialising.md`, `examples/design-doc/acstack/`
 
-## FR-007: Offer independent tracking choices for every project-data part
+## FR-007: Ask where a new project's records live
 
-- **Given**: Setup creates `.acstack/` for a new project
+- **Given**: Setup finds no `project.yaml` in the project folder
 - **When**: Setup prepares project metadata
-- **Then**: Setup runs `project-data ensure` immediately, before writing metadata
-- **Then**: Setup offers all 17 project-data parts through multi-select questions with none preselected
-- **Then**: The choices include project configuration, the domain map, specs, maps, authored designs, archives, changes, alignment packs, and design reviews
-- **Then**: The choices also include architecture decisions, the glossary, browser configuration, verification knowledge, the test baseline, decision logs, continuation anchors, and agent handoffs
-- **Then**: Selecting nothing leaves every part ignored
-- **Then**: Selected parts receive native root `.gitignore` exceptions after existing rules, with parent directories reopened first
-- **Then**: Setup preserves user rules without changing the Git index or force-adding ignored files
-- **Then**: Setup neither offers nor generates `workflow.alignment_packs.commit_generated_packs` or a YAML tracking setting
+- **Then**: Setup creates the folder `acstack project-data path` prints and writes `project.yaml` there
+- **Then**: Setup asks whether records stay outside the repository (global mode, recommended) or are committed with it (tracked mode)
+- **Then**: For tracked mode, setup runs `project-data mode tracked` and tells the user to commit `.acstack/` from the main checkout
+- **Then**: Setup never stages or commits `.acstack/` and writes no `.gitignore` rules
 - **Source**: `skills/setup/first-run.md`, `skills/setup/SKILL.md`, `docs/config-reference.md`
 
-## FR-008: Keep shared decision logs in the explicitly migrated main checkout
+## FR-008: Keep shared decision logs in the project folder
 
 - **Given**: An afk run needs to write its decision log
-- **When**: The agent resolves the main checkout
-- **Then**: The log belongs at `<main checkout>/.acstack/decision-logs/<name>.tsv`, not in the worktree
-- **Given**: The main checkout still contains legacy project records
+- **When**: The agent resolves where to write it
+- **Then**: The log belongs at `<project folder>/decision-logs/<name>.tsv`, shared by every worktree
+- **Given**: `project-data path` fails because legacy records exist
 - **When**: The agent prepares a log write
-- **Then**: The agent stops with instructions to update tools, stop old processes, and explicitly migrate that checkout
-- **Then**: The agent neither migrates another checkout automatically nor creates a partial `.acstack/` there
-- **Given**: The main checkout uses the canonical layout
-- **When**: The agent prepares a log write
-- **Then**: The agent runs `project-data ensure` first without adding a nested ignore file
+- **Then**: The agent stops, passes the message on, and tells the user to update tools, stop old processes, and run `project-data migrate`
+- **Then**: The agent neither moves records nor creates a partial project folder
 - **Given**: Archive closes the map
 - **When**: It extracts lasting decisions from the log
 - **Then**: Archive retains the original decision log independently of `workflow.maps.persist`

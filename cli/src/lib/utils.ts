@@ -2,8 +2,7 @@ import { existsSync, mkdirSync, readFileSync, readSync, readdirSync } from 'node
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import chalk from 'chalk';
-import { ACSTACK_DIR, CHANGES_DIR, SPECS_DIR, ARCHIVE_DIR } from './constants.js';
-import { assertCanonicalProject } from './project-data.js';
+import { CHANGES_DIR, SPECS_DIR, ARCHIVE_DIR } from './constants.js';
 import { findProjectRoot } from './project.js';
 
 /**
@@ -46,7 +45,7 @@ export function readMarkdown(path: string): string | null {
 }
 
 export function listChanges(root: string): string[] {
-  const dir = join(root, ACSTACK_DIR, CHANGES_DIR);
+  const dir = join(root, CHANGES_DIR);
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter(e => e.isDirectory() && e.name !== ARCHIVE_DIR)
@@ -54,7 +53,7 @@ export function listChanges(root: string): string[] {
 }
 
 export function listSpecs(root: string): string[] {
-  const dir = join(root, ACSTACK_DIR, SPECS_DIR);
+  const dir = join(root, SPECS_DIR);
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter(e => e.isDirectory())
@@ -62,7 +61,7 @@ export function listSpecs(root: string): string[] {
 }
 
 export function listArchivedChanges(root: string): string[] {
-  const dir = join(root, ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR);
+  const dir = join(root, CHANGES_DIR, ARCHIVE_DIR);
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter(e => e.isDirectory())
@@ -71,7 +70,6 @@ export function listArchivedChanges(root: string): string[] {
 
 export function requireProject(root: string | null): asserts root is string {
   if (!root) fail('Not in an ACStack project. Run `/acstack:setup` first.');
-  try { assertCanonicalProject(root); } catch (error) { fail((error as Error).message); }
 }
 
 /**
@@ -85,7 +83,8 @@ export function requireProject(root: string | null): asserts root is string {
  */
 export function inProject<A extends unknown[]>(action: (root: string, ...args: A) => void | Promise<void>) {
   return async (...args: A): Promise<void> => {
-    const root = findProjectRoot();
+    let root: string | null = null;
+    try { root = findProjectRoot(); } catch (err) { fail((err as Error).message); }
     requireProject(root);
     try {
       await action(root, ...args);

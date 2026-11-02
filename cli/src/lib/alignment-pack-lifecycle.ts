@@ -1,7 +1,5 @@
 import { join } from 'node:path';
 
-import { ACSTACK_DIR } from './constants.js';
-import { ensureProjectGitignore } from './project-data.js';
 
 export const ALIGNMENT_PACK_AUTO_GENERATE_KEY = 'workflow.alignment_packs.auto_generate';
 export const ALIGNMENT_PACK_APPROVAL_GATE_KEY = 'workflow.alignment_packs.approval_gate';
@@ -46,7 +44,7 @@ export function loadAlignmentPackConfig(root: string): Promise<AlignmentPackConf
 
 export function alignmentPackStoragePaths(options: AlignmentPackStorageOptions): AlignmentPackStoragePaths {
   const safeMap = storageName(options.map);
-  const directory = join(options.root, ACSTACK_DIR, ALIGNMENT_PACKS_DIR, safeMap);
+  const directory = join(options.root, ALIGNMENT_PACKS_DIR, safeMap);
   return {
     directory,
     packHtml: join(directory, `${storageName(options.packVersion)}.html`),
@@ -63,9 +61,4 @@ export function archiveAlignmentPackWorkingState(options: ArchiveAlignmentPackWo
 
   // Legacy review artifacts remain available for explicit migration.
   return Promise.resolve();
-}
-
-// Git's root ignore rules alone control tracking; commit_generated_packs is compatibility-only.
-export function ignoreGeneratedPacks(root: string): void {
-  ensureProjectGitignore(root);
 }

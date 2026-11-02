@@ -87,17 +87,22 @@ ACStack runs on Claude Code, Codex, and pi. The skills name each capability once
 
 ## Project configuration
 
-- All ACStack-owned project data lives under `.acstack/` and stays local by default
-- The root `.gitignore` is the sole tracking policy; user exceptions after its managed baseline opt individual parts in
-- Before a configuration gate, CLI and host session startup run `~/.claude/acstack/bin/acstack project-data ensure`
-- When creating `.acstack/` manually, run that command immediately; it needs no project config
-- Filesystem creation alone triggers nothing; the next CLI invocation or session startup enforces the baseline, without a watcher
-- Never force-add ignored project data, change the Git index, or create automatic tracking exceptions
-- For legacy layouts, follow the explicit migration procedure in `docs/config-reference.md`
-- Update installed tools first, stop old agents and reviews, migrate the selected checkout, then restart with updated tools
-- Never silently migrate another checkout or work around legacy data by creating a partial `.acstack/` there
+- All ACStack-owned project data lives in one folder per repository, the **project folder**
+    - `~/.claude/acstack/bin/acstack project-data path` prints its absolute path, even before it exists
+    - Every worktree of a repository shares it; the session-start hook also states it in your context
+    - The command exits non-zero outside a Git repository, and names the fix for legacy data, orphaned entries, or conflicts
+    - These files write its parts as `<project folder>/project.yaml`, `<project folder>/specs/`, and so on
+- **Global mode** (the default) keeps the project folder under `~/.acstack/projects/` (or `$ACSTACK_HOME/projects/`)
+    - The repository holds no ACStack files and needs no `.gitignore` rules
+- **Tracked mode** (opt-in) keeps the records in the main checkout's committed `.acstack/`; the project folder is a link to it
+    - Edits to a feature branch's own `.acstack/` take effect only once they reach the main checkout
+- Data moves only when the developer asks: `acstack project-data mode tracked|global`, `migrate`, or `relink <entry>`
+    - For legacy layouts, follow the explicit migration procedure in `docs/config-reference.md`
+    - Update installed tools first, stop old agents and review servers, migrate, then restart with updated tools
+    - Never silently migrate data or work around legacy data by creating a partial project folder
+- Never change the Git index or force-add files to track project data
 
-All project-specific commands and paths come from `.acstack/project.yaml`. Read this file before you run any build, test or lint command. If it doesn't exist, prompt the user to run `/acstack:setup`.
+All project-specific commands and paths come from `<project folder>/project.yaml`. Read this file before you run any build, test or lint command. If it doesn't exist, prompt the user to run `/acstack:setup`.
 
 Key fields:
 
@@ -331,19 +336,19 @@ The investigator reports:
 
 Spec sync keeps living specs current, whichever workflow you ran. It runs as part of every `/acstack:commit`.
 
-When `workflow.spec_sync` is `true` in `.acstack/project.yaml`:
+When `workflow.spec_sync` is `true` in `<project folder>/project.yaml`:
 
 1. Run `git diff --staged` to see what is changing
-2. Map changed files to spec domains via `.acstack/domain-map.yaml`
-3. For each affected domain with a `.acstack/specs/[domain]/spec.md`:
+2. Map changed files to spec domains via `<project folder>/domain-map.yaml`
+3. For each affected domain with a `<project folder>/specs/[domain]/spec.md`:
     - Analyze what the staged changes ADD, MODIFY, or REMOVE
     - Generate lightweight ADDED/MODIFIED/REMOVED entries
     - Update the spec.md
-4. Stage updated specs only when native `.gitignore` rules allow tracking
-    - Keep ignored specs updated locally; never force-add them or change the Git index to bypass the user's choice
+4. Stage updated specs only in tracked mode, when you commit in the main checkout
+    - In global mode, and from other worktrees in tracked mode, specs update in place and stay out of the commit
 5. Flag unmapped source files. Prompt the user to map them.
 
-Spec sync updates local records with every commit, including when those records stay ignored.
+Spec sync updates the living specs with every commit, whether or not the commit includes them.
 
 ---
 
@@ -360,9 +365,9 @@ Spec sync updates local records with every commit, including when those records 
 
 ## Living specs
 
-- `.acstack/specs/` contains the cumulative source of truth for the system
+- `<project folder>/specs/` contains the cumulative source of truth for the system
 - `/acstack:commit` updates them automatically through spec sync; `/acstack:archive` closes out a cleared map
-- Domain-organized per `.acstack/domain-map.yaml`
+- Domain-organized per `<project folder>/domain-map.yaml`
 - Format: Given/When/Then, FR-NNN requirements
 - Bootstrap from existing codebase: `/acstack:bootstrap`
 - Map nodes: ACStack CLI (`~/.claude/acstack/bin/acstack node create | read | update | list`, plus the composed `node frontier` and `node walk` queries)
@@ -385,12 +390,12 @@ Read-only reviewers report discrepancies to the completion owner.
 
 The verification owner gathers evidence for the final revision. Opening a PR does not require running every test locally.
 
-Read `.acstack/project.yaml` for the available commands and inspect the project's CI configuration before relying on it:
+Read `<project folder>/project.yaml` for the available commands and inspect the project's CI configuration before relying on it:
 
 1. Use focused local checks by default: cover changed behavior, affected callers, and relevant integration paths
 2. Run applicable build, lint, and typecheck checks; scope them when the tooling supports it
 3. A configured command is not a requirement to run its entire suite. Run the full suite locally only when explicitly required by the user or project instructions, or when broad or uncertain impact cannot be covered adequately by narrower checks
-4. When `commands.test_collect` is configured, compare the count against `.acstack/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
+4. When `commands.test_collect` is configured, compare the count against `<project folder>/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
 5. Run configured frontend build, lint, and tests when frontend files changed, and complete applicable design and browser gates
 
 Required CI checks must pass before merge, not before opening a PR. Defer broader checks to CI only after confirming it runs them for this change; do not assume CI runs every test.
@@ -419,7 +424,7 @@ Do not claim completion with failed or blocked required checks. Investigate, fix
 
 ## Frontend visual verification
 
-**This section applies only when `.acstack/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`.**
+**This section applies only when `<project folder>/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`.**
 
 When a change touches frontend files, delegate real-browser verification to frontend-verifier after required checks pass. Never substitute a confidence claim for browser evidence.
 
@@ -427,7 +432,7 @@ The design pass runs before browser verification when the design gate is on, fol
 
 The frontend-verifier agent:
 
-1. Reads the project's verification knowledge base (`.acstack/verification/VERIFICATION-KNOWLEDGE.md`)
+1. Reads the project's verification knowledge base (`<project folder>/verification/VERIFICATION-KNOWLEDGE.md`)
 2. Checks what frontend files changed
 3. Starts the dev server if it's not running
 4. Connects to a browser through the Chrome DevTools Protocol (CDP), over a remote tunnel or local headless Chromium
@@ -440,8 +445,8 @@ The frontend-verifier agent:
 
 Run `/acstack:setup` to set up browser verification. This creates:
 
-- **`.acstack/agent-browser.json`** – CDP connection config, selected by an absolute `--config` path or `AGENT_BROWSER_CONFIG`
-- **`.acstack/verification/VERIFICATION-KNOWLEDGE.md`** – Evolving knowledge base of element patterns, gotchas, and proven verification sequences
+- **`<project folder>/agent-browser.json`** – CDP connection config, selected by an absolute `--config` path or `AGENT_BROWSER_CONFIG`
+- **`<project folder>/verification/VERIFICATION-KNOWLEDGE.md`** – Evolving knowledge base of element patterns, gotchas, and proven verification sequences
 
 `frontend.browser.mode` in project.yaml holds the browser environment: remote, headless, or local.
 

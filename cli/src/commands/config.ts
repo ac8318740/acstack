@@ -1,4 +1,3 @@
-import { assertCanonicalProject } from '../lib/project-data.js';
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { GLOBAL_CONFIG_FILE, projectFile } from '../lib/constants.js';
@@ -40,7 +39,7 @@ import {
   setProjectKey,
   unsetProjectKey,
 } from '../lib/project-config.js';
-import { findProjectRoot } from '../lib/project.js';
+import { checkoutRoot, findProjectRoot, ProjectDataError } from '../lib/project.js';
 import { readYaml } from '../lib/utils.js';
 import {
   CheckReport,
@@ -69,7 +68,7 @@ import {
  * so it can never be added to the sync path and missed on the async one.
  */
 function reportUserError(err: unknown): never {
-  if (err instanceof ConfigValidationError || err instanceof ConfigFileError) {
+  if (err instanceof ConfigValidationError || err instanceof ConfigFileError || err instanceof ProjectDataError) {
     console.error(chalk.red(err.message));
     process.exit(1);
   }
@@ -164,7 +163,6 @@ function loadProject(): LoadedProject {
     };
   }
 
-  assertCanonicalProject(root);
   const yaml = readYaml(projectFile(root));
   return {
     root,
@@ -307,7 +305,6 @@ function projectFileFor(key: string, use: ProjectKeyUse): string {
         );
     }
   }
-  assertCanonicalProject(root);
   return projectFile(root);
 }
 
@@ -431,7 +428,6 @@ function listConfig(asJson: boolean): void {
   // No key argument, so there is no project key to refuse: outside a
   // project the host axes are still the machine's, and still readable.
   const root = findProjectRoot();
-  if (root) assertCanonicalProject(root);
 
   if (asJson) {
     // The host side keeps the shape it has always had - the config's own
@@ -507,9 +503,9 @@ async function checkConfig(asJson: boolean): Promise<void> {
   checkImpeccable(report);
   // The output style lives in Claude Code's settings rather than in the
   // project, so it gets its own section rather than sitting among files the
-  // project owns. Without a project root the settings files are still looked
-  // for from where the user ran the command.
-  checkOutputStyle(report, loaded.root ?? process.cwd());
+  // project owns. Claude Code reads them from the checkout, not the project
+  // folder; outside Git they are looked for from where the user ran the command.
+  checkOutputStyle(report, checkoutRoot() ?? process.cwd());
 
   report.finish(asJson);
 }

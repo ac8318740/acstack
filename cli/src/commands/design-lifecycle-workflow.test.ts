@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { isAbsolute, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
+import { gitBinary, trackProject } from '../test-project.js';
 
 // Black-box contract tests: the parent rebuilds cli/dist before the green run.
 const bin = fileURLToPath(new URL('../../bin/acstack.js', import.meta.url));
@@ -25,6 +26,8 @@ function fixture(tracker?: Tracker) {
   mkdirSync(join(root, '.acstack'));
   mkdirSync(join(root, 'bin'));
   writeFileSync(join(root, '.acstack/project.yaml'), `name: lifecycle-test\nworkflow:\n  maps:\n    tracker: ${tracker ?? 'files'}\n`);
+  trackProject(root);
+  symlinkSync(gitBinary, join(root, 'bin', 'git'));
   writeFileSync(join(root, 'design.yaml'), `id: example\nname: Example\nsummary: Review this design\nelements: [app.yaml]\ndetail: detail.md\n${tracker ? `planning: {tracker: ${tracker}, map: demo}\n` : ''}`);
   writeFileSync(join(root, 'app.yaml'), 'id: app\nname: App\nsummary: Runs commands\nkind: component\n');
   writeFileSync(join(root, 'detail.md'), '# Details\n\nKeep authored inputs.\n');

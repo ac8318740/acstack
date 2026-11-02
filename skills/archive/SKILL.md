@@ -1,6 +1,6 @@
 ---
 name: archive
-description: Close out a cleared map – one whose frontier is empty with no fog and no claims left – by verifying the durable residue, meaning what the effort leaves behind in living specs, ADRs and the glossary, was extracted, then closing the root and disposing of the nodes per workflow.maps.persist. Invoke when a map has just been cleared, when the last node on a map resolves, or when the user asks to archive or close out a map. Refuses and asks first if anything is still open. Also archives legacy .acstack/changes/ directories from the pre-map workflow.
+description: Close out a cleared map – one whose frontier is empty with no fog and no claims left – by verifying the durable residue, meaning what the effort leaves behind in living specs, ADRs and the glossary, was extracted, then closing the root and disposing of the nodes per workflow.maps.persist. Invoke when a map has just been cleared, when the last node on a map resolves, or when the user asks to archive or close out a map. Refuses and asks first if anything is still open. Also archives legacy changes/ directories from the pre-map workflow.
 argument-hint: "[map or legacy change name]"
 ---
 
@@ -18,12 +18,15 @@ Archive verifies implemented specs, durable decisions, and retained review evide
 
 ## Step 1: Locate the map
 
+ACStack keeps project data in the project folder, the path
+`~/.claude/acstack/bin/acstack project-data path` prints.
+
 If `$ARGUMENTS` names a map, use it. Otherwise list maps on the configured
-tracker (`workflow.maps.tracker`): `ls .acstack/maps/` on the files backend,
+tracker (`workflow.maps.tracker`): `ls "$(~/.claude/acstack/bin/acstack project-data path)/maps/"` on the files backend,
 `gh label list --search "map:" --json name` on GitHub.
 
 If exactly one, use it. If several, ask. If `$ARGUMENTS` names a legacy
-`.acstack/changes/` directory instead, jump to Legacy below.
+`<project folder>/changes/` directory instead, jump to Legacy below.
 
 ## Step 2: Verify no open work remains
 
@@ -83,7 +86,7 @@ On GitHub, compose the walk per `trackers/github.md`.
 Check each resolution left what it should have:
 
 1. **Living specs** – behaviour the effort built should already be in
-   `.acstack/specs/` via commit-time sync. Spot-check the affected domains.
+   `<project folder>/specs/` via commit-time sync. Spot-check the affected domains.
 
    Verify against source and verification evidence, not proposals copied from map nodes.
    Fix gaps on sight per the Spec Correction Protocol.
@@ -98,9 +101,8 @@ Check each resolution left what it should have:
    Preserve enough context to trace implemented behavior back to its decisions without retaining proposals as requirements.
    Stop if unresolved scope still needs a decision rather than an explicit out-of-scope resolution.
 
-4. **The decision log** – read `<main checkout>/.acstack/decision-logs/<name>.tsv`
-   if it exists. The main checkout is `dirname` of `git rev-parse
-   --path-format=absolute --git-common-dir`.
+4. **The decision log** – read `<project folder>/decision-logs/<name>.tsv`
+   if it exists.
 
     afk runs append one row per decision an agent made alone. Hand each
     lasting decision to `record-context`. A later row supersedes an earlier
@@ -130,12 +132,12 @@ If you reached this skill on your own after a map cleared, name what you
 will delete or move. Then wait for the user's go-ahead. Deletion is
 irreversible and they never asked for it.
 
-`workflow.maps.persist` in `.acstack/project.yaml` decides (default `false`):
+`workflow.maps.persist` in `<project folder>/project.yaml` decides (default `false`):
 
 | Value             | Action                                                       |
 | ----------------- | ------------------------------------------------------------ |
-| `false` (default) | delete `.acstack/maps/<name>/`                                 |
-| `true`            | move the nodes to `.acstack/archive/[YYYY-MM-DD]-[name]/nodes/` |
+| `false` (default) | delete `<project folder>/maps/<name>/`                                 |
+| `true`            | move the nodes to `<project folder>/archive/[YYYY-MM-DD]-[name]/nodes/` |
 
 Default is delete because keeping the nodes leaves a second copy of every
 decision, and the two drift. On the GitHub tracker there is nothing to
@@ -145,15 +147,15 @@ Retain these records independently of `workflow.maps.persist`:
 
 - Authored design entries and referenced source files
 - Canonical `review.json` files, posted feedback, reconciliation, and exact-revision approval evidence
-- Imported legacy history and original `.acstack/alignment-packs/` artifacts
-- Main-checkout `.acstack/decision-logs/<name>.tsv` files
+- Imported legacy history and original `<project folder>/alignment-packs/` artifacts
+- `<project folder>/decision-logs/<name>.tsv` files
 - Handoffs that contain review evidence or provenance not retained elsewhere
 
 Never recursively delete alignment, review, decision-log, or handoff directories as archive cleanup.
 Do not invoke a cleanup helper that erases those records.
 
 If a retained source or review record sits inside the proposed node disposal path, stop and resolve its safe retention first.
-Respect native Git ignore rules; never force-add private records.
+Never change the Git index or force-add records to commit them.
 
 ## Step 6: Report
 
@@ -162,19 +164,19 @@ Respect native Git ignore rules; never force-add private records.
 - Disposal: node deletion or archive path, plus retained review evidence and provenance
 - Reminder: commit with `/acstack:commit`
 
-## Legacy: archiving a `.acstack/changes/` directory
+## Legacy: archiving a `<project folder>/changes/` directory
 
 The pre-map workflow created changes that hold proposal.md, design.md and
 tasks.md. They still archive the old way, so an upgrade never strands work:
 
 1. Read the change's artifacts. Derive the affected domains from the file
-   paths in `tasks.md` via `.acstack/domain-map.yaml`.
+   paths in `tasks.md` via `<project folder>/domain-map.yaml`.
 
 2. For each domain, merge what the feature ADDED, MODIFIED or REMOVED into
-   `.acstack/specs/[domain]/spec.md`.
+   `<project folder>/specs/[domain]/spec.md`.
 
 3. Write a `delta.md` into the change directory.
 
     Then run the CLI's `acstack archive <name>`. It moves the artifacts,
-    delta included, to `.acstack/changes/archive/[YYYY-MM-DD]-[change-name]/`.
-    It also removes the change from `.acstack/changes/`.
+    delta included, to `<project folder>/changes/archive/[YYYY-MM-DD]-[change-name]/`.
+    It also removes the change from `<project folder>/changes/`.

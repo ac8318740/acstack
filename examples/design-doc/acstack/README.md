@@ -109,7 +109,7 @@ The ACStack plugin contains Agent skills, Agent session setup, and the CLI packa
 - Choose `--port <port>` if another review uses the default port
 - Use an unused path for each Markdown export
 - Keep the companion beside source when its relative links must work on GitHub
-- New designs default to Git-ignored `.acstack/designs/`; this repository intentionally tracks this public example
+- New designs default to `designs/` in the project folder, outside the repository unless the project uses tracked mode; this repository intentionally tracks this public example
 
 
 ## Project developer
@@ -237,7 +237,7 @@ Authored design files define the design in the local checkout; GitHub hosts a pu
     - Ignore rules exclude matching untracked files from ordinary staging
     - Removing an ignore rule does not stage, commit, or push anything
     - Already tracked files remain tracked even if an ignore rule later matches them
-    - New project designs under `.acstack/` stay ignored by default; this public example is tracked separately
+    - New project designs in the project folder stay outside the repository by default; this public example is tracked separately
 
 
 ## Offline review
@@ -270,4 +270,4 @@ Authored design files define the design in the local checkout; GitHub hosts a pu
     - Ignore rules exclude matching untracked files from ordinary staging
     - Removing an ignore rule does not stage, commit, or push anything
     - Already tracked files remain tracked even if an ignore rule later matches them
-    - New project designs under `.acstack/` stay ignored by default; this public example is tracked separately
+    - New project designs in the project folder stay outside the repository by default; this public example is tracked separately

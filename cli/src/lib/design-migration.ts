@@ -7,7 +7,6 @@ import { PACK_DATA_ID } from './alignment-review-protocol.js';
 import { designDocToPack, loadDesignDoc } from './design-doc.js';
 import { digest } from './design-map.js';
 import { LegacyAnnotationSchema, LegacyFeedbackSchema, LegacyMappingSchema, openDesignReview, type StoredDesignReview } from './design-review.js';
-import { assertCanonicalProject } from './project-data.js';
 
 // Bound both individual artifacts and the entire import before parsing or publication.
 const FILE_LIMIT = 1_000_000;
@@ -68,27 +67,12 @@ function legacyComments(annotations: z.infer<typeof LegacyAnnotationSchema>[]) {
   }]));
 }
 
-// Resolve the same Git common directory used by skills/implement/decision-log.md, without requiring git on the caller's PATH.
-function mainCheckout(root: string): string {
-  let git = join(root, '.git');
-  noLinks(git);
-  if (!lstatSync(git).isDirectory()) {
-    const pointer = readBounded(git, 4096).trim().match(/^gitdir: (.+)$/);
-    if (!pointer) throw new Error('Invalid legacy decision-log Git directory');
-    git = resolve(root, pointer[1]);
-    noLinks(git);
-  }
-  if (lstatSync(join(git, 'commondir'), { throwIfNoEntry: false })) git = resolve(git, readBounded(join(git, 'commondir'), 4096).trim());
-  noLinks(git);
-  return dirname(git);
-}
-
 export function migrateDesignReview(root: string, entry: string, options: { legacyDir: string; mapping: string; feedback?: string }): { reviewPath: string } {
   const pack = designDocToPack(loadDesignDoc(entry));
   const directory = resolve(options.legacyDir);
-  const base = join(root, '.acstack', 'alignment-packs');
+  const base = join(root, 'alignment-packs');
   const rel = relative(base, directory);
-  if (!rel || isAbsolute(rel) || rel.split(/[\\/]/).includes('..')) throw new Error('Legacy directory must be under .acstack/alignment-packs');
+  if (!rel || isAbsolute(rel) || rel.split(/[\\/]/).includes('..')) throw new Error('Legacy directory must be under alignment-packs in the project folder');
   noLinks(directory);
   if (!lstatSync(directory).isDirectory()) throw new Error('Invalid legacy directory');
   const sources: { path: string; digest: string; content?: string }[] = [];
@@ -156,13 +140,11 @@ export function migrateDesignReview(root: string, entry: string, options: { lega
       ids.set(identity, fingerprint);
     }
   }
-  const main = mainCheckout(root);
-  assertCanonicalProject(main);
-  const decisionPath = join(main, '.acstack', 'decision-logs', `${basename(directory)}.tsv`);
-  for (const path of [join(main, '.acstack'), dirname(decisionPath), decisionPath]) {
+  const decisionPath = join(root, 'decision-logs', `${basename(directory)}.tsv`);
+  for (const path of [dirname(decisionPath), decisionPath]) {
     if (lstatSync(path, { throwIfNoEntry: false })) noLinks(path);
   }
-  const decisionLog = lstatSync(decisionPath, { throwIfNoEntry: false }) ? { path: `.acstack/decision-logs/${basename(directory)}.tsv`, content: readBounded(decisionPath, FILE_LIMIT) } : undefined;
+  const decisionLog = lstatSync(decisionPath, { throwIfNoEntry: false }) ? { path: `decision-logs/${basename(directory)}.tsv`, content: readBounded(decisionPath, FILE_LIMIT) } : undefined;
   const history = { directory: relative(root, directory).split('\\').join('/'), sources: sources.sort((a, b) => a.path.localeCompare(b.path)), packs: [...versions.values()], annotations, mapping, feedback, decisionLog };
   const fingerprint = digest(history);
   const apply = (snapshot: StoredDesignReview) => {

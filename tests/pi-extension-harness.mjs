@@ -5,8 +5,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import childProcess, { execFileSync } from 'node:child_process';
-import { syncBuiltinESMExports } from 'node:module';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { EventEmitter } from 'node:events';
 
@@ -60,10 +59,16 @@ async function fire(reg, event, payload, ctx) {
   return result;
 }
 
+// A Git repository; with `acstack`, a committed .acstack/ makes dir/.acstack its project folder.
 function newProject(name, { acstack = true } = {}) {
   const dir = path.join(work, name);
-  fs.mkdirSync(path.join(dir, '.acstack'), { recursive: true });
-  if (acstack) fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'), 'profile: generic\n');
+  fs.mkdirSync(dir, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  if (acstack) {
+    fs.mkdirSync(path.join(dir, '.acstack'));
+    fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'), 'profile: generic\n');
+    execFileSync('git', ['add', '.acstack/project.yaml'], { cwd: dir });
+  }
   return dir;
 }
 
@@ -183,29 +188,9 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 {
   const reg = load();
   const ctx = makeCtx(newProject('links'));
-  const realExecFileSync = childProcess.execFileSync;
-  let ensureCall;
-  childProcess.execFileSync = (file, args, options) => {
-    if (file === wrapper || args?.includes(wrapper)) {
-      ensureCall = { file, args, options };
-      // Native Windows cannot execute a JavaScript shebang directly.
-      if (file === wrapper) throw new Error('spawnSync acstack.js EINVAL');
-    }
-    return realExecFileSync(file, args, options);
-  };
-  syncBuiltinESMExports();
-  try {
-    await fire(reg, 'session_start', { reason: 'startup' }, ctx);
-  } finally {
-    childProcess.execFileSync = realExecFileSync;
-    syncBuiltinESMExports();
-  }
-  check('startup runs the real ensure CLI through Node',
-    ensureCall?.file === process.execPath
-      && JSON.stringify(ensureCall.args) === JSON.stringify([wrapper, 'project-data', 'ensure'])
-      && ensureCall.options.cwd === ctx.cwd
-      && fs.existsSync(path.join(ctx.cwd, '.gitignore'))
-      && !ctx.notes.some(n => n.msg.includes('project-data ensure failed')));
+  await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  check('startup leaves the repository untouched',
+    fs.readdirSync(ctx.cwd).sort().join() === '.acstack,.git' && !ctx.notes.some(n => n.level === 'error'));
   check('creates the agent CLI symlink', fs.readlinkSync(agentLink) === wrapper);
   check('creates the human CLI symlink', fs.readlinkSync(humanLink) === wrapper);
 
@@ -524,7 +509,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   }).toString();
   const hookContext = JSON.parse(hookOut).hookSpecificOutput.additionalContext;
   fs.writeFileSync(parityFile, anchor);
-  check('the handoff message matches hooks/session-start-handoff.sh', ext.consumeHandoff(parity) === hookContext);
+  check('the handoff message matches hooks/session-start-handoff.sh', ext.consumeHandoff(path.join(parity, '.acstack')) === hookContext);
 
   fs.writeFileSync(active, '# my own notes\n');
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir));

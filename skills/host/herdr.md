@@ -69,7 +69,7 @@ Copy your own if you want them. Nothing in ACStack needs any of them.
 `assets/terminal-workspace/setup.sh apply` fences `[keys]`, one
 `[[keys.command]]` per binding, and `[worktrees]` between these same two
 markers. It takes the directory from `herdr.worktrees_directory` in
-`~/.config/acstack/terminal-workspace.yaml`. A machine that has run it needs
+`~/.acstack/terminal-workspace.yaml`. A machine that has run it needs
 nothing from this installer.
 
 The installer therefore leaves that block alone. It reports the step as skipped

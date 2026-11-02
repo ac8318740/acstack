@@ -163,7 +163,7 @@ if (-not (Test-Path $openerToken)) {
     # A token here is only half of it: the dev machine needs the same bytes, and
     # nothing on this side can see whether it has them. Say so rather than
     # calling it green and leaving a VM that gets 401 on every request.
-    Add-Result 'Opener token' 'green' 'present here (each VM needs the same copy at ~/.config/acstack/opener.token)'
+    Add-Result 'Opener token' 'green' 'present here (each VM needs the same copy at ~/.acstack/opener.token)'
 }
 
 if ($openerListener -and (Test-Path $openerToken)) {

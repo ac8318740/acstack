@@ -299,7 +299,7 @@ Two tasks run it:
 Every request from a VM carries a shared secret called the opener token.
 `register-tasks.ps1` generates it and stores it at
 `%LOCALAPPDATA%\playwriter-bridge\opener.token`. It then pushes the token over
-`ssh` to `~/.config/acstack/opener.token` on each VM.
+`ssh` to `~/.acstack/opener.token` on each VM.
 
 The token is not optional. The reverse tunnel makes 19989 reachable by
 anything running on the VM, and this service puts pages on your screen.

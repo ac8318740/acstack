@@ -3,8 +3,6 @@ import { existsSync, lstatSync, mkdirSync, opendirSync, readFileSync, renameSync
 import { join, resolve, dirname, basename } from 'node:path';
 import { z } from 'zod';
 import { type AlignmentPack, AlignmentPackSchema, ReviewAnnotationSchema, ReviewStateSchema } from './alignment-packs.js';
-import { ACSTACK_DIR } from './constants.js';
-import { ensureProjectGitignore } from './project-data.js';
 import { ReviewHttpError } from './review-server.js';
 
 export const DesignReviewSnapshotSchema = z.object({
@@ -47,9 +45,9 @@ export type StoredDesignReview = z.infer<typeof StoredReviewSchema>;
 
 export function readDesignReviewHistory(root: string, identity: string, path: string): StoredDesignReview {
   const canonical = resolve(path);
-  const base = join(root, ACSTACK_DIR, 'design-reviews', identity);
+  const base = join(root, 'design-reviews', identity);
   if (basename(canonical) !== 'review.json' || !/^[a-f0-9]{16}$/.test(basename(dirname(canonical))) || dirname(dirname(canonical)) !== base) throw new Error('Not canonical history for this design');
-  for (const directory of [join(root, ACSTACK_DIR), join(root, ACSTACK_DIR, 'design-reviews'), base, dirname(canonical)]) {
+  for (const directory of [root, join(root, 'design-reviews'), base, dirname(canonical)]) {
     if (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory()) throw new Error('Invalid review history directory');
   }
   const stat = lstatSync(canonical);
@@ -65,7 +63,7 @@ export function readDesignReviewHistory(root: string, identity: string, path: st
 }
 
 export function readDesignReviewHistories(root: string, identity: string): Map<string, StoredDesignReview> {
-  const base = join(root, ACSTACK_DIR, 'design-reviews', identity);
+  const base = join(root, 'design-reviews', identity);
   const histories = new Map<string, StoredDesignReview>();
   // Bound discovery even when unrelated directory entries or large histories accumulate.
   const directory = opendirSync(base);
@@ -104,12 +102,11 @@ export function openDesignReview(root: string, pack: AlignmentPack, initialOpera
   const version = pack.source.map.version;
   if (!identity || !/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/.test(identity) || !/^[a-f0-9]{16}$/.test(version)) throw new Error('Invalid design review identity');
   let directory = root;
-  for (const part of [ACSTACK_DIR, 'design-reviews', identity, version]) {
+  for (const part of ['design-reviews', identity, version]) {
     directory = join(directory, part);
     if (!existsSync(directory)) mkdirSync(directory);
     if (lstatSync(directory).isSymbolicLink() || !lstatSync(directory).isDirectory()) throw new Error('Design review directory must be a real directory');
   }
-  if (!initialOperation) ensureProjectGitignore(root);
   const canonical = join(directory, 'review.json');
   const validate = (snapshot: DesignReviewSnapshot) => {
     if (snapshot.packVersion !== pack.packVersion) throw new Error('Design review pack version mismatch');

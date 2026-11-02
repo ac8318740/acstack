@@ -27,7 +27,7 @@ ACStack does not need any of this. Offer it, do not assume it.
 ```mermaid
 flowchart TD
     IN["Twelve components, one YAML file<br/>(machine-level, not per-project)"] --> ST["See what this machine has<br/>(setup.sh status)"]
-    ST --> CF["Copy the config, walk the choices<br/>(~/.config/acstack/terminal-workspace.yaml)"]
+    ST --> CF["Copy the config, walk the choices<br/>(~/.acstack/terminal-workspace.yaml)"]
     CF --> AP["Install binaries, write the keys<br/>(setup.sh apply)"]
     AP --> Q{"How does the user reach<br/>this machine?"}
     Q -->|"an SSH shell"| KB["Free the keys the emulator swallows<br/>(client-keybindings.md)"]
@@ -58,7 +58,7 @@ flowchart TD
 
 This is **machine-level, not per-project**. It installs binaries and writes
 keybindings for the user account, so it does not belong in
-`.acstack/project.yaml`.
+the project folder's `project.yaml`.
 
 Count components when you mean config keys, and tools when you mean binaries.
 The config holds twelve component sections, plus an `enabled` master switch
@@ -76,7 +76,7 @@ Read [`components.md`](components.md) when the user asks what a component does, 
 
 The two files this skill works with:
 
-- **Config**: `~/.config/acstack/terminal-workspace.yaml`, copied from `assets/terminal-workspace/config.example.yaml`
+- **Config**: `~/.acstack/terminal-workspace.yaml`, copied from `assets/terminal-workspace/config.example.yaml`
 - **Script**: `assets/terminal-workspace/setup.sh` in this plugin
 
 Yazi's `i` opens Markdown in Frogmouth (`pipx install frogmouth`); existing `i` bindings take precedence, and `e` keeps editing in `$EDITOR`.
@@ -125,7 +125,7 @@ Its last lines say where a copy and an open will land on this machine. Section
 Copy the example config before the first `apply`:
 
 ```bash
-cp "$(dirname "$SETUP")/config.example.yaml" ~/.config/acstack/terminal-workspace.yaml
+mkdir -p ~/.acstack && cp "$(dirname "$SETUP")/config.example.yaml" ~/.acstack/terminal-workspace.yaml
 ```
 
 Then read [`config-choices.md`](config-choices.md) and ask about the settings it lists, in its order.

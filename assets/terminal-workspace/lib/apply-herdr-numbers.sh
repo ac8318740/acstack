@@ -2,7 +2,7 @@ apply_herdr_numbers() {
   have herdr || return 0
   [ "$(cfg_get herdr.renumber_plugin true)" = "true" ] || return 0
 
-  local dir="$HOME/.config/acstack/herdr-numbers"
+  local dir="$ACSTACK_ROOT/herdr-numbers"
   mkdir -p "$dir"
   # An absolute command: herdr runs argv without a shell and resolves relative
   # commands from the plugin root, not from PATH.

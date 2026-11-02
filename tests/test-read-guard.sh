@@ -15,7 +15,7 @@ CHECKS=70
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-out="$(TMPDIR="$WORK" node --no-warnings "$HARNESS" 2>&1)"
+out="$(TMPDIR="$WORK" ACSTACK_HOME="$WORK/acstack-home" XDG_CONFIG_HOME="$WORK/config" XDG_DATA_HOME="$WORK/share" node --no-warnings "$HARNESS" 2>&1)"
 status=$?
 
 pass=0
