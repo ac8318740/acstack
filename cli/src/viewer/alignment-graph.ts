@@ -236,7 +236,7 @@ export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string
       continue;
     }
     if (routeConflicts.length) routeAttempt += 1;
-    // Label-only retries widen their tracks and ports, not every card gap and container border.
+    // Reserve space at failed labels' tracks and ports before widening the whole layout.
     for (const edge of design ? failedLabels : []) {
       const parents = (id: string): string[] => {
         const parent = diagram.nodes.find(node => node.id === id)?.parentId;
@@ -251,7 +251,11 @@ export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string
         labelSpacing.set(id, Math.max(room, labelSpacing.get(id) ?? EDGE_SPACING));
       }
     }
-    if (failedLabels.length) labelAttempt += 1;
+    if (failedLabels.length) {
+      // Track spacing alone cannot free room between cards for adjacent labels.
+      if (labelAttempt) routeAttempt += 1;
+      labelAttempt += 1;
+    }
     if (!unresolved.length) {
       for (const edge of diagram.edges) {
         const subtitleGaps = boundaryHeaders(diagram.nodes, edge, headers).flatMap(({ node, header }) =>
