@@ -134,6 +134,49 @@ describe('axis-aware design placement', () => {
     expect(port.y).toBeLessThanOrEqual(frame.y + frame.height - 32);
   });
 
+  it('widens card gaps when routing-track retries cannot fit adjacent labels', async () => {
+    const graph: AlignmentGraph = {
+      groups: [
+        { id: 'design:root', label: 'Root', summary: '', sourceRefs: [] },
+        ...['cli', 'global-root'].map(id => ({ id: `design:container:${id}`, parentGroupId: 'design:root', ownerNodeId: id, label: id, summary: '', sourceRefs: [] })),
+      ],
+      nodes: [
+        ['developer', 'design:root'], ['coding-agent', 'design:root'], ['skills', 'design:root'],
+        ['cli', 'design:container:cli'], ['locator', 'design:container:cli'], ['settings', 'design:container:cli'], ['commands', 'design:container:cli'],
+        ['git', 'design:root'], ['global-root', 'design:container:global-root'],
+        ['global-settings', 'design:container:global-root'], ['folders', 'design:container:global-root'],
+        ['tracked', 'design:root'], ['legacy', 'design:root'],
+      ].map(([id, groupId]) => ({ id, groupId, label: id, summary: '', sourceRefs: [] })),
+      edges: [
+        ['developer', 'coding-agent', 'Asks for work from'],
+        ['developer', 'commands', 'Chooses the mode and migrates with'],
+        ['coding-agent', 'skills', 'Follows'],
+        ['skills', 'settings', 'Read settings through'],
+        ['skills', 'commands', 'Run setup and migration with'],
+        ['skills', 'locator', 'Find project record paths with'],
+        ['locator', 'git', 'Reads the shared git folder from'],
+        ['locator', 'folders', 'Resolves and auto-links entries in'],
+        ['settings', 'locator', 'Finds the project folder with'],
+        ['settings', 'folders', 'Reads project settings from'],
+        ['settings', 'global-settings', 'Reads global settings from'],
+        ['commands', 'legacy', 'Moves data out of'],
+        ['commands', 'folders', 'Writes data and links into'],
+        ['commands', 'tracked', 'Moves records into and out of'],
+        ['commands', 'global-settings', 'Writes migrated settings into'],
+        ['folders', 'tracked', 'Links to'],
+      ].map(([fromNodeId, toNodeId, label], index) => ({ id: `edge-${index}`, fromNodeId, toNodeId, label, summary: label, relationship: 'design', sourceRefs: [] })),
+      aggregateEdges: [],
+    };
+    const expanded = ['design:root'];
+    const sizes = measured(graph, expanded);
+    for (const size of Object.values(sizes.labels)) size.height = 44;
+    const snapshot = structuredClone({ graph, sizes });
+    const diagram = await buildDiagram(graph, expanded, sizes);
+    expect(diagram.edges).toHaveLength(projectDiagram(graph, expanded).edges.length);
+    expect({ graph, sizes }).toEqual(snapshot);
+    expectSafe(diagram, sizes, 'top-to-bottom');
+  });
+
   it('keeps oversized horizontal labels safe or reports that no safe layout was found', async () => {
     const graph = authored();
     const expanded = graph.groups.map(g => g.id);

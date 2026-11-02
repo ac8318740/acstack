@@ -393,12 +393,13 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: The viewer reports the failure instead of publishing the conflicting diagram
 - **Source**: `cli/src/viewer/alignment-graph.ts`, `cli/src/viewer/edge-routing.test.ts`
 
-### FR-024: Reserve label space without globally expanding the diagram
+### FR-024: Reserve label space before widening the diagram
 
 - **Given**: A measured design has clear connectors but relationship labels cannot fit
 - **When**: The viewer retries the layout
 - **Then**: It uses the failed labels' dimensions to increase track and attachment spacing at their endpoints and shared container
-- **Then**: Label-only retries keep the normal card gaps and container padding
+- **Then**: The first label-only retry keeps the normal card gaps and container padding
+- **Then**: Repeated label failures also increase card gaps and container padding within the bounded layout attempts
 - **Then**: A layout that already fits keeps its original spacing
 - **Source**: `cli/src/viewer/alignment-graph.ts`, `cli/src/viewer/compact-layout.test.ts`
 
