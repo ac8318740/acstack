@@ -32,3 +32,15 @@ ACStack delivers the shared communication standard through startup hooks indepen
 - **Then**: The reminder extracts the marked communication block rather than maintaining another authored copy
 - **Then**: Unselected styles or an unavailable complete block produce an empty JSON response
 - **Source**: `hooks/ac-writing-style-reminder.sh`
+
+## FR-004: Stop a main agent's first whole read of a large file once
+
+- **Given**: A main agent, meaning a session the user started, reads a file of at least `workflow.read_guard_bytes` bytes (default 32768) whole, with the read tool and no offset or limit, or with a single-file `cat`, `less`, `more`, `nl`, or `bat`
+- **When**: The Claude Code and Codex `PreToolUse` hook or the pi `tool_call` handler sees the call
+- **Then**: The guard blocks the call with a message suggesting a ranged read, a search, or an investigator
+- **Then**: Any later whole read of the same unchanged file passes, keyed by real path, size, and modification time
+- **Then**: Ranged reads, pipes, redirects, chains, variables, and globs always pass
+- **Then**: Subagents (`agent_id` in the hook input), ac-teams members (`ACSTACK_AGENT_ROLE` other than `main`, or `AC_TEAMS_MEMBER`), pi-subagents children, and pi sessions with a `parentSession` header or no session file pass
+- **Then**: `workflow.read_guard: false` turns the guard off, and any error inside the guard allows the read
+- **Then**: Claude Code and Codex keep passed reads in `${TMPDIR:-/tmp}/acstack-read-guard-<uid>/<session_id>.json`, refusing a folder another user owns or can write; pi keeps them in memory
+- **Source**: `hooks/lib/read-guard.mjs`, `hooks/read-guard.mjs`, `hooks/hooks.json`, `pi/extension.ts`

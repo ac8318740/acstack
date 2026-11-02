@@ -1,0 +1,19 @@
+id: pi-adapter
+name: Pi adapter
+summary: >-
+  A tool_call handler in pi/extension.ts. Records at extension load whether
+  this session is main, then asks the read policy about each read and shell
+  call and blocks with its reason.
+kind: component
+channels: [agent]
+relationships:
+  - id: pi-read
+    from: main-agent
+    to: pi-adapter
+    direction: one-way
+    label: Triggers on each read or shell call
+  - id: pi-asks
+    from: pi-adapter
+    to: read-policy
+    direction: one-way
+    label: Asks

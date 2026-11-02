@@ -1,0 +1,33 @@
+id: read-policy
+name: Read policy
+summary: >-
+  The one place that decides. Given the agent's role, the tool call, and the
+  project settings, returns allow, or block with a redirect message. Lives in
+  hooks/lib/read-guard.mjs so both adapters share it.
+kind: component
+relationships:
+  - id: claude-codex-asks
+    from: claude-codex-hook
+    to: read-policy
+    direction: one-way
+    label: Asks
+  - id: pi-asks
+    from: pi-adapter
+    to: read-policy
+    direction: one-way
+    label: Asks
+  - id: policy-ledger
+    from: read-policy
+    to: retry-ledger
+    direction: one-way
+    label: Records and checks blocked reads in
+  - id: policy-config
+    from: read-policy
+    to: project-config
+    direction: one-way
+    label: Reads settings from
+  - id: policy-signals
+    from: read-policy
+    to: launcher-signals
+    direction: one-way
+    label: Decides main or not from

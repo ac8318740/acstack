@@ -599,3 +599,33 @@ for (const [variable, value] of [['PI_SUBAGENT_CHILD', '1'], ['PI_SUBAGENTS_HERD
   }
   if (saved === undefined) fs.rmSync(settings); else fs.writeFileSync(settings, saved);
 }
+
+// The large-read guard's Pi handler
+{
+  const cwd = newProject('read-guard');
+  const big = path.join(cwd, 'big.txt');
+  fs.writeFileSync(big, 'x'.repeat(40000));
+  const ctxFor = ({ file = '/s/main.jsonl', header = {}, sessionId = 'rg-main' } = {}) => ({
+    ...makeCtx(cwd),
+    sessionManager: { getSessionId: () => sessionId, getSessionFile: () => file, getHeader: () => header },
+  });
+  const call = (input, toolName = 'read') => ({ type: 'tool_call', toolName, toolCallId: 't', input });
+  const reg = load();
+  const first = await fire(reg, 'tool_call', call({ path: big }), ctxFor());
+  check('read guard: a main session\'s first whole read of a large file is blocked',
+    first?.block === true && /repeat this exact read/.test(first.reason));
+  check('read guard: the identical retry passes', (await fire(reg, 'tool_call', call({ path: big }), ctxFor())) === undefined);
+  check('read guard: a bash cat in a new session is blocked',
+    (await fire(reg, 'tool_call', call({ command: 'cat big.txt' }, 'bash'), ctxFor({ sessionId: 'rg-other' })))?.block === true);
+  check('read guard: a session with a parentSession header is not guarded',
+    (await fire(reg, 'tool_call', call({ path: big }), ctxFor({ sessionId: 'rg-child', header: { parentSession: '/s/parent.jsonl' } }))) === undefined);
+  check('read guard: a session with no file is not guarded',
+    (await fire(reg, 'tool_call', call({ path: big }), ctxFor({ sessionId: 'rg-memory', file: null }))) === undefined);
+  for (const [variable, value] of [['PI_SUBAGENT_CHILD', '1'], ['ACSTACK_AGENT_ROLE', 'member']]) {
+    process.env[variable] = value;
+    const child = load();
+    delete process.env[variable];
+    check(`read guard: ${variable}=${value} at load turns the guard off`,
+      (await fire(child, 'tool_call', call({ path: big }), ctxFor({ sessionId: `rg-${variable}` }))) === undefined);
+  }
+}
