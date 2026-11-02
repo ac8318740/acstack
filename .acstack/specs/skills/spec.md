@@ -182,3 +182,14 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: The skill does not recommend separate delegation or todo packages, or offer `pi.todo`
 - **Then**: The update instructions use ac-teams for npm version checks and pinned-package examples
 - **Source**: `skills/terminal-workspace/SKILL.md`, `skills/terminal-workspace/components.md`, `skills/terminal-workspace/config-choices.md`, `skills/terminal-workspace/turn-off-and-update.md`
+
+## FR-014: Review ignored data and clean build outputs at teardown
+
+- **Given**: A user runs the teardown-worktree skill
+- **When**: It classifies each worktree before removal
+- **Then**: It lists ignored paths with sizes and classes each as rebuildable or preserve
+- **Then**: It classes a path rebuildable only when a tool-native command regenerates it from tracked files
+- **Then**: It skips a worktree holding a preserve path unless the user approves losing that named path
+- **Then**: It offers to clean rebuildable build outputs in worktrees that stay, only where no live agent or process runs
+- **Then**: It never runs `git clean -x`, stops an agent, removes a worktree, or deletes a Docker volume to reclaim space
+- **Source**: `skills/teardown-worktree/SKILL.md`, `skills/teardown-worktree/artifacts.md`

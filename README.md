@@ -284,7 +284,7 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 | `/acstack:bridge` | Set up and operate the Playwriter cross-device browser bridge |
 | `/acstack:visual-docs` | Write docs that lead with a diagram and derive structure from it (Minto pyramid) |
 | `/acstack:new-worktree` | Create a git worktree off the remote base branch and continue the task inside it |
-| `/acstack:teardown-worktree` | Retire finished worktrees and delete their merged local and remote branches |
+| `/acstack:teardown-worktree` | Retire finished worktrees, delete their merged local and remote branches, and clean build outputs in worktrees that stay |
 | `/acstack:terminal-workspace` | Set up a keyboard-only terminal for driving agents on a dev machine |
 
 ## 6. Every agent
