@@ -53,8 +53,7 @@ its answer looks wrong. It says why a child must stop, and what it checks.
 ## First: is this yours to invoke?
 
 If the user asked for a handoff, proceed. If you invoke it on your own
-initiative, first read `workflow.handoff.self_invoke` from `<project folder>/project.yaml`.
-The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints.
+initiative, first read `workflow.handoff.self_invoke` from `project.yaml` in the folder `~/.claude/acstack/bin/acstack project-data path` prints.
 
 If it is `false`, stop. Tell the user a handoff looks warranted and why. Ask
 permission.
