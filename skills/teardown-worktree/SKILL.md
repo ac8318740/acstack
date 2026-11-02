@@ -6,9 +6,7 @@ argument-hint: "[worktree name, or nothing to scan the whole repo]"
 
 # Teardown worktree
 
-Retire finished worktrees.
-
-Move this session out first. Remove the worktrees next. Delete the branches they were on last.
+Retire finished worktrees. Move this session out first. Remove the worktrees next. Delete the branches they were on last.
 
 Removing a worktree this session is standing in, or one that still holds a running agent, destroys live work. The order below exists to prevent that, as far as either orchestrator can tell. Follow it.
 
@@ -24,9 +22,7 @@ One repo per run: the repo that owns the cwd. Resolve its main checkout from any
 dirname "$(git rev-parse --git-common-dir)"
 ```
 
-Submodules are separate repos with their own worktrees and their own remote.
-
-If the repo has submodules carrying worktrees, say so. Offer a second run against each. Never scan them silently.
+Submodules are separate repos with their own worktrees and their own remote. If the repo has submodules carrying worktrees, say so. Offer a second run against each. Never scan them silently.
 
 ## 1. Build the plan
 
@@ -95,17 +91,11 @@ git -C <path> status --porcelain --ignore-submodules=all
 
 Report pointer drift in the plan anyway, from `git -C <path> submodule status`. That way a real pending bump stays visible, and the ignore flag does not hide it.
 
-Any output from the status check means skip.
-
-Do not remove it. Do not force it. List it at the end with what it holds.
+Any output from the status check means skip. Do not remove it. Do not force it. List it at the end with what it holds.
 
 ### Ignored data
 
-Removing a worktree deletes every file git ignores in it, forced or not. The status check above cannot see those files.
-
-Follow `artifacts.md` step 1. It lists the ignored paths with their sizes, and classes each one as rebuildable or preserve.
-
-Any preserve path means skip, unless the user approves losing that named path. `.env`, databases, Terraform state, and backups are preserve.
+Removal deletes every file git ignores, forced or not, and the status check cannot see them. Follow `artifacts.md` step 1. Any preserve path, such as `.env` or Terraform state, means skip unless the user approves losing that named path.
 
 ### Merged
 
@@ -143,11 +133,9 @@ Nothing holds agent state, so nothing can confirm liveness. Classification then 
 
 ### Show it
 
-Print one table with seven columns: worktree, branch, whether the local branch goes, whether the remote branch goes, blocking panes, ignored data, and the reason.
+Print one table with seven columns: worktree, branch, whether the local branch goes, whether the remote branch goes, blocking panes, ignored data (each preserve path with its size, then the rebuildable total), and the reason.
 
-The ignored data column names each preserve path with its size, then the total size of rebuildable paths.
-
-Below the table, list the build outputs step 5 could clean in worktrees that stay. Then ask once. The user approves the removals and picks which cleans to run.
+Below the table, list the build outputs step 5 could clean in worktrees that stay. Then ask once: the user approves the removals and picks which cleans to run.
 
 The blocking panes column names each pane that blocks the removal, pane id first and process name after – `w26:p2 claude` for example. Leave the cell empty when nothing blocks. The user then knows which pane to close.
 
@@ -159,9 +147,7 @@ Do this before removing anything, and only after approval.
 
 So no tool call walks the session cwd back. `ExitWorktree` only unwinds a worktree this session entered with `EnterWorktree`. It is a no-op for a session that launched inside one.
 
-The removal itself is what moves the session. Run it from the main checkout against an absolute path.
-
-The harness then resets the session cwd to the main checkout on its own. Confirm with `pwd` afterwards.
+The removal itself is what moves the session. Run it from the main checkout against an absolute path. The harness then resets the session cwd to the main checkout on its own. Confirm with `pwd` afterwards.
 
 - Entered with `EnterWorktree`: call `ExitWorktree` with `action: "keep"` first. Keep, not remove: step 3 owns the removal, and `remove` refuses on a worktree entered by path.
 - Launched inside the worktree: no call needed.
@@ -170,9 +156,7 @@ The harness then resets the session cwd to the main checkout on its own. Confirm
 
 That much is the same everywhere. What follows depends on the branch `active` names. This step is the one place `active` still decides anything: how this session moves itself.
 
-When `active` is `herdr`, follow `herdr.md` step 2 before you remove anything.
-
-When `active` is `orca`, follow `orca.md` step 2. It leaves this session's own checkout in place.
+When `active` is `herdr`, follow `herdr.md` step 2 before you remove anything. When `active` is `orca`, follow `orca.md` step 2. It leaves this session's own checkout in place.
 
 ### Host: none
 
@@ -186,9 +170,7 @@ Plain `git worktree remove` refuses on any worktree containing submodules with "
 
 Forcing is safe only because step 1 already proved the tree clean and its ignored data rebuildable or approved for loss. It is never a way past uncommitted changes.
 
-The hard rule: never run `worktree remove --force` on a workspace that still holds a pane other than this session's own. Forcing waives herdr's own check, so the pane enumeration is the only guard left.
-
-Enumerate the panes again immediately before the call. Refuse the removal while any other pane remains.
+The hard rule: never run `worktree remove --force` on a workspace that still holds a pane other than this session's own. Forcing waives herdr's own check, so the pane enumeration is the only guard left. Enumerate the panes again immediately before the call. Refuse the removal while any other pane remains.
 
 Take the branch each checkout's `owner` names, not the branch `active` names. Decide per worktree: one checkout in the plan can belong to herdr while the next is plain git.
 
@@ -224,9 +206,7 @@ Skip the remote delete when nobody ever pushed the branch, or when merging the p
 
 ## 5. Clean build outputs in kept worktrees
 
-Only for worktrees that stay, whether step 1 skipped them or step 3 kept them, and only for the paths the user picked. Follow `artifacts.md` step 5.
-
-This step never retires a worktree, stops an agent, or closes a workspace.
+Only for worktrees that stay, whether step 1 skipped them or step 3 kept them, and only for the paths the user picked. Follow `artifacts.md` step 5. This step never retires a worktree, stops an agent, or closes a workspace.
 
 ## 6. Report
 
@@ -248,8 +228,6 @@ State what went and what stayed:
 - Reach for `EnterWorktree` to get back to the main checkout. It rejects the main working tree.
 - Force past uncommitted changes. Skip and report instead.
 - Read a clean status as proof the checkout holds nothing. It hides ignored files, and removal deletes them.
-- Class a path rebuildable from its name or extension alone. Preserve it unless a tool-native command regenerates it from tracked files.
-- Run `git clean -x` or `git clean -X` to reclaim space. It deletes `.env`, state, and databases with the build output.
 - Clean build outputs in a worktree with a live agent or process. Report the size instead.
 - Remove a worktree, stop an agent, or delete a Docker volume only to reclaim disk space.
 - Reach for `git branch -D` when `-d` refuses.
