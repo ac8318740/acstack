@@ -9,6 +9,7 @@ ACStack routes a request down one of three paths. Every path ends at a commit th
 - **A bug goes to root-cause analysis first** (see section 2)
 - **A request with open questions becomes a to-do graph** you work through (see section 1)
 - **The rest of this document** is the detail behind one box of the diagram below
+- **Project records live in the project folder**, the path `~/.claude/acstack/bin/acstack project-data path` prints; this document writes its parts as `<project folder>/specs/` and so on ([config-reference.md](config-reference.md) explains where it lives)
 
 ```mermaid
 flowchart TD
@@ -21,7 +22,7 @@ flowchart TD
     F --> T
     T --> C["Commit<br/>(acstack:commit)"]
     C --> Y["Sync specs from the diff<br/>(domain-map.yaml)"]
-    Y --> L[("Living specs<br/>.acstack/specs/")]
+    Y --> L[("Living specs<br/>in the project folder")]
     M -->|"every question answered"| A["Archive<br/>(check the decisions landed,<br/>then delete the nodes)"]
     A --> L
 ```
@@ -102,7 +103,7 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
     - The first line of every issue body carries all of that node's edges
     - One list call therefore returns the whole graph
     - A sub-issue and a dependency mirror those edges, so GitHub's own interface draws the map
-- Files under `.acstack/maps/<name>/` are the fallback
+- Files under `<project folder>/maps/<name>/` are the fallback
     - Frontmatter holds the edges, so those files carry no header line
 - Frontier, claim, and resolve build on those four operations
     - No tracker implements them itself
@@ -152,9 +153,9 @@ Nodes live in a tracker. That is the storage layer, and you can swap it.
     - There is no question cap
     - The set of answerable questions bounds itself
 - **`record-context`** fires when a decision lands
-    - It writes an ADR under `.acstack/decisions/` only when the decision is hard to reverse *and* surprising *and* a real trade-off
-    - It writes a glossary term when a term got settled, in `.acstack/CONTEXT.md` for cross-domain vocabulary
-    - It writes a domain term in `.acstack/specs/<domain>/CONTEXT.md` instead
+    - It writes an ADR under `<project folder>/decisions/` only when the decision is hard to reverse *and* surprising *and* a real trade-off
+    - It writes a glossary term when a term got settled, in `<project folder>/CONTEXT.md` for cross-domain vocabulary
+    - It writes a domain term in `<project folder>/specs/<domain>/CONTEXT.md` instead
     - It can write both, or neither
     - ACStack generates the ADR index from the files
     - Nobody hand-edits it
@@ -199,9 +200,9 @@ flowchart LR
 
 `/acstack:commit` groups changes into MECE commits. MECE means mutually exclusive and collectively exhaustive: no change appears twice, and no change goes missing. Before writing them it does five things.
 
-1. Reads `.acstack/domain-map.yaml` to map each changed file to a domain.
+1. Reads `<project folder>/domain-map.yaml` to map each changed file to a domain.
 2. Works out what the diff adds, modifies or removes, for each affected domain with a `spec.md`.
-3. Writes those entries into the domain's spec; it stages tracked specs and preserves ignored specs locally without force-adding them.
+3. Writes those entries into the domain's spec; it stages the specs only when they sit inside the working tree being committed, which happens only in tracked mode from the main checkout.
 4. Flags source files that match no domain.
 5. Checks the glossaries.
 
@@ -219,7 +220,7 @@ Four cases stop sync.
 - no file matching a domain
 - a change that touches only docs and config
 
-**Without `.acstack/domain-map.yaml` this step does nothing, silently.**
+**Without `<project folder>/domain-map.yaml` this step does nothing, silently.**
 
 - `/acstack:setup` generates that file
 - `acstack config check` reports it as missing on a project set up before that existed
@@ -237,7 +238,7 @@ Four cases stop sync.
 - Archive never recursively deletes review artifacts or evidence-bearing handoffs
 - It then disposes of the nodes
     - It deletes them by default
-    - It moves them to `.acstack/archive/<date>-<name>/nodes/` when `workflow.maps.persist` is `true`
+    - It moves them to `<project folder>/archive/<date>-<name>/nodes/` when `workflow.maps.persist` is `true`
     - Keeping nodes is off by default
     - A kept map is a second copy of every decision
     - The two drift apart
@@ -247,14 +248,14 @@ Four cases stop sync.
     - The user types `/acstack:archive`
     - `/acstack:map` hands off to it once every node resolves
     - The disposal step then asks you first
-- Legacy `.acstack/changes/` directories from the pre-map workflow still archive the old way
+- Legacy `<project folder>/changes/` directories from the pre-map workflow still archive the old way
     - An upgrade therefore never strands work
 
 ## 7. Living specs
 
-*What the project keeps. ACStack deletes a map once every question resolves. `.acstack/specs/` outlives it.*
+*What the project keeps. ACStack deletes a map once every question resolves. `<project folder>/specs/` outlives it.*
 
-- Specs live at `.acstack/specs/<domain>/spec.md`, organised by the domains in `domain-map.yaml`
+- Specs live at `<project folder>/specs/<domain>/spec.md`, organised by the domains in `domain-map.yaml`
 - Each spec states numbered functional requirements (`FR-NNN`) in Given, When, Then form
 - They are cumulative
 - They describe only what the code already does

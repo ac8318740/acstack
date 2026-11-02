@@ -307,65 +307,67 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: Legacy approval and offline views do not expose the live handoff action
 - **Source**: `cli/src/commands/design-doc.ts`, `cli/src/lib/review-server.ts`, `cli/src/viewer/review-sync.ts`, `cli/src/viewer/main.tsx`
 
-## Hidden project data
+## Project data outside the repository
 
-### FR-018: Resolve canonical metadata without claiming ordinary source directories
+### FR-018: Locate one project folder per repository
 
-- **Given**: The CLI searches upward from its working directory
-- **When**: It finds `.acstack/` or recognized legacy project records
-- **Then**: It selects the nearest matching project root
-- **Then**: Central path helpers resolve project configuration, the domain map, browser configuration, and verification knowledge under `.acstack/`
-- **Given**: An `acstack/` directory contains neither recognized configuration files nor recognized record directories
-- **When**: The CLI searches for project metadata
-- **Then**: The directory alone does not identify a legacy project
-- **Then**: Authored source such as `examples/design-doc/acstack/` remains ordinary source
-- **Source**: `cli/src/lib/constants.ts`, `cli/src/lib/project.ts`
+- **Given**: The CLI runs inside a Git repository
+- **When**: It resolves project data
+- **Then**: It keys the repository as `<main checkout folder name>-<first 6 hex of sha256(realpath of the Git common dir)>`
+- **Then**: Every worktree of the repository resolves the same project folder, `<ACSTACK_HOME>/projects/<key>`
+- **Then**: `ACSTACK_HOME` overrides the default `~/.acstack`; `XDG_CONFIG_HOME` and `XDG_DATA_HOME` no longer locate ACStack files
+- **Then**: A real folder is global mode; a link to `<main checkout>/.acstack` is tracked mode
+- **Then**: Central path helpers resolve project configuration, the domain map, browser configuration, and verification knowledge directly inside the project folder
+- **Given**: No entry exists and the main checkout commits `.acstack/project.yaml`
+- **When**: The CLI resolves project data
+- **Then**: It creates the tracked-mode link (a junction on Windows) without changing the Git index
+- **Given**: No entry exists and a sibling entry with the same folder name records a missing repository, or is a broken link
+- **When**: The CLI resolves project data
+- **Then**: `acstack project-data path` warns about the orphan and names `acstack project-data relink <entry>`; no command refuses because of an orphan, since it may belong to an unrelated repository with the same folder name
+- **Given**: Both a global folder and a committed `.acstack/` exist, or the repository still holds legacy data
+- **When**: The CLI resolves project data
+- **Then**: It refuses with a message naming `project-data mode` or `project-data migrate`, and creates nothing
+- **Given**: The working directory is outside Git
+- **When**: A command needs project data
+- **Then**: The CLI reports that there is no project
+- **Then**: `acstack project-data path` prints the folder path even before the folder exists, and exits non-zero outside Git
+- **Source**: `cli/src/lib/constants.ts`, `cli/src/lib/project.ts`, `cli/src/commands/project-data.ts`
 
-### FR-019: Enforce native Git ignore policy without configuration or index changes
+### FR-019: Move data only on an explicit command
 
-- **Given**: `.acstack/` exists without requiring `.acstack/project.yaml`
-- **When**: A user runs `acstack project-data ensure`
-- **Then**: ACStack places a managed block at the start of the root `.gitignore`
-- **Then**: The block reopens `/.acstack/` and ignores `/.acstack/**`, including unknown future parts
-- **Then**: Existing user rules follow the block with their bytes, line endings, and exceptions preserved
-- **Then**: Repeated enforcement leaves an already reconciled file unchanged
-- **Then**: Native exceptions can opt parts in independently by reopening their parent directories before selecting files or trees
-- **Then**: ACStack changes neither the Git index nor existing tracked-file status and adds no automatic tracking exceptions
-- **Given**: `.acstack/` is absent
-- **When**: A user runs `acstack project-data ensure`
-- **Then**: ACStack creates neither metadata nor an ignore file
-- **Given**: The root ignore path names a symlink, a nonregular file, invalid UTF-8, or malformed managed markers
-- **When**: ACStack reconciles the policy
-- **Then**: ACStack refuses the rewrite without changing the existing file
+- **Given**: A user runs `acstack project-data mode tracked` or `mode global`
+- **When**: The project is in the other mode
+- **Then**: ACStack moves the folder to `<main checkout>/.acstack` and links it, or removes the link and moves `.acstack/` into the global folder
+- **Then**: It refuses to overwrite an existing destination, refuses tracked mode for a bare repository, and restores the previous state when linking fails
+- **Then**: Cross-device moves copy into a temporary sibling and rename it into place, so an interrupted copy never leaves a half-filled destination
+- **Given**: A repository moved and left an orphaned entry
+- **When**: The user runs `acstack project-data relink <entry>`
+- **Then**: ACStack renames that named orphan to the new key, and refuses when it is not an orphan or the new key already exists
+- **Then**: Commands report other worktrees whose own `.acstack/` changes ACStack no longer reads
+- **Then**: No command changes the Git index or force-adds files
 - **Source**: `cli/src/commands/project-data.ts`, `cli/src/lib/project-data.ts`
 
-### FR-020: Reconcile policy before command dispatch
+### FR-020: Run no project-data policy at startup
 
-- **Given**: The CLI finds a project containing `.acstack/`
-- **When**: Any invocation other than explicit `project-data migrate` or `design-review migrate` starts
-- **Then**: ACStack reconciles the root ignore policy before running built-in commands or dispatching external `acstack-<name>` helpers
-- **Then**: Policy failure stops dispatch rather than allowing unprotected writes
-- **Given**: A project command requires canonical metadata but only recognized legacy records exist
-- **When**: The command resolves its project
-- **Then**: ACStack requests explicit migration instead of creating an empty canonical directory
-- **Source**: `cli/src/index.ts`, `cli/src/lib/utils.ts`, `cli/src/lib/project-data.ts`
+- **Given**: Any CLI invocation starts
+- **When**: The CLI dispatches the command
+- **Then**: It writes no `.gitignore` rules and runs no project-data enforcement
+- **Given**: Legacy data remains in the repository or in `~/.config/acstack` or `~/.local/share/acstack`
+- **When**: `acstack project-data path` runs
+- **Then**: It warns on stderr that ACStack no longer reads those locations and names `project-data migrate`
+- **Source**: `cli/src/index.ts`, `cli/src/commands/project-data.ts`, `cli/src/lib/project-data.ts`
 
-### FR-021: Migrate only the selected checkout with collision checks and rollback
+### FR-021: Migrate legacy data with collision checks
 
-- **Given**: The user updates installed tools, stops old agents and review servers, and backs up the selected checkout
-- **When**: The user runs `acstack project-data migrate` from that checkout's root
-- **Then**: ACStack moves recognized legacy `acstack/` records to `.acstack/`
-- **Then**: It moves `docs/adr/` to `.acstack/decisions/` and `.decisions/` to `.acstack/decision-logs/`
-- **Then**: It moves root `CONTEXT.md`, `.test-baseline`, and `agent-browser.json` under `.acstack/`
-- **Then**: It moves owned verification knowledge to `.acstack/verification/VERIFICATION-KNOWLEDGE.md`, leaving helper programs and unrelated user files in place
-- **Then**: It leaves configured knowledge outside the checkout untouched
-- **Then**: It preflights existing destinations, conflicting incoming records, and unsafe symlinked source parents before moving data
-- **Then**: It refuses to merge or overwrite an existing `.acstack/` destination
-- **Then**: It preserves record bytes and symlink target meaning while removing only recognized generated nested ignore files
-- **Then**: It preserves custom nested ignore rules and leaves the Git index unchanged
-- **Then**: It installs the root ignore baseline without automatic tracking exceptions or migrating another checkout
-- **When**: A migration operation fails
-- **Then**: ACStack reverses completed operations and reports any incomplete rollback
+- **Given**: The user updates installed tools, stops old agents and review servers, and backs up
+- **When**: The user runs `acstack project-data migrate` from a repository
+- **Then**: ACStack first moves the oldest `acstack/` layout and loose root records into `.acstack/`, as before, with rollback on failure
+- **Then**: When `.acstack/` is in the Git index, it links the project folder to it (tracked mode)
+- **Then**: Otherwise it moves `.acstack/` into the global project folder and records the repository in `project.json`
+- **Then**: It removes the managed block older releases kept in the root `.gitignore`
+- **Then**: It moves `~/.config/acstack/*` to `~/.acstack/` and `~/.local/share/acstack/*` to `~/.acstack/cache/`
+- **Then**: It preflights every destination and refuses before moving anything when one exists
+- **Then**: It leaves the Git index unchanged
 - **Source**: `cli/src/commands/project-data.ts`, `cli/src/lib/project-data.ts`
 
 ### FR-022: Retire alignment settings without rewriting existing configuration
@@ -376,7 +378,6 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: ACStack leaves the existing configuration bytes unchanged
 - **When**: A user lists defaults or tries to set a legacy alignment key
 - **Then**: The CLI offers no alignment defaults and rejects the unsupported write
-- **Then**: Native root `.gitignore` rules continue to control artifact tracking
 - **Source**: `cli/src/lib/project-config.ts`, `cli/src/lib/alignment-pack-lifecycle.ts`
 
 ### FR-023: Separate design relationship routes before publishing the diagram

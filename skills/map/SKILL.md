@@ -23,7 +23,9 @@ frontier, claim, resolve and walk.
 Two backends ship in this skill's directory: `trackers/github.md` for repos
 with GitHub auth, and `trackers/files.md` as the fallback.
 
-`workflow.maps.tracker` in `.acstack/project.yaml` (`github` or `files`) records
+ACStack keeps project data in the project folder, the path
+`~/.claude/acstack/bin/acstack project-data path` prints.
+`workflow.maps.tracker` in `<project folder>/project.yaml` (`github` or `files`) records
 the project's choice. If the key names a backend, read the matching doc and use
 its operations. If the key is absent, pick at materialisation time – the moment
 you first write the map's nodes down.
@@ -33,7 +35,7 @@ choice with the user. Then write the key, so later sessions need not re-decide.
 ## Which mode
 
 One command runs two modes, and what already exists picks between them. Check
-the configured tracker for existing maps – `ls .acstack/maps/` on the files
+the configured tracker for existing maps – `ls "$(~/.claude/acstack/bin/acstack project-data path)/maps/"` on the files
 backend, `gh label list --search "map:" --json name` on GitHub.
 
 If `$ARGUMENTS` names a map, or exactly one exists, work its frontier – the
@@ -51,7 +53,7 @@ still one map.
 
 2. **Load the frontend branch on a frontend destination.** `frontend.md`
    beside this skill holds five more rules. Read it when the destination
-   touches `frontend.directory`, the path in `.acstack/project.yaml` where the
+   touches `frontend.directory`, the path in `<project folder>/project.yaml` where the
    frontend lives. Every other map skips it.
 
 3. **Open with a breadth-first grill.** Work the conversation frontier in

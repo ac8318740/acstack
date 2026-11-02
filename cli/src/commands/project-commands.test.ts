@@ -25,6 +25,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { trackProject } from '../test-project.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(__dirname, '..', '..', 'bin', 'acstack.js');
@@ -75,7 +76,7 @@ function makeProject(): string {
   mkdirSync(specDir(root), { recursive: true });
   writeFileSync(join(specDir(root), 'spec.md'), '# Spec\n\nSome prose.\n');
   mkdirSync(archiveDir(root), { recursive: true });
-  return root;
+  return trackProject(root);
 }
 
 const CHANGE_NAME = 'mychange';

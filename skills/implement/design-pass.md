@@ -32,7 +32,7 @@ Load that context before your first edit under `frontend.directory`. Load it onc
 
 **Check the design gate first**
 
-The design gate is the set of optional checks impeccable adds to acstack's pipeline. `workflow.design_review` in `.acstack/project.yaml` turns the gate on. Ask acstack for the answer:
+The design gate is the set of optional checks impeccable adds to acstack's pipeline. `workflow.design_review` in `<project folder>/project.yaml` turns the gate on; the project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. Ask acstack for the answer:
 
 ```bash
 ~/.claude/acstack/bin/acstack design-gate --json
@@ -94,7 +94,7 @@ impeccable installs its own PostToolUse hook, a check Claude Code runs right aft
 - Follow the shared Implementation discipline in `orchestrator/AGENTS.md`
 - The verification owner gathers the file list, completes static checks, and handles the detector
     - A delegated task-checker may own this work, but its presence is optional
-- Read `.acstack/project.yaml` before deriving paths
+- Read `<project folder>/project.yaml` before deriving paths
     - This pass requires a configured `frontend`
     - `frontend.directory` defaults to `frontend/` when omitted
     - If the project configures no frontend, warn that `frontend.directory` is missing and skip this pass

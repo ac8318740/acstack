@@ -25,6 +25,9 @@ done
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+# Every helper roots its files at $ACSTACK_HOME, so one set by the caller would
+# point a test at the real machine-wide folder.
+unset ACSTACK_HOME
 
 pass=0
 fail=0
@@ -93,10 +96,10 @@ if [ "$setup_lines" -le 300 ]; then ok "setup.sh is a short entry file"
 else no "setup.sh is a short entry file (lines: $setup_lines)"; fi
 
 SOURCEWORK="$WORK/source-guard"
-mkdir -p "$SOURCEWORK/home/.config/acstack" "$SOURCEWORK/bin"
+mkdir -p "$SOURCEWORK/home/.acstack" "$SOURCEWORK/bin"
 source_output=$(env \
   HOME="$SOURCEWORK/home" \
-  ACSTACK_TW_CONFIG="$SOURCEWORK/home/.config/acstack/terminal-workspace.yaml" \
+  ACSTACK_TW_CONFIG="$SOURCEWORK/home/.acstack/terminal-workspace.yaml" \
   ACSTACK_TW_BIN="$SOURCEWORK/bin" \
   ACSTACK_TW_NO_MAIN=1 \
   bash -c '. "$1"; command -v write_helpers >/dev/null' sh "$SETUP" 2>&1)
@@ -2843,13 +2846,13 @@ echo "the opener route"
 # the route is decided by asking it - never by finding a token on disk - and
 # that a document handed over is only called delivered when the opener says so.
 OWORK="$WORK/opener"
-mkdir -p "$OWORK/bin" "$OWORK/home/.config/acstack"
+mkdir -p "$OWORK/bin" "$OWORK/home/.acstack"
 cp "$(extract acstack-open)" "$OWORK/bin/acstack-open"
 cp "$(extract acstack-clip)" "$OWORK/bin/acstack-clip"
 cp "$(extract acstack-md)"   "$OWORK/bin/acstack-md"
 cp "$WORK/acstack-md-lib"     "$OWORK/bin/acstack-md-lib"
 chmod +x "$OWORK/bin"/*
-OTOKEN="$OWORK/home/.config/acstack/opener.token"
+OTOKEN="$OWORK/home/.acstack/opener.token"
 
 # A stand-in for the opener that speaks the same protocol and writes down what
 # it was asked to do. $OWORK/mode steers the answer, because "opened a tab",
@@ -2953,6 +2956,34 @@ opener_down() {
   rm -f "$OWORK/opener.port"
 }
 obare() { env -i PATH="$OWORK/bin:/usr/bin:/bin" HOME="$OWORK/home" "$@"; }
+
+# The token lives in ACStack's root: $ACSTACK_HOME when set, ~/.acstack when it
+# is unset or empty. The old ~/.config/acstack copy is never read, only named.
+cp "$(extract acstack-bridge)" "$OWORK/bin/acstack-bridge"
+chmod +x "$OWORK/bin/acstack-bridge"
+rstat() { obare env ACSTACK_BRIDGE_URL=http://127.0.0.1:1 ACSTACK_OPENER_URL=http://127.0.0.1:1 "$@" acstack-bridge status 2>&1; }
+root_out=$(rstat ACSTACK_HOME="$OWORK/alt")
+case "$root_out" in
+  *"no token at $OWORK/alt/opener.token"*) ok "ACSTACK_HOME moves the opener token" ;;
+  *) no "ACSTACK_HOME moves the opener token ($root_out)" ;;
+esac
+root_out=$(rstat ACSTACK_HOME=)
+case "$root_out" in
+  *"no token at $OWORK/home/.acstack/opener.token"*) ok "an empty ACSTACK_HOME means ~/.acstack" ;;
+  *) no "an empty ACSTACK_HOME means ~/.acstack ($root_out)" ;;
+esac
+case "$root_out" in
+  *"project-data migrate"*) no "the migrate hint stays quiet with no old token" ;;
+  *) ok "the migrate hint stays quiet with no old token" ;;
+esac
+mkdir -p "$OWORK/home/.config/acstack"
+printf 'old-token' > "$OWORK/home/.config/acstack/opener.token"
+root_out=$(rstat)
+case "$root_out" in
+  *"no token at"*"project-data migrate"*) ok "an old token is named, not used" ;;
+  *) no "an old token is named, not used ($root_out)" ;;
+esac
+rm -rf "$OWORK/home/.config"
 
 # A token on disk is not a service that is up. With nothing listening, the
 # route must fall through rather than be taken on the strength of a file.
@@ -3129,8 +3160,8 @@ fi
 rm -f "$OWORK/mode"
 
 # Vendored mermaid goes up once, so a diagram draws without reaching a CDN.
-mkdir -p "$OWORK/home/.local/share/acstack"
-printf 'pretend-this-is-mermaid' > "$OWORK/home/.local/share/acstack/mermaid.min.js"
+mkdir -p "$OWORK/home/.acstack/cache"
+printf 'pretend-this-is-mermaid' > "$OWORK/home/.acstack/cache/mermaid.min.js"
 obare env ACSTACK_OPENER_URL="$OURL" acstack-md --browser "$OWORK/doc.md" >/dev/null 2>&1
 if grep -q '^mermaid ' "$OWORK/opener.log"; then
   ok "the vendored mermaid is uploaded to an opener that has none"
@@ -3508,17 +3539,17 @@ echo "the neovim unsaved-changes dot and OSC 52 copy"
 # reaches the network. HOME, $BIN, the config and git's global config all
 # point inside $WORK, because apply writes files and uninstall deletes them.
 NWORK="$WORK/nvim-run"
-mkdir -p "$NWORK/home/.local/bin" "$NWORK/home/.config/acstack" \
+mkdir -p "$NWORK/home/.local/bin" "$NWORK/home/.acstack" \
          "$NWORK/home/.config/nvim/lua/config" "$NWORK/home/.config/nvim/lua/plugins"
 NPLUG="$NWORK/home/.config/nvim/lua/plugins/acstack.lua"
 nw() {
   env HOME="$NWORK/home" \
       ACSTACK_TW_BIN="$NWORK/home/.local/bin" \
-      ACSTACK_TW_CONFIG="$NWORK/home/.config/acstack/terminal-workspace.yaml" \
+      ACSTACK_TW_CONFIG="$NWORK/home/.acstack/terminal-workspace.yaml" \
       GIT_CONFIG_GLOBAL="$NWORK/gitconfig" \
       bash "$SETUP" "$@" 2>&1
 }
-cat > "$NWORK/home/.config/acstack/terminal-workspace.yaml" <<'NCFG'
+cat > "$NWORK/home/.acstack/terminal-workspace.yaml" <<'NCFG'
 enabled: true
 herdr: {enabled: false}
 gh_dash: {enabled: false}
@@ -3592,7 +3623,7 @@ fi
 
 # The colour is a config key rather than a constant, because the dot has to
 # match whatever theme the user runs.
-python3 - "$NWORK/home/.config/acstack/terminal-workspace.yaml" <<'PYCOL'
+python3 - "$NWORK/home/.acstack/terminal-workspace.yaml" <<'PYCOL'
 import sys, yaml
 p = sys.argv[1]
 c = yaml.safe_load(open(p))
@@ -3758,7 +3789,7 @@ else
 fi
 rm -f "$NWORK/home/.config/nvim/lua/config/options.lua"
 
-python3 - "$NWORK/home/.config/acstack/terminal-workspace.yaml" <<'PYCLIP'
+python3 - "$NWORK/home/.acstack/terminal-workspace.yaml" <<'PYCLIP'
 import sys, yaml
 p = sys.argv[1]
 c = yaml.safe_load(open(p))
@@ -3787,17 +3818,17 @@ echo "disable answers for every component"
 # and unsets git settings, and a leak here would edit the machine running the
 # suite.
 UWORK="$WORK/tw-run"
-mkdir -p "$UWORK/home/.local/bin" "$UWORK/home/.config/acstack"
+mkdir -p "$UWORK/home/.local/bin" "$UWORK/home/.acstack"
 tw() {
   env HOME="$UWORK/home" \
       ACSTACK_TW_BIN="$UWORK/home/.local/bin" \
-      ACSTACK_TW_CONFIG="$UWORK/home/.config/acstack/terminal-workspace.yaml" \
+      ACSTACK_TW_CONFIG="$UWORK/home/.acstack/terminal-workspace.yaml" \
       GIT_CONFIG_GLOBAL="$UWORK/gitconfig" \
       bash "$SETUP" "$@" 2>&1
 }
 
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$UWORK/home/.config/acstack/terminal-workspace.yaml"
+   "$UWORK/home/.acstack/terminal-workspace.yaml"
 
 # The three components with no branch. Turning one of these off is a config
 # edit, so the only useful answer is to refuse and say which edit to make.
@@ -3844,17 +3875,17 @@ echo "outdated reports what a machine is missing"
 # covered by the table check below rather than by a live call, because a
 # passing suite must not depend on GitHub being up.
 OWORK="$WORK/tw-outdated"
-mkdir -p "$OWORK/home/.config/acstack" "$OWORK/home/.config/herdr"
+mkdir -p "$OWORK/home/.acstack" "$OWORK/home/.config/herdr"
 otw() {
   env HOME="$OWORK/home" \
       ACSTACK_TW_BIN="$OWORK/home/.local/bin" \
-      ACSTACK_TW_CONFIG="$OWORK/home/.config/acstack/terminal-workspace.yaml" \
+      ACSTACK_TW_CONFIG="$OWORK/home/.acstack/terminal-workspace.yaml" \
       ACSTACK_TW_OFFLINE=1 \
       bash "$SETUP" "$@" 2>&1
 }
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/acstack/terminal-workspace.yaml"
-STAMPF="$OWORK/home/.config/acstack/terminal-workspace.applied"
+   "$OWORK/home/.acstack/terminal-workspace.yaml"
+STAMPF="$OWORK/home/.acstack/terminal-workspace.applied"
 OHERDR="$OWORK/home/.config/herdr/config.toml"
 
 # No stamp and no managed block: apply has never run here at all. Listing what
@@ -3896,7 +3927,7 @@ fi
 # upgrade leaves behind. The row stays, because apply still has to install the
 # component; only the detail moves, because "not in your config" is now false.
 printf '\nharlequin:\n  enabled: true\n' \
-  >> "$OWORK/home/.config/acstack/terminal-workspace.yaml"
+  >> "$OWORK/home/.acstack/terminal-workspace.yaml"
 out=$(otw outdated); rc=$?
 if [ "$rc" = "1" ] && printf '%s' "$out" | grep -q '^new	harlequin	new component, run apply'; then
   ok "a new component that upgrade already added reads as one to install, not one to add"
@@ -3904,7 +3935,7 @@ else
   no "outdated still says harlequin is not in the config (rc=$rc, said: $(flat "$out"))"
 fi
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/acstack/terminal-workspace.yaml"
+   "$OWORK/home/.acstack/terminal-workspace.yaml"
 
 # A stamp that names every shipped component. Nothing is new, nothing is
 # reachable offline, so there is nothing to say.
@@ -3925,7 +3956,7 @@ fi
 # it with the stock binary and drop the patches it carries. outdated already
 # skips it, and naming it on upgrade has to skip it too.
 printf 'tuicr:\n  build_from_fork: true\n' \
-  > "$OWORK/home/.config/acstack/terminal-workspace.yaml"
+  > "$OWORK/home/.acstack/terminal-workspace.yaml"
 # A curl that always fails, so this check cannot reach the network even if the
 # guard it tests regresses. ACSTACK_TW_OFFLINE gates the version lookups and
 # not install_binary, which is the call a regression here would reach.
@@ -3933,11 +3964,11 @@ NOCURL="$WORK/nocurl"; mkdir -p "$NOCURL"
 printf '#!/usr/bin/env bash\nexit 1\n' > "$NOCURL/curl"; chmod +x "$NOCURL/curl"
 out=$(env HOME="$OWORK/home" \
           ACSTACK_TW_BIN="$OWORK/home/.local/bin" \
-          ACSTACK_TW_CONFIG="$OWORK/home/.config/acstack/terminal-workspace.yaml" \
+          ACSTACK_TW_CONFIG="$OWORK/home/.acstack/terminal-workspace.yaml" \
           ACSTACK_TW_OFFLINE=1 PATH="$NOCURL:$PATH" \
           bash "$SETUP" upgrade tuicr 2>&1); rc=$?
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/acstack/terminal-workspace.yaml"
+   "$OWORK/home/.acstack/terminal-workspace.yaml"
 if printf '%s' "$out" | grep -q 'fork' && ! printf '%s' "$out" | grep -q 'tuicr installed'; then
   ok "upgrade refuses to overwrite a tuicr built from a fork"
 else
@@ -3959,7 +3990,7 @@ NOYSTUB
 chmod +x "$NOYAML/python3"
 out=$(env HOME="$OWORK/home" \
           ACSTACK_TW_BIN="$OWORK/home/.local/bin" \
-          ACSTACK_TW_CONFIG="$OWORK/home/.config/acstack/terminal-workspace.yaml" \
+          ACSTACK_TW_CONFIG="$OWORK/home/.acstack/terminal-workspace.yaml" \
           ACSTACK_TW_OFFLINE=1 PATH="$NOYAML:$PATH" \
           bash "$SETUP" outdated 2>&1); rc=$?
 if [ "$rc" = "2" ]; then
@@ -4007,7 +4038,7 @@ echo "acstack-db opens a profile without rewriting the user's file"
 DBHELPER="$WORK/db-helper"
 copy_helper acstack-db "$DBHELPER"
 DBH="$WORK/db-home"; DBBIN="$WORK/db-bin"
-mkdir -p "$DBH/.config/acstack" "$DBBIN"
+mkdir -p "$DBH/.acstack" "$DBBIN"
 # A stand-in for harlequin, so the launch is observable and nothing is
 # installed to make it so. Without it the helper exits before it reads a
 # profile at all, and the check below would pass on a file nothing opened.
@@ -4017,18 +4048,18 @@ printf '%s\n' "$*" > "$HOME/harlequin-argv"
 DBSTUB
 chmod +x "$DBBIN/harlequin"
 printf 'default_profile = "mine"\n\n[profiles.mine]\nadapter = "postgres"\n' \
-  > "$DBH/.config/acstack/harlequin.toml"
-before=$(cat "$DBH/.config/acstack/harlequin.toml")
+  > "$DBH/.acstack/harlequin.toml"
+before=$(cat "$DBH/.acstack/harlequin.toml")
 env HOME="$DBH" PATH="$DBBIN:$PATH" bash "$DBHELPER" >/dev/null 2>&1
-if [ "$before" = "$(cat "$DBH/.config/acstack/harlequin.toml")" ]
+if [ "$before" = "$(cat "$DBH/.acstack/harlequin.toml")" ]
 then ok "acstack-db never rewrites a profile file that already exists"
 else no "acstack-db overwrote the user's profile file"; fi
 
 # A path in the config is a path the script has to read, or the config is a
 # place a user edits a line and sees nothing happen.
 CPW="$WORK/tw-cfgpath"
-mkdir -p "$CPW/home/.config/acstack" "$CPW/home/.local/bin"
-cat > "$CPW/home/.config/acstack/terminal-workspace.yaml" <<YML
+mkdir -p "$CPW/home/.acstack" "$CPW/home/.local/bin"
+cat > "$CPW/home/.acstack/terminal-workspace.yaml" <<YML
 harlequin:
   config_path: "$CPW/home/my profiles.toml"
 YML
@@ -4037,7 +4068,7 @@ YML
 (
   export HOME="$CPW/home"
   export ACSTACK_TW_BIN="$CPW/home/.local/bin"
-  export ACSTACK_TW_CONFIG="$CPW/home/.config/acstack/terminal-workspace.yaml"
+  export ACSTACK_TW_CONFIG="$CPW/home/.acstack/terminal-workspace.yaml"
   export ACSTACK_TW_NO_MAIN=1
   # shellcheck disable=SC1090
   . "$SETUP"
@@ -4300,8 +4331,8 @@ PHOME="$PWORK/home"
 PBIN="$PWORK/bin"
 PSTUB="$PWORK/stubbin"
 PLOG="$PWORK/ran.log"
-PCFG="$PHOME/.config/acstack/terminal-workspace.yaml"
-mkdir -p "$PHOME/.config/acstack" "$PBIN" "$PSTUB" "$PWORK/cwd"
+PCFG="$PHOME/.acstack/terminal-workspace.yaml"
+mkdir -p "$PHOME/.acstack" "$PBIN" "$PSTUB" "$PWORK/cwd"
 cat > "$PCFG" <<'PCFGEOF'
 enabled: true
 herdr: {enabled: true, renumber_plugin: false}
@@ -4446,10 +4477,10 @@ IMD="$IAGENT/AGENTS.md"
 IRETRO="$IAGENT/extensions/agentic-retro.ts"
 IBILLION="$IHOME/.config/billion-context/billion-context.json"
 ILENS="$IHOME/.pi-lens/config.json"
-ICFG="$IHOME/.config/acstack/terminal-workspace.yaml"
+ICFG="$IHOME/.acstack/terminal-workspace.yaml"
 IVER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   "$ROOT/.claude-plugin/plugin.json")
-mkdir -p "$ISTUB" "$INPM/bin" "$IHOME/.config/acstack" "$IAGENT"
+mkdir -p "$ISTUB" "$INPM/bin" "$IHOME/.acstack" "$IAGENT"
 
 cat > "$ISTUB/pi.installed" <<'PISTUB'
 #!/usr/bin/env bash
@@ -4803,7 +4834,7 @@ if [ "$PI_APPLY" = "1" ]; then
   for replacement in failed installed; do
     printf '{"packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo"]}\n' > "$ISET"
     printf '{"toolActivation": "eager", "maxDepth": 2}\n' > "$ISUB"
-    printf '{"packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo"], "subagent": {"toolActivation": "eager"}, "subagent_prior": {"toolActivation": "dynamic"}}\n' > "$IHOME/.config/acstack/terminal-workspace.pi.json"
+    printf '{"packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo"], "subagent": {"toolActivation": "eager"}, "subagent_prior": {"toolActivation": "dynamic"}}\n' > "$IHOME/.acstack/terminal-workspace.pi.json"
     [ "$replacement" = failed ] && touch "$IHOME/fail-teams-install"
     iw apply >/dev/null
     pkgs=$(jget "$ISET" packages)
@@ -4856,7 +4887,7 @@ if [ "$PI_APPLY" = "1" ]; then
      && ! printf '%s' "$pkgs" | grep -qF 'pi-compact-tools' \
      && [ -f "$IRETRO" ] && [ -x "$INPM/bin/pi" ] \
      && [ "$(jget "$IBILLION" pi.subagents)" = "true" ] && [ "$(jget "$IBILLION" keep)" = "1" ] \
-     && [ ! -e "$IHOME/.config/acstack/terminal-workspace.pi.json" ]; then
+     && [ ! -e "$IHOME/.acstack/terminal-workspace.pi.json" ]; then
     ok "uninstall leaves pi, and every package and file the user had before apply"
   else
     no "uninstall leaves pi, and every package and file the user had before apply (packages: $pkgs; billion: $(flat "$(cat "$IBILLION" 2>/dev/null)"))"
@@ -4869,7 +4900,7 @@ if [ "$PI_APPLY" = "1" ]; then
   iw uninstall >/dev/null
   if ! grep -q '^bili plugin install' "$IHOME/bili.log" \
      && ! grep -q '^bili plugin remove' "$IHOME/bili.log" \
-     && [ ! -e "$IHOME/.config/acstack/terminal-workspace.pi.json" ]; then
+     && [ ! -e "$IHOME/.acstack/terminal-workspace.pi.json" ]; then
     ok "apply and uninstall leave pre-existing billion-context client plugins alone"
   else
     no "apply and uninstall leave pre-existing billion-context client plugins alone (bili: $(flat "$(cat "$IHOME/bili.log")"))"
@@ -4878,8 +4909,8 @@ if [ "$PI_APPLY" = "1" ]; then
 
   # An older setup enabled bili for Claude Code and Codex. apply now undoes it.
   printf '{}\n' > "$ISET"
-  mkdir -p "$IHOME/.config/acstack"
-  printf '{"files": ["bili:claude", "bili:codex"]}\n' > "$IHOME/.config/acstack/terminal-workspace.pi.json"
+  mkdir -p "$IHOME/.acstack"
+  printf '{"files": ["bili:claude", "bili:codex"]}\n' > "$IHOME/.acstack/terminal-workspace.pi.json"
   : > "$IHOME/bili.log"
   iw apply >/dev/null
   if grep -q '^bili plugin remove claude' "$IHOME/bili.log" \
@@ -5022,10 +5053,10 @@ import json, sys
 d = json.load(open(sys.argv[1])); d.pop("markdown"); json.dump(d, open(sys.argv[1], "w"))
 PY
   iw disable pi >/dev/null
-  if [ ! -e "$IHOME/.config/acstack/terminal-workspace.pi.json" ]; then
+  if [ ! -e "$IHOME/.acstack/terminal-workspace.pi.json" ]; then
     ok "disable forgets a key whose parent object the user deleted"
   else
-    no "disable forgets a key whose parent object the user deleted ($(flat "$(cat "$IHOME/.config/acstack/terminal-workspace.pi.json")"))"
+    no "disable forgets a key whose parent object the user deleted ($(flat "$(cat "$IHOME/.acstack/terminal-workspace.pi.json")"))"
   fi
 
   # YAML reads a bare off as false. pi wants the string, and a value pi does
@@ -5125,7 +5156,7 @@ PY
   rm -f "$IRETRO"
   ALT="$IWORK/alt-agent"; mkdir -p "$ALT"
   PI_CODING_AGENT_DIR="$ALT" iw apply >/dev/null
-  owned=$(jget "$IHOME/.config/acstack/terminal-workspace.pi.json" files)
+  owned=$(jget "$IHOME/.acstack/terminal-workspace.pi.json" files)
   PI_CODING_AGENT_DIR="$ALT" iw disable pi >/dev/null
   if printf '%s' "$owned" | grep -qF "$IRETRO" && [ ! -e "$IRETRO" ]; then
     ok "the agentic-retro extension is found where agentic-retro writes it, whatever pi's override"
@@ -5137,7 +5168,7 @@ PY
   IHOME="$IWORK/bridge-home"
   IAGENT="$IHOME/.pi/agent"
   ISET="$IAGENT/settings.json"
-  ICFG="$IHOME/.config/acstack/terminal-workspace.yaml"
+  ICFG="$IHOME/.acstack/terminal-workspace.yaml"
   mkdir -p "$IAGENT/extensions" "$(dirname "$ICFG")"
   printf '{}\n' > "$ISET"
   pi_cfg ""
@@ -5160,7 +5191,7 @@ PY
   # Lifecycle checks need only the ownership ledger, never a TypeScript import.
   # agentic-retro is the other extension installed by this fixture's stub.
   bridge_locate() {
-    python3 - "$IHOME/.config/acstack/terminal-workspace.pi.json" "$1" <<'PYBRIDGE'
+    python3 - "$IHOME/.acstack/terminal-workspace.pi.json" "$1" <<'PYBRIDGE'
 import json, os, sys
 with open(sys.argv[1]) as ledger:
     files = json.load(ledger).get("files", [])
@@ -5248,7 +5279,7 @@ PYBRIDGE
   # machine where ownership registration fails after the copy succeeds.
   pi_cfg ""
   iw apply >/dev/null
-  ledger="$IHOME/.config/acstack/terminal-workspace.pi.json"
+  ledger="$IHOME/.acstack/terminal-workspace.pi.json"
   ledger_dir=$(dirname "$ledger")
   registration_safe=1
   registration_details=""

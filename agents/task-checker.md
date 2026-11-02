@@ -15,7 +15,7 @@ You are read-only: do not edit source, tests, or specs.
 ## Establish scope and ownership
 
 Read the supplied requirements, affected paths, known risks, and available command results.
-Read `.acstack/project.yaml` for commands, directories, environment activation, and applicable frontend gates.
+Read `project.yaml` in the project folder that `~/.claude/acstack/bin/acstack project-data path` prints for commands, directories, environment activation, and applicable frontend gates.
 
 - Distinguish focused review from ownership of completion verification
 - If the assignment is unclear, clarify it with the delegating session before duplicating checks

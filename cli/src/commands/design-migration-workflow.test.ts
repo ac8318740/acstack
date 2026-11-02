@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { AlignmentPackSchema, type ReviewAnnotation } from '../lib/alignment-packs.js';
+import { gitBinary } from '../test-project.js';
 
 // Black-box tests of the shipped CLI; rebuild dist before the green run.
 const bin = fileURLToPath(new URL('../../bin/acstack.js', import.meta.url));
@@ -40,7 +41,7 @@ function oldComment(type = 'node', id = 'node-saved-card', comment = 'Trust clai
   return { packVersion: oldVersions[1], target: { type: type as ReviewAnnotation['target']['type'], id }, selectedText: 'card they already trust', sourceRef: 'spec-checkout', comment, author: 'Reviewer A', time: '2026-10-12T10:15:00.000Z' };
 }
 function environment(root: string): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env, PATH: join(root, 'bin'), HOME: root, XDG_CONFIG_HOME: join(root, 'config'), NO_COLOR: '1', ACSTACK_ALIGN_PORT: '0' };
+  const env: NodeJS.ProcessEnv = { ...process.env, PATH: join(root, 'bin'), HOME: root, ACSTACK_HOME: join(root, 'home'), NO_COLOR: '1', ACSTACK_ALIGN_PORT: '0' };
   delete env.SSH_CONNECTION;
   return env;
 }
@@ -62,6 +63,8 @@ function fixture() {
   const git = spawnSync('git', ['init', '--quiet', root], { encoding: 'utf8' });
   expect(git.status, git.stderr).toBe(0);
   writeFileSync(join(root, '.acstack/project.yaml'), 'name: migration-test\n');
+  expect(spawnSync('git', ['add', '.acstack'], { cwd: root, encoding: 'utf8' }).status).toBe(0);
+  symlinkSync(gitBinary, join(root, 'bin', 'git'));
   writeFileSync(join(root, 'design.yaml'), 'id: example\nname: Example\nsummary: Authored design, not inferred architecture\nelements: [app.yaml, data.yaml]\n');
   writeFileSync(join(root, 'app.yaml'), 'id: app\nname: App\nsummary: Runs commands\nkind: component\nrelationships: [{id: reads, from: app, to: data, direction: bidirectional, label: Reads and writes}]\n');
   writeFileSync(join(root, 'data.yaml'), 'id: data\nname: Data\nsummary: Keeps records\nkind: store\nrelationships: [{id: reads, from: app, to: data, direction: bidirectional, label: Reads and writes}]\n');
@@ -137,7 +140,7 @@ async function seed(root: string) {
 function snapshot(root: string, base = root): Record<string, string> {
   return Object.fromEntries(readdirSync(root).sort().flatMap(name => {
     const path = join(root, name);
-    if (name === '.git') return [];
+    if (name === '.git' || relative(base, path) === 'home') return [];
     const stat = lstatSync(path);
     return stat.isSymbolicLink() ? [[relative(base, path), `link:${readlinkSync(path)}`]] : stat.isDirectory() ? [[relative(base, path), 'directory'], ...Object.entries(snapshot(path, base))] : [[relative(base, path), readFileSync(path).toString('base64')]];
   }));

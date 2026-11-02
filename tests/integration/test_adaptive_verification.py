@@ -21,12 +21,16 @@ class AdaptiveVerificationTests(unittest.TestCase):
         (self.root / ".acstack").mkdir()
         self.project = self.root / ".acstack/project.yaml"
         self.project.write_text("profile: node-typescript\n")
+        # A committed .acstack/ makes it this repository's project folder.
+        subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
+        subprocess.run(["git", "add", ".acstack/project.yaml"], cwd=self.root, check=True)
 
     def cli(self, *args):
         return subprocess.run(
             ["node", str(ROOT / "cli/bin/acstack.js"), "config", *args],
             cwd=self.root,
             env={**os.environ, "HOME": str(self.root),
+                 "ACSTACK_HOME": str(self.root / "acstack-home"),
                  "XDG_CONFIG_HOME": str(self.root / "config")},
             capture_output=True, text=True, timeout=30,
         )

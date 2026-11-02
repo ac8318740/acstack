@@ -28,8 +28,8 @@ Three terms, before they get used:
 
 ## Why this is per machine, not per project
 
-The answers go to the ACStack CLI's global config, never to
-`.acstack/project.yaml`. Read [`notes.md`](notes.md) when the user asks why.
+The answers go to the ACStack CLI's global config, never to the
+project's `project.yaml`. Read [`notes.md`](notes.md) when the user asks why.
 
 ## What this skill installs
 

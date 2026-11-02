@@ -238,7 +238,7 @@ PY
     # By prefix, which is why helpers are named acstack-*: anything this
     # script ever wrote goes, including helpers retired in an older version.
     herdr plugin unlink acstack.herdr-numbers >/dev/null 2>&1 || true
-    rm -rf "$HOME/.config/acstack/herdr-numbers"
+    rm -rf "$ACSTACK_ROOT/herdr-numbers"
     rm -f "$BIN"/acstack-*
     # The xclip stand-in is the one managed file without the prefix.
     grep -q "Installed by acstack" "$BIN/xclip" 2>/dev/null && rm -f "$BIN/xclip"

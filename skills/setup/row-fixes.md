@@ -12,7 +12,7 @@ Offer a row when any of these holds:
 
 - Its `status` is `fail`.
 - Its `id` is `preferred-browser-mode`, its `status` is `info`, and
-  `.acstack/project.yaml` configures a `frontend` block. The project has a
+  `<project folder>/project.yaml` (in the project folder `acstack project-data path` prints) configures a `frontend` block. The project has a
   frontend and has named no browser mode for it.
 
 - Its `id` is `output-style` and its `status` is `info`. The row passes when the
@@ -91,7 +91,7 @@ frontend and has not turned browser verification on. Turn it on:
 
 ### 9a. Generate the domain map
 
-`.acstack/domain-map.yaml` maps source paths to spec domains. Spec sync,
+`<project folder>/domain-map.yaml` maps source paths to spec domains. Spec sync,
 `/acstack:archive`, `/acstack:bootstrap` and `/acstack:pre-commit-review` all
 read it. Without it, every path through spec sync skips in silence, and the
 living specs never update.
@@ -111,7 +111,7 @@ Guidance for the proposal:
 - Leave tests, config, build files and docs unmapped. Consumers skip a path that
   no domain covers.
 
-If `.acstack/specs/` already holds domain directories, propose those names first
+If `<project folder>/specs/` already holds domain directories, propose those names first
 and map the paths onto them. Renaming a domain here orphans its `spec.md`.
 
 Print the proposal and confirm it with the question tool (AskUserQuestion on Claude Code). Ask "Use this domain map,
@@ -145,22 +145,21 @@ npm install -g agent-browser
 
 ### 9c. Write the browser configuration
 
-Create `.acstack/` if needed, then run `~/.claude/acstack/bin/acstack project-data ensure`.
-Write `.acstack/agent-browser.json` to name the CDP port:
+Write `<project folder>/agent-browser.json` to name the CDP port:
 
 ```json
 {"cdp": "<cdp_port>"}
 ```
 
-Take `<cdp_port>` from `frontend.browser.cdp_port` in `.acstack/project.yaml`. With
+Take `<cdp_port>` from `frontend.browser.cdp_port` in `<project folder>/project.yaml`. With
 no value there, the default is `19988` under `mode: remote` and `9555` otherwise.
 The row fails when the two files name different ports, so change one of them.
 
 ### 9d. Create the knowledge base for verification
 
-Create `.acstack/verification/VERIFICATION-KNOWLEDGE.md` for the frontend verifier.
+Create `<project folder>/verification/VERIFICATION-KNOWLEDGE.md` for the frontend verifier.
 Keep helper programs in `frontend.helpers_dir`; do not move that directory or require it for metadata.
-Run `~/.claude/acstack/bin/acstack project-data ensure` after creating `.acstack/`, then write:
+Write:
 
 ```markdown
 # Verification Knowledge Base

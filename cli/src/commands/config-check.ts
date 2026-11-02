@@ -591,8 +591,8 @@ function checkVerificationKnowledge(
   root: string
 ): void {
   const id = 'verification-knowledge';
-  const relative = VERIFICATION_KNOWLEDGE_FILE;
-  if (!isFile(join(root, relative))) {
+  const relative = join(root, VERIFICATION_KNOWLEDGE_FILE);
+  if (!isFile(relative)) {
     report.line(
       'fail',
       id,

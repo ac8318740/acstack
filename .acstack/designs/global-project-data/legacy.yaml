@@ -1,0 +1,10 @@
+id: legacy
+name: Legacy locations
+kind: store
+summary: 'Today''s homes: each checkout''s git-ignored .acstack/, ~/.config/acstack/, and ~/.local/share/acstack/.'
+relationships:
+- id: cmd-legacy
+  from: project-data-cmd
+  to: legacy
+  direction: one-way
+  label: Moves data out of

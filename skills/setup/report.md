@@ -20,9 +20,10 @@ Browser:      [project's preferred mode / not configured]
 Design:       [on / off / not asked]
 Host:         [orchestrators + browser modes declared / not declared]
 Workspace:    [yes / yes, n updates available / not installed / declined / not asked]
-Tracking:     [local only / user-selected parts via root .gitignore exceptions]
-Config:       .acstack/project.yaml
-Domain map:   .acstack/domain-map.yaml ([n] domains / starter – fill in)
+Mode:         [global / tracked]
+Project data: [absolute path from acstack project-data path]
+Config:       <project folder>/project.yaml
+Domain map:   <project folder>/domain-map.yaml ([n] domains / starter – fill in)
 Output style: acstack:ac-writing-style (global) | (project) | not set
 
 Health check: [n] pass, [n] fail, [n] info

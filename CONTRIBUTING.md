@@ -136,9 +136,9 @@ The fallback path, for a machine without Python 3.11:
 
 ```bash
 export FAKE=$(mktemp -d)
-mkdir -p "$FAKE/.config/acstack"
-cp assets/terminal-workspace/config.example.yaml "$FAKE/.config/acstack/tw.yaml"
-HOME=$FAKE ACSTACK_TW_CONFIG=$FAKE/.config/acstack/tw.yaml ACSTACK_TW_BIN=$FAKE/bin \
+mkdir -p "$FAKE/.acstack"
+cp assets/terminal-workspace/config.example.yaml "$FAKE/.acstack/tw.yaml"
+HOME=$FAKE ACSTACK_TW_CONFIG=$FAKE/.acstack/tw.yaml ACSTACK_TW_BIN=$FAKE/bin \
   bash assets/terminal-workspace/setup.sh apply
 ```
 
@@ -230,7 +230,7 @@ fi
     - `.github/workflows/ci.yml` regenerates each set and fails the run if the committed copy differs
     - Treat the hook as a convenience, and never as the guarantee
 
-`.acstack/project.yaml` names both commands in one place.
+This repository's `project.yaml`, in its project folder (`acstack project-data path`), names both commands in one place.
 
 - Its `commands.build` runs the esbuild build and the Codex generator together
 - Anything that verifies a build therefore leaves the tree matching what CI expects

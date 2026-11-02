@@ -1,14 +1,7 @@
 import { Command } from 'commander';
 import { spawnSync } from 'node:child_process';
 import { resolveVersion } from './lib/version.js';
-import { ensureProjectGitignore } from './lib/project-data.js';
-import { findProjectRoot } from './lib/project.js';
 import { fail } from './lib/utils.js';
-
-try {
-  const root = findProjectRoot();
-  if (root && !(['project-data', 'design-review'].includes(process.argv[2] ?? '') && process.argv[3] === 'migrate')) ensureProjectGitignore(root);
-} catch (error) { fail((error as Error).message); }
 
 const program = new Command()
   .name('acstack')

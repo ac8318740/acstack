@@ -1,5 +1,5 @@
 # ACStack terminal workspace.
-# Copy to ~/.config/acstack/terminal-workspace.yaml, edit, then run
+# Copy to ~/.acstack/terminal-workspace.yaml, edit, then run
 # setup.sh apply.
 #
 # This is machine-level, not per-project. It installs binaries and writes
@@ -190,7 +190,7 @@ harlequin:
   # schema, or a single connection_name pointing at a connection in
   # ~/.snowflake/connections.toml. Prefer the second: it keeps the secret out
   # of this file.
-  config_path: "~/.config/acstack/harlequin.toml"
+  config_path: "~/.acstack/harlequin.toml"
 
 pi:
   # Off by default, because it writes into pi's own config in ~/.pi/agent.

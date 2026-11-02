@@ -9,7 +9,7 @@ You run ACStack on more than one machine. Those machines are not the same.
 - **Another has no display at all**
 - **A skill cannot guess which**
     - Each machine answers nine questions once, with `/acstack:host` and `/acstack:setup`
-- **The answers live in `~/.config/acstack/config.json`** as `host.*` keys
+- **The answers live in `~/.acstack/config.json`** as `host.*` keys
 - **The worktree skills and the frontend verifier read them** instead of probing
 
 Four terms first.
@@ -21,7 +21,7 @@ Four terms first.
 
 ```mermaid
 flowchart TD
-    HOST["Describe this machine once<br/>(/acstack:host - section 4)"] --> AXES["Every axis, and what reads it<br/>(host.* in ~/.config/acstack/config.json - section 1)"]
+    HOST["Describe this machine once<br/>(/acstack:host - section 4)"] --> AXES["Every axis, and what reads it<br/>(host.* in ~/.acstack/config.json - section 1)"]
     AXES --> ORCH["Orchestrator axes<br/>(host.orchestrators.* - section 2)"]
     AXES --> BROW["Browser axes<br/>(host.browser.* - section 3)"]
     AXES --> OPT["Optional axes<br/>(preview, terminal workspace, element picker, Orca topology)"]
@@ -52,8 +52,8 @@ flowchart TD
 
 Where the file lives, and how the CLI reads a value:
 
-- The global config is a JSON file at `~/.config/acstack/config.json`
-    - It moves under `$XDG_CONFIG_HOME` when you set that variable
+- The global config is a JSON file at `~/.acstack/config.json`
+    - It moves to `$ACSTACK_HOME/config.json` when you set that variable
     - Run `~/.claude/acstack/bin/acstack config path` for the real location
 - `acstack config show` prints every axis with the project's settings
 - The CLI matches an enum value case-sensitively

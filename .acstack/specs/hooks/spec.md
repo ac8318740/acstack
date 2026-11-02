@@ -41,6 +41,16 @@ ACStack delivers the shared communication standard through startup hooks indepen
 - **Then**: Any later whole read of the same unchanged file passes, keyed by real path, size, and modification time
 - **Then**: Ranged reads, pipes, redirects, chains, variables, and globs always pass
 - **Then**: Subagents (`agent_id` in the hook input), ac-teams members (`ACSTACK_AGENT_ROLE` other than `main`, or `AC_TEAMS_MEMBER`), pi-subagents children, and pi sessions with a `parentSession` header or no session file pass
+- **Then**: The guard reads `workflow.read_guard` and `workflow.read_guard_bytes` from `project.yaml` in the project folder, asking the CLI for that folder only when a whole read is in question
 - **Then**: `workflow.read_guard: false` turns the guard off, and any error inside the guard allows the read
 - **Then**: Claude Code and Codex keep passed reads in `${TMPDIR:-/tmp}/acstack-read-guard-<uid>/<session_id>.json`, refusing a folder another user owns or can write; pi keeps them in memory
 - **Source**: `hooks/lib/read-guard.mjs`, `hooks/read-guard.mjs`, `hooks/hooks.json`, `pi/extension.ts`
+
+## FR-005: Find handoffs and settings in the project folder
+
+- **Given**: A session starts, compacts, or stops
+- **When**: The session-start, handoff, or context-pressure hook needs project data
+- **Then**: It asks the CLI's `project-data path` for the project folder and reads `project.yaml` and `HANDOFF.md` there
+- **Then**: A consumed handoff moves to `<project folder>/changes/<map>/handoffs/` or `<project folder>/handoffs/<map>/`
+- **Then**: When the CLI fails, the hook passes its message on through stderr and writes nothing
+- **Source**: `hooks/project-data.sh`, `hooks/session-start.sh`, `hooks/session-start-handoff.sh`, `hooks/context-pressure.sh`

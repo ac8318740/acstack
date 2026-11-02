@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { existsSync, cpSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
-import { ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR } from '../lib/constants.js';
+import { CHANGES_DIR, ARCHIVE_DIR } from '../lib/constants.js';
 import { listChanges, inProject, formatDate, ensureDir } from '../lib/utils.js';
 
 export function register(program: Command): void {
@@ -29,22 +29,22 @@ export function register(program: Command): void {
           return;
         }
 
-        const changeDir = join(root, ACSTACK_DIR, CHANGES_DIR, name);
+        const changeDir = join(root, CHANGES_DIR, name);
         if (!existsSync(changeDir)) {
           console.error(chalk.red(`Change '${name}' not found.`));
           process.exit(1);
         }
 
         const archiveName = `${formatDate()}-${name}`;
-        const archiveDir = join(root, ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR, archiveName);
+        const archiveDir = join(root, CHANGES_DIR, ARCHIVE_DIR, archiveName);
 
-        ensureDir(join(root, ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR));
+        ensureDir(join(root, CHANGES_DIR, ARCHIVE_DIR));
         cpSync(changeDir, archiveDir, { recursive: true });
         rmSync(changeDir, { recursive: true });
 
         console.log(chalk.green(`Archived: ${name}`));
-        console.log(`  From: ${ACSTACK_DIR}/${CHANGES_DIR}/${name}/`);
-        console.log(`  To:   ${ACSTACK_DIR}/${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
+        console.log(`  From: ${CHANGES_DIR}/${name}/`);
+        console.log(`  To:   ${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
 
         if (!opts.skipSpecs) {
           console.log(chalk.dim('\nRemember to update living specs if needed.'));

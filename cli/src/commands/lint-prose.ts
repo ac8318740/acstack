@@ -11,7 +11,7 @@ import { join, relative, resolve } from 'node:path';
 import chalk from 'chalk';
 import fg from 'fast-glob';
 import { VOCABULARY_PATH } from '../lib/constants.js';
-import { findPluginRoot, findProjectRoot } from '../lib/project.js';
+import { findPluginRoot, locateProject } from '../lib/project.js';
 import { fail, readMarkdown } from '../lib/utils.js';
 import {
   RULES,
@@ -232,7 +232,7 @@ export function register(program: Command): void {
     .argument('[paths...]', 'files or directories to lint')
     .option('--all', 'lint every .md file in the repository')
     .action((paths: string[], opts: { all?: boolean }) => {
-      const root = findProjectRoot() ?? process.cwd();
+      const root = locateProject()?.main ?? process.cwd();
 
       if (paths.length === 0 && !opts.all) {
         fail('Give one or more paths, or --all to lint the repository.');

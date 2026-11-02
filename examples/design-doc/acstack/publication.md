@@ -13,4 +13,4 @@ Authored design files define the design in the local checkout; GitHub hosts a pu
     - Ignore rules exclude matching untracked files from ordinary staging
     - Removing an ignore rule does not stage, commit, or push anything
     - Already tracked files remain tracked even if an ignore rule later matches them
-    - New project designs under `.acstack/` stay ignored by default; this public example is tracked separately
+    - New project designs in the project folder stay outside the repository by default; this public example is tracked separately

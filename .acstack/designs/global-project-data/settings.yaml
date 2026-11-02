@@ -1,0 +1,26 @@
+id: settings
+name: Settings resolver
+kind: component
+parent: cli
+summary: Answers one setting by checking project settings, then global settings, then built-in defaults.
+relationships:
+- id: skills-settings
+  from: skills
+  to: settings
+  direction: one-way
+  label: Read settings through
+- id: settings-locator
+  from: settings
+  to: locator
+  direction: one-way
+  label: Finds the project folder with
+- id: settings-folders
+  from: settings
+  to: project-folders
+  direction: one-way
+  label: Reads project settings from
+- id: settings-global
+  from: settings
+  to: global-settings
+  direction: one-way
+  label: Reads global settings from

@@ -32,7 +32,7 @@ and leaves the rest of the user's neovim config alone. Neither `disable` nor
 - It removes agentic-retro's extension only when `apply` was the one to write it
 - It keeps the pi binary, its logins and its sessions
 - It touches nothing in a `settings.json` that does not parse, and says so
-- It records what it added in `~/.config/acstack/terminal-workspace.pi.json`
+- It records what it added in `~/.acstack/terminal-workspace.pi.json`
 
 `yazi`, `markdown` and `remote` have no `disable` path. `disable` refuses for
 those three and names the edit that turns one off. Set the component's

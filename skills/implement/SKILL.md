@@ -22,7 +22,8 @@ $ARGUMENTS
 ### 1. Find the work
 
 Check the configured tracker for maps (`workflow.maps.tracker` in
-`.acstack/project.yaml`; the map skill's `trackers/` docs declare the
+`<project folder>/project.yaml`, where the project folder is the path
+`~/.claude/acstack/bin/acstack project-data path` prints; the map skill's `trackers/` docs declare the
 operations – files backend shown below).
 
 **A map exists** (or `$ARGUMENTS` names one):
@@ -55,7 +56,7 @@ small unit of work, and nothing has to declare it small.
 
 ### 2. Read project configuration
 
-Read `.acstack/project.yaml` for build/test/lint commands and directory paths.
+Read `<project folder>/project.yaml` for build/test/lint commands and directory paths.
 
 ### 3. Create feature branch
 
@@ -125,11 +126,11 @@ Apply the shared Implementation discipline to the claimed node or bare request.
 
 
 **Decision log**: on afk nodes, append one row per decision point to
-`<main checkout>/.acstack/decision-logs/<name>.tsv`. A decision point is a fork chosen, a
+`<project folder>/decision-logs/<name>.tsv`. A decision point is a fork chosen, a
 unit verified, a revert, or a blocker.
 
-Read `decision-log.md` before the first row. It holds how to find the main
-checkout, the columns, and the root ignore baseline.
+Read `decision-log.md` before the first row. It holds where the log lives and
+the columns.
 
 **Parallelism**: use teams when independent nodes benefit from parallel work.
 Assign non-overlapping files, and schedule shared-file changes sequentially.

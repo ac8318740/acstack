@@ -28,7 +28,7 @@ You review screenshots. You report results. You do not need user approval.
 
 ## Project configuration
 
-Read `.acstack/project.yaml` for frontend settings:
+ACStack keeps project data in the project folder, the path `~/.claude/acstack/bin/acstack project-data path` prints. Read `<project folder>/project.yaml` for frontend settings:
 
 - `frontend.directory` – frontend source directory
 - `frontend.dev_server_url` – dev server URL
@@ -39,14 +39,15 @@ Read `.acstack/project.yaml` for frontend settings:
 
 You do not read `frontend.browser.mode` or `frontend.browser.fallback`. Step 3 asks the ACStack CLI which browser mode to use, and the CLI reads both.
 
-If `.acstack/project.yaml` has no `frontend` section, report SKIP and exit.
+If `<project folder>/project.yaml` has no `frontend` section, report SKIP and exit.
 
 ## Step 0: Read the knowledge base
 
 Before doing anything, check for a knowledge base:
 
 ```bash
-cat .acstack/verification/VERIFICATION-KNOWLEDGE.md 2>/dev/null
+project="$(~/.claude/acstack/bin/acstack project-data path)"
+cat "$project/verification/VERIFICATION-KNOWLEDGE.md" 2>/dev/null
 ```
 
 This file contains URL patterns, element patterns, gotchas, and lessons learned. Read it if it exists. If not, you'll create it in Step 7.
@@ -205,10 +206,10 @@ Track whether you launched the browser so you can clean it up in Step 8.
 
 ## Step 4: Verify with agent-browser
 
-Select the project's browser config explicitly from the project root:
+Select the project's browser config explicitly by its absolute path:
 
 ```bash
-export AGENT_BROWSER_CONFIG="$(pwd)/.acstack/agent-browser.json"
+export AGENT_BROWSER_CONFIG="$(~/.claude/acstack/bin/acstack project-data path)/agent-browser.json"
 ```
 
 Require the file for configured verification; do not assume root config autodiscovery.
@@ -299,13 +300,13 @@ After every verification run, update the knowledge base if you learned something
 
 ### Knowledge base
 
-`.acstack/verification/VERIFICATION-KNOWLEDGE.md` – URL patterns, element patterns, gotchas, lessons learned.
+`<project folder>/verification/VERIFICATION-KNOWLEDGE.md` – URL patterns, element patterns, gotchas, lessons learned.
 
 If it doesn't exist, create it with what you learned during this run.
 
 ### Rules
 
-- All verification knowledge lives in `.acstack/verification/VERIFICATION-KNOWLEDGE.md`.
+- All verification knowledge lives in `<project folder>/verification/VERIFICATION-KNOWLEDGE.md`.
 - Do NOT create knowledge files anywhere else.
 - If a selector or element pattern stops working, update the knowledge base.
 - If you discover a new pattern, add it.

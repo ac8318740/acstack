@@ -12,6 +12,8 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_MIN_BYTES = 32768;
 
@@ -25,13 +27,13 @@ export function envSaysNotMain(env = process.env) {
 
 /**
  * The one settings function: workflow.read_guard and
- * workflow.read_guard_bytes from the nearest
- * .acstack/project.yaml above cwd. Hand-rolled like the other hooks' readers,
- * because no YAML library is guaranteed at hook time.
+ * workflow.read_guard_bytes from project.yaml in the repository's project
+ * folder. Hand-rolled like the other hooks' readers, because no YAML library
+ * is guaranteed at hook time. pi passes the folder it already resolved.
  */
-export function readGuardSettings(cwd) {
+export function readGuardSettings(cwd, folder = projectFolder(cwd)) {
   const settings = { enabled: true, minBytes: DEFAULT_MIN_BYTES };
-  const yaml = projectYaml(cwd);
+  const yaml = folder ? readText(path.join(folder, 'project.yaml')) : undefined;
   if (yaml === undefined) return settings;
   const stack = [];
   for (const raw of yaml.split('\n')) {
@@ -54,20 +56,19 @@ export function readGuardSettings(cwd) {
   return settings;
 }
 
-function projectYaml(cwd) {
-  let dir = path.resolve(cwd);
-  while (true) {
-    const file = path.join(dir, '.acstack', 'project.yaml');
-    if (fs.existsSync(file)) {
-      try {
-        return fs.readFileSync(file, 'utf8');
-      } catch {
-        return undefined;
-      }
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) return undefined;
-    dir = parent;
+const CLI = fileURLToPath(new URL('../../cli/bin/acstack.js', import.meta.url));
+
+/** The project folder the CLI reports for cwd, or undefined outside a project. */
+function projectFolder(cwd) {
+  const result = spawnSync(process.execPath, [CLI, 'project-data', 'path'], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  return result.status === 0 ? result.stdout.trim() || undefined : undefined;
+}
+
+function readText(file) {
+  try {
+    return fs.readFileSync(file, 'utf8');
+  } catch {
+    return undefined;
   }
 }
 
@@ -118,11 +119,14 @@ function resolvePath(file, cwd) {
  * `ledger` has has(key) and add(key); add throws when it cannot record, and
  * then the read is allowed so a repeat can never be trapped.
  */
-export function decide({ toolName, toolInput, cwd, main, ledger, settings = readGuardSettings(cwd) }) {
+export function decide({ toolName, toolInput, cwd, main, ledger, settings }) {
   try {
-    if (!main || !settings.enabled || !ledger) return { block: false };
+    if (!main || !ledger) return { block: false };
     const file = wholeReadTarget(toolName, toolInput, cwd);
     if (!file) return { block: false };
+    // Resolved only for a whole-file read, since it costs a CLI call.
+    settings ??= readGuardSettings(cwd);
+    if (!settings.enabled) return { block: false };
     const stat = fs.statSync(file);
     if (!stat.isFile() || stat.size < settings.minBytes) return { block: false };
     const key = `${fs.realpathSync(file)}\0${stat.size}\0${stat.mtimeMs}`;

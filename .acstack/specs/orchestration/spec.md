@@ -76,17 +76,16 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: ACStack removes the former strict sequencing and delegation guarantee
 - **Source**: `orchestrator/AGENTS.md`, Deprecated workflow booleans
 
-## FR-007: Enforce metadata privacy before host project activation
+## FR-007: Resolve the project folder before host project activation
 
 - **Given**: A Claude Code or pi session starts
-- **When**: The host resolves the project root
-- **Then**: It recognizes canonical metadata or positive legacy record markers instead of treating every `acstack/` source directory as metadata
-- **Then**: It falls back to the Git checkout root or working directory when no metadata root exists
-- **Then**: It invokes the production CLI's `project-data ensure` before checking project configuration or writing private metadata
-- **Given**: Policy enforcement fails or recognized legacy records remain
+- **When**: The host resolves project data
+- **Then**: It asks the production CLI's `project-data path` for the project folder, and writes nothing to the repository
+- **Then**: A project is active when that folder holds `project.yaml`; the injected orchestrator text names the folder
+- **Given**: The CLI fails or reports legacy data
 - **When**: The host prepares project activation
-- **Then**: It reports the problem and skips project activation and private writes
-- **Then**: Legacy warnings name the explicit migration command without silently moving records
+- **Then**: It reports the CLI's message and skips project activation and handoff reload
+- **Then**: Legacy warnings name `project-data migrate` without moving records
 - **Then**: Installed launchers under `~/.claude/acstack/bin/` retain their existing paths
 - **Source**: `hooks/project-data.sh`, `hooks/session-start.sh`, `pi/extension.ts`
 
@@ -110,7 +109,7 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **When**: The installed package exposes `Agent` or `subagent`
 - **Then**: The agent uses `Agent` with `subagent_type`, or `subagent` with `agent`
 - **Then**: Read-only searches use `Explore` through `Agent`, or `scout` through `subagent`
-- **Given**: A pi session passes project-data policy enforcement
+- **Given**: A pi session starts
 - **When**: pi exposes none of `Agent`, `subagent`, or `team_agent`
 - **Then**: The extension warns once per extension instance and recommends `pi install npm:ac-teams`
 - **Then**: Any of those three tools suppresses the missing-tool warning

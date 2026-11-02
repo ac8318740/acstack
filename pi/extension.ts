@@ -14,7 +14,7 @@
  *                        from the SSOT style file   (hooks/ac-writing-style-reminder.sh)
  *   agent_before_settle  nudge with a continuity-versus-freshness checkpoint
  *                        as context fills          (hooks/context-pressure.sh)
- *   session_compact      re-inject .acstack/HANDOFF.md after a compaction, and
+ *   session_compact      re-inject <project folder>/HANDOFF.md after a compaction, and
  *                        restart the nudge ladder   (hooks/session-start-handoff.sh,
  *                                                    hooks/context-pressure.sh)
  *   tool_call            block a main agent's first whole read of a large
@@ -33,51 +33,35 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 // @ts-ignore -- plain ESM shared with hooks/read-guard.mjs, no type declarations
-import { decide, envSaysNotMain } from "../hooks/lib/read-guard.mjs";
+import { decide, envSaysNotMain, readGuardSettings } from "../hooks/lib/read-guard.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const troubleshoot = path.join(packageRoot, "TROUBLESHOOTING.md");
 
-function hasLegacyProjectData(root: string): boolean {
-	if (!fs.lstatSync(path.join(root, "acstack"), { throwIfNoEntry: false })?.isDirectory()) return false;
-	return ["project.yaml", "domain-map.yaml"].some(name => {
-		const entry = fs.lstatSync(path.join(root, "acstack", name), { throwIfNoEntry: false });
-		return entry?.isFile() || entry?.isSymbolicLink();
-	}) || ["alignment-packs", "design-reviews", "maps", "specs", "changes", "archive", "decision-logs"].some(name => {
-		const entry = fs.lstatSync(path.join(root, "acstack", name), { throwIfNoEntry: false });
-		return entry?.isDirectory() || entry?.isSymbolicLink();
-	});
-}
-
-function projectRoot(cwd: string): string {
-	let root = path.resolve(cwd);
-	while (true) {
-		if (fs.existsSync(path.join(root, ".acstack")) || hasLegacyProjectData(root)) return root;
-		const parent = path.dirname(root);
-		if (parent === root) break;
-		root = parent;
-	}
+/**
+ * Ask the bundled CLI for this repository's project folder, the way the
+ * Claude Code hooks do. Null outside a Git repository, or when the CLI names a
+ * fix (legacy data, orphaned entry, conflicting modes); that message and any
+ * legacy-data warning reach the user once per cwd.
+ */
+const projectFolders = new Map<string, string | null>();
+function projectFolder(ctx: ExtensionContext | undefined, cwd: string): string | null {
+	const key = path.resolve(cwd);
+	if (projectFolders.has(key)) return projectFolders.get(key)!;
+	let folder: string | null = null;
 	try {
-		return execFileSync("git", ["rev-parse", "--show-toplevel"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+		const result = spawnSync(process.execPath, [path.join(packageRoot, "cli", "bin", "acstack.js"), "project-data", "path"], { cwd: key, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+		const message = result.stderr.trim();
+		if (message && ctx) report(ctx, message.startsWith("acstack:") ? message : `acstack: ${message}`, result.status === 0 ? "warning" : "error");
+		if (result.status === 0) folder = result.stdout.trim() || null;
 	} catch {
-		return path.resolve(cwd);
+		folder = null;
 	}
-}
-
-function ensureProjectData(ctx: ExtensionContext, root: string): boolean {
-	if (hasLegacyProjectData(root)) {
-		report(ctx, "acstack: legacy project data found; run ~/.claude/acstack/bin/acstack project-data migrate before using it.", "warning");
-	}
-	try {
-		execFileSync(process.execPath, [path.join(packageRoot, "cli", "bin", "acstack.js"), "project-data", "ensure"], { cwd: root, stdio: ["ignore", "pipe", "pipe"] });
-		return !hasLegacyProjectData(root);
-	} catch (error) {
-		report(ctx, `acstack: project-data ensure failed; ignore policy is not confirmed installed. Skipping project activation and private writes. ${error instanceof Error ? error.message : String(error)}`, "error");
-		return false;
-	}
+	projectFolders.set(key, folder);
+	return folder;
 }
 
 /** pi-subagents' background runner sets this in every child process. */
@@ -349,7 +333,7 @@ function flowList(value: string): string[] {
 }
 
 /**
- * The workflow.handoff keys from .acstack/project.yaml. A port of read_config
+ * The workflow.handoff keys from <project folder>/project.yaml. A port of read_config
  * in hooks/context-pressure.sh, hand-rolled for the same reason: no YAML
  * library is guaranteed to be installed.
  */
@@ -496,12 +480,12 @@ const HANDOFF_PREAMBLE =
 	"wrong assumption taken after compaction is expensive to unwind.\n\n";
 
 /**
- * Consume .acstack/HANDOFF.md the way hooks/session-start-handoff.sh does:
+ * Consume <project folder>/HANDOFF.md the way hooks/session-start-handoff.sh does:
  * only a file carrying the acstack_handoff marker, moved into a per-map
  * archive so it is never injected twice. Returns the text to inject.
  */
-export function consumeHandoff(cwd: string, now: Date = new Date()): string | undefined {
-	const active = path.join(cwd, ".acstack", "HANDOFF.md");
+export function consumeHandoff(folder: string, now: Date = new Date()): string | undefined {
+	const active = path.join(folder, "HANDOFF.md");
 	const raw = readText(active);
 	if (!raw?.trim()) return undefined;
 
@@ -522,11 +506,11 @@ export function consumeHandoff(cwd: string, now: Date = new Date()): string | un
 	let stamp = (meta.created || "").replace(/[^A-Za-z0-9._-]/g, "-");
 	if (!stamp) stamp = now.toISOString().replace(/\.\d+Z$/, "Z").replace(/:/g, "-");
 
-	const changeDir = path.join(cwd, ".acstack", "changes", map);
+	const changeDir = path.join(folder, "changes", map);
 	const archiveDir =
 		map !== "ad-hoc" && fs.existsSync(changeDir)
 			? path.join(changeDir, "handoffs")
-			: path.join(cwd, ".acstack", "handoffs", map);
+			: path.join(folder, "handoffs", map);
 	try {
 		fs.mkdirSync(archiveDir, { recursive: true });
 		let dest = path.join(archiveDir, `${stamp}.md`);
@@ -664,18 +648,16 @@ export default function acstack(pi: ExtensionAPI): void {
 
 	const orchestratorFile = path.join(packageRoot, "orchestrator", "AGENTS.md");
 	const styleFile = path.join(packageRoot, "output-styles", "ac-writing-style.md");
-	const unsafeProjects = new Set<string>();
-	const isProject = (cwd: string) => !unsafeProjects.has(projectRoot(cwd)) && fs.existsSync(path.join(projectRoot(cwd), ".acstack", "project.yaml"));
+	const isProject = (cwd: string) => {
+		const folder = projectFolder(undefined, cwd);
+		return folder !== null && fs.existsSync(path.join(folder, "project.yaml"));
+	};
 	let warnedSubagents = false;
 
 	pi.on("session_start", async (event, ctx) => {
 		if (!delegated) linkClis(ctx);
-		const root = projectRoot(ctx.cwd);
-		if (ensureProjectData(ctx, root)) unsafeProjects.delete(root);
-		else {
-			unsafeProjects.add(root);
-			return;
-		}
+		projectFolders.delete(path.resolve(ctx.cwd));
+		if (projectFolder(ctx, ctx.cwd) === null) return;
 
 		if (delegated) return;
 		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent" || tool.name === "Agent" || tool.name === "team_agent")) {
@@ -705,7 +687,7 @@ export default function acstack(pi: ExtensionAPI): void {
 
 		if (isProject(ctx.cwd)) {
 			const orchestrator = readText(orchestratorFile);
-			if (orchestrator) sections["acstack-orchestrator"] = orchestratorFor(orchestrator, delegated ? "delegated" : "lead");
+			if (orchestrator) sections["acstack-orchestrator"] = `${orchestratorFor(orchestrator, delegated ? "delegated" : "lead")}\n\nThis repository's ACStack project folder: ${projectFolder(undefined, ctx.cwd)}\n`;
 			else report(ctx, `acstack: could not read ${orchestratorFile}`, "warning");
 		}
 
@@ -742,7 +724,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		const lastText = readText(lastFile)?.trim();
 		const lastRung = lastText && /^\d+$/.test(lastText) ? Number.parseInt(lastText, 10) : undefined;
 
-		const cfg = readHandoffConfig(readText(path.join(projectRoot(ctx.cwd), ".acstack", "project.yaml")));
+		const cfg = readHandoffConfig(readText(path.join(projectFolder(undefined, ctx.cwd) ?? "/nonexistent", "project.yaml")));
 		const nudge = contextNudge(usage.tokens, usage.contextWindow, cfg, lastRung, process.env.HERDR_ENV === "1");
 		if (!nudge) return;
 
@@ -773,9 +755,9 @@ export default function acstack(pi: ExtensionAPI): void {
 			}
 		}
 
-		const root = projectRoot(ctx.cwd);
-		if (!ensureProjectData(ctx, root)) return;
-		const handoff = consumeHandoff(root);
+		const folder = projectFolder(ctx, ctx.cwd);
+		if (folder === null) return;
+		const handoff = consumeHandoff(folder);
 		if (handoff) {
 			pi.sendMessage({ customType: "acstack-handoff", content: handoff, display: true }, { deliverAs: "nextTurn" });
 		}
@@ -795,7 +777,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		if (!main) return;
 		let ledger = readLedgers.get(sessionId);
 		if (!ledger) readLedgers.set(sessionId, (ledger = new Set()));
-		const result = decide({ toolName: event.toolName, toolInput: event.input, cwd: ctx.cwd, main, ledger });
+		const result = decide({ toolName: event.toolName, toolInput: event.input, cwd: ctx.cwd, main, ledger, settings: readGuardSettings(ctx.cwd, projectFolder(ctx, ctx.cwd)) });
 		if (result.block) return { block: true, reason: result.message };
 	});
 

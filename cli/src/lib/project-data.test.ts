@@ -1,9 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { spawnSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
-import { findPluginRoot, findProjectRoot } from './project.js';
+import { hasLegacyProjectData } from './project.js';
 
 const fault = vi.hoisted(() => ({ destination: '' }));
 vi.mock('node:fs', async original => {
@@ -16,7 +15,7 @@ vi.mock('node:fs', async original => {
     },
   };
 });
-const { assertCanonicalProject, ensureProjectGitignore, migrateProjectData } = await import('./project-data.js');
+const { migrateOldLayout: migrateProjectData, removeManagedGitignoreBlock } = await import('./project-data.js');
 const roots: string[] = [];
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'project-data-unit-'));
@@ -36,8 +35,7 @@ describe('project data migration safety', () => {
   it('does not recognize or migrate an ordinary acstack source directory', () => {
     const root = fixture();
     put(root, 'acstack/app.ts', 'export const app = true;');
-    expect(findProjectRoot(join(root, 'acstack'))).toBeNull();
-    expect(() => assertCanonicalProject(root)).not.toThrow();
+    expect(hasLegacyProjectData(root)).toBe(false);
     expect(migrateProjectData(root)).toEqual({ moved: [] });
     expect(readFileSync(join(root, 'acstack/app.ts'), 'utf8')).toBe('export const app = true;');
     expect(existsSync(join(root, '.acstack'))).toBe(false);
@@ -54,18 +52,11 @@ describe('project data migration safety', () => {
     expect(existsSync(join(root, '.acstack/app.ts'))).toBe(false);
   });
 
-  it('discovers the repository rather than its authored design example', () => {
-    const root = findPluginRoot();
-    expect(root).not.toBeNull();
-    expect(findProjectRoot(join(root!, 'examples/design-doc/acstack'))).toBe(root);
-  });
-
   it.each(['domain-map.yaml', 'alignment-packs/', 'design-reviews/', 'maps/', 'specs/', 'changes/', 'archive/', 'decision-logs/'])('recognizes config-free legacy metadata from %s', marker => {
     const root = fixture();
     if (marker.endsWith('/')) mkdirSync(join(root, 'acstack', marker), { recursive: true });
     else put(root, `acstack/${marker}`, 'domains: {}\n');
-    expect(findProjectRoot(root)).toBe(root);
-    expect(() => assertCanonicalProject(root)).toThrow(/project-data migrate/);
+    expect(hasLegacyProjectData(root)).toBe(true);
     migrateProjectData(root);
     expect(existsSync(join(root, '.acstack', marker))).toBe(true);
     expect(existsSync(join(root, 'acstack'))).toBe(false);
@@ -77,20 +68,11 @@ describe('project data migration safety', () => {
     const target = `../main/.acstack/${marker}`;
     symlinkSync(target, join(root, 'acstack', marker));
     put(root, 'acstack/note.md', 'keep this record');
-    expect(findProjectRoot(root)).toBe(root);
-    expect(() => assertCanonicalProject(root)).toThrow(/project-data migrate/);
+    expect(hasLegacyProjectData(root)).toBe(true);
     migrateProjectData(root);
     expect(readlinkSync(join(root, '.acstack', marker))).toBe(target);
     expect(readFileSync(join(root, '.acstack/note.md'), 'utf8')).toBe('keep this record');
     expect(existsSync(join(root, 'acstack'))).toBe(false);
-  });
-
-  it('finds the nearest legacy project before a farther hidden project', () => {
-    const root = fixture();
-    mkdirSync(join(root, '.acstack'));
-    put(root, 'nested/acstack/project.yaml', 'name: nested\n');
-    mkdirSync(join(root, 'nested/src'));
-    expect(findProjectRoot(join(root, 'nested/src'))).toBe(join(root, 'nested'));
   });
 
   it.each(['decisions', 'decision-logs', 'verification'])('preflights incoming %s conflicts inside the legacy tree', directory => {
@@ -164,31 +146,20 @@ describe('project data migration safety', () => {
     expect(existsSync(join(root, '.acstack'))).toBe(false);
   });
 
-  it('keeps a UTF-8 BOM at the start without changing Git rules or repeated ensure bytes', () => {
+  it('removes only the managed block from the root .gitignore, keeping user rules and permissions', () => {
     const root = fixture();
-    expect(spawnSync('git', ['init', '--quiet'], { cwd: root }).status).toBe(0);
-    mkdirSync(join(root, '.acstack'));
-    put(root, '.gitignore', '\uFEFFnode_modules/\n');
-    put(root, 'node_modules/package/index.js', 'dependency');
-    ensureProjectGitignore(root);
-    const first = readFileSync(join(root, '.gitignore'));
-    expect(first.subarray(0, 3)).toEqual(Buffer.from([0xef, 0xbb, 0xbf]));
-    expect(spawnSync('git', ['check-ignore', '--quiet', 'node_modules/package/index.js'], { cwd: root }).status).toBe(0);
-    ensureProjectGitignore(root);
-    expect(readFileSync(join(root, '.gitignore'))).toEqual(first);
-    expect(spawnSync('git', ['check-ignore', '--quiet', 'node_modules/package/index.js'], { cwd: root }).status).toBe(0);
+    put(root, '.gitignore', '# >>> acstack project-data >>>\r\n!/.acstack/\r\n/.acstack/**\r\n# <<< acstack project-data <<<\r\n\r\nnode_modules/\r\n!/.acstack/specs/\r\n');
+    chmodSync(join(root, '.gitignore'), 0o640);
+    removeManagedGitignoreBlock(root);
+    expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe('node_modules/\r\n!/.acstack/specs/\r\n');
+    expect(statSync(join(root, '.gitignore')).mode & 0o777).toBe(0o640);
   });
 
-  it('preserves ignore file permissions and leaves bytes unchanged on malformed markers', () => {
+  it('leaves a .gitignore with a malformed managed block unchanged', () => {
     const root = fixture();
-    mkdirSync(join(root, '.acstack'));
-    put(root, '.gitignore', '# user\r\ncache/\r\n');
-    chmodSync(join(root, '.gitignore'), 0o640);
-    ensureProjectGitignore(root);
-    expect(statSync(join(root, '.gitignore')).mode & 0o777).toBe(0o640);
     const malformed = '# >>> acstack project-data >>>\n/.acstack/**\n';
     put(root, '.gitignore', malformed);
-    expect(() => ensureProjectGitignore(root)).toThrow(/malformed/);
+    removeManagedGitignoreBlock(root);
     expect(readFileSync(join(root, '.gitignore'), 'utf8')).toBe(malformed);
   });
 });

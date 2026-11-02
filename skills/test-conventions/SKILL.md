@@ -7,7 +7,7 @@ description: Test placement rules and framework conventions. Invoke before writi
 
 ## Decision Tree: Where Does My Test Go?
 
-Read `.acstack/project.yaml` for `directories.source`, `directories.tests`, and `frontend` config.
+Read `<project folder>/project.yaml` for `directories.source`, `directories.tests`, and `frontend` config. The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints.
 
 ```
 Backend code?             → <tests-dir>/<mirror-source-path>/test_<module>.py
@@ -25,7 +25,7 @@ Mirror the source directory structure. Example: `src/auth/sessions.py` → `test
 - Shared fixtures → `<tests-dir>/conftest.py` (Python) or shared setup files
 - Use markers for slow/integration tests (configured in `test_markers.exclude`)
 - Use the project's test runner for focused checks; the verification owner gathers full completion evidence under `orchestrator/AGENTS.md`
-- When test collection is configured, compare `.acstack/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
+- When test collection is configured, compare `<project folder>/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
 
 ## Layer 2: Frontend Unit Tests
 

@@ -65,10 +65,12 @@ operation. First the root:
   The root is a parent too, and it draws the whole map.
 
 - When a design is required:
-    - Record `Design entry: <repository-relative-path>` in the root node body
+    - Record `Design entry: <path>` in the root node body
+        - Write the path relative to the project folder, such as `designs/<id>/design.yaml`, or relative to the repository for a design kept in the repository
+        - ACStack resolves it against the project folder first, then the current checkout
     - Bind the entry back to the map with `planning: {tracker: files | github, map: <name>}`
     - Require `design-review status` to return that same `planning` binding before using its approval for this map
     - Record proposals in the node body's `## Design contributions` section using the format in `/acstack:design-doc`
     - Reconcile proposals and saved feedback explicitly; surface conflicts as decision nodes
-- On the files backend, the root Git ignore rules exclude `.acstack/maps/` unless the user opts in
-  ([`trackers/files.md`](trackers/files.md) gives the reason).
+- On the files backend, nodes live in `<project folder>/maps/`, outside the repository unless the project uses tracked mode
+  ([`trackers/files.md`](trackers/files.md) gives the details).

@@ -2,12 +2,13 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { request as httpRequest } from 'node:http';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import type { ReviewAnnotation } from '../lib/alignment-packs.js';
+import { gitBinary, trackProject } from '../test-project.js';
 
 // These exercise the shipped command: rebuild cli/dist before running them.
 const bin = fileURLToPath(new URL('../../bin/acstack.js', import.meta.url));
@@ -21,6 +22,8 @@ function fixture() {
   mkdirSync(join(root, '.acstack'));
   mkdirSync(join(root, 'empty-path'));
   writeFileSync(join(root, '.acstack/project.yaml'), 'name: review-test\n');
+  trackProject(root);
+  symlinkSync(gitBinary, join(root, 'empty-path', 'git'));
   writeFileSync(join(root, 'design.yaml'), 'id: example\nname: Example\nsummary: Review this design\nelements: [app.yaml]\n');
   writeFileSync(join(root, 'app.yaml'), 'id: app\nname: App\nsummary: Runs commands\nkind: component\n');
   return root;

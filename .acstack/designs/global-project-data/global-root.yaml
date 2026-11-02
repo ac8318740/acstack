@@ -1,0 +1,4 @@
+id: global-root
+name: Global root (~/.acstack)
+kind: store
+summary: The single machine-wide home for ACStack settings, caches, and per-project folders.

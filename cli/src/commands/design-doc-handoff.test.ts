@@ -51,8 +51,8 @@ it('serves exact quoted review and authored paths separately from unchanged anno
   await command.parseAsync(['design-doc', entry], { from: 'user' });
   const server = context.server!;
   const { html, url } = await page(server);
-  const version = readdirSync(join(root, '.acstack/design-reviews/example'))[0];
-  const reviewPath = join(root, '.acstack/design-reviews/example', version, 'review.json');
+  const version = readdirSync(join(root, 'design-reviews/example'))[0];
+  const reviewPath = join(root, 'design-reviews/example', version, 'review.json');
   expect(html).toContain('"orientation":"top-to-bottom"');
   const prompt = embeddedPrompt(html)!;
   expect(prompt).toContain(JSON.stringify(reviewPath));
@@ -65,7 +65,7 @@ it('serves exact quoted review and authored paths separately from unchanged anno
   const snapshot = await (await fetch(new URL('/api/annotations', url), { headers: { 'x-review-token': token } })).json() as Record<string, unknown>;
   expect(Object.keys(snapshot).sort()).toEqual(['annotations', 'packVersion', 'revision']);
   expect(snapshot).toEqual(JSON.parse(readFileSync(reviewPath, 'utf8')));
-  expect(readdirSync(join(root, '.acstack/design-reviews/example', version))).toEqual(['review.json']);
+  expect(readdirSync(join(root, 'design-reviews/example', version))).toEqual(['review.json']);
 });
 
 it('escapes script terminators and round-trips hostile paths without executable markup', async () => {

@@ -22,12 +22,14 @@ fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 cd "$WORK" || exit 1
-# The wrapper logs the host contract and delegates policy writes to production.
+# The hook asks the real CLI for the project folder. A committed .acstack/
+# makes $WORK/.acstack that folder, so the cases below read and write it directly.
 mkdir -p "$WORK/plugin/cli/bin"
-cp "$SCRIPT_DIR/fixtures/project-data-cli.mjs" "$WORK/plugin/cli/bin/acstack.js"
-chmod +x "$WORK/plugin/cli/bin/acstack.js"
+ln -s "$SCRIPT_DIR/../cli/bin/acstack.js" "$WORK/plugin/cli/bin/acstack.js"
 export CLAUDE_PLUGIN_ROOT="$WORK/plugin"
-export ACSTACK_REAL_CLI="$SCRIPT_DIR/../cli/dist/index.js"
+export ACSTACK_HOME="$WORK/home" XDG_CONFIG_HOME="$WORK/config" XDG_DATA_HOME="$WORK/share"
+git init -q
+mkdir -p .acstack && : > .acstack/project.yaml && git add .acstack/project.yaml
 
 pass=0
 fail=0

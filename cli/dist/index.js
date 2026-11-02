@@ -10790,328 +10790,6 @@ var require_dist = __commonJS({
   }
 });
 
-// src/lib/atomic-file.ts
-import { randomBytes } from "node:crypto";
-import { renameSync, rmSync, writeFileSync } from "node:fs";
-function tempPathFor(path) {
-  return `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
-}
-function replaceFileAtomically(path, text2, beforeRename) {
-  const temp = tempPathFor(path);
-  try {
-    writeFileSync(temp, text2, "utf-8");
-    beforeRename?.(temp);
-    renameSync(temp, path);
-  } catch (err) {
-    try {
-      rmSync(temp, { force: true });
-    } catch {
-    }
-    throw err;
-  }
-}
-var init_atomic_file = __esm({
-  "src/lib/atomic-file.ts"() {
-    "use strict";
-  }
-});
-
-// src/lib/constants.ts
-import { join as join2 } from "node:path";
-import { homedir } from "node:os";
-function acstackFile(name, root) {
-  const relative7 = join2(ACSTACK_DIR, name);
-  return root === void 0 ? relative7 : join2(root, relative7);
-}
-function projectFile(root) {
-  return acstackFile(PROJECT_FILE, root);
-}
-function domainMapFile(root) {
-  return acstackFile(DOMAIN_MAP_FILE, root);
-}
-function claudeConfigRoot() {
-  const stated = process.env.CLAUDE_CONFIG_DIR;
-  return stated ? stated : join2(homedir(), CLAUDE_DIR);
-}
-var ACSTACK_DIR, LEGACY_ACSTACK_DIR, DECISIONS_DIR, DECISION_LOGS_DIR, VERIFICATION_DIR, CHANGES_DIR, MAPS_DIR, SPECS_DIR, ARCHIVE_DIR, PROJECT_FILE, DOMAIN_MAP_FILE, PROFILES_DIR, AGENT_BROWSER_JSON_FILE, VERIFICATION_KNOWLEDGE_FILE, AGENT_BROWSER_BIN, CLAUDE_DIR, CLAUDE_SETTINGS_FILE, CLAUDE_LOCAL_SETTINGS_FILE, ACSTACK_OUTPUT_STYLE, VOCABULARY_PATH, GLOBAL_CONFIG_DIR, GLOBAL_CONFIG_FILE, GLOBAL_DATA_DIR;
-var init_constants = __esm({
-  "src/lib/constants.ts"() {
-    "use strict";
-    ACSTACK_DIR = ".acstack";
-    LEGACY_ACSTACK_DIR = "acstack";
-    DECISIONS_DIR = "decisions";
-    DECISION_LOGS_DIR = "decision-logs";
-    VERIFICATION_DIR = "verification";
-    CHANGES_DIR = "changes";
-    MAPS_DIR = "maps";
-    SPECS_DIR = "specs";
-    ARCHIVE_DIR = "archive";
-    PROJECT_FILE = "project.yaml";
-    DOMAIN_MAP_FILE = "domain-map.yaml";
-    PROFILES_DIR = "profiles";
-    AGENT_BROWSER_JSON_FILE = join2(ACSTACK_DIR, "agent-browser.json");
-    VERIFICATION_KNOWLEDGE_FILE = join2(ACSTACK_DIR, VERIFICATION_DIR, "VERIFICATION-KNOWLEDGE.md");
-    AGENT_BROWSER_BIN = "agent-browser";
-    CLAUDE_DIR = ".claude";
-    CLAUDE_SETTINGS_FILE = "settings.json";
-    CLAUDE_LOCAL_SETTINGS_FILE = "settings.local.json";
-    ACSTACK_OUTPUT_STYLE = "acstack:ac-writing-style";
-    VOCABULARY_PATH = join2("skills", "writing", "vocabulary.md");
-    GLOBAL_CONFIG_DIR = join2(
-      process.env.XDG_CONFIG_HOME ?? join2(homedir(), ".config"),
-      "acstack"
-    );
-    GLOBAL_CONFIG_FILE = join2(GLOBAL_CONFIG_DIR, "config.json");
-    GLOBAL_DATA_DIR = join2(
-      process.env.XDG_DATA_HOME ?? join2(homedir(), ".local", "share"),
-      "acstack"
-    );
-  }
-});
-
-// src/lib/project.ts
-import { existsSync, lstatSync } from "node:fs";
-import { dirname as dirname2, join as join3, resolve } from "node:path";
-function findUp(startDir, marker) {
-  let dir = resolve(startDir);
-  while (true) {
-    if (existsSync(join3(dir, marker))) return dir;
-    const parent = dirname2(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
-function hasLegacyProjectData(root) {
-  const legacy = join3(root, LEGACY_ACSTACK_DIR);
-  if (!lstatSync(legacy, { throwIfNoEntry: false })?.isDirectory()) return false;
-  return [PROJECT_FILE, DOMAIN_MAP_FILE].some((name) => {
-    const entry = lstatSync(join3(legacy, name), { throwIfNoEntry: false });
-    return entry?.isFile() || entry?.isSymbolicLink();
-  }) || ["alignment-packs", "design-reviews", MAPS_DIR, SPECS_DIR, CHANGES_DIR, ARCHIVE_DIR, DECISION_LOGS_DIR].some((name) => {
-    const entry = lstatSync(join3(legacy, name), { throwIfNoEntry: false });
-    return entry?.isDirectory() || entry?.isSymbolicLink();
-  });
-}
-function findProjectRoot(from = process.cwd()) {
-  let dir = resolve(from);
-  while (true) {
-    if (existsSync(join3(dir, ACSTACK_DIR)) || hasLegacyProjectData(dir)) return dir;
-    const parent = dirname2(dir);
-    if (parent === dir) return null;
-    dir = parent;
-  }
-}
-function findPluginRoot(startDir = import.meta.dirname) {
-  const fromEnv = process.env.CLAUDE_PLUGIN_ROOT;
-  if (fromEnv && existsSync(join3(fromEnv, PLUGIN_MARKER))) return resolve(fromEnv);
-  return findUp(startDir, PLUGIN_MARKER);
-}
-var PLUGIN_MARKER;
-var init_project = __esm({
-  "src/lib/project.ts"() {
-    "use strict";
-    init_constants();
-    PLUGIN_MARKER = join3(".claude-plugin", "plugin.json");
-  }
-});
-
-// src/lib/project-data.ts
-import { chmodSync, existsSync as existsSync2, lstatSync as lstatSync2, mkdirSync, readFileSync as readFileSync2, readdirSync, readlinkSync, realpathSync, renameSync as renameSync2, rmdirSync, symlinkSync, unlinkSync } from "node:fs";
-import { dirname as dirname3, isAbsolute, join as join4, relative, resolve as resolve2 } from "node:path";
-function present(path) {
-  try {
-    lstatSync2(path);
-    return true;
-  } catch (error) {
-    if (error.code === "ENOENT") return false;
-    throw error;
-  }
-}
-function assertCanonicalProject(root) {
-  if (!existsSync2(join4(root, ACSTACK_DIR)) && hasLegacyProjectData(root)) {
-    throw new Error("Legacy ACStack project data found. Stop review servers and agents, back up the project, then run `acstack project-data migrate` from the project root.");
-  }
-}
-function gitignorePlan(root) {
-  const path = join4(root, ".gitignore");
-  const stat = present(path) ? lstatSync2(path) : void 0;
-  if (stat && (!stat.isFile() || stat.isSymbolicLink())) throw new Error(`${path}: .gitignore must be a regular file, not a symlink`);
-  let before = "";
-  if (stat) {
-    try {
-      before = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(readFileSync2(path));
-    } catch (error) {
-      if (error instanceof TypeError) throw new Error(`${path}: invalid UTF-8; refusing to rewrite .gitignore`);
-      throw error;
-    }
-  }
-  const bom = before.startsWith("\uFEFF") ? "\uFEFF" : "";
-  const body = before.slice(bom.length);
-  const eol = body.includes("\r\n") ? "\r\n" : "\n";
-  const lines = body.match(/[^\n]*\n|[^\n]+$/g) ?? [];
-  const markers = lines.flatMap((line, index) => {
-    const text2 = line.replace(/\r?\n$/, "");
-    return text2.includes("acstack project-data") && (text2.includes(">>>") || text2.includes("<<<")) ? [{ text: text2, index }] : [];
-  });
-  if (markers.length !== 0 && (markers.length !== 2 || markers[0].text !== BEGIN || markers[1].text !== END)) {
-    throw new Error(`${path}: malformed ACStack project-data managed markers`);
-  }
-  const outside = markers.length === 0 ? body : lines.filter((_, i) => i < markers[0].index || i > markers[1].index).join("");
-  const baseline = [BEGIN, `!/${ACSTACK_DIR}/`, `/${ACSTACK_DIR}/**`, END, ""].join(eol);
-  return { path, before, after: bom + baseline + outside, mode: stat?.mode };
-}
-function ensureProjectGitignore(root) {
-  if (!present(join4(root, ACSTACK_DIR))) return;
-  const plan = gitignorePlan(root);
-  if (plan.before === plan.after) return;
-  replaceFileAtomically(plan.path, plan.after, plan.mode === void 0 ? void 0 : (temp) => chmodSync(temp, plan.mode));
-}
-function inside(root, path) {
-  const rel = relative(root, path);
-  return rel !== ".." && !rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && !isAbsolute(rel);
-}
-function migrateProjectData(root) {
-  root = resolve2(root);
-  const legacy = join4(root, LEGACY_ACSTACK_DIR);
-  const canonical = join4(root, ACSTACK_DIR);
-  if (present(legacy) && (!lstatSync2(legacy).isDirectory() || lstatSync2(legacy).isSymbolicLink())) throw new Error(`${legacy}: legacy project data must be a real directory`);
-  const candidates = [
-    ...hasLegacyProjectData(root) ? [{ from: legacy, to: canonical }] : [],
-    { from: join4(root, "docs", "adr"), to: join4(canonical, DECISIONS_DIR) },
-    { from: join4(root, "CONTEXT.md"), to: join4(canonical, "CONTEXT.md") },
-    { from: join4(root, "agent-browser.json"), to: join4(canonical, "agent-browser.json") },
-    { from: join4(root, ".test-baseline"), to: join4(canonical, ".test-baseline") },
-    { from: join4(root, ".decisions"), to: join4(canonical, DECISION_LOGS_DIR) },
-    { from: join4(root, KNOWLEDGE), to: join4(canonical, VERIFICATION_DIR, KNOWLEDGE) }
-  ];
-  const config = join4(legacy, "project.yaml");
-  if (hasLegacyProjectData(root) && existsSync2(config)) {
-    const yaml = (0, import_yaml.parse)(readFileSync2(config, "utf8"));
-    const helpers = yaml?.frontend?.helpers_dir;
-    if (typeof helpers === "string") {
-      const path = resolve2(root, helpers, KNOWLEDGE);
-      if (inside(root, path) && present(path) && inside(realpathSync(root), realpathSync(dirname3(path)))) {
-        if (!candidates.some((move) => move.from === path)) candidates.push({ from: path, to: join4(canonical, VERIFICATION_DIR, KNOWLEDGE) });
-      }
-    }
-  }
-  const moves = candidates.filter((move) => present(move.from));
-  if (moves.length === 0) {
-    ensureProjectGitignore(root);
-    return { moved: [] };
-  }
-  if (present(canonical)) throw new Error(`${canonical}: migration destination already exists; refusing to merge or overwrite project data`);
-  const ignore = gitignorePlan(root);
-  const mapPath = (path) => {
-    const move = [...moves].sort((a, b) => b.from.length - a.from.length).find((candidate) => inside(candidate.from, path));
-    return move ? join4(move.to, relative(move.from, path)) : path;
-  };
-  for (const move of moves) {
-    for (let parent = dirname3(move.from); parent !== root; parent = dirname3(parent)) {
-      if (!inside(root, parent) || lstatSync2(parent).isSymbolicLink()) throw new Error(`${parent}: migration cannot traverse a symlinked source directory`);
-    }
-    for (const other of moves) {
-      if (move === other) continue;
-      if (move.to === other.to) throw new Error(`${move.to}: conflicting incoming project data`);
-      if (inside(other.to, move.to)) {
-        const incoming = join4(other.from, relative(other.to, move.to));
-        if (present(incoming)) throw new Error(`${move.to}: destination conflicts with incoming legacy data`);
-        for (let parent = dirname3(incoming); parent !== other.from; parent = dirname3(parent)) {
-          if (present(parent) && (!lstatSync2(parent).isDirectory() || lstatSync2(parent).isSymbolicLink())) throw new Error(`${parent}: unsafe incoming destination parent`);
-        }
-      }
-    }
-  }
-  const links = [];
-  const removals = [];
-  const ownedIgnores = /* @__PURE__ */ new Set([
-    join4(legacy, "alignment-packs", ".gitignore"),
-    join4(legacy, "design-reviews", ".gitignore"),
-    join4(root, ".decisions", ".gitignore"),
-    join4(legacy, DECISION_LOGS_DIR, ".gitignore")
-  ]);
-  const visited = /* @__PURE__ */ new Set();
-  const inspect = (path) => {
-    if (visited.has(path)) return;
-    visited.add(path);
-    const stat = lstatSync2(path);
-    if (stat.isSymbolicLink()) {
-      const before = readlinkSync(path);
-      const target = mapPath(resolve2(dirname3(path), before));
-      const after = isAbsolute(before) ? target : relative(dirname3(mapPath(path)), target) || ".";
-      if (before !== after) links.push({ path: mapPath(path), before, after });
-    } else if (stat.isDirectory()) {
-      for (const name of readdirSync(path)) inspect(join4(path, name));
-    } else if (ownedIgnores.has(path) && stat.isFile()) {
-      const text2 = readFileSync2(path, "utf8");
-      const normalized = text2.replace(/\r\n/g, "\n");
-      if (normalized === "*\n" || normalized === "*" || normalized === "# Written by acstack. Delete this file and set workflow.alignment_packs.commit_generated_packs: true to commit packs.\n*\n") {
-        removals.push({ path: mapPath(path), text: text2, mode: stat.mode });
-      }
-    }
-  };
-  for (const move of moves) inspect(move.from);
-  const undo = [];
-  const makeParents = (path) => {
-    if (present(path)) return;
-    makeParents(dirname3(path));
-    mkdirSync(path);
-    undo.push(() => rmdirSync(path));
-  };
-  try {
-    for (const move of moves) {
-      const from = present(move.from) ? move.from : join4(canonical, relative(legacy, move.from));
-      makeParents(dirname3(move.to));
-      if (present(move.to)) throw new Error(`${move.to}: migration destination appeared during migration`);
-      renameSync2(from, move.to);
-      undo.push(() => renameSync2(move.to, from));
-    }
-    for (const link of links) {
-      unlinkSync(link.path);
-      try {
-        symlinkSync(link.after, link.path);
-      } catch (error) {
-        symlinkSync(link.before, link.path);
-        throw error;
-      }
-      undo.push(() => {
-        unlinkSync(link.path);
-        symlinkSync(link.before, link.path);
-      });
-    }
-    for (const removal of removals) {
-      unlinkSync(removal.path);
-      undo.push(() => replaceFileAtomically(removal.path, removal.text, (temp) => chmodSync(temp, removal.mode)));
-    }
-    replaceFileAtomically(ignore.path, ignore.after, ignore.mode === void 0 ? void 0 : (temp) => chmodSync(temp, ignore.mode));
-    return { moved: moves.map((move) => relative(root, move.to)) };
-  } catch (error) {
-    const failures = [];
-    for (const rollback of undo.reverse()) {
-      try {
-        rollback();
-      } catch (failure) {
-        failures.push(String(failure));
-      }
-    }
-    if (failures.length) throw new Error(`${String(error)}; rollback incomplete: ${failures.join("; ")}`);
-    throw error;
-  }
-}
-var import_yaml, BEGIN, END, KNOWLEDGE;
-var init_project_data = __esm({
-  "src/lib/project-data.ts"() {
-    "use strict";
-    import_yaml = __toESM(require_dist(), 1);
-    init_atomic_file();
-    init_project();
-    init_constants();
-    BEGIN = "# >>> acstack project-data >>>";
-    END = "# <<< acstack project-data <<<";
-    KNOWLEDGE = "VERIFICATION-KNOWLEDGE.md";
-  }
-});
-
 // node_modules/chalk/source/vendor/ansi-styles/index.js
 function assembleStyles() {
   const codes = /* @__PURE__ */ new Map();
@@ -11628,9 +11306,181 @@ var init_source = __esm({
   }
 });
 
+// src/lib/constants.ts
+import { join as join2 } from "node:path";
+import { homedir } from "node:os";
+function acstackFile(name, root) {
+  return join2(root ?? PROJECT_FOLDER_LABEL, name);
+}
+function projectFile(root) {
+  return acstackFile(PROJECT_FILE, root);
+}
+function domainMapFile(root) {
+  return acstackFile(DOMAIN_MAP_FILE, root);
+}
+function claudeConfigRoot() {
+  const stated = process.env.CLAUDE_CONFIG_DIR;
+  return stated ? stated : join2(homedir(), CLAUDE_DIR);
+}
+var ACSTACK_DIR, LEGACY_ACSTACK_DIR, DECISIONS_DIR, DECISION_LOGS_DIR, VERIFICATION_DIR, CHANGES_DIR, MAPS_DIR, SPECS_DIR, ARCHIVE_DIR, PROJECT_FILE, DOMAIN_MAP_FILE, PROJECT_FOLDER_LABEL, PROFILES_DIR, AGENT_BROWSER_JSON_FILE, VERIFICATION_KNOWLEDGE_FILE, AGENT_BROWSER_BIN, CLAUDE_DIR, CLAUDE_SETTINGS_FILE, CLAUDE_LOCAL_SETTINGS_FILE, ACSTACK_OUTPUT_STYLE, VOCABULARY_PATH, ACSTACK_HOME, GLOBAL_CONFIG_FILE, GLOBAL_CACHE_DIR, PROJECTS_DIR, PROJECT_JSON_FILE;
+var init_constants = __esm({
+  "src/lib/constants.ts"() {
+    "use strict";
+    ACSTACK_DIR = ".acstack";
+    LEGACY_ACSTACK_DIR = "acstack";
+    DECISIONS_DIR = "decisions";
+    DECISION_LOGS_DIR = "decision-logs";
+    VERIFICATION_DIR = "verification";
+    CHANGES_DIR = "changes";
+    MAPS_DIR = "maps";
+    SPECS_DIR = "specs";
+    ARCHIVE_DIR = "archive";
+    PROJECT_FILE = "project.yaml";
+    DOMAIN_MAP_FILE = "domain-map.yaml";
+    PROJECT_FOLDER_LABEL = "<project folder>";
+    PROFILES_DIR = "profiles";
+    AGENT_BROWSER_JSON_FILE = "agent-browser.json";
+    VERIFICATION_KNOWLEDGE_FILE = join2(VERIFICATION_DIR, "VERIFICATION-KNOWLEDGE.md");
+    AGENT_BROWSER_BIN = "agent-browser";
+    CLAUDE_DIR = ".claude";
+    CLAUDE_SETTINGS_FILE = "settings.json";
+    CLAUDE_LOCAL_SETTINGS_FILE = "settings.local.json";
+    ACSTACK_OUTPUT_STYLE = "acstack:ac-writing-style";
+    VOCABULARY_PATH = join2("skills", "writing", "vocabulary.md");
+    ACSTACK_HOME = process.env.ACSTACK_HOME || join2(homedir(), ".acstack");
+    GLOBAL_CONFIG_FILE = join2(ACSTACK_HOME, "config.json");
+    GLOBAL_CACHE_DIR = join2(ACSTACK_HOME, "cache");
+    PROJECTS_DIR = join2(ACSTACK_HOME, "projects");
+    PROJECT_JSON_FILE = "project.json";
+  }
+});
+
+// src/lib/project.ts
+import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, mkdirSync, readFileSync as readFileSync2, readdirSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname as dirname2, join as join3, resolve } from "node:path";
+function findUp(startDir, marker) {
+  let dir = resolve(startDir);
+  while (true) {
+    if (existsSync(join3(dir, marker))) return dir;
+    const parent = dirname2(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+function hasLegacyProjectData(root) {
+  const legacy = join3(root, LEGACY_ACSTACK_DIR);
+  if (!lstatSync(legacy, { throwIfNoEntry: false })?.isDirectory()) return false;
+  return [PROJECT_FILE, DOMAIN_MAP_FILE].some((name) => {
+    const entry = lstatSync(join3(legacy, name), { throwIfNoEntry: false });
+    return entry?.isFile() || entry?.isSymbolicLink();
+  }) || ["alignment-packs", "design-reviews", MAPS_DIR, SPECS_DIR, CHANGES_DIR, ARCHIVE_DIR, DECISION_LOGS_DIR].some((name) => {
+    const entry = lstatSync(join3(legacy, name), { throwIfNoEntry: false });
+    return entry?.isDirectory() || entry?.isSymbolicLink();
+  });
+}
+function git(cwd, args) {
+  const result = spawnSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  return result.status === 0 ? result.stdout.trim() : null;
+}
+function checkoutRoot(from = process.cwd()) {
+  return git(from, ["rev-parse", "--show-toplevel"]) || null;
+}
+function locateProject(from = process.cwd(), projects = PROJECTS_DIR) {
+  const common = git(from, ["rev-parse", "--path-format=absolute", "--git-common-dir"]);
+  if (!common) return null;
+  const commonDir = realpathSync.native(common);
+  const { main, bare } = mainCheckout(commonDir, from);
+  const key2 = `${basename(main)}-${createHash("sha256").update(commonDir).digest("hex").slice(0, 6)}`;
+  return { key: key2, commonDir, main, bare, entry: join3(projects, key2) };
+}
+function mainCheckout(commonDir, from) {
+  if (basename(commonDir) === ".git") return { main: dirname2(commonDir), bare: false };
+  const worktree = git(commonDir, ["config", "core.worktree"]);
+  if (worktree) return { main: realpathSync.native(resolve(commonDir, worktree)), bare: false };
+  if (git(commonDir, ["rev-parse", "--is-bare-repository"]) === "true") return { main: commonDir, bare: true };
+  return { main: realpathSync.native(checkoutRoot(from) ?? from), bare: false };
+}
+function hasTrackedProject(location) {
+  return !location.bare && existsSync(join3(location.main, ACSTACK_DIR, PROJECT_FILE)) && !!git(location.main, ["ls-files", "--", `${ACSTACK_DIR}/${PROJECT_FILE}`]);
+}
+function findOrphans(location) {
+  const projects = dirname2(location.entry);
+  if (!existsSync(projects)) return [];
+  const prefix = `${basename(location.main)}-`;
+  return readdirSync(projects).filter((name) => name.startsWith(prefix) && /^[0-9a-f]{6}$/.test(name.slice(prefix.length)) && name !== location.key).map((name) => join3(projects, name)).filter((path) => {
+    if (lstatSync(path).isSymbolicLink()) return !existsSync(path);
+    const recorded = recordedCommonDir(path);
+    return recorded !== null && !existsSync(recorded);
+  });
+}
+function orphanWarnings(location) {
+  if (lstatSync(location.entry, { throwIfNoEntry: false })) return [];
+  return findOrphans(location).map((orphan) => `${orphan} belonged to a repository that is no longer there. If that was this repository before it moved, run \`acstack project-data relink ${basename(orphan)}\`.`);
+}
+function recordedCommonDir(folder) {
+  try {
+    return JSON.parse(readFileSync2(join3(folder, PROJECT_JSON_FILE), "utf8")).commonDir ?? null;
+  } catch {
+    return null;
+  }
+}
+function recordProject(location) {
+  writeFileSync(join3(location.entry, PROJECT_JSON_FILE), JSON.stringify({ commonDir: location.commonDir }, null, 2) + "\n");
+}
+function linkTracked(location) {
+  mkdirSync(dirname2(location.entry), { recursive: true });
+  symlinkSync(join3(location.main, ACSTACK_DIR), location.entry, process.platform === "win32" ? "junction" : "dir");
+}
+function findProjectRoot(from = process.cwd()) {
+  const location = locateProject(from);
+  if (!location) return null;
+  const entry = lstatSync(location.entry, { throwIfNoEntry: false });
+  if (entry?.isSymbolicLink()) {
+    if (!existsSync(location.entry)) throw new ProjectDataError(`${location.entry} links to ${join3(location.main, ACSTACK_DIR)}, which does not exist. Restore it or run \`acstack project-data mode global\`.`);
+    return realpathSync(location.entry);
+  }
+  if (entry) {
+    if (hasTrackedProject(location)) throw new ProjectDataError(`This repository has both a project folder (${location.entry}) and a committed ${ACSTACK_DIR}/. Choose one with \`acstack project-data mode tracked\` or \`acstack project-data mode global\`.`);
+    if (!existsSync(join3(location.entry, PROJECT_JSON_FILE))) recordProject(location);
+    return realpathSync(location.entry);
+  }
+  if (hasTrackedProject(location)) {
+    linkTracked(location);
+    return realpathSync(location.entry);
+  }
+  if (hasLegacyData(location, from)) throw new ProjectDataError(LEGACY_MESSAGE);
+  return null;
+}
+function hasLegacyData(location, from = process.cwd()) {
+  const top = git(from, ["rev-parse", "--show-toplevel"]);
+  return [location.main, ...top ? [top] : []].some((root) => existsSync(join3(root, ACSTACK_DIR)) || hasLegacyProjectData(root));
+}
+function findPluginRoot(startDir = import.meta.dirname) {
+  const fromEnv = process.env.CLAUDE_PLUGIN_ROOT;
+  if (fromEnv && existsSync(join3(fromEnv, PLUGIN_MARKER))) return resolve(fromEnv);
+  return findUp(startDir, PLUGIN_MARKER);
+}
+var PLUGIN_MARKER, ProjectDataError, LEGACY_MESSAGE;
+var init_project = __esm({
+  "src/lib/project.ts"() {
+    "use strict";
+    init_constants();
+    PLUGIN_MARKER = join3(".claude-plugin", "plugin.json");
+    ProjectDataError = class extends Error {
+      constructor(message) {
+        super(message);
+        this.name = "ProjectDataError";
+      }
+    };
+    LEGACY_MESSAGE = "Legacy ACStack project data found. Stop review servers and agents, back up the project, then run `acstack project-data migrate` from the repository.";
+  }
+});
+
 // src/lib/utils.ts
-import { existsSync as existsSync3, mkdirSync as mkdirSync2, readFileSync as readFileSync3, readSync, readdirSync as readdirSync2 } from "node:fs";
-import { join as join5 } from "node:path";
+import { existsSync as existsSync2, mkdirSync as mkdirSync2, readFileSync as readFileSync3, readSync, readdirSync as readdirSync2 } from "node:fs";
+import { join as join4 } from "node:path";
 function fail(message, hint) {
   console.error(source_default.red(message));
   if (hint) console.error(source_default.dim(hint));
@@ -11640,37 +11490,37 @@ function errorHint(err) {
   return err.hint;
 }
 function ensureDir(path) {
-  if (!existsSync3(path)) mkdirSync2(path, { recursive: true });
+  if (!existsSync2(path)) mkdirSync2(path, { recursive: true });
 }
 function readYaml(path) {
-  if (!existsSync3(path)) return null;
-  return (0, import_yaml2.parse)(readFileSync3(path, "utf-8"));
+  if (!existsSync2(path)) return null;
+  return (0, import_yaml.parse)(readFileSync3(path, "utf-8"));
 }
 function readMarkdown(path) {
-  if (!existsSync3(path)) return null;
+  if (!existsSync2(path)) return null;
   return readFileSync3(path, "utf-8");
 }
 function listChanges(root) {
-  const dir = join5(root, ACSTACK_DIR, CHANGES_DIR);
-  if (!existsSync3(dir)) return [];
+  const dir = join4(root, CHANGES_DIR);
+  if (!existsSync2(dir)) return [];
   return readdirSync2(dir, { withFileTypes: true }).filter((e) => e.isDirectory() && e.name !== ARCHIVE_DIR).map((e) => e.name);
 }
 function listSpecs(root) {
-  const dir = join5(root, ACSTACK_DIR, SPECS_DIR);
-  if (!existsSync3(dir)) return [];
+  const dir = join4(root, SPECS_DIR);
+  if (!existsSync2(dir)) return [];
   return readdirSync2(dir, { withFileTypes: true }).filter((e) => e.isDirectory()).map((e) => e.name);
 }
 function requireProject(root) {
   if (!root) fail("Not in an ACStack project. Run `/acstack:setup` first.");
-  try {
-    assertCanonicalProject(root);
-  } catch (error) {
-    fail(error.message);
-  }
 }
 function inProject(action) {
   return async (...args) => {
-    const root = findProjectRoot();
+    let root = null;
+    try {
+      root = findProjectRoot();
+    } catch (err) {
+      fail(err.message);
+    }
     requireProject(root);
     try {
       await action(root, ...args);
@@ -11722,14 +11572,13 @@ function stdinWentSilent(windowMs) {
   err.hint = `Set ${STDIN_SILENCE_ENV} to widen the window, in milliseconds.`;
   return err;
 }
-var import_yaml2, NAP, NAP_MS, CHUNK_BYTES, DEFAULT_STDIN_SILENCE_MS, STDIN_SILENCE_ENV, TTY_REFUSAL;
+var import_yaml, NAP, NAP_MS, CHUNK_BYTES, DEFAULT_STDIN_SILENCE_MS, STDIN_SILENCE_ENV, TTY_REFUSAL;
 var init_utils = __esm({
   "src/lib/utils.ts"() {
     "use strict";
-    import_yaml2 = __toESM(require_dist(), 1);
+    import_yaml = __toESM(require_dist(), 1);
     init_source();
     init_constants();
-    init_project_data();
     init_project();
     NAP = new Int32Array(new SharedArrayBuffer(4));
     NAP_MS = 5;
@@ -11740,24 +11589,380 @@ var init_utils = __esm({
   }
 });
 
+// src/lib/atomic-file.ts
+import { randomBytes } from "node:crypto";
+import { renameSync, rmSync, writeFileSync as writeFileSync2 } from "node:fs";
+function tempPathFor(path) {
+  return `${path}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+}
+function replaceFileAtomically(path, text2, beforeRename) {
+  const temp = tempPathFor(path);
+  try {
+    writeFileSync2(temp, text2, "utf-8");
+    beforeRename?.(temp);
+    renameSync(temp, path);
+  } catch (err) {
+    try {
+      rmSync(temp, { force: true });
+    } catch {
+    }
+    throw err;
+  }
+}
+var init_atomic_file = __esm({
+  "src/lib/atomic-file.ts"() {
+    "use strict";
+  }
+});
+
+// src/lib/project-data.ts
+import { spawnSync as spawnSync2 } from "node:child_process";
+import { chmodSync, cpSync, existsSync as existsSync3, lstatSync as lstatSync2, mkdirSync as mkdirSync3, readFileSync as readFileSync4, readdirSync as readdirSync3, readlinkSync, realpathSync as realpathSync2, renameSync as renameSync2, rmSync as rmSync2, rmdirSync, symlinkSync as symlinkSync2, unlinkSync } from "node:fs";
+import { homedir as homedir2 } from "node:os";
+import { basename as basename2, dirname as dirname3, isAbsolute, join as join5, relative, resolve as resolve2 } from "node:path";
+function present(path) {
+  try {
+    lstatSync2(path);
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+}
+function removeManagedGitignoreBlock(root) {
+  const path = join5(root, ".gitignore");
+  const stat = lstatSync2(path, { throwIfNoEntry: false });
+  if (!stat?.isFile()) return;
+  const before = readFileSync4(path, "utf8");
+  const lines = before.split(/(?<=\n)/);
+  const begin = lines.findIndex((line) => line.trimEnd() === BEGIN);
+  const end = lines.findIndex((line) => line.trimEnd() === END);
+  if (begin === -1 || end < begin) return;
+  const after = [...lines.slice(0, begin), ...lines.slice(end + 1)].join("").replace(/^(\r?\n)+/, "");
+  replaceFileAtomically(path, after, (temp) => chmodSync(temp, stat.mode));
+}
+function inside(root, path) {
+  const rel = relative(root, path);
+  return rel !== ".." && !rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && !isAbsolute(rel);
+}
+function migrateOldLayout(root) {
+  root = resolve2(root);
+  const legacy = join5(root, LEGACY_ACSTACK_DIR);
+  const canonical = join5(root, ACSTACK_DIR);
+  if (present(legacy) && (!lstatSync2(legacy).isDirectory() || lstatSync2(legacy).isSymbolicLink())) throw new Error(`${legacy}: legacy project data must be a real directory`);
+  const candidates = [
+    ...hasLegacyProjectData(root) ? [{ from: legacy, to: canonical }] : [],
+    { from: join5(root, "docs", "adr"), to: join5(canonical, DECISIONS_DIR) },
+    { from: join5(root, "CONTEXT.md"), to: join5(canonical, "CONTEXT.md") },
+    { from: join5(root, "agent-browser.json"), to: join5(canonical, "agent-browser.json") },
+    { from: join5(root, ".test-baseline"), to: join5(canonical, ".test-baseline") },
+    { from: join5(root, ".decisions"), to: join5(canonical, DECISION_LOGS_DIR) },
+    { from: join5(root, KNOWLEDGE), to: join5(canonical, VERIFICATION_DIR, KNOWLEDGE) }
+  ];
+  const config = join5(legacy, "project.yaml");
+  if (hasLegacyProjectData(root) && existsSync3(config)) {
+    const yaml = (0, import_yaml2.parse)(readFileSync4(config, "utf8"));
+    const helpers = yaml?.frontend?.helpers_dir;
+    if (typeof helpers === "string") {
+      const path = resolve2(root, helpers, KNOWLEDGE);
+      if (inside(root, path) && present(path) && inside(realpathSync2(root), realpathSync2(dirname3(path)))) {
+        if (!candidates.some((move) => move.from === path)) candidates.push({ from: path, to: join5(canonical, VERIFICATION_DIR, KNOWLEDGE) });
+      }
+    }
+  }
+  const moves = candidates.filter((move) => present(move.from));
+  if (moves.length === 0) return { moved: [] };
+  if (present(canonical)) throw new Error(`${canonical}: migration destination already exists; refusing to merge or overwrite project data`);
+  const mapPath = (path) => {
+    const move = [...moves].sort((a, b) => b.from.length - a.from.length).find((candidate) => inside(candidate.from, path));
+    return move ? join5(move.to, relative(move.from, path)) : path;
+  };
+  for (const move of moves) {
+    for (let parent = dirname3(move.from); parent !== root; parent = dirname3(parent)) {
+      if (!inside(root, parent) || lstatSync2(parent).isSymbolicLink()) throw new Error(`${parent}: migration cannot traverse a symlinked source directory`);
+    }
+    for (const other of moves) {
+      if (move === other) continue;
+      if (move.to === other.to) throw new Error(`${move.to}: conflicting incoming project data`);
+      if (inside(other.to, move.to)) {
+        const incoming = join5(other.from, relative(other.to, move.to));
+        if (present(incoming)) throw new Error(`${move.to}: destination conflicts with incoming legacy data`);
+        for (let parent = dirname3(incoming); parent !== other.from; parent = dirname3(parent)) {
+          if (present(parent) && (!lstatSync2(parent).isDirectory() || lstatSync2(parent).isSymbolicLink())) throw new Error(`${parent}: unsafe incoming destination parent`);
+        }
+      }
+    }
+  }
+  const links = [];
+  const removals = [];
+  const ownedIgnores = /* @__PURE__ */ new Set([
+    join5(legacy, "alignment-packs", ".gitignore"),
+    join5(legacy, "design-reviews", ".gitignore"),
+    join5(root, ".decisions", ".gitignore"),
+    join5(legacy, DECISION_LOGS_DIR, ".gitignore")
+  ]);
+  const visited = /* @__PURE__ */ new Set();
+  const inspect = (path) => {
+    if (visited.has(path)) return;
+    visited.add(path);
+    const stat = lstatSync2(path);
+    if (stat.isSymbolicLink()) {
+      const before = readlinkSync(path);
+      const target = mapPath(resolve2(dirname3(path), before));
+      const after = isAbsolute(before) ? target : relative(dirname3(mapPath(path)), target) || ".";
+      if (before !== after) links.push({ path: mapPath(path), before, after });
+    } else if (stat.isDirectory()) {
+      for (const name of readdirSync3(path)) inspect(join5(path, name));
+    } else if (ownedIgnores.has(path) && stat.isFile()) {
+      const text2 = readFileSync4(path, "utf8");
+      const normalized = text2.replace(/\r\n/g, "\n");
+      if (normalized === "*\n" || normalized === "*" || normalized === "# Written by acstack. Delete this file and set workflow.alignment_packs.commit_generated_packs: true to commit packs.\n*\n") {
+        removals.push({ path: mapPath(path), text: text2, mode: stat.mode });
+      }
+    }
+  };
+  for (const move of moves) inspect(move.from);
+  const undo = [];
+  const makeParents = (path) => {
+    if (present(path)) return;
+    makeParents(dirname3(path));
+    mkdirSync3(path);
+    undo.push(() => rmdirSync(path));
+  };
+  try {
+    for (const move of moves) {
+      const from = present(move.from) ? move.from : join5(canonical, relative(legacy, move.from));
+      makeParents(dirname3(move.to));
+      if (present(move.to)) throw new Error(`${move.to}: migration destination appeared during migration`);
+      renameSync2(from, move.to);
+      undo.push(() => renameSync2(move.to, from));
+    }
+    for (const link of links) {
+      unlinkSync(link.path);
+      try {
+        symlinkSync2(link.after, link.path);
+      } catch (error) {
+        symlinkSync2(link.before, link.path);
+        throw error;
+      }
+      undo.push(() => {
+        unlinkSync(link.path);
+        symlinkSync2(link.before, link.path);
+      });
+    }
+    for (const removal of removals) {
+      unlinkSync(removal.path);
+      undo.push(() => replaceFileAtomically(removal.path, removal.text, (temp) => chmodSync(temp, removal.mode)));
+    }
+    return { moved: moves.map((move) => relative(root, move.to)) };
+  } catch (error) {
+    const failures = [];
+    for (const rollback of undo.reverse()) {
+      try {
+        rollback();
+      } catch (failure) {
+        failures.push(String(failure));
+      }
+    }
+    if (failures.length) throw new Error(`${String(error)}; rollback incomplete: ${failures.join("; ")}`);
+    throw error;
+  }
+}
+function git2(cwd, args) {
+  const result = spawnSync2("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  if (result.status !== 0) throw new Error(`git ${args.join(" ")} failed: ${result.stderr.trim()}`);
+  return result.stdout;
+}
+function requireLocation(from) {
+  const location = locateProject(from);
+  if (!location) throw new Error("Not in a Git repository; ACStack keys project data by repository.");
+  return location;
+}
+function moveTree(from, to) {
+  mkdirSync3(dirname3(to), { recursive: true });
+  try {
+    renameSync2(from, to);
+  } catch (error) {
+    if (error.code !== "EXDEV") throw error;
+    const temp = `${to}.acstack-${process.pid}`;
+    try {
+      cpSync(from, temp, { recursive: true, verbatimSymlinks: true, errorOnExist: true, force: false });
+    } catch (copyError) {
+      rmSync2(temp, { recursive: true, force: true });
+      throw copyError;
+    }
+    renameSync2(temp, to);
+    rmSync2(from, { recursive: true });
+  }
+}
+function safeStranded(location) {
+  try {
+    return strandedWorktrees(location);
+  } catch (error) {
+    return [`(could not list worktrees: ${error.message})`];
+  }
+}
+function requireRealDirectory(path) {
+  if (!lstatSync2(path).isDirectory()) throw new Error(`${path} is not a real folder; move its contents into a folder named ${ACSTACK_DIR} first.`);
+}
+function strandedWorktrees(location) {
+  const paths = git2(location.main, ["worktree", "list", "--porcelain"]).split("\n").filter((line) => line.startsWith("worktree ")).map((line) => line.slice("worktree ".length));
+  return paths.filter((path) => existsSync3(path) && realpathSync2(path) !== realpathSync2(location.main) && git2(path, ["status", "--porcelain", "--ignored", "--untracked-files=all", "--", ACSTACK_DIR]).trim() !== "");
+}
+function legacyGlobalMoves(home = ACSTACK_HOME) {
+  const config = join5(process.env.XDG_CONFIG_HOME || join5(homedir2(), ".config"), "acstack");
+  const data = join5(process.env.XDG_DATA_HOME || join5(homedir2(), ".local", "share"), "acstack");
+  const children = (dir, to) => existsSync3(dir) ? readdirSync3(dir).map((name) => ({ from: join5(dir, name), to: join5(to, name) })) : [];
+  return [...children(config, home), ...children(data, join5(home, "cache"))];
+}
+function legacyWarnings(from = process.cwd()) {
+  const warnings = legacyGlobalMoves().length ? ["ACStack settings are still in ~/.config/acstack or ~/.local/share/acstack."] : [];
+  const location = locateProject(from);
+  if (location && !present(location.entry) && !hasTrackedProject(location) && (present(join5(location.main, ACSTACK_DIR)) || hasLegacyProjectData(location.main))) warnings.push(`${location.main} still holds its project data in the repository.`);
+  return warnings.length ? [...warnings, "ACStack no longer reads these locations. Stop agents and review servers, back up, then run `acstack project-data migrate` from each repository."] : [];
+}
+function migrateProjectData(from) {
+  const location = requireLocation(from);
+  const global2 = legacyGlobalMoves();
+  for (const move of global2) if (present(move.to)) throw new Error(`${move.to}: migration destination already exists; refusing to overwrite`);
+  const top = checkoutRoot(from);
+  const mainData = join5(location.main, ACSTACK_DIR);
+  const repoData = !present(mainData) && top && top !== location.main && present(join5(top, ACSTACK_DIR)) ? join5(top, ACSTACK_DIR) : mainData;
+  const source = dirname3(repoData);
+  if (present(repoData)) requireRealDirectory(repoData);
+  const oldLayout = !present(repoData) && (hasLegacyProjectData(location.main) || ["CONTEXT.md", join5("docs", "adr"), ".decisions"].some((name) => present(join5(location.main, name))));
+  const entry = lstatSync2(location.entry, { throwIfNoEntry: false });
+  if ((present(repoData) || oldLayout) && entry && !(entry.isSymbolicLink() && existsSync3(location.entry) && realpathSync2(location.entry) === realpathSync2(repoData))) {
+    throw new Error(`${location.entry} already exists; refusing to merge ${repoData} into it. Choose with \`acstack project-data mode\`.`);
+  }
+  const moved = [];
+  if (oldLayout) moved.push(...migrateOldLayout(location.main).moved.map((path) => join5(location.main, path)));
+  if (present(repoData) && !entry) {
+    const tracked = git2(source, ["ls-files", "--", ACSTACK_DIR]).trim() !== "";
+    if (tracked && source !== location.main) throw new Error(`${repoData} is committed on this worktree's branch only. Merge it into the main checkout's branch, then run migrate there.`);
+    if (tracked) {
+      linkTracked(location);
+    } else {
+      moveTree(repoData, location.entry);
+      recordProject(location);
+      removeManagedGitignoreBlock(source);
+    }
+    moved.push(location.entry);
+  }
+  for (const move of global2) {
+    moveTree(move.from, move.to);
+    moved.push(move.to);
+  }
+  for (const dir of new Set(global2.map((move) => dirname3(move.from)))) if (readdirSync3(dir).length === 0) rmdirSync(dir);
+  return { moved, stranded: safeStranded(location) };
+}
+function setProjectMode(from, mode) {
+  const location = requireLocation(from);
+  const repoData = join5(location.main, ACSTACK_DIR);
+  const entry = lstatSync2(location.entry, { throwIfNoEntry: false });
+  if (mode === "tracked") {
+    if (entry?.isSymbolicLink()) throw new Error("This project is already in tracked mode.");
+    if (!entry) throw new Error(`No project folder at ${location.entry}.`);
+    if (location.bare) throw new Error("A bare repository has no main checkout to hold .acstack/.");
+    if (present(repoData)) throw new Error(`${repoData} already exists; refusing to overwrite it.`);
+    rmSync2(join5(location.entry, PROJECT_JSON_FILE), { force: true });
+    moveTree(location.entry, repoData);
+    try {
+      linkTracked(location);
+    } catch (error) {
+      moveTree(repoData, location.entry);
+      recordProject(location);
+      throw error;
+    }
+  } else {
+    if (entry && !entry.isSymbolicLink()) throw new Error("This project is already in global mode.");
+    if (!lstatSync2(repoData, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`No ${ACSTACK_DIR}/ in ${location.main} to move.`);
+    if (entry) unlinkSync(location.entry);
+    try {
+      moveTree(repoData, location.entry);
+    } catch (error) {
+      if (entry) linkTracked(location);
+      throw error;
+    }
+    recordProject(location);
+  }
+  return { stranded: safeStranded(location) };
+}
+function relinkProject(from, name) {
+  const location = requireLocation(from);
+  if (present(location.entry)) throw new Error(`${location.entry} already exists; nothing to relink.`);
+  const orphans = findOrphans(location);
+  const orphan = orphans.find((path) => basename2(path) === name);
+  if (!orphan) throw new Error(orphans.length ? `${name} is not an orphaned entry for this repository. Candidates: ${orphans.map((path) => basename2(path)).join(", ")}.` : "No orphaned project entry found for this repository.");
+  if (lstatSync2(orphan).isSymbolicLink()) {
+    if (!hasTrackedProject(location)) throw new Error(`${orphan} is a tracked-mode link, but ${location.main} commits no ${ACSTACK_DIR}/project.yaml.`);
+    linkTracked(location);
+    unlinkSync(orphan);
+  } else {
+    renameSync2(orphan, location.entry);
+    recordProject(location);
+  }
+  return { from: orphan, to: location.entry };
+}
+var import_yaml2, BEGIN, END, KNOWLEDGE;
+var init_project_data = __esm({
+  "src/lib/project-data.ts"() {
+    "use strict";
+    import_yaml2 = __toESM(require_dist(), 1);
+    init_atomic_file();
+    init_project();
+    init_constants();
+    BEGIN = "# >>> acstack project-data >>>";
+    END = "# <<< acstack project-data <<<";
+    KNOWLEDGE = "VERIFICATION-KNOWLEDGE.md";
+  }
+});
+
 // src/commands/project-data.ts
 var project_data_exports = {};
 __export(project_data_exports, {
   register: () => register
 });
+import { existsSync as existsSync4, realpathSync as realpathSync3 } from "node:fs";
+function reportStranded(stranded) {
+  for (const path of stranded) console.error(`${path} still holds its own .acstack/ changes, which ACStack no longer reads. Move what you need, then delete it.`);
+}
 function register(program3) {
-  const command = program3.command("project-data").description("Keep project data local or explicitly migrate legacy data");
-  command.command("ensure").description("Reconcile the root Git ignore policy when .acstack exists, without requiring project.yaml").action(() => {
+  const command = program3.command("project-data").description("Locate, migrate, and choose the mode of this repository's ACStack project data");
+  command.command("path").description("Print the project folder for this repository, whether or not it exists yet; warn about legacy data").action(() => {
     try {
-      ensureProjectGitignore(findProjectRoot() ?? process.cwd());
+      for (const line of legacyWarnings()) console.error(`acstack: ${line}`);
+      const location = locateProject();
+      if (!location) throw new Error("Not in a Git repository; ACStack keys project data by repository.");
+      for (const line of orphanWarnings(location)) console.error(`acstack: ${line}`);
+      findProjectRoot();
+      console.log(existsSync4(location.entry) ? realpathSync3(location.entry) : location.entry);
     } catch (error) {
       fail(error.message);
     }
   });
-  command.command("migrate").description("Migrate legacy data in the current root; stop review servers and agents and back up first").action(() => {
+  command.command("migrate").description("Move legacy global files and this repository's .acstack/ into ~/.acstack; stop review servers and agents and back up first").action(() => {
     try {
       const result = migrateProjectData(process.cwd());
       for (const path of result.moved) console.log(`Moved project data to ${path}`);
+      reportStranded(result.stranded);
+    } catch (error) {
+      fail(error.message);
+    }
+  });
+  command.command("mode <mode>").description("tracked: move the project folder into the main checkout's .acstack/ for committing; global: move it back").action((mode) => {
+    try {
+      if (mode !== "tracked" && mode !== "global") throw new Error("Mode must be tracked or global.");
+      reportStranded(setProjectMode(process.cwd(), mode).stranded);
+      console.log(mode === "tracked" ? "Project data is now in .acstack/ of the main checkout. Commit it to share it." : "Project data is now in the project folder. Commit the removal of .acstack/ to stop tracking it.");
+    } catch (error) {
+      fail(error.message);
+    }
+  });
+  command.command("relink <entry>").description("Give the named project entry, left by this repository before it moved, this repository's key").action((entry) => {
+    try {
+      const result = relinkProject(process.cwd(), entry);
+      console.log(`Relinked ${result.from} as ${result.to}`);
     } catch (error) {
       fail(error.message);
     }
@@ -11777,7 +11982,7 @@ var list_exports = {};
 __export(list_exports, {
   register: () => register2
 });
-import { existsSync as existsSync4, readdirSync as readdirSync3, statSync } from "node:fs";
+import { existsSync as existsSync5, readdirSync as readdirSync4, statSync } from "node:fs";
 import { join as join6 } from "node:path";
 function register2(program3) {
   program3.command("list").description("List active changes or specs").option("--specs", "list specs instead of changes").option("--changes", "list changes (default)").option("--json", "output as JSON").option("--sort <order>", "sort order: name or recent", "recent").action(
@@ -11786,19 +11991,19 @@ function register2(program3) {
       const items = [];
       if (showSpecs) {
         for (const name of listSpecs(root)) {
-          const specDir = join6(root, ACSTACK_DIR, SPECS_DIR, name);
+          const specDir = join6(root, SPECS_DIR, name);
           const specFile = join6(specDir, "spec.md");
           items.push({
             name,
             type: "spec",
             path: specDir,
-            modified: existsSync4(specFile) ? statSync(specFile).mtime.toISOString().split("T")[0] : void 0
+            modified: existsSync5(specFile) ? statSync(specFile).mtime.toISOString().split("T")[0] : void 0
           });
         }
       } else {
         for (const name of listChanges(root)) {
-          const changeDir = join6(root, ACSTACK_DIR, CHANGES_DIR, name);
-          const artifacts = existsSync4(changeDir) ? readdirSync3(changeDir).filter((f) => f.endsWith(".md")).map((f) => f.replace(".md", "")) : [];
+          const changeDir = join6(root, CHANGES_DIR, name);
+          const artifacts = existsSync5(changeDir) ? readdirSync4(changeDir).filter((f) => f.endsWith(".md")).map((f) => f.replace(".md", "")) : [];
           items.push({
             name,
             type: "change",
@@ -11847,7 +12052,7 @@ var show_exports = {};
 __export(show_exports, {
   register: () => register3
 });
-import { existsSync as existsSync5, readFileSync as readFileSync4, readdirSync as readdirSync4 } from "node:fs";
+import { existsSync as existsSync6, readFileSync as readFileSync5, readdirSync as readdirSync5 } from "node:fs";
 import { join as join7 } from "node:path";
 function register3(program3) {
   program3.command("show").description("Display a change or spec").argument("[name]", "change or spec name").option("--json", "output as JSON").option("--type <type>", "force type: change or spec").action(
@@ -11856,17 +12061,17 @@ function register3(program3) {
         console.error(source_default.red("Provide a change or spec name."));
         process.exit(1);
       }
-      const changeDir = join7(root, ACSTACK_DIR, CHANGES_DIR, name);
-      const specDir = join7(root, ACSTACK_DIR, SPECS_DIR, name);
+      const changeDir = join7(root, CHANGES_DIR, name);
+      const specDir = join7(root, SPECS_DIR, name);
       let type;
       let targetDir;
-      if (opts.type === "spec" || !opts.type && !existsSync5(changeDir) && existsSync5(specDir)) {
+      if (opts.type === "spec" || !opts.type && !existsSync6(changeDir) && existsSync6(specDir)) {
         type = "spec";
         targetDir = specDir;
-      } else if (existsSync5(changeDir)) {
+      } else if (existsSync6(changeDir)) {
         type = "change";
         targetDir = changeDir;
-      } else if (existsSync5(specDir)) {
+      } else if (existsSync6(specDir)) {
         type = "spec";
         targetDir = specDir;
       } else {
@@ -11875,11 +12080,11 @@ function register3(program3) {
       }
       if (type === "spec") {
         const specFile = join7(targetDir, "spec.md");
-        if (!existsSync5(specFile)) {
+        if (!existsSync6(specFile)) {
           console.error(source_default.red(`Spec '${name}' has no spec.md file.`));
           process.exit(1);
         }
-        const content = readFileSync4(specFile, "utf-8");
+        const content = readFileSync5(specFile, "utf-8");
         if (opts.json) {
           console.log(JSON.stringify({ name, type: "spec", content }, null, 2));
         } else {
@@ -11887,10 +12092,10 @@ function register3(program3) {
         }
         return;
       }
-      const files = readdirSync4(targetDir).filter((f) => f.endsWith(".md"));
+      const files = readdirSync5(targetDir).filter((f) => f.endsWith(".md"));
       const artifacts = {};
       for (const file of files) {
-        artifacts[file.replace(".md", "")] = readFileSync4(join7(targetDir, file), "utf-8");
+        artifacts[file.replace(".md", "")] = readFileSync5(join7(targetDir, file), "utf-8");
       }
       if (opts.json) {
         console.log(JSON.stringify({ name, type: "change", artifacts }, null, 2));
@@ -11918,7 +12123,7 @@ var archive_exports = {};
 __export(archive_exports, {
   register: () => register4
 });
-import { existsSync as existsSync6, cpSync, rmSync as rmSync2 } from "node:fs";
+import { existsSync as existsSync7, cpSync as cpSync2, rmSync as rmSync3 } from "node:fs";
 import { join as join8 } from "node:path";
 function register4(program3) {
   program3.command("archive").description("Archive a completed change").argument("[name]", "change name").option("-y, --yes", "skip confirmation").option("--skip-specs", "skip living spec updates").action(
@@ -11936,19 +12141,19 @@ function register4(program3) {
         console.log(source_default.dim("\nRun: acstack archive <name>"));
         return;
       }
-      const changeDir = join8(root, ACSTACK_DIR, CHANGES_DIR, name);
-      if (!existsSync6(changeDir)) {
+      const changeDir = join8(root, CHANGES_DIR, name);
+      if (!existsSync7(changeDir)) {
         console.error(source_default.red(`Change '${name}' not found.`));
         process.exit(1);
       }
       const archiveName = `${formatDate()}-${name}`;
-      const archiveDir = join8(root, ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR, archiveName);
-      ensureDir(join8(root, ACSTACK_DIR, CHANGES_DIR, ARCHIVE_DIR));
-      cpSync(changeDir, archiveDir, { recursive: true });
-      rmSync2(changeDir, { recursive: true });
+      const archiveDir = join8(root, CHANGES_DIR, ARCHIVE_DIR, archiveName);
+      ensureDir(join8(root, CHANGES_DIR, ARCHIVE_DIR));
+      cpSync2(changeDir, archiveDir, { recursive: true });
+      rmSync3(changeDir, { recursive: true });
       console.log(source_default.green(`Archived: ${name}`));
-      console.log(`  From: ${ACSTACK_DIR}/${CHANGES_DIR}/${name}/`);
-      console.log(`  To:   ${ACSTACK_DIR}/${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
+      console.log(`  From: ${CHANGES_DIR}/${name}/`);
+      console.log(`  To:   ${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
       if (!opts.skipSpecs) {
         console.log(source_default.dim("\nRemember to update living specs if needed."));
       }
@@ -11965,7 +12170,7 @@ var init_archive = __esm({
 });
 
 // src/lib/global-config.ts
-import { existsSync as existsSync7, mkdirSync as mkdirSync3, readFileSync as readFileSync5, writeFileSync as writeFileSync2 } from "node:fs";
+import { existsSync as existsSync8, mkdirSync as mkdirSync4, readFileSync as readFileSync6, writeFileSync as writeFileSync3 } from "node:fs";
 import { dirname as dirname4 } from "node:path";
 function parseBooleanWord(key2, raw) {
   const normalized = raw.toLowerCase();
@@ -12003,8 +12208,8 @@ function assertSettableKey(key2) {
   assertReadableKey(key2);
 }
 function readGlobalConfig(file) {
-  if (!existsSync7(file)) return {};
-  const raw = readFileSync5(file, "utf-8");
+  if (!existsSync8(file)) return {};
+  const raw = readFileSync6(file, "utf-8");
   try {
     return JSON.parse(raw);
   } catch (err) {
@@ -12012,8 +12217,8 @@ function readGlobalConfig(file) {
   }
 }
 function writeGlobalConfig(config, file) {
-  mkdirSync3(dirname4(file), { recursive: true });
-  writeFileSync2(file, JSON.stringify(config, null, 2) + "\n", "utf-8");
+  mkdirSync4(dirname4(file), { recursive: true });
+  writeFileSync3(file, JSON.stringify(config, null, 2) + "\n", "utf-8");
 }
 function parseValue(key2, raw) {
   if (key2 !== "host" && !key2.startsWith("host.")) {
@@ -12318,13 +12523,13 @@ import {
   accessSync,
   chmodSync as chmodSync2,
   constants as fsConstants,
-  existsSync as existsSync8,
-  readFileSync as readFileSync6,
-  readdirSync as readdirSync5,
-  realpathSync as realpathSync2,
+  existsSync as existsSync9,
+  readFileSync as readFileSync7,
+  readdirSync as readdirSync6,
+  realpathSync as realpathSync4,
   statSync as statSync2
 } from "node:fs";
-import { basename, dirname as dirname5, join as join9 } from "node:path";
+import { basename as basename3, dirname as dirname5, join as join9 } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 function projectKeySpec(key2) {
   return PROJECT_KEYS[key2];
@@ -12333,8 +12538,8 @@ function profileNames() {
   const pluginRoot = findPluginRoot();
   if (!pluginRoot) return [];
   const dir = join9(pluginRoot, PROFILES_DIR);
-  if (!existsSync8(dir)) return [];
-  return readdirSync5(dir).filter((name) => name.endsWith(".yaml")).map((name) => basename(name, ".yaml")).sort();
+  if (!existsSync9(dir)) return [];
+  return readdirSync6(dir).filter((name) => name.endsWith(".yaml")).map((name) => basename3(name, ".yaml")).sort();
 }
 function parseEnum(key2, raw, values) {
   if (values.includes(raw)) return raw;
@@ -12451,10 +12656,10 @@ function fsReason(err) {
   return err instanceof Error ? err.message.split("\n")[0] : String(err);
 }
 function readSource(file) {
-  if (!existsSync8(file)) return "";
+  if (!existsSync9(file)) return "";
   let bytes;
   try {
-    bytes = readFileSync6(file);
+    bytes = readFileSync7(file);
   } catch (err) {
     throw new ConfigFileError(`Could not read ${file}: ${fsReason(err)}`);
   }
@@ -12467,8 +12672,8 @@ function readSource(file) {
   }
 }
 function replaceFile(file, text2) {
-  const present2 = existsSync8(file);
-  const target = present2 ? realpathSync2(file) : file;
+  const present2 = existsSync9(file);
+  const target = present2 ? realpathSync4(file) : file;
   const existing = present2 ? statSync2(target) : null;
   if (existing) accessSync(target, fsConstants.W_OK);
   const directory = dirname5(target);
@@ -16864,7 +17069,7 @@ var init_zod = __esm({
 });
 
 // src/lib/nodes.ts
-import { existsSync as existsSync9, readFileSync as readFileSync7, readdirSync as readdirSync6 } from "node:fs";
+import { existsSync as existsSync10, readFileSync as readFileSync8, readdirSync as readdirSync7 } from "node:fs";
 import { join as join10 } from "node:path";
 function oneOf(values) {
   return `one of: ${values.join(", ")}`;
@@ -16884,7 +17089,7 @@ function bareId(reference) {
   return reference.trim().replace(/^#/, "");
 }
 function mapDir(root, map) {
-  return join10(root, ACSTACK_DIR, MAPS_DIR, map);
+  return join10(root, MAPS_DIR, map);
 }
 function slugify(title) {
   return title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 50).replace(/-+$/, "") || "node";
@@ -16960,7 +17165,7 @@ function frontmatterProblem(issue) {
   return `${issue.path.join(".")} ${issue.message}`;
 }
 function parseNodeFile(dir, file) {
-  const raw = readFileSync7(join10(dir, file), "utf-8").replace(/\r\n/g, "\n");
+  const raw = readFileSync8(join10(dir, file), "utf-8").replace(/\r\n/g, "\n");
   const match = raw.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!match) {
     throw new Error(`${file}: missing frontmatter`);
@@ -17004,8 +17209,8 @@ function parseNodeFile(dir, file) {
 }
 function loadNodes(root, map) {
   const dir = mapDir(root, map);
-  if (!existsSync9(dir)) return [];
-  const nodes = readdirSync6(dir).filter((f) => /^\d+.*\.md$/.test(f)).map((f) => parseNodeFile(dir, f)).sort((a, b) => compareIds(a.id, b.id));
+  if (!existsSync10(dir)) return [];
+  const nodes = readdirSync7(dir).filter((f) => /^\d+.*\.md$/.test(f)).map((f) => parseNodeFile(dir, f)).sort((a, b) => compareIds(a.id, b.id));
   const seen = /* @__PURE__ */ new Map();
   for (const node of nodes) {
     const other = seen.get(node.id);
@@ -17978,7 +18183,7 @@ var node_exports = {};
 __export(node_exports, {
   register: () => register5
 });
-import { existsSync as existsSync10, readFileSync as readFileSync8 } from "node:fs";
+import { existsSync as existsSync11, readFileSync as readFileSync9 } from "node:fs";
 import { join as join11 } from "node:path";
 function parseEnum2(flag, values) {
   return (value) => {
@@ -18004,7 +18209,7 @@ function readBody(body, bodyFile) {
     }
     return piped;
   }
-  return readFileSync8(bodyFile, "utf-8");
+  return readFileSync9(bodyFile, "utf-8");
 }
 function refuseGithubMap(root, map, stdinRoute) {
   const tracked = getProjectKey(projectFile(root), TRACKER_KEY);
@@ -18014,7 +18219,7 @@ function refuseGithubMap(root, map, stdinRoute) {
 }
 function storedNodes(root, map) {
   const dir = mapDir(root, map);
-  if (!existsSync10(dir)) {
+  if (!existsSync11(dir)) {
     fail(`Map '${map}' does not exist - there is no ${dir} directory.`);
   }
   return loadNodes(root, map);
@@ -18094,7 +18299,7 @@ function registerRead(nodeCmd) {
       if (opts.json) {
         console.log(JSON.stringify({ ...toJson(node), body: node.body }, null, 2));
       } else {
-        const text2 = readFileSync8(join11(mapDir(root, opts.map), node.file), "utf-8");
+        const text2 = readFileSync9(join11(mapDir(root, opts.map), node.file), "utf-8");
         console.log(opts.visuals ? text2 : stripDiagrams(text2));
       }
     })
@@ -18284,12 +18489,12 @@ var init_node = __esm({
 });
 
 // src/lib/claude-plugins.ts
-import { existsSync as existsSync11, readFileSync as readFileSync9 } from "node:fs";
+import { existsSync as existsSync12, readFileSync as readFileSync10 } from "node:fs";
 import { join as join12 } from "node:path";
 function readJson(path) {
-  if (!existsSync11(path)) return void 0;
+  if (!existsSync12(path)) return void 0;
   try {
-    return JSON.parse(readFileSync9(path, "utf-8"));
+    return JSON.parse(readFileSync10(path, "utf-8"));
   } catch {
     return void 0;
   }
@@ -18371,7 +18576,7 @@ var init_impeccable = __esm({
 });
 
 // src/lib/host-probe.ts
-import { spawnSync } from "node:child_process";
+import { spawnSync as spawnSync3 } from "node:child_process";
 import { accessSync as accessSync2, constants } from "node:fs";
 import { request } from "node:http";
 import { delimiter, join as join14 } from "node:path";
@@ -18390,7 +18595,7 @@ function firstBinaryOnPath(binaries) {
   return binaries.find(binaryOnPath);
 }
 function runCommand(binary, args) {
-  const result = spawnSync(binary, [...args], {
+  const result = spawnSync3(binary, [...args], {
     // In order: no standard input, capture standard output, discard standard error.
     stdio: ["ignore", "pipe", "ignore"],
     encoding: "utf-8",
@@ -18432,8 +18637,8 @@ var init_host_probe = __esm({
 });
 
 // src/commands/config-check.ts
-import { existsSync as existsSync12, readFileSync as readFileSync10, statSync as statSync3 } from "node:fs";
-import { homedir as homedir2 } from "node:os";
+import { existsSync as existsSync13, readFileSync as readFileSync11, statSync as statSync3 } from "node:fs";
+import { homedir as homedir3 } from "node:os";
 import { join as join15 } from "node:path";
 function checkRequiredAxes(report, config, project) {
   report.heading("Required host axes are set");
@@ -18584,9 +18789,9 @@ function firstLineOf(err) {
   return (err instanceof Error ? err.message : String(err)).split("\n")[0];
 }
 function readJsonFile(path) {
-  if (!existsSync12(path)) return { status: "missing" };
+  if (!existsSync13(path)) return { status: "missing" };
   try {
-    return { status: "read", value: JSON.parse(readFileSync10(path, "utf-8")) };
+    return { status: "read", value: JSON.parse(readFileSync11(path, "utf-8")) };
   } catch (err) {
     return { status: "unreadable", detail: firstLineOf(err) };
   }
@@ -18602,7 +18807,7 @@ function checkDomainMap(report, root, specSync) {
   const id = "domain-map";
   const consequence = "spec sync then skips silently and the living specs stop being updated";
   const path = domainMapFile(root);
-  if (!existsSync12(path)) {
+  if (!existsSync13(path)) {
     report.line(
       specSync ? "fail" : "info",
       id,
@@ -18674,8 +18879,8 @@ function checkAgentBrowserJson(report, root, expected) {
 }
 function checkVerificationKnowledge(report, root) {
   const id = "verification-knowledge";
-  const relative7 = VERIFICATION_KNOWLEDGE_FILE;
-  if (!isFile(join15(root, relative7))) {
+  const relative7 = join15(root, VERIFICATION_KNOWLEDGE_FILE);
+  if (!isFile(relative7)) {
     report.line(
       "fail",
       id,
@@ -18741,7 +18946,7 @@ function settingsFiles(root) {
     },
     {
       label: join15("~", CLAUDE_DIR, CLAUDE_SETTINGS_FILE),
-      path: join15(homedir2(), CLAUDE_DIR, CLAUDE_SETTINGS_FILE)
+      path: join15(homedir3(), CLAUDE_DIR, CLAUDE_SETTINGS_FILE)
     }
   ];
 }
@@ -18930,7 +19135,7 @@ __export(config_exports, {
   register: () => register6
 });
 function reportUserError(err) {
-  if (err instanceof ConfigValidationError || err instanceof ConfigFileError) {
+  if (err instanceof ConfigValidationError || err instanceof ConfigFileError || err instanceof ProjectDataError) {
     console.error(source_default.red(err.message));
     process.exit(1);
   }
@@ -18971,7 +19176,6 @@ function loadProject() {
       workflow: projectWorkflow(void 0)
     };
   }
-  assertCanonicalProject(root);
   const yaml = readYaml(projectFile(root));
   return {
     root,
@@ -19047,7 +19251,6 @@ function projectFileFor(key2, use) {
         );
     }
   }
-  assertCanonicalProject(root);
   return projectFile(root);
 }
 function setProjectFileKey(key2, value) {
@@ -19114,7 +19317,6 @@ function printProjectKeys(root) {
 function listConfig(asJson) {
   const config = readGlobalConfig(GLOBAL_CONFIG_FILE);
   const root = findProjectRoot();
-  if (root) assertCanonicalProject(root);
   if (asJson) {
     const project = root ? listProjectKeys(projectFile(root)) : null;
     console.log(JSON.stringify({ ...config, project }, null, 2));
@@ -19165,7 +19367,7 @@ async function checkConfig(asJson) {
   checkOptionalAxes(report, config);
   checkProjectFiles(report, loaded);
   checkImpeccable(report);
-  checkOutputStyle(report, loaded.root ?? process.cwd());
+  checkOutputStyle(report, checkoutRoot() ?? process.cwd());
   report.finish(asJson);
 }
 function reportBrowserMode(asJson) {
@@ -19241,7 +19443,6 @@ var UNKNOWN_KEY_MARK;
 var init_config = __esm({
   "src/commands/config.ts"() {
     "use strict";
-    init_project_data();
     init_source();
     init_constants();
     init_global_config();
@@ -19380,25 +19581,25 @@ var init_alignment_packs = __esm({
 });
 
 // src/lib/design-doc.ts
-import { readFileSync as readFileSync11, realpathSync as realpathSync3, statSync as statSync4 } from "node:fs";
+import { readFileSync as readFileSync12, realpathSync as realpathSync5, statSync as statSync4 } from "node:fs";
 import { dirname as dirname6, isAbsolute as isAbsolute2, relative as relative2, resolve as resolve3 } from "node:path";
-import { createHash } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 function readBounded(file) {
   const stat = statSync4(file);
   if (!stat.isFile() || stat.size > 262144) throw new Error(`${file}: file type or size exceeds the 256 KiB limit`);
-  const bytes = readFileSync11(file);
+  const bytes = readFileSync12(file);
   if (bytes.length > 262144) throw new Error(`${file}: file size exceeds the 256 KiB limit`);
   return bytes;
 }
 function childPath(root, name) {
   if (isAbsolute2(name) || name.split(/[\\/]/).includes("..")) throw new Error(`Invalid design path: ${name}`);
-  const path = realpathSync3(resolve3(root, name));
+  const path = realpathSync5(resolve3(root, name));
   const rel = relative2(root, path);
   if (rel.split(/[\\/]/)[0] === ".." || isAbsolute2(rel)) throw new Error(`Design path escapes source directory: ${name}`);
   return path;
 }
 function loadDesignDoc(entryPath) {
-  const path = realpathSync3(entryPath);
+  const path = realpathSync5(entryPath);
   const root = dirname6(path);
   const captured = /* @__PURE__ */ new Map();
   let totalBytes = 0;
@@ -19427,7 +19628,7 @@ function loadDesignDoc(entryPath) {
     return { ...element, file, detailText: readDetail(element.detail) };
   });
   const detailText = readDetail(entry.detail);
-  const sourceRevision = createHash("sha256").update(JSON.stringify([...captured].sort(([a], [b]) => a.localeCompare(b)).map(([name, bytes]) => [name, bytes.toString("base64")]))).digest("hex");
+  const sourceRevision = createHash2("sha256").update(JSON.stringify([...captured].sort(([a], [b]) => a.localeCompare(b)).map(([name, bytes]) => [name, bytes.toString("base64")]))).digest("hex");
   const doc = { ...entry, items, detailText, sourceRevision };
   const ids = /* @__PURE__ */ new Set([entry.id]);
   for (const item of items) {
@@ -19499,7 +19700,7 @@ function designDocToPack(doc, orientation = "top-to-bottom") {
   const edges = [...new Map(doc.items.flatMap((item) => item.relationships).map((edge) => [edge.id, edge])).values()];
   const content = { ...doc };
   delete content.sourceRevision;
-  const version = createHash("sha256").update(JSON.stringify(content)).digest("hex").slice(0, 16);
+  const version = createHash2("sha256").update(JSON.stringify(content)).digest("hex").slice(0, 16);
   return AlignmentPackSchema.parse({
     documentKind: "design",
     packVersion: `${doc.id}@${version}`,
@@ -19666,21 +19867,21 @@ var init_alignment_pack_renderer = __esm({
 
 // src/lib/design-map.ts
 import { execFileSync } from "node:child_process";
-import { realpathSync as realpathSync4 } from "node:fs";
+import { realpathSync as realpathSync6 } from "node:fs";
 import { isAbsolute as isAbsolute3, relative as relative3, resolve as resolve4, win32 } from "node:path";
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 function designMapInputs(root, doc, entry) {
   let nodes = [];
   if (doc.planning) {
     const { tracker, map } = doc.planning;
     if (tracker === "files") {
-      const base = realpathSync4(mapDir(root, "."));
-      const path = realpathSync4(mapDir(root, map));
-      const rel2 = relative3(base, path);
-      if (!rel2 || isAbsolute3(rel2) || rel2.split(/[\\/]/).includes("..")) throw new Error("Invalid bound map path");
+      const base = realpathSync6(mapDir(root, "."));
+      const path = realpathSync6(mapDir(root, map));
+      const rel = relative3(base, path);
+      if (!rel || isAbsolute3(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("Invalid bound map path");
       nodes = loadNodes(root, map);
     } else {
-      const raw = execFileSync("gh", ["issue", "list", "--state", "all", "--limit", "1000", "--json", "number,title,body,state,stateReason,labels,url"], { cwd: root, encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
+      const raw = execFileSync("gh", ["issue", "list", "--state", "all", "--limit", "1000", "--json", "number,title,body,state,stateReason,labels,url"], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024 });
       try {
         const issues = JSON.parse(raw);
         if (Array.isArray(issues) && issues.length >= 1e3) throw new Error("GitHub issue list may be truncated at the 1000-issue limit; map completeness cannot be verified");
@@ -19697,10 +19898,18 @@ function designMapInputs(root, doc, entry) {
     if (references.length !== 1) throw new Error("Bound map root needs exactly one Design entry reference");
     const reference = references[0][1].trim();
     if (!reference || isAbsolute3(reference) || win32.isAbsolute(reference)) throw new Error("Invalid bound map Design entry path");
-    const project = realpathSync4(root);
-    const target = realpathSync4(resolve4(root, reference));
-    const rel = relative3(project, target);
-    if (!rel || isAbsolute3(rel) || rel.split(/[\\/]/).includes("..") || target !== realpathSync4(entry)) throw new Error("Bound map Design entry does not match the authored entry");
+    const bases = [root, checkoutRoot()].filter((base) => base !== null).map((base) => realpathSync6(base));
+    const within = bases.some((base) => {
+      let target;
+      try {
+        target = realpathSync6(resolve4(base, reference));
+      } catch {
+        return false;
+      }
+      const rel = relative3(base, target);
+      return Boolean(rel) && !isAbsolute3(rel) && !rel.split(/[\\/]/).includes("..") && target === realpathSync6(entry);
+    });
+    if (!within) throw new Error("Bound map Design entry does not match the authored entry");
   }
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const targets = /* @__PURE__ */ new Set([doc.id, ...doc.items.map((item) => item.id), ...doc.items.flatMap((item) => item.relationships.map((edge) => edge.id)), ...doc.concerns.map((concern) => concern.id)]);
@@ -19738,7 +19947,8 @@ var init_design_map = __esm({
     init_zod();
     init_nodes();
     init_github_issues();
-    digest = (value) => createHash2("sha256").update(JSON.stringify(value)).digest("hex");
+    init_project();
+    digest = (value) => createHash3("sha256").update(JSON.stringify(value)).digest("hex");
     ContributionSchema = external_exports.object({
       id: external_exports.string().min(1),
       designId: external_exports.string().min(1),
@@ -19845,28 +20055,28 @@ var init_review_server = __esm({
 
 // src/lib/design-review.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { existsSync as existsSync13, lstatSync as lstatSync3, mkdirSync as mkdirSync4, opendirSync, readFileSync as readFileSync12, renameSync as renameSync3, rmSync as rmSync3, writeFileSync as writeFileSync3 } from "node:fs";
-import { join as join16, resolve as resolve5, dirname as dirname7, basename as basename2 } from "node:path";
+import { existsSync as existsSync14, lstatSync as lstatSync3, mkdirSync as mkdirSync5, opendirSync, readFileSync as readFileSync13, renameSync as renameSync3, rmSync as rmSync4, writeFileSync as writeFileSync4 } from "node:fs";
+import { join as join16, resolve as resolve5, dirname as dirname7, basename as basename4 } from "node:path";
 function readDesignReviewHistory(root, identity2, path) {
   const canonical = resolve5(path);
-  const base = join16(root, ACSTACK_DIR, "design-reviews", identity2);
-  if (basename2(canonical) !== "review.json" || !/^[a-f0-9]{16}$/.test(basename2(dirname7(canonical))) || dirname7(dirname7(canonical)) !== base) throw new Error("Not canonical history for this design");
-  for (const directory of [join16(root, ACSTACK_DIR), join16(root, ACSTACK_DIR, "design-reviews"), base, dirname7(canonical)]) {
+  const base = join16(root, "design-reviews", identity2);
+  if (basename4(canonical) !== "review.json" || !/^[a-f0-9]{16}$/.test(basename4(dirname7(canonical))) || dirname7(dirname7(canonical)) !== base) throw new Error("Not canonical history for this design");
+  for (const directory of [root, join16(root, "design-reviews"), base, dirname7(canonical)]) {
     if (lstatSync3(directory).isSymbolicLink() || !lstatSync3(directory).isDirectory()) throw new Error("Invalid review history directory");
   }
   const stat = lstatSync3(canonical);
   if (!stat.isFile() || stat.size > 1e6) throw new Error("Invalid review history file");
   let snapshot;
   try {
-    snapshot = StoredReviewSchema.parse(JSON.parse(readFileSync12(canonical, "utf8")));
+    snapshot = StoredReviewSchema.parse(JSON.parse(readFileSync13(canonical, "utf8")));
   } catch (error) {
     throw new Error(`Cannot read design review history ${canonical}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
   }
-  if (snapshot.packVersion !== `${identity2}@${basename2(dirname7(canonical))}` || snapshot.annotations.some((annotation) => annotation.packVersion !== snapshot.packVersion)) throw new Error("Review history identity mismatch");
+  if (snapshot.packVersion !== `${identity2}@${basename4(dirname7(canonical))}` || snapshot.annotations.some((annotation) => annotation.packVersion !== snapshot.packVersion)) throw new Error("Review history identity mismatch");
   return snapshot;
 }
 function readDesignReviewHistories(root, identity2) {
-  const base = join16(root, ACSTACK_DIR, "design-reviews", identity2);
+  const base = join16(root, "design-reviews", identity2);
   const histories = /* @__PURE__ */ new Map();
   const directory = opendirSync(base);
   let entries = 0;
@@ -19889,11 +20099,11 @@ function atomicWrite(path, text2) {
   const temporary = `${path}.${randomBytes3(16).toString("hex")}.tmp`;
   let created = false;
   try {
-    writeFileSync3(temporary, text2, { flag: "wx", mode: 384 });
+    writeFileSync4(temporary, text2, { flag: "wx", mode: 384 });
     created = true;
     renameSync3(temporary, path);
   } finally {
-    if (created) rmSync3(temporary, { force: true });
+    if (created) rmSync4(temporary, { force: true });
   }
 }
 function openDesignReview(root, pack, initialOperation) {
@@ -19901,12 +20111,11 @@ function openDesignReview(root, pack, initialOperation) {
   const version = pack.source.map.version;
   if (!identity2 || !/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/.test(identity2) || !/^[a-f0-9]{16}$/.test(version)) throw new Error("Invalid design review identity");
   let directory = root;
-  for (const part of [ACSTACK_DIR, "design-reviews", identity2, version]) {
+  for (const part of ["design-reviews", identity2, version]) {
     directory = join16(directory, part);
-    if (!existsSync13(directory)) mkdirSync4(directory);
+    if (!existsSync14(directory)) mkdirSync5(directory);
     if (lstatSync3(directory).isSymbolicLink() || !lstatSync3(directory).isDirectory()) throw new Error("Design review directory must be a real directory");
   }
-  if (!initialOperation) ensureProjectGitignore(root);
   const canonical = join16(directory, "review.json");
   const validate = (snapshot2) => {
     if (snapshot2.packVersion !== pack.packVersion) throw new Error("Design review pack version mismatch");
@@ -19919,20 +20128,20 @@ function openDesignReview(root, pack, initialOperation) {
   const lock = join16(directory, ".writer-lock");
   const acquire = () => {
     try {
-      mkdirSync4(lock);
+      mkdirSync5(lock);
     } catch (error) {
       if (error.code === "EEXIST") throw new ReviewHttpError(409, `Another writer holds ${lock}. If a writer crashed, remove that directory before retrying.`);
       throw error;
     }
   };
   const release = () => {
-    rmSync3(lock, { recursive: true });
+    rmSync4(lock, { recursive: true });
   };
   const readSnapshot = () => {
     try {
       const stat = lstatSync3(canonical);
       if (!stat.isFile() || stat.size > 1e6) throw new Error("Invalid review file");
-      const saved = StoredReviewSchema.parse(JSON.parse(readFileSync12(canonical, "utf8")));
+      const saved = StoredReviewSchema.parse(JSON.parse(readFileSync13(canonical, "utf8")));
       validate(saved);
       return saved;
     } catch (error) {
@@ -20007,8 +20216,6 @@ var init_design_review = __esm({
     "use strict";
     init_zod();
     init_alignment_packs();
-    init_constants();
-    init_project_data();
     init_review_server();
     DesignReviewSnapshotSchema = external_exports.object({
       packVersion: external_exports.string().min(1),
@@ -20190,7 +20397,7 @@ var init_design_lifecycle = __esm({
 
 // src/lib/design-migration.ts
 import { constants as constants2, closeSync, fstatSync, lstatSync as lstatSync4, openSync, opendirSync as opendirSync2, readSync as readSync2 } from "node:fs";
-import { basename as basename3, dirname as dirname8, isAbsolute as isAbsolute4, join as join17, relative as relative5, resolve as resolve7 } from "node:path";
+import { basename as basename5, dirname as dirname8, isAbsolute as isAbsolute4, join as join17, relative as relative5, resolve as resolve7 } from "node:path";
 import { TextDecoder as TextDecoder2 } from "node:util";
 function noLinks(path) {
   for (let cursor = resolve7(path); ; cursor = dirname8(cursor)) {
@@ -20249,25 +20456,12 @@ function legacyComments(annotations) {
     count: Math.max(1, group.ids.size + [...group.anonymousAnchors].filter((anchor) => !group.identifiedAnchors.has(anchor)).length)
   }]));
 }
-function mainCheckout(root) {
-  let git = join17(root, ".git");
-  noLinks(git);
-  if (!lstatSync4(git).isDirectory()) {
-    const pointer = readBounded2(git, 4096).trim().match(/^gitdir: (.+)$/);
-    if (!pointer) throw new Error("Invalid legacy decision-log Git directory");
-    git = resolve7(root, pointer[1]);
-    noLinks(git);
-  }
-  if (lstatSync4(join17(git, "commondir"), { throwIfNoEntry: false })) git = resolve7(git, readBounded2(join17(git, "commondir"), 4096).trim());
-  noLinks(git);
-  return dirname8(git);
-}
 function migrateDesignReview(root, entry, options) {
   const pack = designDocToPack(loadDesignDoc(entry));
   const directory = resolve7(options.legacyDir);
-  const base = join17(root, ".acstack", "alignment-packs");
+  const base = join17(root, "alignment-packs");
   const rel = relative5(base, directory);
-  if (!rel || isAbsolute4(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("Legacy directory must be under .acstack/alignment-packs");
+  if (!rel || isAbsolute4(rel) || rel.split(/[\\/]/).includes("..")) throw new Error("Legacy directory must be under alignment-packs in the project folder");
   noLinks(directory);
   if (!lstatSync4(directory).isDirectory()) throw new Error("Invalid legacy directory");
   const sources = [];
@@ -20304,7 +20498,7 @@ function migrateDesignReview(root, entry, options) {
     const scripts = [...content.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi)].filter((match) => new RegExp(`\\bid=["']${PACK_DATA_ID}["']`).test(match[1]));
     if (scripts.length !== 1 || scripts[0][1].trim() !== `id="${PACK_DATA_ID}" type="application/json"`) throw new Error(`Invalid legacy pack JSON metadata: ${name}`);
     const saved = parseJson(`Legacy pack ${path}`, scripts[0][2], AlignmentPackSchema);
-    if (saved.source.map.id !== basename3(directory) || saved.packVersion !== `${saved.source.map.id}@${saved.source.map.version}`) throw new Error("Legacy pack directory identity mismatch");
+    if (saved.source.map.id !== basename5(directory) || saved.packVersion !== `${saved.source.map.id}@${saved.source.map.version}`) throw new Error("Legacy pack directory identity mismatch");
     if (saved.reviewState.approval && saved.reviewState.approval.packVersion !== saved.packVersion) throw new Error("Legacy pack approval version mismatch");
     const previous = versions.get(saved.packVersion);
     if (previous && digest(previous) !== digest(saved)) throw new Error("Conflicting duplicate legacy pack version");
@@ -20336,13 +20530,11 @@ function migrateDesignReview(root, entry, options) {
       ids.set(identity2, fingerprint2);
     }
   }
-  const main = mainCheckout(root);
-  assertCanonicalProject(main);
-  const decisionPath = join17(main, ".acstack", "decision-logs", `${basename3(directory)}.tsv`);
-  for (const path of [join17(main, ".acstack"), dirname8(decisionPath), decisionPath]) {
+  const decisionPath = join17(root, "decision-logs", `${basename5(directory)}.tsv`);
+  for (const path of [dirname8(decisionPath), decisionPath]) {
     if (lstatSync4(path, { throwIfNoEntry: false })) noLinks(path);
   }
-  const decisionLog = lstatSync4(decisionPath, { throwIfNoEntry: false }) ? { path: `.acstack/decision-logs/${basename3(directory)}.tsv`, content: readBounded2(decisionPath, FILE_LIMIT) } : void 0;
+  const decisionLog = lstatSync4(decisionPath, { throwIfNoEntry: false }) ? { path: `decision-logs/${basename5(directory)}.tsv`, content: readBounded2(decisionPath, FILE_LIMIT) } : void 0;
   const history = { directory: relative5(root, directory).split("\\").join("/"), sources: sources.sort((a, b) => a.path.localeCompare(b.path)), packs: [...versions.values()], annotations, mapping, feedback, decisionLog };
   const fingerprint = digest(history);
   const apply = (snapshot) => {
@@ -20373,7 +20565,6 @@ var init_design_migration = __esm({
     init_design_doc();
     init_design_map();
     init_design_review();
-    init_project_data();
     FILE_LIMIT = 1e6;
     HTML_LIMIT = 8e6;
     TOTAL_LIMIT = 16e6;
@@ -20387,13 +20578,13 @@ __export(design_doc_exports, {
   generateDesignDoc: () => generateDesignDoc,
   register: () => register7
 });
-import { readFileSync as readFileSync13, statSync as statSync5, writeFileSync as writeFileSync4 } from "node:fs";
+import { readFileSync as readFileSync14, statSync as statSync5, writeFileSync as writeFileSync5 } from "node:fs";
 import { resolve as resolve8 } from "node:path";
 function generateDesignDoc(entry, output, markdown, orientation = "top-to-bottom") {
   const doc = loadDesignDoc(entry);
   const html = renderAlignmentPackHtml(designDocToPack(doc, orientation));
-  writeFileSync4(resolve8(output), html, { flag: "wx" });
-  if (markdown) writeFileSync4(resolve8(markdown), renderDesignDocMarkdown(doc, orientation), { flag: "wx" });
+  writeFileSync5(resolve8(output), html, { flag: "wx" });
+  if (markdown) writeFileSync5(resolve8(markdown), renderDesignDocMarkdown(doc, orientation), { flag: "wx" });
 }
 function register7(program3) {
   const lifecycle = program3.command("design-review").description("Inspect and reconcile exact authored design revisions");
@@ -20407,7 +20598,7 @@ function register7(program3) {
     if (!statSync5(options.input).isFile() || statSync5(options.input).size > 1e6) throw new Error("Invalid reconciliation input");
     let input;
     try {
-      input = JSON.parse(readFileSync13(options.input, "utf8"));
+      input = JSON.parse(readFileSync14(options.input, "utf8"));
     } catch (error) {
       throw new Error(`Invalid reconciliation input ${options.input}: ${error.message}`);
     }
@@ -20419,7 +20610,7 @@ function register7(program3) {
     const lifecycle2 = openDesignLifecycle(root, entry);
     const doc = lifecycle2.doc;
     const pack = designDocToPack(doc, options.orientation);
-    if (options.markdown) writeFileSync4(resolve8(options.markdown), renderDesignDocMarkdown(doc, options.orientation), { flag: "wx" });
+    if (options.markdown) writeFileSync5(resolve8(options.markdown), renderDesignDocMarkdown(doc, options.orientation), { flag: "wx" });
     lifecycle2.status();
     const review = lifecycle2.review;
     const handoffPrompt = `Read the review JSON at ${JSON.stringify(review.reviewPath)}. Resolve feedback against the authored design entry ${JSON.stringify(resolve8(entry))} and update the authored source to address the comments. Explain unresolved decisions, run design-review status, explicitly reconcile the selected feedback and map contributions with design-review reconcile, and reopen the review with design-doc for approval of the resulting revision.`;
@@ -20472,7 +20663,12 @@ function impeccableJson(impeccable) {
   };
 }
 function runDesignGate(json) {
-  const root = findProjectRoot();
+  let root = null;
+  try {
+    root = findProjectRoot();
+  } catch (error) {
+    fail(error.message);
+  }
   const impeccable = findInstalledPlugin(IMPECCABLE_PLUGIN);
   const reasons = offReasons(root, impeccable);
   const on = reasons.length === 0;
@@ -20545,7 +20741,7 @@ var init_feedback = __esm({
 });
 
 // src/lib/ackfile.ts
-import { existsSync as existsSync14, readFileSync as readFileSync14 } from "node:fs";
+import { existsSync as existsSync15, readFileSync as readFileSync15 } from "node:fs";
 function isAckDecision(value) {
   return typeof value === "string" && ACK_DECISIONS.includes(value);
 }
@@ -20597,7 +20793,7 @@ function writeAck(args) {
       `That is a sidecar path, not a handoff file. Pass ${file.slice(0, -ACK_SUFFIX.length)} instead.`
     );
   }
-  if (!existsSync14(file)) {
+  if (!existsSync15(file)) {
     throw new Error(`No handoff file at ${file}. Check the path the handoff gave you.`);
   }
   const record2 = {
@@ -20613,7 +20809,7 @@ function writeAck(args) {
 function readAck(file) {
   let raw;
   try {
-    raw = readFileSync14(ackPath(file), "utf-8");
+    raw = readFileSync15(ackPath(file), "utf-8");
   } catch (err) {
     if (err.code === "ENOENT") return null;
     throw err;
@@ -20645,11 +20841,11 @@ var init_ackfile = __esm({
 });
 
 // src/lib/ackwatch.ts
-import { readFileSync as readFileSync15, statSync as statSync6 } from "node:fs";
-import { homedir as homedir3 } from "node:os";
-import { basename as basename4, join as join18 } from "node:path";
+import { readFileSync as readFileSync16, statSync as statSync6 } from "node:fs";
+import { homedir as homedir4 } from "node:os";
+import { basename as basename6, join as join18 } from "node:path";
 function transcriptPath(cwd, sessionId, projectsDir) {
-  const base = projectsDir ?? join18(homedir3(), ".claude", "projects");
+  const base = projectsDir ?? join18(homedir4(), ".claude", "projects");
   return join18(base, cwd.replace(/[^a-zA-Z0-9]/g, "-"), `${sessionId}.jsonl`);
 }
 function parseAck(text2) {
@@ -20758,7 +20954,7 @@ function mentionsFile(input, file) {
   } catch {
     return false;
   }
-  const name = basename4(file);
+  const name = basename6(file);
   return serialized.includes(file) || name.length > 0 && serialized.includes(name);
 }
 function isEngagement(record2, file) {
@@ -20831,7 +21027,7 @@ function analyze(lines, options) {
 }
 function readLines(path) {
   try {
-    return readFileSync15(path, "utf-8").split("\n");
+    return readFileSync16(path, "utf-8").split("\n");
   } catch (err) {
     if (err.code === "ENOENT") return [];
     throw err;
@@ -24160,8 +24356,8 @@ var require_pattern = __commonJS({
     }
     exports.endsWithSlashGlobStar = endsWithSlashGlobStar;
     function isAffectDepthOfReadingPattern(pattern) {
-      const basename5 = path.basename(pattern);
-      return endsWithSlashGlobStar(pattern) || isStaticPattern(basename5);
+      const basename7 = path.basename(pattern);
+      return endsWithSlashGlobStar(pattern) || isStaticPattern(basename7);
     }
     exports.isAffectDepthOfReadingPattern = isAffectDepthOfReadingPattern;
     function expandPatternsWithBraceExpansion(patterns) {
@@ -27182,7 +27378,7 @@ __export(lint_prose_exports, {
   reportFile: () => reportFile,
   summarize: () => summarize
 });
-import { existsSync as existsSync15, readFileSync as readFileSync16, statSync as statSync7 } from "node:fs";
+import { existsSync as existsSync16, readFileSync as readFileSync17, statSync as statSync7 } from "node:fs";
 import { join as join19, relative as relative6, resolve as resolve11 } from "node:path";
 function loadVocabulary() {
   const pluginRoot = findPluginRoot();
@@ -27220,7 +27416,7 @@ function collectFiles(paths, opts) {
   if (opts.all) files.push(...markdownIn(opts.root));
   for (const path of paths) {
     const full = resolve11(path);
-    if (!existsSync15(full)) {
+    if (!existsSync16(full)) {
       missing.push(path);
       continue;
     }
@@ -27262,7 +27458,7 @@ function displayPath(root, file) {
 function reportFile(file, display, vocabulary) {
   let text2;
   try {
-    text2 = readFileSync16(file, "utf-8");
+    text2 = readFileSync17(file, "utf-8");
   } catch {
     console.error(source_default.yellow(`Cannot read, skipping: ${display}`));
     return { path: display, findings: [], unreadable: true };
@@ -27304,7 +27500,7 @@ function printSummary(summary, missing) {
 }
 function register11(program3) {
   program3.command("lint-prose").description("Warn about prose that drifts from the writing standard").argument("[paths...]", "files or directories to lint").option("--all", "lint every .md file in the repository").action((paths, opts) => {
-    const root = findProjectRoot() ?? process.cwd();
+    const root = locateProject()?.main ?? process.cwd();
     if (paths.length === 0 && !opts.all) {
       fail("Give one or more paths, or --all to lint the repository.");
     }
@@ -27352,7 +27548,7 @@ var init_lint_prose = __esm({
 
 // src/index.ts
 init_esm();
-import { spawnSync as spawnSync2 } from "node:child_process";
+import { spawnSync as spawnSync4 } from "node:child_process";
 
 // src/lib/version.ts
 import { readFileSync } from "node:fs";
@@ -27381,15 +27577,7 @@ function resolveVersion(startDir) {
 }
 
 // src/index.ts
-init_project_data();
-init_project();
 init_utils();
-try {
-  const root = findProjectRoot();
-  if (root && !(["project-data", "design-review"].includes(process.argv[2] ?? "") && process.argv[3] === "migrate")) ensureProjectGitignore(root);
-} catch (error) {
-  fail(error.message);
-}
 var program2 = new Command().name("acstack").description("CLI for the ACStack agentic coding stack").version(resolveVersion(import.meta.dirname));
 var commands = await Promise.all([
   Promise.resolve().then(() => (init_project_data2(), project_data_exports)),
@@ -27417,7 +27605,7 @@ var known = new Set(
   program2.commands.flatMap((c) => [c.name(), ...c.aliases()])
 );
 if (first && !first.startsWith("-") && !known.has(first)) {
-  const result = spawnSync2(`acstack-${first}`, process.argv.slice(3), {
+  const result = spawnSync4(`acstack-${first}`, process.argv.slice(3), {
     stdio: "inherit"
   });
   const failedToSpawn = result.error !== void 0 && "code" in result.error;

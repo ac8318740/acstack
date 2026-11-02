@@ -9,7 +9,7 @@
 set -uo pipefail
 # apply rewrites this line from harlequin.config_path. What ships here is the
 # default, so the helper is right even on a machine nothing rewrote it on.
-DB_CFG_DEFAULT="~/.config/acstack/harlequin.toml"  # acstack:config_path
+DB_CFG_DEFAULT="~/.acstack/harlequin.toml"  # acstack:config_path
 CFG="${ACSTACK_DB_CONFIG:-$DB_CFG_DEFAULT}"
 # A human writes ~ for home, and a human writes this config. Expanding it here
 # rather than at write time keeps the helper right on a machine whose HOME is

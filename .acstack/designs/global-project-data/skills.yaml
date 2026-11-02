@@ -1,0 +1,27 @@
+id: skills
+name: Skills and helper scripts
+kind: component
+channels:
+- agent
+summary: Tell the agent where project records live and run host helpers that need global settings.
+relationships:
+- id: follows-skills
+  from: coding-agent
+  to: skills
+  direction: one-way
+  label: Follows
+- id: skills-settings
+  from: skills
+  to: settings
+  direction: one-way
+  label: Read settings through
+- id: skills-commands
+  from: skills
+  to: project-data-cmd
+  direction: one-way
+  label: Run setup and migration with
+- id: skills-locator
+  from: skills
+  to: locator
+  direction: one-way
+  label: Find project record paths with

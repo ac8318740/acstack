@@ -1,0 +1,11 @@
+id: developer
+name: Developer
+kind: actor
+summary: Uses ACStack across many repositories and decides whether each project's data stays private or
+  is committed with the repo.
+relationships:
+- id: asks-agent
+  from: developer
+  to: coding-agent
+  direction: one-way
+  label: Asks for work from

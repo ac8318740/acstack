@@ -105,14 +105,14 @@ if [ "${ACSTACK_MD_OPENER:-0}" = "1" ] && [ "$HTML" = "1" ]; then MODE=opener; f
 # exec -a names the process. Without it a running server is just "python3 -"
 # and there is nothing sensible to pkill.
 exec -a "$NAME" python3 - "$FILE" "$PORT" "$MODE" <<'PY'
-import html, http.server, pathlib, re, socketserver, sys
+import html, http.server, os, pathlib, re, socketserver, sys
 try:
   import markdown
 except ImportError:
   sys.exit("acstack-md: needs the python markdown package: pip install --user markdown")
 
 src, port, MODE = pathlib.Path(sys.argv[1]), int(sys.argv[2]), sys.argv[3]
-VENDOR = pathlib.Path.home() / ".local/share/acstack/mermaid.min.js"
+VENDOR = pathlib.Path(os.environ.get("ACSTACK_HOME") or pathlib.Path.home() / ".acstack") / "cache/mermaid.min.js"
 
 CSS = """*{box-sizing:border-box}body{max-width:54rem;margin:0 auto;padding:2rem 1.25rem;
 font:16px/1.65 -apple-system,Segoe UI,system-ui,sans-serif;color:#1a1a1a;background:#fff}

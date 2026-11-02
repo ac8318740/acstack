@@ -5,7 +5,7 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import {
   DEFAULT_MIN_BYTES, decide, envSaysNotMain, fileLedger, readGuardSettings, shellReadTarget, wholeReadTarget,
@@ -21,7 +21,12 @@ function check(name, cond, detail = '') {
 function project(name, yaml) {
   const dir = path.join(tmp, name);
   fs.mkdirSync(path.join(dir, '.acstack'), { recursive: true });
-  if (yaml !== undefined) fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'), yaml);
+  // A committed .acstack/ is the repository's project folder (tracked mode).
+  execFileSync('git', ['init', '-q', dir]);
+  if (yaml !== undefined) {
+    fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'), yaml);
+    execFileSync('git', ['add', '.acstack/project.yaml'], { cwd: dir });
+  }
   fs.writeFileSync(path.join(dir, 'big.txt'), 'x'.repeat(DEFAULT_MIN_BYTES));
   fs.writeFileSync(path.join(dir, 'small.txt'), 'x'.repeat(DEFAULT_MIN_BYTES - 1));
   return dir;

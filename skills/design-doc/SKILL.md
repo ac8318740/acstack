@@ -34,7 +34,8 @@ flowchart LR
 
 ## Author entry and element files
 
-- Default new project designs to `.acstack/designs/<id>/design.yaml`, unless the user chooses another location
+- Default new project designs to `<project folder>/designs/<id>/design.yaml`, unless the user chooses another location
+    - The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints
 - Keep the entry and its referenced files in one directory tree
 - Use stable IDs matching `[a-zA-Z][a-zA-Z0-9_-]{0,79}`
 - Give the entry `id`, `name`, `summary`, and an `elements` array of relative YAML paths
@@ -172,7 +173,9 @@ relationships:
 ## Reconcile and approve a map-linked design
 
 - Invoke this workflow from map for shared behavior, component boundaries, or data-flow decisions
-- Store `Design entry: <repository-relative-path>` in the map root body
+- Store `Design entry: <path>` in the map root body
+    - Write the path relative to the project folder, such as `designs/<id>/design.yaml`, or relative to the repository for a design kept in the repository
+    - ACStack resolves it against the project folder first, then the current checkout
 - Add `planning: {tracker: files | github, map: <name>}` to the entry
 - Use the same contribution format in files and GitHub node bodies
 - Put one fenced JSON array under `## Design contributions`
@@ -213,7 +216,7 @@ relationships:
 - ACStack removes `map --map` and `align-viewer` without aliases
 - Author the new design first; the old planning graph cannot define its architecture
 - Keep map planning in `node walk`, `node frontier`, and `node diagram`
-- Use a nonsymlink legacy directory under `.acstack/alignment-packs/`
+- Use a nonsymlink legacy directory under `<project folder>/alignment-packs/`
 - Write an explicit JSON mapping array of `{from: {type, id}, to: {type, id}}` pairs
 - Map every commented legacy target to a valid current target
 - Choose document context explicitly when a legacy target is ambiguous
@@ -224,7 +227,7 @@ relationships:
 ```
 
 - Supply `--feedback` only for an explicit exported feedback JSON file
-- Migration reads saved pack versions, approvals, annotations, and the corresponding main-checkout decision log
+- Migration reads saved pack versions, approvals, annotations, and the corresponding decision log in the project folder
 - Migration preserves original artifacts and decision logs byte-for-byte
 - Canonical `review.json` retains imported history, source fingerprints, and original comments, quotes, authors, timestamps, and provenance
 - Imported comments append to existing feedback; duplicate source comments import once
@@ -235,4 +238,4 @@ relationships:
 - Reconcile imported feedback and obtain current exact-revision approval before implementation or archive
 - Never migrate automatically at startup or archive
 - Retain design sources, canonical reviews, import history, and decision logs independently of `workflow.maps.persist`
-- Respect native Git ignore rules; never force-add private review records
+- Never change the Git index or force-add review records

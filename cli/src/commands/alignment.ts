@@ -6,11 +6,11 @@ import { spawnSync } from 'node:child_process';
 import { z } from 'zod';
 import { createAnnotationFeedbackHandoff, exportAnnotationFeedbackMarkdown } from '../lib/alignment-feedback.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
-import { alignmentPackStoragePaths, ignoreGeneratedPacks } from '../lib/alignment-pack-lifecycle.js';
+import { alignmentPackStoragePaths } from '../lib/alignment-pack-lifecycle.js';
 import { AlignmentPackSchema, type AlignmentPack, ReviewAnnotationSchema, ReviewStateSchema } from '../lib/alignment-packs.js';
 import { REVIEW_PATH } from '../lib/alignment-review-protocol.js';
 import { createReviewServer, listenForReview, REVIEW_PORT } from '../lib/review-server.js';
-import { ACSTACK_DIR, MAPS_DIR } from '../lib/constants.js';
+import { MAPS_DIR } from '../lib/constants.js';
 import { type MapNode, loadNodes, mapDir } from '../lib/nodes.js';
 import { ensureDir, fail, inProject } from '../lib/utils.js';
 
@@ -79,7 +79,7 @@ function buildPack(map: string, nodes: MapNode[]): AlignmentPack {
         id: node.id,
         kind: 'map-node',
         title: node.title,
-        uri: join(ACSTACK_DIR, MAPS_DIR, map, node.file),
+        uri: join(MAPS_DIR, map, node.file),
       })),
     },
     graph: {
@@ -127,7 +127,6 @@ function buildPack(map: string, nodes: MapNode[]): AlignmentPack {
 function writePack(root: string, map: string, pack: AlignmentPack): string {
   const paths = alignmentPackStoragePaths({ root, map, packVersion: pack.packVersion });
   ensureDir(paths.directory);
-  ignoreGeneratedPacks(root);
   writeFileSync(paths.packHtml, renderAlignmentPackHtml(pack));
   return paths.packHtml;
 }

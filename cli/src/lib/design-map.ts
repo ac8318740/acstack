@@ -6,6 +6,7 @@ import type { DesignDoc } from './design-doc.js';
 import { deriveDepths, isSettled, loadNodes, mapDir, rootCountError, type GraphNode } from './nodes.js';
 import { nodesFromIssues } from './github-issues.js';
 import { createHash } from 'node:crypto';
+import { checkoutRoot } from './project.js';
 
 export const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const ContributionSchema = z.object({
@@ -24,7 +25,7 @@ export function designMapInputs(root: string, doc: DesignDoc, entry: string) {
       if (!rel || isAbsolute(rel) || rel.split(/[\\/]/).includes('..')) throw new Error('Invalid bound map path');
       nodes = loadNodes(root, map);
     } else {
-      const raw = execFileSync('gh', ['issue', 'list', '--state', 'all', '--limit', '1000', '--json', 'number,title,body,state,stateReason,labels,url'], { cwd: root, encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+      const raw = execFileSync('gh', ['issue', 'list', '--state', 'all', '--limit', '1000', '--json', 'number,title,body,state,stateReason,labels,url'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
       try {
         const issues: unknown = JSON.parse(raw);
         if (Array.isArray(issues) && issues.length >= 1000) throw new Error('GitHub issue list may be truncated at the 1000-issue limit; map completeness cannot be verified');
@@ -39,10 +40,15 @@ export function designMapInputs(root: string, doc: DesignDoc, entry: string) {
     if (references.length !== 1) throw new Error('Bound map root needs exactly one Design entry reference');
     const reference = references[0][1].trim();
     if (!reference || isAbsolute(reference) || win32.isAbsolute(reference)) throw new Error('Invalid bound map Design entry path');
-    const project = realpathSync(root);
-    const target = realpathSync(resolve(root, reference));
-    const rel = relative(project, target);
-    if (!rel || isAbsolute(rel) || rel.split(/[\\/]/).includes('..') || target !== realpathSync(entry)) throw new Error('Bound map Design entry does not match the authored entry');
+    // The entry may live in the project folder or in the current checkout; resolve against each.
+    const bases = [root, checkoutRoot()].filter((base): base is string => base !== null).map(base => realpathSync(base));
+    const within = bases.some(base => {
+      let target: string;
+      try { target = realpathSync(resolve(base, reference)); } catch { return false; }
+      const rel = relative(base, target);
+      return Boolean(rel) && !isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') && target === realpathSync(entry);
+    });
+    if (!within) throw new Error('Bound map Design entry does not match the authored entry');
   }
   const byId = new Map(nodes.map(node => [node.id, node]));
   const targets = new Set([doc.id, ...doc.items.map(item => item.id), ...doc.items.flatMap(item => item.relationships.map(edge => edge.id)), ...doc.concerns.map(concern => concern.id)]);
