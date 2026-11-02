@@ -282,8 +282,11 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 
   const event = promptEvent();
   await fire(reg, 'before_agent_start', event, makeCtx(newProject('orch')));
+  const injected = event.systemPromptOptions.sections['acstack-orchestrator'] ?? '';
   check('injects orchestrator/AGENTS.md in an acstack project',
-    event.systemPromptOptions.sections['acstack-orchestrator'] === orchestrator);
+    orchestrator.includes('## Implementation discipline') && injected.includes('## Implementation discipline'));
+  check('the lead session gets the lead role and continuity skills, not the delegated role',
+    injected.includes('/acstack:compact-and-continue') && !injected.includes('You are a delegated session') && !injected.includes('<!-- acstack:'));
 
   const plain = promptEvent();
   await fire(reg, 'before_agent_start', plain, makeCtx(newProject('orch-plain', { acstack: false })));
@@ -551,18 +554,48 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
     reg.userSent.length === 2 && ctx.notes.some((n) => n.msg.includes('no skill named "nope"')));
 }
 
-// --- subagent children ----------------------------------------------------------
+// --- delegated sessions ---------------------------------------------------------
+
+for (const [variable, value] of [['PI_SUBAGENT_CHILD', '1'], ['PI_SUBAGENTS_HERDR_BRIDGE', '1'], ['AC_TEAMS_MEMBER', 'scout-1']]) {
+  process.env[variable] = value;
+  const reg = load({ tools: [] });
+  const ctx = makeCtx(newProject(`delegated-${variable}`));
+  fs.rmSync(agentLink, { force: true });
+  await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  const event = promptEvent();
+  await fire(reg, 'before_agent_start', event, ctx);
+  delete process.env[variable];
+  const sections = event.systemPromptOptions.sections;
+  const orchestrator = sections['acstack-orchestrator'] ?? '';
+  check(`${variable}: a delegated session keeps the shared discipline, skills, and writing style`,
+    orchestrator.includes('## Implementation discipline') && orchestrator.includes('### Delegate investigation')
+      && Boolean(sections['acstack-skills']) && Boolean(sections['acstack-writing-style']));
+  check(`${variable}: a delegated session gets the delegated role, not the lead role`,
+    orchestrator.includes('You are a delegated session') && !orchestrator.includes('/acstack:compact-and-continue') && !orchestrator.includes('<!-- acstack:'));
+  check(`${variable}: a delegated session gets no context nudges or handoff reload`,
+    !reg.handlers.agent_before_settle && !reg.handlers.session_compact);
+  check(`${variable}: a delegated session leaves CLI symlinks and launcher warnings to the lead`,
+    !fs.existsSync(agentLink) && !ctx.notes.some((n) => n.msg.includes('no supported subagent tool')));
+}
 
 {
-  process.env.PI_SUBAGENT_CHILD = '1';
-  const reg = load();
-  delete process.env.PI_SUBAGENT_CHILD;
-  check('registers nothing inside a pi-subagents child',
-    Object.keys(reg.handlers).length === 0 && Object.keys(reg.commands).length === 0);
-
-  process.env.PI_SUBAGENTS_HERDR_BRIDGE = '1';
-  const placed = load();
-  delete process.env.PI_SUBAGENTS_HERDR_BRIDGE;
-  check('registers nothing inside a herdr-placed pi-subagents child',
-    Object.keys(placed.handlers).length === 0 && Object.keys(placed.commands).length === 0);
+  const settings = path.join(home, '.pi', 'agent', 'acstack.json');
+  const saved = fs.existsSync(settings) ? fs.readFileSync(settings, 'utf-8') : undefined;
+  const bundled = fs.readFileSync(path.join(root, 'output-styles', 'ac-writing-style.md'), 'utf-8');
+  fs.mkdirSync(path.dirname(settings), { recursive: true });
+  fs.writeFileSync(settings, JSON.stringify({ writingStyle: { mode: 'custom', path: path.join(work, 'unreadable-style.md') } }));
+  for (const delegated of [true, false]) {
+    if (delegated) process.env.AC_TEAMS_MEMBER = 'scout-2';
+    const reg = load();
+    const ctx = makeCtx(newProject(`style-fallback-${delegated}`));
+    const event = promptEvent();
+    await fire(reg, 'before_agent_start', event, ctx);
+    delete process.env.AC_TEAMS_MEMBER;
+    const injected = event.systemPromptOptions.sections['acstack-writing-style'];
+    const warned = ctx.notes.some((n) => n.msg.includes('could not read writing style'));
+    if (delegated) check('an unreadable custom style falls back to the bundled style in a delegated session',
+      warned && Boolean(injected) && bundled.includes(injected.trim().split('\n')[0]));
+    else check('an unreadable custom style still injects nothing in the lead session', warned && injected === undefined);
+  }
+  if (saved === undefined) fs.rmSync(settings); else fs.writeFileSync(settings, saved);
 }

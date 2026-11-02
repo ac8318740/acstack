@@ -80,6 +80,8 @@ function ensureProjectData(ctx: ExtensionContext, root: string): boolean {
 const SUBAGENT_CHILD_ENV = "PI_SUBAGENT_CHILD";
 /** pi-subagents sets this instead in a child it places in its own herdr pane. */
 const HERDR_BRIDGE_CHILD_ENV = "PI_SUBAGENTS_HERDR_BRIDGE";
+/** ac-teams sets this in every member it launches. */
+const AC_TEAMS_MEMBER_ENV = "AC_TEAMS_MEMBER";
 
 function agentDir(): string {
 	return process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
@@ -623,6 +625,18 @@ export function skillsSection(skills: Map<string, SkillInfo>): string | undefine
 }
 
 /**
+ * The orchestrator text for one kind of session. orchestrator/AGENTS.md marks
+ * the lead-only and delegated-only blocks; each session keeps its own block
+ * and drops the other.
+ */
+export function orchestratorFor(text: string, role: "lead" | "delegated"): string {
+	const other = role === "lead" ? "delegated" : "lead";
+	return text
+		.replace(new RegExp(`<!-- acstack:${other}:start -->[\\s\\S]*?<!-- acstack:${other}:end -->\\n?`, "g"), "")
+		.replace(new RegExp(`<!-- acstack:${role}:(start|end) -->\\n?`, "g"), "");
+}
+
+/**
  * The user message for one ACStack skill, in the same shape pi's own
  * /skill:<name> expansion produces. Built from this package's file, so a
  * generic name such as map or commit that another package's skill took
@@ -640,9 +654,9 @@ export function skillInvocation(name: string, file: string, args: string): strin
 // --------------------------------------------------------------------------
 
 export default function acstack(pi: ExtensionAPI): void {
-	// A background subagent loads every ambient extension. The orchestrator
-	// prompt and the nudges belong to the lead session, never to a subagent.
-	if (process.env[SUBAGENT_CHILD_ENV] === "1" || process.env[HERDR_BRIDGE_CHILD_ENV] === "1") return;
+	// A delegated session keeps the shared guidance but not the lead's role,
+	// CLI symlinks, launcher warning, context nudges, or handoff reload.
+	const delegated = process.env[SUBAGENT_CHILD_ENV] === "1" || process.env[HERDR_BRIDGE_CHILD_ENV] === "1" || Boolean(process.env[AC_TEAMS_MEMBER_ENV]);
 
 	const orchestratorFile = path.join(packageRoot, "orchestrator", "AGENTS.md");
 	const styleFile = path.join(packageRoot, "output-styles", "ac-writing-style.md");
@@ -651,7 +665,7 @@ export default function acstack(pi: ExtensionAPI): void {
 	let warnedSubagents = false;
 
 	pi.on("session_start", async (event, ctx) => {
-		linkClis(ctx);
+		if (!delegated) linkClis(ctx);
 		const root = projectRoot(ctx.cwd);
 		if (ensureProjectData(ctx, root)) unsafeProjects.delete(root);
 		else {
@@ -659,6 +673,7 @@ export default function acstack(pi: ExtensionAPI): void {
 			return;
 		}
 
+		if (delegated) return;
 		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent" || tool.name === "Agent" || tool.name === "team_agent")) {
 			warnedSubagents = true;
 			report(
@@ -686,14 +701,19 @@ export default function acstack(pi: ExtensionAPI): void {
 
 		if (isProject(ctx.cwd)) {
 			const orchestrator = readText(orchestratorFile);
-			if (orchestrator) sections["acstack-orchestrator"] = orchestrator;
+			if (orchestrator) sections["acstack-orchestrator"] = orchestratorFor(orchestrator, delegated ? "delegated" : "lead");
 			else report(ctx, `acstack: could not read ${orchestratorFile}`, "warning");
 		}
 
 		const styleCfg = writingStyleSettings();
 		if (styleCfg.mode === "off") return;
 		const resolvedStyleFile = styleCfg.mode === "custom" && styleCfg.path ? expandUserPath(styleCfg.path) : styleFile;
-		const style = readText(resolvedStyleFile);
+		let style = readText(resolvedStyleFile);
+		// A sandboxed delegated session may not see a custom file outside its read roots.
+		if (!style && delegated && resolvedStyleFile !== styleFile) {
+			report(ctx, `acstack: could not read writing style at ${resolvedStyleFile}; using the bundled style`, "warning");
+			style = readText(styleFile);
+		}
 		if (!style) {
 			report(ctx, `acstack: could not read writing style at ${resolvedStyleFile}`, "warning");
 			return;
@@ -705,7 +725,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		return { message: { customType: "acstack-writing-style-reminder", content: reminder, display: false } };
 	});
 
-	pi.on("agent_before_settle", async (event, ctx) => {
+	if (!delegated) pi.on("agent_before_settle", async (event, ctx) => {
 		if (event.outcome !== "completed") return;
 		const usage = ctx.getContextUsage();
 		if (!usage || usage.tokens === null) return;
@@ -736,7 +756,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		};
 	});
 
-	pi.on("session_compact", async (_event, ctx) => {
+	if (!delegated) pi.on("session_compact", async (_event, ctx) => {
 		// The compaction threw the old context away, so the ladder starts over.
 		const key = sessionKey(ctx);
 		if (key) {

@@ -97,9 +97,10 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: It returns the complete canonical marked standard as event-specific additional context
 - **Then**: Injection requires neither initialized project metadata nor successful orchestrator activation
 - **Then**: The selected-style per-turn reminder remains separate
-- **Then**: pi parent sessions retain their existing style controls and child-session orchestrator guard
+- **Then**: pi parent sessions retain their existing style controls
 - **Then**: pi's off mode disables parent style injection and reminders; custom mode reads the configured style path
-- **Then**: pi skips extension registration when `PI_SUBAGENT_CHILD` or `PI_SUBAGENTS_HERDR_BRIDGE` equals `1`
+- **Then**: pi treats a session as delegated when `PI_SUBAGENT_CHILD` or `PI_SUBAGENTS_HERDR_BRIDGE` equals `1`, or `AC_TEAMS_MEMBER` is set
+- **Then**: A delegated pi session keeps the skills listing, writing style, and shared orchestrator guidance with the delegated role block, and skips the lead role block, CLI symlinks, the missing-launcher warning, context-pressure nudges, and handoff reload
 - **Then**: Generated child definitions retain their inline canonical standard independently of parent style settings
 - **Source**: `hooks/communication-standard.sh`, `hooks/communication-standard.mjs`, `hooks/hooks.json`, `hooks/lib/communication-standard.mjs`, `pi/extension.ts`
 
@@ -136,3 +137,25 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: It prefers interfaces that reduce facts callers need and give each rule one owner
 - **Then**: Readable names and control flow matter more than helper counts, shorter functions, or fewer lines
 - **Source**: `orchestrator/AGENTS.md`, Implementation discipline
+
+## FR-012: Prefer delegated investigation for broad discovery
+
+- **Given**: Discovery needs broad searches, substantial reading, independent hypotheses, or separable research questions
+- **When**: An agent plans its investigation
+- **Then**: It prefers delegating to investigators, and works directly on small known paths or when briefing costs more than searching
+- **Then**: It launches no fixed number of investigators, and chooses the model separately from the role without hardcoding a provider
+- **Then**: Each brief states the question, scope, access, and expected report; each report separates evidence from hypotheses and names what it searched
+- **Then**: The parent verifies the decisive evidence behind its conclusion
+- **Then**: It requests enforced read-only access only when the launcher reports it can enforce it, otherwise calls the no-edit instruction prompt-only
+- **Then**: After a failed enforced launch, it reports the failure and asks before launching without enforcement
+- **Source**: `orchestrator/AGENTS.md`, Delegate investigation
+
+## FR-013: Give lead and delegated sessions their own role
+
+- **Given**: `orchestrator/AGENTS.md` marks a lead-only block and a delegated-only block
+- **When**: A session loads the orchestrator guidance
+- **Then**: The Claude Code and Codex SessionStart hook and the pi lead session keep the lead block and drop the delegated block
+- **Then**: A delegated pi session keeps the delegated block and drops the lead block
+- **Then**: No session receives the marker comments
+- **Then**: A delegated pi session falls back to the bundled writing style when it cannot read a configured custom style
+- **Source**: `orchestrator/AGENTS.md`, `hooks/session-start.sh`, `pi/extension.ts`

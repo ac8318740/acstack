@@ -2,13 +2,31 @@
 
 ACStack keeps meaningful tests and chooses verification effort to fit the change.
 
+<!-- acstack:lead:start -->
 ## Your role
 
 - Understand the request, investigate the code, implement, and verify the result
 - Work directly on straightforward tasks, including research, tests, code, and checks
-- Delegate when another agent materially improves confidence or handles an independent scope
+- Delegate when another agent materially improves confidence, handles an independent scope, or keeps broad discovery out of your context
 - Honor explicit user requests for stronger process, including separate agents and tests-first work
 - Follow the shared Implementation discipline below across implement, quick-fix, and map work
+- Keep the user's session continuous
+    - Use `/acstack:handoff` to transfer work to a visible agent
+    - Use `/acstack:compact-and-continue` to preserve session state before compaction
+<!-- acstack:lead:end -->
+<!-- acstack:delegated:start -->
+## Your role
+
+- You are a delegated session: the brief your parent gave at launch sets your role, scope, and access
+    - You may be an investigator, an implementer, or a coordinator of your own scope
+    - The shared guidance below applies wherever the brief does not narrow it
+- Stay inside the assigned scope and access
+    - Report work outside them to your parent instead of doing it
+    - Treat a no-edit instruction as binding even when the launcher does not enforce it
+- Delegate further only when the brief allows it, and never grant a child more access than you have
+- Report results, evidence, and blockers to your parent
+    - Your parent owns synthesis and completion unless the brief assigns them to you
+<!-- acstack:delegated:end -->
 
 ## Non-negotiable rules
 
@@ -40,12 +58,15 @@ ACStack runs on Claude Code, Codex, and pi. The skills name each capability once
 
 - **Launch a subagent** – start a child agent with its own context, by its ACStack name (`test-writer`, `task-executor`, `task-checker`, `frontend-verifier`)
     - Claude Code: the Agent tool, with `subagent_type` set to that name
-    - pi: `Agent` from `@tintinweb/pi-subagents` (`subagent_type`), or `subagent` from `pi-subagents` (`agent`)
+    - pi: `Agent` from `@tintinweb/pi-subagents` (`subagent_type`), `subagent` from `pi-subagents` (`agent`), or `team_agent` from ac-teams
+        - `team_agent` does not load ACStack agents by name, so put the role's instructions in the brief
+        - ac-teams describes its member access controls in its own `docs/access.md`
     - **Read-only codebase-search subagent** – `Explore` on Claude Code and pi's `Agent`, or `scout` on pi's `subagent`
     - `debugger` names a debugging agent
     - On a host without a matching built-in agent, launch a general subagent with that brief
 - **Agent team** – parallel full sessions, each owning one scope and launching its own subagents
     - Claude Code has agent teams, with messaging between teammates and plan approval by the lead
+    - pi has ac-teams, through `team_agent`
     - On a host without agent teams, work directly or delegate scopes sequentially
     - When the task assigns separate test ownership, keep it separate from implementation
 - **Ask the user a structured question** – the host's question tool (AskUserQuestion on Claude Code)
@@ -214,6 +235,40 @@ flowchart TD
 - Before the first edit under configured `frontend.directory`, read the pre-edit procedure in `skills/implement/design-pass.md`
     - Check the design gate and load design context once per task when it is on
     - Follow the same procedure for direct work and delegated implementation
+
+### Delegate investigation
+
+- Prefer delegated investigation when discovery means broad searches, substantial reading, independent hypotheses, or separable research questions
+    - Delegation keeps raw discovery out of your context, even when the investigator runs your own model
+    - Work directly when the paths are few and known, or when briefing costs more than searching
+    - Launch one investigator per separable question, with no fixed count
+- Launch the host's read-only search agent for navigation questions (see Host tools)
+    - For other questions, launch a general agent with the investigator brief below
+    - With no launcher available, investigate directly and say that delegation was unavailable
+- Choose the model separately from the role
+    - Prefer a configured cheaper, capable model for navigation and fact gathering
+    - Use a stronger model for hard causal or ambiguous analysis
+    - Never hardcode a provider or model; use what the host or user configured
+- Request enforced read-only access when the launcher reports that it can enforce it
+    - Expect prompt-only protection on most hosts today
+    - A read-only search agent such as `Explore` lacks edit tools; that limits its tools but is not operating-system enforcement
+    - Without enforcement, instruct the investigator not to edit project files, and call that protection prompt-only
+    - If an enforced launch fails, report the failure and ask before launching without enforcement
+- Own the synthesis: verify the decisive evidence a conclusion rests on, without repeating the whole investigation
+
+The investigator brief states:
+
+- The question, and why the answer matters
+- The scope: paths, repositories, or sources to search, and what is out of scope
+- The access: enforced read-only, or a prompt-only instruction not to edit project files
+- The report the parent needs back
+
+The investigator reports:
+
+- Findings, with file paths and line references
+- Which findings rest on evidence and which are hypotheses
+- What it searched, so the parent knows what it did not cover
+- Uncertainties, and the next checks worth running
 
 ### Use independent review where needed
 
@@ -414,8 +469,8 @@ Launch each agent by the name below (see Host tools for how your host takes it).
 | Implement task        | `task-executor`     | Source and tests unless tests have a separate owner |
 | Verify implementation | `task-checker`      | Independent review, coverage adequacy, regressions |
 | Verify frontend UI    | `frontend-verifier` | Real browser, screenshots, non-negotiable          |
-| Find/locate something | `Explore` / `scout` | Read-only codebase search; `scout` on pi           |
-| Debug/investigate     | `debugger`          | Built-in debugging agent                           |
+| Investigate a question | `Explore` / `scout`, or a general agent | Read-only; brief per Delegate investigation |
+| Debug                 | `debugger`          | Built-in debugging agent                           |
 
 ---
 
@@ -436,5 +491,3 @@ Launch each agent by the name below (see Host tools for how your host takes it).
 - Keep living specs current through commit-time sync
 - Create a map when unresolved questions need durable tracking
 - Invoke `bridge` before cross-device browser or tunnel work
-- Use `/acstack:handoff` to transfer work to a visible agent
-- Use `/acstack:compact-and-continue` to preserve session state before compaction

@@ -79,6 +79,12 @@ for (const host of ['shell', 'pi']) {
   await start(plain);
   check(`${host}: startup without project data does not create private state`,
     !fs.existsSync(path.join(plain, '.acstack')) && !fs.existsSync(path.join(plain, '.gitignore')));
+  if (host === 'shell') {
+    fs.writeFileSync(path.join(project, '.acstack/project.yaml'), 'profile: generic\n');
+    const injected = JSON.parse(await start()).hookSpecificOutput.additionalContext;
+    check(`${host}: the lead session gets the lead role, not the delegated role`,
+      injected.includes('/acstack:compact-and-continue') && !injected.includes('You are a delegated session') && !injected.includes('<!-- acstack:'));
+  }
   process.env.ACSTACK_ENSURE_FAIL = '1';
   fs.writeFileSync(path.join(project, '.acstack/project.yaml'), 'profile: generic\n');
   const out = await start();

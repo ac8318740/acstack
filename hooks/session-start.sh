@@ -206,10 +206,13 @@ if ! command -v python3 >/dev/null 2>&1; then
 fi
 
 python3 - "$claude_md" <<'PY'
-import json, sys
+import json, re, sys
 path = sys.argv[1]
 with open(path, 'r', encoding='utf-8') as f:
     content = f.read()
+# SessionStart reaches the lead session, so it keeps the lead block and drops the delegated one.
+content = re.sub(r'<!-- acstack:delegated:start -->[\s\S]*?<!-- acstack:delegated:end -->\n?', '', content)
+content = re.sub(r'<!-- acstack:lead:(start|end) -->\n?', '', content)
 print(json.dumps({
     "hookSpecificOutput": {
         "hookEventName": "SessionStart",
