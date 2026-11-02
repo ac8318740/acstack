@@ -305,7 +305,7 @@ Three refusals protect a file neither command can handle.
 
 ## 3. workflow: the switches
 
-*Five booleans sit in the block. Each one changes how much discipline ACStack applies. A sixth key decides how the agent asks you a question.*
+*Six booleans sit in the block. Each one changes how much discipline ACStack applies. A byte count tunes the large-read guard, and one more key decides how the agent asks you a question.*
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
@@ -314,6 +314,8 @@ Three refusals protect a file neither command can handle.
 | `workflow.tdd.orchestrator_strict` | `true`, `false` | none | deprecated compatibility boolean; no delegation effect, including explicit `true` |
 | `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, and the change touched frontend files |
 | `workflow.design_review` | `true`, `false` | `false` | a design review runs on a UI change only when this is `true`; it needs the impeccable plugin installed and switched on, which `acstack config check` reports on |
+| `workflow.read_guard` | `true`, `false` | `true` | `false` turns off the large-read guard; section 3.3 describes it |
+| `workflow.read_guard_bytes` | a whole number, 1 or more | `32768` | the smallest file, in bytes, the large-read guard stops |
 
 How a boolean reads:
 
@@ -360,6 +362,26 @@ How a boolean reads:
 
 - `tool` falls back to inline prose for any round it cannot hold
 - Two things exceed it: a round of more than four questions, and any question with no discrete options
+
+### 3.3. The large-read guard
+
+*The guard stops a main agent's first whole read of a large file once, and points it to a cheaper way to read.*
+
+- The guard runs on Claude Code and Codex as a `PreToolUse` hook (`hooks/read-guard.mjs`), and on pi in the extension's `tool_call` handler
+    - Both share one policy, `hooks/lib/read-guard.mjs`
+- It stops a whole-file read of a file of at least `workflow.read_guard_bytes` bytes
+    - A whole-file read is the read tool with no offset or limit, or a single-file `cat`, `less`, `more`, `nl`, or `bat` with no pipe, redirect, or variable
+    - The block message suggests a ranged read, a search, or a read-only subagent
+- Repeating the same read passes, and so does any later whole read of the same unchanged file
+    - The guard is a nudge, not a security boundary
+    - A ranged read, a pipe, or `head` always passes
+- The guard watches only a main agent, meaning a session the user started
+    - Claude Code and Codex subagents carry `agent_id` in the hook input, so they pass
+    - ac-teams members (`ACSTACK_AGENT_ROLE` set to anything but `main`, or `AC_TEAMS_MEMBER` set) and pi-subagents children (`PI_SUBAGENT_CHILD`) pass
+    - On pi, a session with a `parentSession` header or no session file passes, so the guard skips a forked session too
+    - When the guard cannot tell, it lets the read through
+- Any error inside the guard lets the read through
+- Claude Code and Codex record passed reads in `${TMPDIR:-/tmp}/acstack-read-guard-<uid>/<session_id>.json`, a folder only its owner can open; pi keeps them in memory
 
 ## 4. workflow.maps
 
@@ -634,6 +656,8 @@ workflow:
   # An absent key reads as false. Section 3 says why.
   frontend_verification: true
   design_review: false
+  read_guard: true
+  read_guard_bytes: 32768
   maps:
     # tracker has no default: the map skill picks and writes it
     persist: false

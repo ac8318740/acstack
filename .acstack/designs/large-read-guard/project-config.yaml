@@ -1,0 +1,13 @@
+id: project-config
+name: Project settings
+summary: >-
+  .acstack/project.yaml, read through one settings function. The guard is
+  on by default; workflow.read_guard turns it off or changes the size
+  threshold.
+kind: store
+relationships:
+  - id: policy-config
+    from: read-policy
+    to: project-config
+    direction: one-way
+    label: Reads settings from

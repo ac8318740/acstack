@@ -1,0 +1,17 @@
+id: main-agent
+name: Main agent
+summary: >-
+  A session a user created in Claude Code, Codex, or Pi. Reads project files
+  and is the only kind of agent the guard checks.
+kind: actor
+relationships:
+  - id: claude-codex-read
+    from: main-agent
+    to: claude-codex-hook
+    direction: one-way
+    label: Triggers on each read or shell call
+  - id: pi-read
+    from: main-agent
+    to: pi-adapter
+    direction: one-way
+    label: Triggers on each read or shell call

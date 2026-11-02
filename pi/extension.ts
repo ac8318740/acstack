@@ -17,6 +17,8 @@
  *   session_compact      re-inject .acstack/HANDOFF.md after a compaction, and
  *                        restart the nudge ladder   (hooks/session-start-handoff.sh,
  *                                                    hooks/context-pressure.sh)
+ *   tool_call            block a main agent's first whole read of a large
+ *                        file                       (hooks/read-guard.mjs)
  *
  * It also registers /acstack <skill>, a /acstack:<skill> command per skill,
  * and /acstack-writing-style for the bundled/default/custom style choice.
@@ -33,6 +35,8 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+// @ts-ignore -- plain ESM shared with hooks/read-guard.mjs, no type declarations
+import { decide, envSaysNotMain } from "../hooks/lib/read-guard.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const troubleshoot = path.join(packageRoot, "TROUBLESHOOTING.md");
@@ -775,6 +779,24 @@ export default function acstack(pi: ExtensionAPI): void {
 		if (handoff) {
 			pi.sendMessage({ customType: "acstack-handoff", content: handoff, display: true }, { deliverAs: "nextTurn" });
 		}
+	});
+
+	// The large-read guard. Environment markers are read once, at load, which
+	// is when pi-subagents sets them for an in-process child. A session with a
+	// parentSession header (a tintinweb/pi-subagents child, or a user's /fork)
+	// or with no session file is not treated as main: unclear means off.
+	const readGuardOff = delegated || envSaysNotMain();
+	const readLedgers = new Map<string, Set<string>>();
+	pi.on("tool_call", async (event, ctx) => {
+		if (readGuardOff || (event.toolName !== "read" && event.toolName !== "bash")) return;
+		const sessions = ctx.sessionManager;
+		const sessionId = sessions.getSessionId();
+		const main = Boolean(sessionId && sessions.getSessionFile?.() && !sessions.getHeader?.()?.parentSession);
+		if (!main) return;
+		let ledger = readLedgers.get(sessionId);
+		if (!ledger) readLedgers.set(sessionId, (ledger = new Set()));
+		const result = decide({ toolName: event.toolName, toolInput: event.input, cwd: ctx.cwd, main, ledger });
+		if (result.block) return { block: true, reason: result.message };
 	});
 
 	const runSkill = (name: string, args: string, ctx: ExtensionContext): void => {

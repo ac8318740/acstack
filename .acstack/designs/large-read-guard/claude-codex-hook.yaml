@@ -1,0 +1,19 @@
+id: claude-codex-hook
+name: Claude Code and Codex hook
+summary: >-
+  One PreToolUse entry in hooks/hooks.json, which Claude Code and Codex both
+  load from the plugin. Translates the hook's JSON input into a policy
+  question and the answer into the harness's deny response.
+kind: component
+channels: [agent]
+relationships:
+  - id: claude-codex-read
+    from: main-agent
+    to: claude-codex-hook
+    direction: one-way
+    label: Triggers on each read or shell call
+  - id: claude-codex-asks
+    from: claude-codex-hook
+    to: read-policy
+    direction: one-way
+    label: Asks
