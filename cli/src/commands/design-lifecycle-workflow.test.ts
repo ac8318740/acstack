@@ -208,6 +208,21 @@ describe('authored design lifecycle through the shipped CLI and HTTP', () => {
     expect(status(root).planning).toEqual({ tracker, map: 'demo' });
   });
 
+  it('keeps a reconciled approval recorded before project data moved out of the repository', () => {
+    const root = fixture();
+    // Written by the CLI at c8108a2^, whose receipts and digests used repository-relative .acstack/ paths.
+    const legacy = '{"packVersion":"example@1c2e815cfb2c714f","revision":1,"annotations":[{"packVersion":"example@1c2e815cfb2c714f","target":{"type":"node","id":"app"},"selectedText":"Runs commands","comment":"Keep records local"}],"lifecycle":{"reconciliations":[{"sourceRevision":"2a375d0d20c1e115afc7c696e6fdaef479cd147b609aea4e37012c3dec13fa38","reviewRevision":1,"commentsDigest":"361a96e6bebf4d725f1b05bbd18f59ebabea6f21bca00894c6b59b6e1806abde","mapInputsDigest":"4f7bd825589c0b7d42df5f116383618d9d48cc6e0afbfaf85f8cf7cd9813125a","decisions":[{"comments":[0],"contributions":[],"outcome":"retained","rationale":"Keep the documented local storage decision"}],"reviewPath":".acstack/design-reviews/example/1c2e815cfb2c714f/review.json","feedbackPackVersion":"example@1c2e815cfb2c714f","scopeCommentsDigest":"e2251f76afba4d006736b09383d563f606d84d194c7edc47b3d3bf6f391502c3","recordedAt":"2026-11-03T03:57:29.752Z"}],"approvals":[{"sourceRevision":"2a375d0d20c1e115afc7c696e6fdaef479cd147b609aea4e37012c3dec13fa38","reviewRevision":1,"commentsDigest":"361a96e6bebf4d725f1b05bbd18f59ebabea6f21bca00894c6b59b6e1806abde","mapInputsDigest":"4f7bd825589c0b7d42df5f116383618d9d48cc6e0afbfaf85f8cf7cd9813125a","recordedAt":"2026-11-03T03:57:29.774Z"}]}}';
+    const directory = join(root, '.acstack/design-reviews/example/1c2e815cfb2c714f');
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(join(directory, 'review.json'), legacy);
+    const current = status(root);
+    expect(current.approval).toEqual({ valid: true });
+    expect(reviewPath(root, current)).toBe(join(directory, 'review.json'));
+    // A reviewer edit after the move still invalidates the old approval.
+    writeFileSync(join(directory, 'review.json'), legacy.replace('"revision":1', '"revision":2'));
+    expect(status(root).approval.valid).toBe(false);
+  });
+
   it('reports an unapproved exact revision and preserves it across unrelated presentation edits', () => {
     const root = fixture();
     const first = status(root);
