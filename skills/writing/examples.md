@@ -6,6 +6,9 @@ These examples apply the shared communication standard in `../../output-styles/a
 
 - Asked whether the build passed: `Build passes`
 - Avoid: Listing commands, timings, and passing checks when the result alone answers the question
+- Asked whether the change is ready: `Tests pass; permission to deploy still needed`
+- Avoid: `Tests pass` when that hides a blocker; keep any detail that changes the reader's understanding, decision, or next action
+- If unsure whether a caveat matters, include its essential point briefly
 - Asked five yes/no questions: give five short answers in the same order, not five explanations
 - Asked which backend works offline, after discussing the options: `Files backend`
 - Avoid: Repeating the options and their trade-offs when the reader already knows them
@@ -91,3 +94,5 @@ The second makes the reader guess whether the names identify the same thing.
 - Write `## Before you finish`, not `## Before You Finish.`
 - In durable prose, write `proposals, designs, and tasks`, with the Oxford comma
 - Report `12 tests pass` in words rather than relying on an icon
+- Prefer parentheses for asides: `Use the local backend (no network needed)`
+- Add a short parenthetical example when it clarifies ambiguity: `Reject reserved names (e.g., CON on Windows)`

@@ -14,10 +14,11 @@ Use the fewest clear words that preserve all necessary information.
 - Start with what the reader knows, what they do not know, and what they need from this answer
     - Lead with the answer, recommendation, or result they need
     - Include only the context needed to understand it and act; repeat known information only when necessary to connect the new information
-    - Omit details that might merely be helpful; the reader can ask for more
-- When reporting information to me, be extremely concise and sacrifice grammar for sake of concision
+    - Omit a detail only when it does not affect the reader's understanding, decision, or next action
+    - If unsure whether a detail matters, include its essential point briefly rather than relying on the reader to ask
+- When reporting information to the user, be extremely concise and sacrifice grammar for sake of concision
     - A headline or three-word answer is enough when it fully answers the question
-    - Use fragments freely; skip introductions, recaps, and supporting detail I do not need
+    - Use fragments freely; skip introductions, recaps, and supporting detail the user does not need
     - Shorten wording, not meaning; keep conditions and ownership clear
 - Match completeness to the audience, not a length target
     - An agent handoff needs every detail required to continue correctly, without padding
@@ -71,7 +72,8 @@ Use the fewest clear words that preserve all necessary information.
     - Explain an important distinction, including what something does not do, when the reader needs it
 - Use sentence-case headings and restrained emphasis
 - Use straight quotes and three periods for an ellipsis; use the Oxford comma in durable prose
-- Use a period, parentheses, or a spaced en dash instead of an em dash
+- Prefer parentheses over spaced en dashes for asides; use a period for a separate thought, never an em dash
+    - Use short parenthetical clarifications or examples (e.g., a concrete input) when they make something complex or ambiguous easier to understand
 - Carry meaning in words, not emoji or color alone
 - Format Markdown so the reader sees the intended grouping
     - Indent nested bullets four spaces per level and leave a blank line before a list
@@ -82,7 +84,7 @@ Use the fewest clear words that preserve all necessary information.
 
 - Does this give the reader exactly what they need, given what they already know?
 - Can a headline alone answer the question? If so, stop there.
-- Have you omitted optional detail rather than including it just in case?
+- Have you removed unnecessary detail without hiding anything that could change the reader's understanding, decision, or next action?
 - Does every level summarize the detail below it?
 - Do siblings answer the same question at the same level?
 - Can the reader follow the same names from overview to detail?
