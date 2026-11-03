@@ -16,12 +16,12 @@ export function openDesignLifecycle(root: string, entry: string, reviewFile?: st
     const staleRendered = doc.sourceRevision !== rendered.sourceRevision;
     const inputs = designMapInputs(root, doc, entry);
     const feedbackPath = reviewFile ? resolve(reviewFile) : review.reviewPath;
-    const latestReceipts = new Map(saved.lifecycle?.reconciliations.map(receipt => [resolve(root, receipt.reviewPath), receipt]));
+    const latestReceipts = new Map(saved.lifecycle?.reconciliations.map(receipt => [historyPath(root, receipt.reviewPath), receipt]));
     const histories = readDesignReviewHistories(root, doc.id);
     histories.set(review.reviewPath, saved);
     const obligations = new Set<string>();
     for (const [path, snapshot] of histories) {
-      const receipts = new Map(snapshot.lifecycle?.reconciliations.map(receipt => [resolve(root, receipt.reviewPath), receipt]));
+      const receipts = new Map(snapshot.lifecycle?.reconciliations.map(receipt => [historyPath(root, receipt.reviewPath), receipt]));
       for (const [selected, receipt] of receipts) {
         // Empty current-only receipts settle contributions, not perpetual historical feedback.
         if (selected !== path || snapshot.annotations.length || receipt.decisions.some(decision => decision.outcome === 'needs-human')) obligations.add(selected);
@@ -38,9 +38,10 @@ export function openDesignLifecycle(root: string, entry: string, reviewFile?: st
       return { path, snapshot, receipt, fresh };
     });
     const feedback = scopes.find(scope => scope.path === feedbackPath)!.snapshot;
-    const tuple = { sourceRevision: doc.sourceRevision, reviewRevision: feedback.revision, mapInputsDigest: inputs.mapInputsDigest,
-      commentsDigest: digest(scopes.map(({ path, snapshot }) => ({ path: relative(root, path).split(sep).join('/'), packVersion: snapshot.packVersion,
-        revision: snapshot.revision, annotations: snapshot.annotations }))) };
+    const commentsDigest = (prefix: string) => digest(scopes.map(({ path, snapshot }) => ({ path: prefix + relative(root, path).split(sep).join('/'), packVersion: snapshot.packVersion,
+      revision: snapshot.revision, annotations: snapshot.annotations })));
+    const tuple = { sourceRevision: doc.sourceRevision, reviewRevision: feedback.revision, mapInputsDigest: inputs.mapInputsDigest, commentsDigest: commentsDigest('') };
+    const legacyTuple = { ...tuple, commentsDigest: commentsDigest(LEGACY_PREFIX) };
     const unsettled = scopes.find(scope => (obligations.has(scope.path) || scope.receipt || scope.snapshot.annotations.length)
       && (!scope.fresh || scope.receipt?.decisions.some(decision => decision.outcome === 'needs-human')));
     let reason: string | undefined;
@@ -48,7 +49,7 @@ export function openDesignLifecycle(root: string, entry: string, reviewFile?: st
     else if (inputs.blockingQuestions.length) reason = 'Unresolved design decisions';
     else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback and contributions need explicit reconciliation';
     else if (inputs.contributions.length && !scopes.some(scope => scope.fresh)) reason = 'Feedback and contributions need explicit reconciliation';
-    const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
+    const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple) || sameTuple(item, legacyTuple)) ?? false;
     return { ...tuple, planning: doc.planning ?? null, reviewPath: review.reviewPath, contributions: inputs.contributions, blockingQuestions: inputs.blockingQuestions,
       approval: { valid: !reason && approved, ...(!reason && approved ? {} : { reason: reason ?? 'This revision is not approved' }) },
       feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), blocker: reason };
@@ -95,6 +96,12 @@ export function openDesignLifecycle(root: string, entry: string, reviewFile?: st
     }),
   };
 }
+// Before project data left the repository, review paths were relative to the repo root, under .acstack/.
+const LEGACY_PREFIX = '.acstack/';
+function historyPath(root: string, reviewPath: string): string {
+  return resolve(root, reviewPath.startsWith(LEGACY_PREFIX) ? reviewPath.slice(LEGACY_PREFIX.length) : reviewPath);
+}
+
 function sameTuple(a: z.infer<typeof RevisionTupleSchema>, b: z.infer<typeof RevisionTupleSchema>): boolean {
   return a.sourceRevision === b.sourceRevision && a.reviewRevision === b.reviewRevision && a.commentsDigest === b.commentsDigest && a.mapInputsDigest === b.mapInputsDigest;
 }

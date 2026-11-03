@@ -20275,12 +20275,12 @@ function openDesignLifecycle(root, entry, reviewFile) {
     const staleRendered = doc.sourceRevision !== rendered.sourceRevision;
     const inputs = designMapInputs(root, doc, entry);
     const feedbackPath = reviewFile ? resolve6(reviewFile) : review.reviewPath;
-    const latestReceipts = new Map(saved.lifecycle?.reconciliations.map((receipt) => [resolve6(root, receipt.reviewPath), receipt]));
+    const latestReceipts = new Map(saved.lifecycle?.reconciliations.map((receipt) => [historyPath(root, receipt.reviewPath), receipt]));
     const histories = readDesignReviewHistories(root, doc.id);
     histories.set(review.reviewPath, saved);
     const obligations = /* @__PURE__ */ new Set();
     for (const [path, snapshot] of histories) {
-      const receipts = new Map(snapshot.lifecycle?.reconciliations.map((receipt) => [resolve6(root, receipt.reviewPath), receipt]));
+      const receipts = new Map(snapshot.lifecycle?.reconciliations.map((receipt) => [historyPath(root, receipt.reviewPath), receipt]));
       for (const [selected, receipt] of receipts) {
         if (selected !== path || snapshot.annotations.length || receipt.decisions.some((decision) => decision.outcome === "needs-human")) obligations.add(selected);
       }
@@ -20293,24 +20293,21 @@ function openDesignLifecycle(root, entry, reviewFile) {
       return { path, snapshot, receipt, fresh };
     });
     const feedback = scopes.find((scope) => scope.path === feedbackPath).snapshot;
-    const tuple = {
-      sourceRevision: doc.sourceRevision,
-      reviewRevision: feedback.revision,
-      mapInputsDigest: inputs.mapInputsDigest,
-      commentsDigest: digest(scopes.map(({ path, snapshot }) => ({
-        path: relative4(root, path).split(sep).join("/"),
-        packVersion: snapshot.packVersion,
-        revision: snapshot.revision,
-        annotations: snapshot.annotations
-      })))
-    };
+    const commentsDigest = (prefix) => digest(scopes.map(({ path, snapshot }) => ({
+      path: prefix + relative4(root, path).split(sep).join("/"),
+      packVersion: snapshot.packVersion,
+      revision: snapshot.revision,
+      annotations: snapshot.annotations
+    })));
+    const tuple = { sourceRevision: doc.sourceRevision, reviewRevision: feedback.revision, mapInputsDigest: inputs.mapInputsDigest, commentsDigest: commentsDigest("") };
+    const legacyTuple = { ...tuple, commentsDigest: commentsDigest(LEGACY_PREFIX) };
     const unsettled = scopes.find((scope) => (obligations.has(scope.path) || scope.receipt || scope.snapshot.annotations.length) && (!scope.fresh || scope.receipt?.decisions.some((decision) => decision.outcome === "needs-human")));
     let reason;
     if (staleRendered) reason = "Authored source changed. Reopen this revision before reviewing.";
     else if (inputs.blockingQuestions.length) reason = "Unresolved design decisions";
     else if (unsettled) reason = unsettled.fresh ? "Reconciliation needs a human decision" : "Feedback and contributions need explicit reconciliation";
     else if (inputs.contributions.length && !scopes.some((scope) => scope.fresh)) reason = "Feedback and contributions need explicit reconciliation";
-    const approved = saved.lifecycle?.approvals.some((item) => sameTuple(item, tuple)) ?? false;
+    const approved = saved.lifecycle?.approvals.some((item) => sameTuple(item, tuple) || sameTuple(item, legacyTuple)) ?? false;
     return {
       ...tuple,
       planning: doc.planning ?? null,
@@ -20381,9 +20378,13 @@ function openDesignLifecycle(root, entry, reviewFile) {
     })
   };
 }
+function historyPath(root, reviewPath) {
+  return resolve6(root, reviewPath.startsWith(LEGACY_PREFIX) ? reviewPath.slice(LEGACY_PREFIX.length) : reviewPath);
+}
 function sameTuple(a, b) {
   return a.sourceRevision === b.sourceRevision && a.reviewRevision === b.reviewRevision && a.commentsDigest === b.commentsDigest && a.mapInputsDigest === b.mapInputsDigest;
 }
+var LEGACY_PREFIX;
 var init_design_lifecycle = __esm({
   "src/lib/design-lifecycle.ts"() {
     "use strict";
@@ -20392,6 +20393,7 @@ var init_design_lifecycle = __esm({
     init_design_map();
     init_design_review();
     init_review_server();
+    LEGACY_PREFIX = ".acstack/";
   }
 });
 
