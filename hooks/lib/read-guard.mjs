@@ -124,6 +124,9 @@ export function decide({ toolName, toolInput, cwd, main, ledger, settings }) {
     if (!main || !ledger) return { block: false };
     const file = wholeReadTarget(toolName, toolInput, cwd);
     if (!file) return { block: false };
+    // Native image reads are attachments; shell readers still dump bytes.
+    // shortcut: use image extensions, add content detection if extensionless images need exemption.
+    if (String(toolName).toLowerCase() === 'read' && /\.(png|jpe?g|gif|webp|bmp)$/i.test(file)) return { block: false };
     // Resolved only for a whole-file read, since it costs a CLI call.
     settings ??= readGuardSettings(cwd);
     if (!settings.enabled) return { block: false };
@@ -142,7 +145,7 @@ export function blockMessage(bytes) {
   const kb = Math.round(bytes / 1024);
   const tokens = Math.round(bytes / 4 / 1000) * 1000;
   return [
-    `This file is ${kb} KB (about ${tokens.toLocaleString('en-US')} tokens), and reading all of it is usually unnecessary. Instead:`,
+    `This file is ${kb} KB (rough text estimate: ${tokens.toLocaleString('en-US')} tokens), and reading all of it is usually unnecessary. Instead:`,
     '',
     '- Search for what you need, then read only that range',
     "- Or hand the question to an investigator, as ACStack's Delegate investigation section describes",
