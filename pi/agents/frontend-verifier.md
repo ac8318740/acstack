@@ -39,7 +39,7 @@ ACStack keeps project data in the project folder, the path `~/.claude/acstack/bi
 
 You do not read `frontend.browser.mode` or `frontend.browser.fallback`. Step 3 asks the ACStack CLI which browser mode to use, and the CLI reads both.
 
-If `<project folder>/project.yaml` has no `frontend` section, report SKIP and exit.
+If `<project folder>/project.yaml` is absent or has no `frontend` section, report SKIP (no configured frontend verification) and exit. Do not create configuration or require setup for general work. Report unreadable or invalid configuration and project-data resolution errors instead of treating them as absent.
 
 ## Step 0: Read the knowledge base
 

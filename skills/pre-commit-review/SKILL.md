@@ -59,14 +59,14 @@ git status --short
 git log --oneline -3  # recent context
 ```
 
-Read `<project folder>/project.yaml` to understand the project's directory layout, commands, and conventions. ACStack keeps it in the project folder, the path `~/.claude/acstack/bin/acstack project-data path` prints.
+Read `<project folder>/project.yaml` when present to understand directories, commands, and conventions. The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. Without configuration, discover these from repository instructions, manifests, existing tests, and CI under Project configuration in `orchestrator/AGENTS.md`; do not require setup. Report resolution errors or invalid config rather than treating them as absent.
 
-Categorize changed files into scopes using the project configuration:
+Categorize changed files using configured or discovered directories:
 
-- **source**: files under `directories.source` from project.yaml
-- **frontend**: files under `frontend.directory` from project.yaml (if configured)
+- **source**: files under configured `directories.source`, or discovered source directories
+- **frontend**: files under configured `frontend.directory`, or discovered frontend directories
 - **config**: `*.yaml`, `*.toml`, `*.json`, config files, etc.
-- **tests**: files under `directories.tests` from project.yaml
+- **tests**: files under configured `directories.tests`, or discovered test directories
 - **other**: everything else
 
 Judge changes by effect, including behavior changed through config, assets, or shipped guidance.
@@ -85,7 +85,7 @@ Read `../../output-styles/ac-writing-style.md` relative to this skill directory;
 **Living specs and architecture:**
 
 ```
-Read the living specs relevant to this change:
+Read existing living specs relevant to this change; skip if none exist:
 - Check the <project folder>/specs/ directory listing
 - Read spec.md files for domains touched by the changed files
   (use <project folder>/domain-map.yaml to map files -> domains)

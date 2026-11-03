@@ -91,9 +91,11 @@ You have full context of the ACStack system. Use it naturally, don't force it.
 
 ### Check for context
 
-At the start, quickly check what exists – maps on the configured tracker
-(`ls "$(~/.claude/acstack/bin/acstack project-data path)/maps/"` on the files backend) and living specs
-(`~/.claude/acstack/bin/acstack list --specs --json`).
+When project configuration exists, check existing maps on its configured tracker
+and existing living specs. Without configuration, explore from repository guidance
+and code without requiring setup or creating records. Follow Project configuration
+in `orchestrator/AGENTS.md` for resolution errors and invalid configuration;
+neither is an absent-config fallback.
 
 ### When no map exists
 

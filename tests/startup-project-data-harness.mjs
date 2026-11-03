@@ -84,6 +84,72 @@ for (const host of ['shell', 'pi']) {
   check(`${host}: compaction injects the handoff from the project folder`, resumed.includes('Resume work'));
   check(`${host}: the handoff is archived in the project folder`, !fs.existsSync(path.join(folder, 'HANDOFF.md')) && fs.existsSync(path.join(folder, 'handoffs/test')));
 
+  // No setup: resolving a Git project must not require or create project.yaml.
+  for (const existingFolder of [false, true]) {
+    const fresh = path.join(work, `${host}-fresh-${existingFolder}`);
+    fs.mkdirSync(fresh);
+    execFileSync('git', ['init', '-q', fresh]);
+    const freshFolder = execFileSync(process.execPath, [cli, 'project-data', 'path'], { cwd: fresh, encoding: 'utf8' }).trim();
+    if (existingFolder) fs.mkdirSync(freshFolder, { recursive: true });
+    notes.length = 0;
+    const general = await start(fresh);
+    const diagnostics = host === 'shell' ? stderr : notes.join('\n');
+    check(`${host}: ${existingFolder ? 'empty project folder' : 'fresh Git'} loads general instructions`, general.includes('## Implementation discipline'));
+    check(`${host}: no config startup does not mandate setup`, !diagnostics.includes('Run /acstack:setup to set up.'));
+    check(`${host}: no config startup does not create config or repository files`,
+      entries(fresh).join() === '.git' && !fs.existsSync(path.join(freshFolder, 'project.yaml'))
+        && (existingFolder || !fs.existsSync(freshFolder)));
+    const freshNested = path.join(fresh, 'src');
+    fs.mkdirSync(freshNested);
+    const nestedGeneral = await start(freshNested);
+    check(`${host}: nested no-config directory loads the same general instructions`,
+      nestedGeneral.includes('## Implementation discipline') && nestedGeneral.includes(freshFolder));
+  }
+
+  // A similarly named orphan is a warning, never a configuration or handoff source.
+  const orphanRepo = path.join(work, `${host}-orphan`);
+  fs.mkdirSync(orphanRepo);
+  execFileSync('git', ['init', '-q', orphanRepo]);
+  const orphanFolder = execFileSync(process.execPath, [cli, 'project-data', 'path'], { cwd: orphanRepo, encoding: 'utf8' }).trim();
+  const orphan = orphanFolder.replace(/-[0-9a-f]{6}$/, orphanFolder.endsWith('-abcdef') ? '-fedcba' : '-abcdef');
+  fs.mkdirSync(orphan, { recursive: true });
+  fs.writeFileSync(path.join(orphan, 'project.json'), JSON.stringify({ commonDir: path.join(work, 'missing-repository', '.git') }));
+  fs.writeFileSync(path.join(orphan, 'HANDOFF.md'), handoffText);
+  notes.length = 0;
+  const orphanInjection = await start(orphanRepo);
+  check(`${host}: orphan warning is nonblocking`, orphanInjection.includes('## Implementation discipline')
+    && /project-data relink/.test(host === 'shell' ? stderr : notes.join('\n')));
+  check(`${host}: orphan records are not adopted or consumed`, !(await compact(orphanRepo)).includes('Resume work')
+    && fs.readFileSync(path.join(orphan, 'HANDOFF.md'), 'utf8') === handoffText && !fs.existsSync(orphanFolder));
+
+  for (const error of ['conflict', 'broken-link']) {
+    const invalid = path.join(work, `${host}-${error}`);
+    fs.mkdirSync(invalid);
+    execFileSync('git', ['init', '-q', invalid]);
+    const invalidFolder = execFileSync(process.execPath, [cli, 'project-data', 'path'], { cwd: invalid, encoding: 'utf8' }).trim();
+    fs.mkdirSync(path.dirname(invalidFolder), { recursive: true });
+    let payload;
+    if (error === 'conflict') {
+      fs.mkdirSync(invalidFolder);
+      fs.mkdirSync(path.join(invalid, '.acstack'));
+      fs.writeFileSync(path.join(invalid, '.acstack/project.yaml'), 'profile: generic\n');
+      execFileSync('git', ['add', '.acstack/project.yaml'], { cwd: invalid });
+      payload = path.join(invalidFolder, 'HANDOFF.md');
+      fs.writeFileSync(payload, handoffText);
+    } else {
+      fs.symlinkSync(path.join(invalid, '.acstack'), invalidFolder);
+    }
+    const before = execFileSync('git', ['status', '--porcelain'], { cwd: invalid, encoding: 'utf8' });
+    notes.length = 0;
+    const rejected = await start(invalid);
+    const diagnostic = host === 'shell' ? stderr : notes.join('\n');
+    check(`${host}: ${error} is an explicit refusal, not absent setup`, rejected === ''
+      && /project-data mode/.test(diagnostic) && !diagnostic.includes('no project config found'));
+    check(`${host}: ${error} does not consume handoff or change project data`, !(await compact(invalid)).includes('Resume work')
+      && before === execFileSync('git', ['status', '--porcelain'], { cwd: invalid, encoding: 'utf8' })
+      && (payload ? fs.readFileSync(payload, 'utf8') === handoffText : fs.lstatSync(invalidFolder).isSymbolicLink()));
+  }
+
   const plain = path.join(work, `${host}-plain`);
   fs.mkdirSync(plain);
   check(`${host}: outside Git there is no project`, (await start(plain)) === '');

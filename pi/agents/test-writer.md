@@ -32,7 +32,9 @@ You write tests from requirements and application programming interface (API) co
 
 ## Project configuration
 
-Read `project.yaml` in the project folder that `~/.claude/acstack/bin/acstack project-data path` prints for project-specific settings:
+Read `project.yaml` when present in the project folder that `~/.claude/acstack/bin/acstack project-data path` prints. Without configuration, discover settings from repository instructions, manifests, existing tests, and CI under Project configuration in `orchestrator/AGENTS.md`; do not require setup or invent commands. Report invalid config and resolution errors rather than bypassing them.
+
+Configured settings:
 
 - `directories.tests` – where to create test files
 - `directories.source` – source code root (for mirroring structure)

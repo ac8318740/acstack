@@ -45,7 +45,7 @@ For each planned commit:
 
 **This step is non-negotiable.** After drafting the commit message but BEFORE creating the commit, spec sync runs automatically.
 
-The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. Read `<project folder>/project.yaml` – if `workflow.spec_sync` is `true` (or not explicitly `false`), run spec sync:
+The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. Follow Project configuration in `orchestrator/AGENTS.md` for resolution errors and invalid config. If `project.yaml` is absent, commit using repository instructions without creating ACStack records. When present, read it; if `workflow.spec_sync` is `true` (or not explicitly `false`), run spec sync:
 
 1. Read `<project folder>/domain-map.yaml` (if exists)
 2. Map staged files to spec domains
@@ -62,7 +62,7 @@ The project folder is the path `~/.claude/acstack/bin/acstack project-data path`
 
 **Skip spec sync ONLY when:**
 
-- `workflow.spec_sync` is explicitly `false` in project.yaml
+- `project.yaml` is absent, or `workflow.spec_sync` is explicitly `false`
 - No `<project folder>/domain-map.yaml` exists
 - Changed files don't match any domain
 - Changes are docs/config only (no behavioral changes)
@@ -104,4 +104,4 @@ If commit fails due to pre-commit hooks:
 - NEVER use `git add -A` or `git add .` – stage specific files
 - Always create NEW commits after hook failures
 - Prefer specific file staging over broad patterns
-- Spec sync is MANDATORY – do not skip it unless explicitly disabled in project.yaml
+- Spec sync is MANDATORY when configured project records exist, unless disabled or the skip conditions above apply

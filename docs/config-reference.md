@@ -2,13 +2,17 @@
 
 *Every key in `project.yaml`, the values it takes, its default, and what changes when you change it.*
 
-One file, `<project folder>/project.yaml`, holds every setting that belongs to a project.
+Optional `<project folder>/project.yaml` holds saved ACStack project settings.
 The project folder is the repository's ACStack data folder, the path `~/.claude/acstack/bin/acstack project-data path` prints (section 1 explains where it lives).
+
+General implementation, investigation, and review work without setup. Without this file, agents use repository instructions, manifests, existing tests, and CI to discover commands and directories. They do not invent commands or create configuration automatically. Run `/acstack:setup` when you want saved settings or storage-backed features such as maps and living specs.
+
+Existing configuration keeps its gates. Unreadable or invalid configuration, legacy data, and project-data conflicts require the reported repair; they are not absent-config fallbacks. Orphan warnings alone do not block general work.
 
 - **It names what to run**: the test, build, lint, typecheck, and format commands
 - **It names where to look**: the source and test directories, and the frontend
 - **It configures required gates**: spec sync, frontend verification, and design review
-- **Every skill and every agent reads it** before it runs anything
+- **Agents read it when present** before running project checks
 - **A key you leave out takes the default** this document gives it
 
 Three terms first.
@@ -70,7 +74,8 @@ These commands report configuration without changing settings.
 
 - `~/.claude/acstack/bin/acstack project-data path` prints the project folder's absolute path, even before the folder exists
     - It exits non-zero outside a Git repository
-    - It exits non-zero with a message naming the fix when legacy data, an orphaned entry, or a conflict needs attention
+    - It exits non-zero with a repair message for legacy, invalid, or conflicting data
+    - Orphan warnings do not block a valid current repository or adopt the orphan's settings
     - The session-start hook states the same path in the agent's context
 - This document writes a part inside it as `<project folder>/project.yaml`, `<project folder>/specs/`, and so on
 - `/acstack:setup` creates the folder with `mkdir -p "$(~/.claude/acstack/bin/acstack project-data path)"`

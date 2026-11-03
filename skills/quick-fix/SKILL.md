@@ -95,9 +95,11 @@ Apply the shared policy to the minimal fix.
 ## Step 6: Verify
 
 Use focused regression checks while fixing. One verification owner gathers the
-required final checks from `project.yaml` in the project folder, the path `~/.claude/acstack/bin/acstack project-data path` prints, under Build verification in
-`orchestrator/AGENTS.md`, reusing valid evidence rather than rerunning commands
-for every fix or handoff.
+required final checks under Build verification in `orchestrator/AGENTS.md`,
+using `project.yaml` when present or discovered repository tooling when absent.
+Follow its Project configuration policy for resolution errors and invalid config;
+do not require setup for a general fix. Reuse valid evidence rather than rerunning
+commands for every fix or handoff.
 
 Preserve configured frontend gates. Do not claim completion with failed or blocked
 required checks or unverified configured browser behavior.
