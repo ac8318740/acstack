@@ -24,7 +24,11 @@ Two backends ship in this skill's directory: `trackers/github.md` for repos
 with GitHub auth, and `trackers/files.md` as the fallback.
 
 ACStack keeps project data in the project folder, the path
-`~/.claude/acstack/bin/acstack project-data path` prints.
+`~/.claude/acstack/bin/acstack project-data path` prints. If `project.yaml` is
+absent, chart in conversation without tracker writes. Before persisting a map,
+ask the user to establish its project settings through `/acstack:setup`;
+do not create configuration implicitly. Invalid configuration or resolution
+errors require repair under Project configuration in `orchestrator/AGENTS.md`.
 `workflow.maps.tracker` in `<project folder>/project.yaml` (`github` or `files`) records
 the project's choice. If the key names a backend, read the matching doc and use
 its operations. If the key is absent, pick at materialisation time – the moment
@@ -34,8 +38,8 @@ Recommend `github` when the repo qualifies, `files` otherwise. Confirm the
 choice with the user. Then write the key, so later sessions need not re-decide.
 ## Which mode
 
-One command runs two modes, and what already exists picks between them. Check
-the configured tracker for existing maps – `ls "$(~/.claude/acstack/bin/acstack project-data path)/maps/"` on the files
+One command runs two modes, and what already exists picks between them. When
+a tracker is configured, check it for existing maps – `ls "$(~/.claude/acstack/bin/acstack project-data path)/maps/"` on the files
 backend, `gh label list --search "map:" --json name` on GitHub.
 
 If `$ARGUMENTS` names a map, or exactly one exists, work its frontier – the

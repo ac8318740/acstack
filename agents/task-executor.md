@@ -17,7 +17,9 @@ Implement the assigned requirements under the shared Implementation discipline i
 
 ## Project configuration
 
-Read `project.yaml` in the project folder that `~/.claude/acstack/bin/acstack project-data path` prints for project-specific settings:
+Read `project.yaml` when present in the project folder that `~/.claude/acstack/bin/acstack project-data path` prints. Without configuration, discover settings from repository instructions, manifests, existing tests, and CI under Project configuration in `orchestrator/AGENTS.md`; do not require setup or invent commands. Report invalid config and resolution errors rather than bypassing them.
+
+Configured settings:
 
 - `directories.source` – where to write source code
 - `directories.tests` – test directory, subject to assigned ownership

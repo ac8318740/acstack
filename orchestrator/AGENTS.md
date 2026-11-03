@@ -102,7 +102,15 @@ ACStack runs on Claude Code, Codex, and pi. The skills name each capability once
     - Never silently migrate data or work around legacy data by creating a partial project folder
 - Never change the Git index or force-add files to track project data
 
-All project-specific commands and paths come from `<project folder>/project.yaml`. Read this file before you run any build, test or lint command. If it doesn't exist, prompt the user to run `/acstack:setup`.
+Project setup is optional for general implementation, investigation, and review. Resolve the project folder first; a prospective path or a folder without `project.yaml` is not an error.
+
+- When `<project folder>/project.yaml` exists, read it before running build, test, or lint commands and preserve its configured gates
+- Without it, use repository instructions, manifests, existing tests, and CI to discover commands, directories, and environment activation
+    - Do not invent commands, assume a profile, or create configuration automatically
+    - If no useful check is discoverable, report that limit or ask for the missing command
+- An unreadable or invalid configuration is not absent configuration. Report it and stop work that depends on it; do not bypass its gates
+- Legacy, conflicting, or invalid project-data resolution also requires the reported repair, not an unconfigured fallback. Orphan warnings alone do not block work
+- Offer `/acstack:setup` when the user wants saved project settings or storage-backed features such as maps, living specs, or configured browser verification; do not require it for general work
 
 Key fields:
 
@@ -390,7 +398,7 @@ Read-only reviewers report discrepancies to the completion owner.
 
 The verification owner gathers evidence for the final revision. Opening a PR does not require running every test locally.
 
-Read `<project folder>/project.yaml` for the available commands and inspect the project's CI configuration before relying on it:
+Use `<project folder>/project.yaml` when present, otherwise discover commands under Project configuration above. Inspect the project's CI configuration before relying on it:
 
 1. Use focused local checks by default: cover changed behavior, affected callers, and relevant integration paths
 2. Run applicable build, lint, and typecheck checks; scope them when the tooling supports it

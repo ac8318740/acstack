@@ -32,6 +32,8 @@ Load that context before your first edit under `frontend.directory`. Load it onc
 
 **Check the design gate first**
 
+This pass requires project configuration with a `frontend` section. If configuration is absent, skip this optional pass and use discovered repository checks; do not require setup. Follow Project configuration in `orchestrator/AGENTS.md` for invalid configuration and resolution errors rather than silently skipping them.
+
 The design gate is the set of optional checks impeccable adds to acstack's pipeline. `workflow.design_review` in `<project folder>/project.yaml` turns the gate on; the project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. Ask acstack for the answer:
 
 ```bash

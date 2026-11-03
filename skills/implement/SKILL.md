@@ -21,10 +21,13 @@ $ARGUMENTS
 
 ### 1. Find the work
 
-Check the configured tracker for maps (`workflow.maps.tracker` in
-`<project folder>/project.yaml`, where the project folder is the path
-`~/.claude/acstack/bin/acstack project-data path` prints; the map skill's `trackers/` docs declare the
-operations – files backend shown below).
+Resolve the project folder with `~/.claude/acstack/bin/acstack project-data path`.
+Preserve reported resolution errors; do not treat them as missing setup.
+When `project.yaml` exists and configures `workflow.maps.tracker`, check that
+tracker for maps (the map skill's `trackers/` docs declare its operations).
+Without configuration, work directly on the request without tracker writes.
+If the request names a map, establish its storage prerequisite first rather
+than silently ignoring it.
 
 **A map exists** (or `$ARGUMENTS` names one):
 
@@ -56,7 +59,10 @@ small unit of work, and nothing has to declare it small.
 
 ### 2. Read project configuration
 
-Read `<project folder>/project.yaml` for build/test/lint commands and directory paths.
+Read `<project folder>/project.yaml` when present. Otherwise discover commands,
+directories, and environment activation from repository instructions, manifests,
+existing tests, and CI, under Project configuration in `orchestrator/AGENTS.md`.
+Do not invent commands or treat invalid configuration as absent.
 
 ### 3. Create feature branch
 

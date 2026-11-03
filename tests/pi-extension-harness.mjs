@@ -252,7 +252,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 
   const ctx3 = makeCtx(newProject('plain', { acstack: false }));
   await fire(reg2, 'session_start', { reason: 'startup' }, ctx3);
-  check('setup reminder outside an acstack project', ctx3.notes.some((n) => n.msg.includes('no project config found')));
+  check('fresh Git startup does not require setup', !ctx3.notes.some((n) => /Run \/acstack:setup to set up\./.test(n.msg)));
 
   const ctx4 = makeCtx(newProject('plain-new', { acstack: false }));
   await fire(reg2, 'session_start', { reason: 'new' }, ctx4);
@@ -275,7 +275,8 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 
   const plain = promptEvent();
   await fire(reg, 'before_agent_start', plain, makeCtx(newProject('orch-plain', { acstack: false })));
-  check('no orchestrator outside an acstack project', !('acstack-orchestrator' in plain.systemPromptOptions.sections));
+  check('fresh Git gets shared instructions without project setup',
+    plain.systemPromptOptions.sections['acstack-orchestrator']?.includes('## Implementation discipline'));
   check('section names are valid pi section names',
     Object.keys(event.systemPromptOptions.sections).every((n) => /^[a-z][a-z0-9_-]*$/.test(n)));
 }
@@ -300,6 +301,43 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   check('leaves out a skill only the user may run', listing.includes('<name>implement</name>') && !listing.includes('<name>setup</name>'));
   check('tells the model to name skills as /acstack:<name>', listing.includes('write /acstack:<name>, never /skill:<name>'));
   check('still registers /acstack:setup', reg.commands['acstack:setup'] !== undefined);
+}
+
+// --- general workflows without project setup ------------------------------------
+
+for (const delegated of [false, true]) {
+  if (delegated) process.env.AC_TEAMS_MEMBER = 'unconfigured-child';
+  const reg = load();
+  delete process.env.AC_TEAMS_MEMBER;
+  const dir = newProject(`general-${delegated}`, { acstack: false });
+  const ctx = makeCtx(dir);
+  await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  const event = promptEvent();
+  await fire(reg, 'before_agent_start', event, ctx);
+  const sections = event.systemPromptOptions.sections;
+  const instructions = sections['acstack-orchestrator'] ?? '';
+  check(`no config ${delegated ? 'delegated' : 'lead'}: instructions and skills load`,
+    instructions.includes('## Implementation discipline') && sections['acstack-skills']?.includes('<name>implement</name>'));
+  check(`no config ${delegated ? 'delegated' : 'lead'}: session role is preserved`,
+    instructions.includes('You are a delegated session') === delegated && instructions.length > 0);
+  await reg.commands['acstack:implement'].handler('inspect the fixture', ctx);
+  check(`no config ${delegated ? 'delegated' : 'lead'}: general skill command works without creating data`,
+    reg.userSent[0]?.content.startsWith('<skill name="implement"') && fs.readdirSync(dir).join() === '.git');
+}
+
+{
+  const dir = path.join(work, 'outside-git-skills');
+  fs.mkdirSync(dir);
+  const reg = load();
+  const ctx = makeCtx(dir);
+  await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  const event = promptEvent();
+  await fire(reg, 'before_agent_start', event, ctx);
+  await reg.commands['acstack:code-review'].handler('', ctx);
+  check('outside Git retains general skills and commands without a fake project folder',
+    event.systemPromptOptions.sections['acstack-skills']?.includes('<name>code-review</name>')
+      && !event.systemPromptOptions.sections['acstack-orchestrator']
+      && reg.userSent[0]?.content.startsWith('<skill name="code-review"') && fs.readdirSync(dir).length === 0);
 }
 
 // --- writing style --------------------------------------------------------------

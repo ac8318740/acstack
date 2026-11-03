@@ -55,13 +55,10 @@ Install the plugin:
 /plugin install acstack@ac-agentic-coding
 ```
 
-Then, in your project:
+Then, in your Git repository, use `/acstack:implement`, `/acstack:quick-fix`, or `/acstack:pre-commit-review` directly. Without project configuration, ACStack follows repository instructions and discovers tooling from manifests, tests, and CI.
 
-```
-/acstack:setup
-```
-
-- `/acstack:setup` detects the project type, then writes `project.yaml` with workflow settings into the project folder
+- Optional: `/acstack:setup` detects the project type and writes `project.yaml` for saved workflow settings and storage-backed features such as maps and living specs
+    - Existing configuration keeps its gates; invalid configuration or project-data conflicts require repair, not an unconfigured fallback
 - All ACStack-owned project records live in one project folder per repository, shared by all of its worktrees
     - `~/.claude/acstack/bin/acstack project-data path` prints it; by default it is `~/.acstack/projects/<key>/`, outside the repository
     - Run `acstack project-data mode tracked` to keep the records in the repository's `.acstack/` and commit them instead
@@ -69,7 +66,7 @@ Then, in your project:
 - Update installed ACStack tools before migrating an older project
     - Stop old agents and reviews, run `~/.claude/acstack/bin/acstack project-data migrate`, then restart with updated tools
     - Migration aborts on collisions without overwrites or Git index changes; tracked old paths become pending deletions
-- The SessionStart hook loads the orchestrator instructions whenever it detects an ACStack project
+- The SessionStart hook loads the orchestrator instructions in Git repositories, even without project setup
 - Your CLAUDE.md stays clean for project-specific content
 - Upgrading from a version before 0.8.0 means deleting one stale `@import` line (see [docs/migrate-0.8.md](docs/migrate-0.8.md))
 
@@ -82,7 +79,7 @@ pi install npm:@tintinweb/pi-subagents
 pi install npm:acstack
 ```
 
-Then, in your project, run `/acstack:setup`.
+Then use the general workflows in your Git repository immediately. Run `/acstack:setup` only when you want saved project settings or storage-backed features, as described above.
 
 - Every skill runs under the same name as on Claude Code, e.g. `/acstack:map`
     - `/acstack map` does the same
@@ -92,7 +89,7 @@ Then, in your project, run `/acstack:setup`.
     - The extension lists the skills in the system prompt instead, so the model still reads one when the task matches
 - `pi/extension.ts` does what the Claude Code hooks do
     - It links the CLI at `~/.claude/acstack/bin/acstack`
-    - It adds the orchestrator instructions to the system prompt in an ACStack project
+    - It adds the orchestrator instructions in Git repositories, even without project setup
     - It lists ACStack's skills in the system prompt in every session
     - It re-injects a handoff after a compaction
     - It nudges with a continuity-versus-freshness checkpoint as the context fills

@@ -186,11 +186,6 @@ if ! project_folder=$(acstack_project_folder "$cli_wrapper"); then
   exit 0
 fi
 
-if [ ! -f "$project_folder/project.yaml" ]; then
-  echo 'acstack: no project config found. Run /acstack:setup to set up.' >&2
-  exit 0
-fi
-
 claude_md="${plugin_root}/orchestrator/AGENTS.md"
 
 if [ -z "$plugin_root" ] || [ ! -r "$claude_md" ]; then

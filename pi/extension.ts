@@ -648,13 +648,9 @@ export default function acstack(pi: ExtensionAPI): void {
 
 	const orchestratorFile = path.join(packageRoot, "orchestrator", "AGENTS.md");
 	const styleFile = path.join(packageRoot, "output-styles", "ac-writing-style.md");
-	const isProject = (cwd: string) => {
-		const folder = projectFolder(undefined, cwd);
-		return folder !== null && fs.existsSync(path.join(folder, "project.yaml"));
-	};
 	let warnedSubagents = false;
 
-	pi.on("session_start", async (event, ctx) => {
+	pi.on("session_start", async (_event, ctx) => {
 		if (!delegated) linkClis(ctx);
 		projectFolders.delete(path.resolve(ctx.cwd));
 		if (projectFolder(ctx, ctx.cwd) === null) return;
@@ -667,10 +663,6 @@ export default function acstack(pi: ExtensionAPI): void {
 				"acstack: no supported subagent tool is loaded (Agent, subagent, or team_agent), so the test-writer, task-executor, task-checker, and frontend-verifier agents cannot run. Install `npm:ac-teams` with `pi install`.",
 				"warning",
 			);
-		}
-
-		if (event.reason === "startup" && !isProject(ctx.cwd)) {
-			report(ctx, "acstack: no project config found. Run /acstack:setup to set up.");
 		}
 	});
 
@@ -685,9 +677,10 @@ export default function acstack(pi: ExtensionAPI): void {
 		// Every session, like the plugin's skills on Claude Code.
 		if (skillsPrompt) sections["acstack-skills"] = skillsPrompt;
 
-		if (isProject(ctx.cwd)) {
+		const folder = projectFolder(undefined, ctx.cwd);
+		if (folder !== null) {
 			const orchestrator = readText(orchestratorFile);
-			if (orchestrator) sections["acstack-orchestrator"] = `${orchestratorFor(orchestrator, delegated ? "delegated" : "lead")}\n\nThis repository's ACStack project folder: ${projectFolder(undefined, ctx.cwd)}\n`;
+			if (orchestrator) sections["acstack-orchestrator"] = `${orchestratorFor(orchestrator, delegated ? "delegated" : "lead")}\n\nThis repository's ACStack project folder: ${folder}\n`;
 			else report(ctx, `acstack: could not read ${orchestratorFile}`, "warning");
 		}
 
