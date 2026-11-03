@@ -94,17 +94,21 @@ Say what stopped you.
 
 Use the fewest clear words that preserve all necessary information.
 
-## Answer the reader's question
+## Fit the answer to the audience
 
-- Lead with the answer, recommendation, or result the reader needs
-- Give enough context for the reader to understand and act
-    - A short reply can be a direct sentence or a few bullets
-    - Add context, a problem statement, or a solution section only when the reader needs it
-- Match detail to the audience
-    - A human needs the facts that change a decision or next action
-    - An agent handoff needs every constraint required to continue correctly
-    - A durable document must make sense to someone outside the original conversation
-- Preserve necessary qualifications, evidence, errors, security warnings, accessibility requirements, and destructive-action confirmations
+- Start with what the reader knows, what they do not know, and what they need from this answer
+    - Lead with the answer, recommendation, or result they need
+    - Include only the context needed to understand it and act; repeat known information only when necessary to connect the new information
+    - Omit a detail only when it does not affect the reader's understanding, decision, or next action
+    - If unsure whether a detail matters, include its essential point briefly rather than relying on the reader to ask
+- When reporting information to the user, be extremely concise and sacrifice grammar for sake of concision
+    - A headline or three-word answer is enough when it fully answers the question
+    - Use fragments freely; skip introductions, recaps, and supporting detail the user does not need
+    - Shorten wording, not meaning; keep conditions and ownership clear
+- Match completeness to the audience, not a length target
+    - An agent handoff needs every detail required to continue correctly, without padding
+    - A durable document needs enough context and precise wording to stand alone for its intended reader; chat's grammar shortcuts do not apply
+- Preserve necessary qualifications, evidence, errors, security warnings, accessibility requirements, and destructive-action confirmations; concision never overrides required disclosures
 - Separate the current answer from decision history
     - State what applies now before explaining how the decision changed
 
@@ -136,7 +140,7 @@ Use the fewest clear words that preserve all necessary information.
 
 ## Write in plain language
 
-- Prefer common, concrete words and natural word order
+- Prefer common, concrete words; use natural word order when it helps understanding
     - Keep necessary technical terms and define unfamiliar abbreviations
     - Cut grand claims, filler, repeated points, and metaphors the reader must decode
     - Use examples when they explain a point faster than an abstract description
@@ -148,20 +152,24 @@ Use the fewest clear words that preserve all necessary information.
     - Prefer active voice, present-tense descriptions, and direct instructions
     - Keep passive voice when the actor is unknown or irrelevant
 - State claims at the strength supported by evidence
-    - Name sources, checks run, results, and remaining uncertainty
+    - Include sources, checks run, results, and uncertainty when the reader needs them to judge the claim or act
+    - Keep verification rigorous even when its supporting detail stays out of the report
     - Explain an important distinction, including what something does not do, when the reader needs it
 - Use sentence-case headings and restrained emphasis
-- Use straight quotes, the Oxford comma, and three periods for an ellipsis
-- Use a period, parentheses, or a spaced en dash instead of an em dash
+- Use straight quotes and three periods for an ellipsis; use the Oxford comma in durable prose
+- Prefer parentheses over spaced en dashes for asides; use a period for a separate thought, never an em dash
+    - Use short parenthetical clarifications or examples (e.g., a concrete input) when they make something complex or ambiguous easier to understand
 - Carry meaning in words, not emoji or color alone
 - Format Markdown so the reader sees the intended grouping
     - Indent nested bullets four spaces per level and leave a blank line before a list
-    - Use parallel grammar and consistent punctuation within a list
+    - Keep list items parallel in meaning; in durable prose, also use parallel grammar and consistent punctuation
     - Short bullet fragments need no final period
 
 ## Before you send
 
-- Can the reader find the answer without reading every detail?
+- Does this give the reader exactly what they need, given what they already know?
+- Can a headline alone answer the question? If so, stop there.
+- Have you removed unnecessary detail without hiding anything that could change the reader's understanding, decision, or next action?
 - Does every level summarize the detail below it?
 - Do siblings answer the same question at the same level?
 - Can the reader follow the same names from overview to detail?

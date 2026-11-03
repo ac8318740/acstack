@@ -2,10 +2,20 @@
 
 These examples apply the shared communication standard in `../../output-styles/ac-writing-style.md` without prescribing one shape for every answer.
 
-## A short reply needs only the answer
+## Fit the answer to what the reader needs
 
-- Write: The build passes
-- Avoid: `## Context`, `## Problem`, and `## Solution` sections to report a successful build
+- Asked whether the build passed: `Build passes`
+- Avoid: Listing commands, timings, and passing checks when the result alone answers the question
+- Asked whether the change is ready: `Tests pass; permission to deploy still needed`
+- Avoid: `Tests pass` when that hides a blocker; keep any detail that changes the reader's understanding, decision, or next action
+- If unsure whether a caveat matters, include its essential point briefly
+- Asked five yes/no questions: give five short answers in the same order, not five explanations
+- Asked which backend works offline, after discussing the options: `Files backend`
+- Avoid: Repeating the options and their trade-offs when the reader already knows them
+- Handing work to another agent: include the files, constraints, checked behavior, blockers, and next action needed to continue
+- Avoid: `Use files backend` as a handoff when the receiving agent lacks the decision's context
+
+Reports to the user can use fragments. Durable documents need precise wording and enough context for their intended reader to understand them without the conversation.
 
 ## Preserve the reason when it changes the action
 
@@ -82,5 +92,7 @@ The second makes the reader guess whether the names identify the same thing.
 - Keep a connected explanation in prose when splitting it would hide the causal relationship
 - Indent nested Markdown bullets four spaces and leave a blank line before a list
 - Write `## Before you finish`, not `## Before You Finish.`
-- Write `proposals, designs, and tasks`, with the Oxford comma
+- In durable prose, write `proposals, designs, and tasks`, with the Oxford comma
 - Report `12 tests pass` in words rather than relying on an icon
+- Prefer parentheses for asides: `Use the local backend (no network needed)`
+- Add a short parenthetical example when it clarifies ambiguity: `Reject reserved names (e.g., CON on Windows)`
