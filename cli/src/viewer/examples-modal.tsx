@@ -1,9 +1,9 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
-import { MousePointerClick, SlidersHorizontal, X } from 'lucide-react';
+import { Check, ChevronRight, MousePointerClick, SlidersHorizontal, X } from 'lucide-react';
 import { Dropdown } from './dropdown.js';
 import { ExampleFrame, type FrameControl } from './example-frame.js';
 import { useDesignReview } from './design-approval.js';
-import { cacheExample, cachedExample, exampleCapture, isCurrent, exampleView, fixtureTable, setExampleView, withVariant, type ElementExample, type ExampleView } from './examples.js';
+import { cacheExample, cachedExample, exampleCapture, isCurrent, exampleView, fixtureTable, setExampleView, valuesOf, withVariant, type ElementExample, type ExampleView } from './examples.js';
 import type { ExampleSummary } from '../lib/alignment-packs.js';
 import { REVIEW_TOKEN_HEADER } from '../lib/alignment-review-protocol.js';
 import type { Selection } from './od-bridge/protocol.js';
@@ -44,7 +44,8 @@ const commentsOn = (annotations: Annotation[], nodeId: string, path: string) =>
   annotations.filter(annotation => annotation.target.type === 'node' && annotation.target.id === nodeId && annotation.example?.path === path);
 
 // Opens one example, optionally on one variant, from a link such as an approval blocker.
-export type ExampleLink = { nodeId: string; path: string; variant?: string };
+// `comment` names a comment to reveal once the example has loaded.
+export type ExampleLink = { nodeId: string; path: string; variant?: string; comment?: string };
 
 // Registers every element's example capture once, so Lock and approval record it whichever drawer tab is showing.
 export function useExampleCaptures() {
@@ -66,7 +67,8 @@ export function ExamplesTab({ nodeId, link, annotations, setAnnotations }: { nod
     return target.path;
   };
   const [open, setOpen] = useState<string | null>(() => follow(link));
-  useEffect(() => { const path = follow(link); if (path) setOpen(path); }, [link]);
+  const [revealComment, setRevealComment] = useState(link?.nodeId === nodeId ? link.comment : undefined);
+  useEffect(() => { const path = follow(link); if (path) { setOpen(path); setRevealComment(link?.comment); } }, [link]);
   if (!examples.length) return <p className="muted">This element has no examples.</p>;
   return (
     <section className="section">
@@ -75,14 +77,14 @@ export function ExamplesTab({ nodeId, link, annotations, setAnnotations }: { nod
           const count = commentsOn(annotations, nodeId, example.path).length;
           return (
             <li key={example.path}>
-              <button type="button" className="relationship-link" aria-haspopup="dialog" onClick={() => setOpen(example.path)}>
-                <span><span className="relationship-label">{example.title}</span><span className="relationship-endpoint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}{count ? `, ${count} comment${count === 1 ? '' : 's'}` : ''}</span></span>
+              <button type="button" className="relationship-link example-link" aria-haspopup="dialog" onClick={() => { setRevealComment(undefined); setOpen(example.path); }}>
+                <span><span className="relationship-label">{example.title}</span><span className="relationship-endpoint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}{count ? `, ${count} comment${count === 1 ? '' : 's'}` : ''}</span></span><ChevronRight size={16} aria-hidden="true" />
               </button>
             </li>
           );
         })}
       </ul>
-      {open && <ExamplesModal nodeId={nodeId} examples={examples} path={open} onPath={setOpen} onClose={() => setOpen(null)} annotations={annotations} setAnnotations={setAnnotations} />}
+      {open && <ExamplesModal nodeId={nodeId} examples={examples} path={open} reveal={revealComment} onPath={setOpen} onClose={() => setOpen(null)} annotations={annotations} setAnnotations={setAnnotations} />}
     </section>
   );
 }
@@ -93,7 +95,7 @@ export function FixtureView({ format, data }: { format: 'json' | 'csv'; data: st
   return (
     <div className="fixture-table">
       <table>
-        <thead><tr>{table.columns.map((column, index) => <th key={index} scope="col">{column}</th>)}</tr></thead>
+        <thead><tr>{table.columns.map((column, index) => <th key={index} scope="col"><code>{column}</code></th>)}</tr></thead>
         <tbody>{table.rows.map((row, index) => <tr key={index}>{row.map((value, column) => <td key={column}>{value}</td>)}</tr>)}</tbody>
       </table>
     </div>
@@ -103,9 +105,17 @@ export function FixtureView({ format, data }: { format: 'json' | 'csv'; data: st
 // Frame-supplied fields are untrusted: they appear as plain text only.
 type Anchor = NonNullable<Annotation['example']>;
 type AnchorSelection = NonNullable<Anchor['selections']>[number];
-// A container's text can run to 200 characters; a label needs only enough to tell picks apart.
-const brief = (text: string) => text.length > 48 ? `${text.slice(0, 47).trimEnd()}…` : text;
-export const describe = (selection: { selector: string; text?: string; component?: { name: string } }) => [selection.component?.name, brief(selection.text || selection.selector)].filter(Boolean).join(': ');
+// Labels read as plain words: "PayButton" becomes "Pay button", and a container's run of text
+// gives way to its first line, which is its heading or label. The raw name stays in a tooltip.
+export const componentLabel = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ').replace(/ ([A-Z])(?=[a-z])/g, (_, letter: string) => ` ${letter.toLowerCase()}`).trim();
+// A table row's innerText separates cells with tabs, so its first cell (the item name) leads the label.
+const brief = (text: string) => { const line = text.split(/[\n\t]/).map(part => part.trim()).find(Boolean) ?? ''; return line.length > 40 ? `${line.slice(0, 39).trimEnd()}…` : line; };
+export const describe = (selection: { selector: string; text?: string; component?: { name: string } }) => {
+  const text = brief(selection.text ?? '');
+  if (selection.component) return text ? `${componentLabel(selection.component.name)}: ${text}` : componentLabel(selection.component.name);
+  return text || 'Element';
+};
+const rawName = (selection: { selector: string; component?: { name: string } }) => selection.component?.name ?? selection.selector;
 const anchorLabel = (anchor: Anchor) => anchor.selections?.length ? anchor.selections.map(describe).join('; ') : 'Whole example';
 // Keys follow ReviewAnnotationSchema's order, because the save acknowledgement compares the server's parsed copy as JSON.
 const anchorSelection = ({ selector, text, rect, component }: Selection): AnchorSelection => ({
@@ -175,10 +185,11 @@ function Composer({ label, placeholder, text, onText, onPost }: { label: string;
   );
 }
 
-export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotations, setAnnotations }: {
+export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose, annotations, setAnnotations }: {
   nodeId: string;
   examples: ExampleSummary[];
   path: string;
+  reveal?: string;
   onPath: (path: string) => void;
   onClose: () => void;
 } & Comments) {
@@ -197,14 +208,31 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
   const html = content?.kind === 'html' ? content.html : content?.kind === 'od-build' && variant ? withVariant(content.html, variant.id) : undefined;
   const tweaks = content?.kind === 'od-build' ? [...content.tweaks ?? [], ...variant?.tweaks ?? []] : [];
   const tokens = content?.kind === 'od-build' && content.tokens ? new Map(Object.entries(content.tokens)) : null;
+  const values = valuesOf(view, variant?.id);
+  const setValue = (id: string, value: string) => updateView({ ...view, values: { ...view.values, [variant?.id ?? '']: { ...values, [id]: value } } });
+  const review = useDesignReview();
+  const chosen = review?.chosenVariant(nodeId, example.path);
+  const [choosing, setChoosing] = useState<string>();
+  const choose = () => {
+    if (!variant) return;
+    setChoosing(undefined);
+    review?.chooseVariant(nodeId, example.path, variant.id, Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, values[tweak.id] ?? defaultFor(tweak)])))
+      .catch((error: unknown) => setChoosing(error instanceof Error ? error.message : String(error)));
+  };
   const comments = commentsOn(annotations, nodeId, example.path);
   const [picker, setPicker] = useState(false);
   const [picked, setPicked] = useState<Selection[]>([]);
   const [unanchored, setUnanchored] = useState<string[]>([]);
-  const [focused, setFocused] = useState<string>();
+  const [focused, setFocused] = useState<string | undefined>(reveal);
+  const pendingReveal = useRef(reveal);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   useEffect(() => { dialog.current?.showModal(); }, []);
-  useEffect(() => { setPicker(false); setPicked([]); setFocused(undefined); }, [example.path, variant?.id]);
+  const firstView = useRef(true);
+  useEffect(() => {
+    // The first view keeps a linked comment in focus; later switches start clean.
+    if (firstView.current) { firstView.current = false; return; }
+    setPicker(false); setPicked([]); setFocused(undefined);
+  }, [example.path, variant?.id]);
   // Marks only for comments made on the variant on screen; a comment's number is its place in the list.
   const onScreen = (anchor?: Anchor) => anchor?.variant === variant?.id;
   const marks = comments.flatMap((comment, index) => onScreen(comment.example) ? (comment.example?.selections ?? []).map((selection, at) => ({ key: `${comment.id}#${at}`, label: index + 1, selector: selection.selector })) : []);
@@ -212,7 +240,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
     const anchor: Anchor = { path: example.path };
     if (variant) anchor.variant = variant.id;
     if (picked.length) anchor.selections = picked.map(anchorSelection);
-    if (tweaks.length) anchor.tweaks = Object.fromEntries(tweaks.map(tweak => [tweak.id, view.values[tweak.id] ?? defaultFor(tweak)]));
+    if (tweaks.length) anchor.tweaks = Object.fromEntries(tweaks.map(tweak => [tweak.id, values[tweak.id] ?? defaultFor(tweak)]));
     setAnnotations([...annotations, { id: annotationId(), packVersion: pack.packVersion, target: { type: 'node', id: nodeId }, example: anchor, comment, time: new Date().toISOString() }]);
     setDrafts(previous => ({ ...previous, [example.path]: '' }));
     frame.current?.clearSelections();
@@ -229,7 +257,9 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
   const variants = content?.kind === 'od-build' ? content.variants : [];
   const stage = html !== undefined ? (
     <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} path={example.path} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
-      picker={picker} marks={marks} tweaks={tweakPayload(tweaks, view.values, tokens)} control={frame} events={{
+      picker={picker} marks={marks} tweaks={tweakPayload(tweaks, values, tokens)} control={frame} events={{
+        // A comment opened from the drawer flashes its element once the frame has drawn its marks.
+        onApplied: () => { const id = pendingReveal.current; pendingReveal.current = undefined; if (id && comments.some(comment => comment.id === id)) frame.current?.reveal(`${id}#0`); },
         onPicker: setPicker,
         onSelection: setPicked,
         onMarkClick: key => { const id = key.slice(0, key.lastIndexOf('#')); if (comments.some(comment => comment.id === id)) setFocused(id); },
@@ -252,11 +282,16 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
         {example.illustrative && <span className="example-tag" data-tooltip="Shown for illustration; not a requirement">Illustrative</span>}
         {variants.length > 1 && variant && (
           <div className="segmented" role="group" aria-label="Variant">
-            {variants.map(item => <button key={item.id} type="button" aria-pressed={item.id === variant.id} onClick={() => updateView({ ...view, variant: item.id })}>{item.label ?? item.id}</button>)}
+            {variants.map(item => <button key={item.id} type="button" aria-pressed={item.id === variant.id} onClick={() => updateView({ ...view, variant: item.id })}>{item.id === chosen && <Check size={14} aria-label="Chosen" />}{item.label ?? item.id}</button>)}
           </div>
         )}
+        {/* Illustrative mocks are not requirements, so there is nothing to choose. */}
+        {review && !example.illustrative && variants.length > 1 && variant && (chosen === variant.id
+          ? <span className="example-chosen" role="status"><Check size={14} aria-hidden="true" />Chosen</span>
+          : <button type="button" className="btn" disabled={review.pending} onClick={choose}>Choose this variant</button>)}
+        {choosing && <span className="error" role="alert">{choosing}</span>}
         <span className="toolbar-spacer" />
-        {tweaks.length > 0 && <TweaksPopover tweaks={tweaks} values={view.values} onChange={(id, value) => updateView({ ...view, values: { ...view.values, [id]: value } })} />}
+        {tweaks.length > 0 && <TweaksPopover tweaks={tweaks} values={values} onChange={setValue} />}
         {html !== undefined && <button type="button" className="btn" aria-pressed={picker} onClick={() => setPicker(!picker)}><MousePointerClick size={16} aria-hidden="true" />{picker ? 'Picking' : 'Pick elements'}</button>}
       </div>
       <div className="examples-main">
@@ -274,7 +309,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
                   <span className="mark-number" aria-hidden="true">{index + 1}</span>
                   <div>
                     {onScreen(anchor) && anchor.selections?.length
-                      ? <button type="button" className="link comment-target" ref={element => { if (focused === comment.id) element?.focus(); }} onClick={() => frame.current?.reveal(key)}>{target}</button>
+                      ? <button type="button" className="link comment-target" data-tooltip={anchor.selections.map(rawName).join('; ')} ref={element => { if (focused === comment.id) element?.focus(); }} onClick={() => frame.current?.reveal(key)}>{target}</button>
                       : <span className="comment-target">{target}</span>}
                     {anchor.variant && !onScreen(anchor) && anchor.selections?.length ? <span className="comment-variant">On {variantName(anchor.variant)}</span> : null}
                     <p>{comment.comment}</p>
@@ -288,7 +323,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
             {picked.length > 0 && <div className="example-picks">
               <p className="picks-count">{picked.length} element{picked.length === 1 ? '' : 's'} picked</p>
               <ul aria-label="Picked elements">
-                {picked.map(item => <li key={item.id} className="chip"><span>{describe(item)}</span><button type="button" aria-label={`Remove ${describe(item)}`} onClick={() => unpick(item.id)}><X size={12} aria-hidden="true" /></button></li>)}
+                {picked.map(item => <li key={item.id} className="chip" data-tooltip={rawName(item)}><span>{describe(item)}</span><button type="button" aria-label={`Remove ${describe(item)}`} onClick={() => unpick(item.id)}><X size={12} aria-hidden="true" /></button></li>)}
               </ul>
             </div>}
             <Composer key={example.path} label={picked.length ? `Comment on ${picked.length} picked element${picked.length === 1 ? '' : 's'}` : 'Comment on this example'}
@@ -298,5 +333,18 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
         </aside>
       </div>
     </dialog>
+  );
+}
+
+// Where a comment on an example sits, for lists outside the modal: the example, its variant, and the picked elements.
+export function ExampleContext({ nodeId, anchor }: { nodeId: string; anchor: Anchor }) {
+  const summary = examplesFor(nodeId).find(item => item.path === anchor.path);
+  const content = cachedExample(nodeId, anchor.path);
+  const variant = anchor.variant && (content?.kind === 'od-build' ? content.variants.find(item => item.id === anchor.variant)?.label : undefined) || anchor.variant;
+  return (
+    <p className="comment-example">
+      <span>{[summary?.title ?? anchor.path, variant].filter(Boolean).join(' · ')}</span>
+      {anchor.selections?.length ? <span className="comment-example-picks" data-tooltip={anchor.selections.map(rawName).join('; ')}>{anchorLabel(anchor)}</span> : null}
+    </p>
   );
 }

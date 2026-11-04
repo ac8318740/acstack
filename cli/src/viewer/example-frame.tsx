@@ -10,6 +10,7 @@ export type FrameEvents = {
   onMarkClick: (key: string) => void;
   onRevealed: (key: string, found: boolean) => void;
   onEscape: () => void;
+  onApplied?: () => void;
 };
 // One-off commands for the frame; `reveal` reports back through onRevealed.
 export type FrameControl = { reveal: (key: string) => void; removeSelection: (id: number) => void; clearSelections: () => void };
@@ -85,7 +86,7 @@ export function ExampleFrame({ path, html, title, picker, marks, tweaks, control
       }
       case 'scroll': scroll.current = { x: message.x, y: message.y }; break;
       case 'navigate': snapshots.delete(path); break;
-      case 'applied': setStatus({ state: 'ready' }); bridge.send('marks', { items: marks }); break;
+      case 'applied': setStatus({ state: 'ready' }); bridge.send('marks', { items: marks }); events.onApplied?.(); break;
       case 'selection': selections.current = message.items.map(item => item.selector); events.onSelection(message.items); break;
       case 'picker': events.onPicker(false); break;
       case 'key': if (message.combo === 'escape') events.onEscape(); break;

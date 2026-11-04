@@ -474,3 +474,10 @@ button.comment-target { color: var(--accent); }
 .fixture-table th, .fixture-table td { padding: 8px 12px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; white-space: pre-wrap; }
 .fixture-table tr:last-child td { border-bottom: 0; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.example-link .lucide { color: var(--faint); }
+.example-link:hover .lucide { color: var(--accent); }
+.example-chosen { display: inline-flex; align-items: center; gap: 4px; color: var(--ok); font-size: var(--size-sm); font-weight: 600; }
+.segmented button .lucide { margin-right: 4px; vertical-align: -2px; color: var(--ok); }
+.comment-example { display: grid; gap: 2px; margin: 0; color: var(--muted); font-size: var(--size-xs); }
+.comment-example span:first-child { font-weight: 600; }
+.fixture-table th code { font: 600 var(--size-xs) / 1.4 ui-monospace, "SF Mono", Menlo, monospace; color: var(--text); background: none; padding: 0; }

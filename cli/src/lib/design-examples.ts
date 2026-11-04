@@ -81,8 +81,21 @@ const odVariants = (checkout: string, owner: string, od: { design: string; page:
 
 type Capture = { examples?: Record<string, { variant?: unknown }> };
 /** The multi-variant mocks a lock capture leaves without a valid chosen variant. */
+// Illustrative mocks bind nothing, so they never need a chosen variant.
 export function unchosenMocks(item: { exampleSummaries?: ExampleSummary[] }, capture?: Capture): ExampleSummary[] {
-  return (item.exampleSummaries ?? []).filter(mock => (mock.variants?.length ?? 0) > 1 && !mock.variants!.includes(capture?.examples?.[mock.path]?.variant as string));
+  return (item.exampleSummaries ?? []).filter(mock => !mock.illustrative && (mock.variants?.length ?? 0) > 1 && !mock.variants!.includes(capture?.examples?.[mock.path]?.variant as string));
+}
+
+/** A variant's tweak defaults and every state it offers, read from OpenDesigner's index.json. */
+export function variantDefaults(item: { id: string; examples: ExampleEntry[] }, path: string, variant: string, checkout: string) {
+  const entry = item.examples.find(example => examplePath(example) === path);
+  if (!entry?.od) throw new Error(`Element ${item.id} has no OpenDesigner mock ${path}`);
+  const { design, page } = odPage(checkout, item.id, entry.od);
+  const tweaks = [...design.tweaks ?? [], ...page.tweaks ?? [], ...page.variants?.find(item => item.id === variant)?.tweaks ?? []];
+  return {
+    tweaks: Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, defaultFor(tweak)])),
+    states: Object.fromEntries(tweaks.flatMap(tweak => tweak.type === 'state' ? [[tweak.id, (tweak.options ?? []).map(option => typeof option === 'string' ? option : option.value)]] : [])),
+  };
 }
 
 /**
@@ -94,16 +107,7 @@ export function variantCapture(item: { id: string; examples: ExampleEntry[]; exa
   for (const path of Object.keys(chosen)) if (!mocks.some(mock => mock.path === path)) throw new Error(`Element ${item.id} has no OpenDesigner mock ${path}`);
   const missing = unchosenMocks(item, { examples: Object.fromEntries(Object.entries(chosen).map(([path, variant]) => [path, { variant }])) });
   if (missing.length) throw new Error(`Element ${item.id} has several variants for ${missing.map(mock => `${mock.path} (${mock.variants!.join(', ')})`).join('; ')}; pass --variant <path>=<variant> for each, as the user chose`);
-  const examples = Object.fromEntries(Object.entries(chosen).map(([path, variant]) => {
-    const entry = item.examples.find(example => examplePath(example) === path)!;
-    const { design, page } = odPage(checkout, item.id, entry.od!);
-    const tweaks = [...design.tweaks ?? [], ...page.tweaks ?? [], ...page.variants?.find(item => item.id === variant)?.tweaks ?? []];
-    return [path, {
-      variant,
-      tweaks: Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, defaultFor(tweak)])),
-      states: Object.fromEntries(tweaks.flatMap(tweak => tweak.type === 'state' ? [[tweak.id, (tweak.options ?? []).map(option => typeof option === 'string' ? option : option.value)]] : [])),
-    }];
-  }));
+  const examples = Object.fromEntries(Object.entries(chosen).map(([path, variant]) => [path, { variant, ...variantDefaults(item, path, variant, checkout) }]));
   return Object.keys(examples).length ? { examples } : undefined;
 }
 

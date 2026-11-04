@@ -2,7 +2,7 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { FrameStatus } from '../example-frame.js';
-import { describe as describeSelection, ExamplesModal, ExamplesTab, FixtureView, TweakControls } from '../examples-modal.js';
+import { componentLabel, describe as describeSelection, ExampleContext, ExamplesModal, ExamplesTab, FixtureView, TweakControls } from '../examples-modal.js';
 import { cacheExample, exampleCapture, setExampleView, type ElementExample } from '../examples.js';
 import { pack, type Annotation } from '../pack.js';
 
@@ -52,7 +52,8 @@ it('renders inline HTML in an opaque-origin frame with labelled controls', () =>
   expect(html).toMatch(/aria-labelledby="[^"]+"/);
   // The authored mock never lands in the viewer document; the bridge loads it into the frame.
   expect(html).not.toContain('<button>Pay</button>');
-  expect(html).toContain('PayButton: &lt;b&gt;Pay&lt;/b&gt;; #total');
+  expect(html).toContain('Pay button: &lt;b&gt;Pay&lt;/b&gt;; Element');
+  expect(html).toContain('data-tooltip="PayButton; #total"');
   expect(html).toContain('<span class="mark-number" aria-hidden="true">1</span>');
   // One composer, no explanatory prose.
   expect(html.match(/<textarea/g)).toHaveLength(1);
@@ -96,7 +97,7 @@ it('renders Markdown and Mermaid with the existing renderer, with no picker', ()
 
 it('renders fixtures as a text-only table', () => {
   const html = modal('order.json');
-  expect(html).toContain('<th scope="col">note</th>');
+  expect(html).toContain('<th scope="col"><code>note</code></th>');
   expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
   expect(html).not.toContain('<img');
   expect(renderToStaticMarkup(createElement(FixtureView, { format: 'csv', data: 'a\n<script>x</script>' }))).toContain('&lt;script&gt;');
@@ -107,7 +108,7 @@ it('renders frame-supplied error text and selections as text only', () => {
   expect(html).toContain('This example failed to render.');
   expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
   expect(renderToStaticMarkup(createElement(FrameStatus, { status: { state: 'closed' } }))).toContain('navigated away and was stopped');
-  expect(describeSelection({ selector: '#a', text: '', component: { name: 'Card' } })).toBe('Card: #a');
+  expect(describeSelection({ selector: '#a', text: '', component: { name: 'Card' } })).toBe('Card');
 });
 
 it('opens straight to a linked example and variant', () => {
@@ -129,7 +130,7 @@ it('captures the viewed variant, its tweak values, and all its states for a lock
     ],
   }, { kind: 'html', path: 'x.html', title: 'X', html: '' }];
   expect(exampleCapture('lock-node', loaded)).toBeUndefined();
-  setExampleView('lock-node', 'cart', { variant: 'b', values: { radius: '12' } });
+  setExampleView('lock-node', 'cart', { variant: 'b', values: { b: { radius: '12' } } });
   setExampleView('lock-node', 'x.html', { values: {} });
   expect(exampleCapture('lock-node', loaded)).toEqual({ examples: { cart: { variant: 'b', tweaks: { density: 'cozy', radius: '12' }, states: { phase: ['loading', 'empty'] } } } });
 });
@@ -138,4 +139,22 @@ it('shows a loading state until the example content arrives', () => {
   const html = renderToStaticMarkup(createElement(ExamplesModal, { nodeId: 'uncached', examples: [{ kind: 'html', path: 'a.html', title: 'A' }], path: 'a.html', onPath: vi.fn(), onClose: vi.fn(), annotations: [], setAnnotations: vi.fn() }));
   expect(html).toContain('Loading example...');
   expect(html).not.toContain('<iframe');
+});
+
+it('labels picked elements in plain words, using a container\'s first line', () => {
+  expect(['PayButton', 'LineItem', 'OrderSummaryCard', 'nav-bar', 'CTA'].map(componentLabel)).toEqual(['Pay button', 'Line item', 'Order summary card', 'nav bar', 'CTA']);
+  expect(describeSelection({ selector: 'div', text: 'Your order\nORDER 4821 · 4 NOV 2026\nItem Qty Price' })).toBe('Your order');
+  expect(describeSelection({ selector: 'p', text: 'A very long sentence that keeps going well past forty characters' })).toBe('A very long sentence that keeps going w…');
+  expect(describeSelection({ selector: 'span', text: '' })).toBe('Element');
+});
+
+it('names the example, variant, and picked elements for a comment listed outside the modal', () => {
+  const html = renderToStaticMarkup(createElement(ExampleContext, { nodeId: 'checkout', anchor: { path: 'cart', variant: 'b', selections: [{ selector: '#pay', rect: { x: 0, y: 0, width: 1, height: 1 }, component: { name: 'PayButton' }, text: 'Pay' }] } }));
+  expect(html).toContain('Cart build · List');
+  expect(html).toContain('Pay button: Pay');
+});
+
+it('labels a picked table row by its first cell', () => {
+  expect(describeSelection({ selector: 'tr', text: 'Gift wrap\nWRP-STD\t1\t£0.00\t£0.00', component: { name: 'ReceiptLine' } })).toBe('Receipt line: Gift wrap');
+  expect(describeSelection({ selector: 'tr', text: 'Gift wrap\t1\t£0.00', component: { name: 'ReceiptLine' } })).toBe('Receipt line: Gift wrap');
 });

@@ -11,7 +11,7 @@ import { questionScopeForSelection, questionsForScope } from './question-targets
 import { ElementMetadata } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
-import { ExamplesTab, examplesFor, useExampleCaptures, type ExampleLink } from './examples-modal.js';
+import { ExampleContext, ExamplesTab, examplesFor, useExampleCaptures, type ExampleLink } from './examples-modal.js';
 
 const labelOf = (id: string) => pack.graph.nodes.find(item => item.id === id)?.label ?? id;
 
@@ -287,6 +287,7 @@ export function Comments({ annotations, earlier = [], onSelect, onDelete, onEdit
                 </div>
               </div>
               {annotation.selectedText && <blockquote>{annotation.selectedText}</blockquote>}
+              {annotation.example && <ExampleContext nodeId={annotation.target.id} anchor={annotation.example} />}
               {drafts[annotation.id] !== undefined ? <CommentEditor key={annotation.id} comment={annotation.comment} text={drafts[annotation.id]} onTextChange={text => setDraft(annotation.id, text)} onCancel={() => setDraft(annotation.id, undefined)} onSave={comment => { onEdit(annotation.id, comment); setDraft(annotation.id, undefined); }} /> : <>
                 <p>{annotation.comment}</p>
               </>}
@@ -406,6 +407,7 @@ export function Drawer({
   onComment,
   onOpenGroup,
   exampleLink,
+  onOpenExample,
   questionRequest,
 }: {
   open: boolean;
@@ -428,6 +430,8 @@ export function Drawer({
   onOpenGroup: (groupId: string) => void;
   // Opens the Examples modal on one example and variant; the caller also selects the element and shows the Examples view.
   exampleLink?: ExampleLink;
+  // Opens a comment's example in the Examples modal; the app owns selection and the drawer view.
+  onOpenExample?: (link: ExampleLink) => void;
   /** A request from outside the drawer, such as an approval blocker, to open and focus one question. */
   questionRequest?: { id: string };
 }) {
@@ -573,7 +577,7 @@ export function Drawer({
             {needsInput > 0 && <span className="tab-count" aria-label={`${needsInput} open`}>{needsInput}</span>}
             {needsInput === 0 && answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
           </button>}
-          {exampleNode && examplesFor(exampleNode).length > 0 && <button type="button" aria-pressed={view === 'examples'} onClick={() => setView('examples')}>Examples</button>}
+          {exampleNode && examplesFor(exampleNode).length > 0 && <button type="button" aria-pressed={view === 'examples'} onClick={() => setView('examples')}>Examples<span className="tab-count" aria-label={`${examplesFor(exampleNode).length} examples`}>{examplesFor(exampleNode).length}</span></button>}
         </div>
         <div className="row">
           <button type="button" className="icon-btn" data-tooltip="Collapse details panel" aria-label="Collapse details panel" onClick={() => setOpen(false)}>
@@ -589,7 +593,7 @@ export function Drawer({
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}
-            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} earlier={earlierComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
+            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} earlier={earlierComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment || onOpenExample ? (annotation, element, keyboard) => { if (annotation.example && onOpenExample) onOpenExample({ nodeId: annotation.target.id, path: annotation.example.path, variant: annotation.example.variant, comment: annotation.id }); else onShowComment?.(annotation, element, keyboard); } : undefined} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
           </div>
         )}
       </div>
