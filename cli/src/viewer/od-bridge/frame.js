@@ -1,5 +1,5 @@
 // Vendored from OpenDesigner (github.com/ac8318740/open-designer) at commit
-// 9769b8e17d3657e8c27aab4db73681d8a7dbcbc9, viewer/dist/od-bridge.js
+// 13319188b6ce84554bf8efdae3949ffa7d8d2e9c, viewer/dist/od-bridge.js
 // (built from viewer/src/bridge/frame.ts). Do not edit; re-vendor to update.
 // OpenDesigner bridge, protocol version 1. Built from src/bridge/frame.ts.
 (() => {

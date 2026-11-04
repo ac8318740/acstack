@@ -1,5 +1,5 @@
 // Vendored from OpenDesigner (github.com/ac8318740/open-designer) at commit
-// 9769b8e17d3657e8c27aab4db73681d8a7dbcbc9, viewer/src/bridge/protocol.ts.
+// 13319188b6ce84554bf8efdae3949ffa7d8d2e9c, viewer/src/bridge/protocol.ts.
 // Do not edit; re-vendor to update.
 
 // OpenDesigner bridge protocol, version 1. Shared shapes for the host
