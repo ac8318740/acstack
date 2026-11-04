@@ -119,7 +119,7 @@ async function review(root: string) {
   const meta = html.match(/<meta\b[^>]*>/g)?.find(tag => /\bname=["']acstack-review-token["']/.test(tag));
   const token = meta?.match(/\bcontent=["']([^"']+)["']/)?.[1];
   if (!token) throw new Error('Missing review token');
-  const headers = { 'x-review-token': token, 'content-type': 'application/json' };
+  const headers = { 'x-review-token': token, 'content-type': 'application/json', origin: new URL(url).origin };
   return {
     child,
     get: async () => { const response = await request('/api/annotations', { headers }); expect(response.status).toBe(200); return await response.json() as Snapshot; },

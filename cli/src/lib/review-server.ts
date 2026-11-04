@@ -43,6 +43,8 @@ export function createReviewServer(options: {
     }
     const endpoint = req.url === '/api/design-review' ? options.designReview : req.url === options.path ? options : undefined;
     if (!endpoint || (req.method !== 'POST' && !(req.method === 'GET' && endpoint.get))) return reply(404, { error: 'Not found' });
+    // Browsers omit Origin on same-origin GETs, so only writes can require it; a sandboxed frame sends "null".
+    if (req.method === 'POST' && req.headers.origin !== `http://${req.headers.host}`) return reply(403, { error: 'Writes must come from this review page.' });
     if (req.headers[REVIEW_TOKEN_HEADER] !== token) return reply(403, { error: 'This page is from an older review. Reload it.' });
     if (req.method === 'GET') {
       void Promise.resolve().then(() => endpoint.get?.()).then(body => reply(200, body)).catch((error: unknown) => {

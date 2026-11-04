@@ -11,6 +11,8 @@ import { questionScopeForSelection, questionsForScope } from './question-targets
 import { ElementMetadata } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
+import { ExamplesTab } from './examples-modal.js';
+import { examplesFor } from './examples.js';
 
 const labelOf = (id: string) => pack.graph.nodes.find(item => item.id === id)?.label ?? id;
 
@@ -305,7 +307,7 @@ export function Comments({ annotations, onSelect, onDelete, onEdit, onShowCommen
   );
 }
 
-export type DrawerView = 'details' | 'comments' | 'questions';
+export type DrawerView = 'details' | 'comments' | 'questions' | 'examples';
 export type CommentScope = string;
 
 export function commentScopeForSelection(selected: string | null, diagram: Diagram): CommentScope {
@@ -464,6 +466,7 @@ export function Drawer({
   const visibleComments = commentScope === 'all' ? annotations : annotations.filter(annotation => context?.matches(annotation.target));
   const options = commentScopeOptions(annotations);
   const currentLabel = commentScope !== 'all' && context ? scopeLabel(context.target) : 'All targets';
+  const exampleNode = selected?.startsWith('item:') ? selected.slice(5) : selected?.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId ?? null : null;
   const openAllComments = () => { setCommentScope('all'); setView('comments'); setOpen(true); };
   if (!open) {
     return (
@@ -524,6 +527,7 @@ export function Drawer({
           <button type="button" aria-pressed={view === 'details'} onClick={() => setView('details')}>Details</button>
           <button type="button" aria-pressed={view === 'comments'} onClick={() => { if (view !== 'comments') { setCommentScope(commentScopeForSelection(selected, diagram)); setView('comments'); } }}>Comments</button>
           {pack.designDocument && <button type="button" aria-pressed={view === 'questions'} onClick={() => { if (view !== 'questions') { setQuestionScope(questionScopeForSelection(selected)); setView('questions'); } }}>Questions{needsInput > 0 ? ` (${needsInput})` : ''}</button>}
+          {exampleNode && examplesFor(exampleNode).length > 0 && <button type="button" aria-pressed={view === 'examples'} onClick={() => setView('examples')}>Examples</button>}
         </div>
         <div className="row">
           <button type="button" className="icon-btn" data-tooltip="Collapse details panel" aria-label="Collapse details panel" onClick={() => setOpen(false)}>
@@ -535,7 +539,7 @@ export function Drawer({
         {view === 'details' ? (
           selected && selected !== 'group:design:root' ? <Details selected={selected} diagram={diagram} openQuestions={openQuestions} onQuestion={openQuestion} onInspect={selected => setInspection({ selected })} onSelect={onSelect} onOpenGroup={onOpenGroup} /> :
             pack.designDocument ? <DocumentOverview /> : <p className="muted">Select a box or relationship to see its details.</p>
-        ) : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
+        ) : view === 'examples' ? (exampleNode ? <ExamplesTab key={exampleNode} nodeId={exampleNode} annotations={annotations} setAnnotations={setAnnotations} /> : <p className="muted">Select an element to see its examples.</p>) : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}
