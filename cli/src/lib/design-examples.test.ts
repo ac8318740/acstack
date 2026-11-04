@@ -137,13 +137,14 @@ it('holds approval for each multi-variant mock on a loose element', () => {
   expect(unchosenVariants(doc)).toEqual([{ kind: 'variant', targetId: 'a', label: 'Choose a variant of Checkout', nodeId: 'a', example: 'od:c/h' }]);
 });
 
-it('checks the worked example with one of each file kind', () => {
+it('checks the worked example with one of each kind', () => {
   const doc = exampleDesign();
   const { summaries, warnings } = checkElementExamples(EXAMPLE_ROOT, EXAMPLE_MAP, doc.items, EXAMPLE_ROOT);
   expect(summaries.get(EX.viewer)?.map(summary => [summary.kind, summary.path])).toEqual([
-    ['html', 'examples-modal.html'], ['markdown', 'review-flow.md'], ['markdown', 'comment-anchor.mmd'], ['fixture', 'comments.json'],
+    ['od-build', 'od:order-summary/summary'], ['markdown', 'review-flow.md'], ['markdown', 'comment-anchor.mmd'], ['fixture', 'comments.json'],
   ]);
-  expect(warnings).toEqual(['Element 008: mock examples-modal.html has 1 variant; add another so the reviewer can compare options']);
+  expect(summaries.get(EX.viewer)?.[0].variants).toEqual(['card', 'receipt']);
+  expect(warnings).toEqual([]);
 });
 
 it('captures a named variant with its tweak defaults and every state', () => {

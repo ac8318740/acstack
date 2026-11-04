@@ -19,8 +19,10 @@ parent: '006'
 channels:
 - web
 examples:
-- title: Examples modal
-  html: examples-modal.html
+- title: Order summary
+  od:
+    design: order-summary
+    page: summary
   illustrative: true
 - title: Reviewing an example
   markdown: review-flow.md

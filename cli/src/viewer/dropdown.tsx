@@ -85,6 +85,6 @@ export function Dropdown({ id, label, value, currentLabel, options, onChange }: 
       {options.map((option, index) => <div key={option.value} id={`${listId}-${index}`} role="option" aria-selected={option.value === value} data-index={index} data-active={index === active} className="dropdown-option" onPointerMove={() => setActive(index)} onClick={() => choose(index)}>
         <span>{option.label}</span>{option.value === value && <Check size={16} aria-hidden="true" />}
       </div>)}
-    </div>, trigger.current?.closest('dialog') ?? document.body)}
+    </div>, trigger.current?.closest('dialog, [popover]') ?? document.body)}
   </>;
 }

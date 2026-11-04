@@ -20,6 +20,7 @@ function fixture() {
   mkdirSync(join(root, 'empty-path'));
   writeFileSync(join(root, '.acstack/project.yaml'), 'name: orientation-test\n');
   cpSync(join(EXAMPLE_ROOT, 'maps'), join(root, '.acstack/maps'), { recursive: true });
+  cpSync(join(EXAMPLE_ROOT, '.open-designer'), join(root, '.open-designer'), { recursive: true });
   return trackProject(root);
 }
 afterEach(async () => {
@@ -67,6 +68,6 @@ it('rejects invalid orientation before shipped CLI Markdown or lifecycle writes'
   const result = spawnSync(process.execPath, [bin, 'design-doc', entry, '--orientation', 'diagonal', '--markdown', 'README.md'], { cwd: root, encoding: 'utf8', timeout: 10_000 });
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain('Allowed choices');
-  expect(readdirSync(root).sort()).toEqual(['.acstack', '.git', 'empty-path']);
+  expect(readdirSync(root).sort()).toEqual(['.acstack', '.git', '.open-designer', 'empty-path']);
   expect(readdirSync(join(root, '.acstack')).sort()).toEqual(['maps', 'project.yaml']);
 });
