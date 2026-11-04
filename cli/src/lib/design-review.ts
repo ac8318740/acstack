@@ -15,7 +15,7 @@ export type DesignReviewSnapshot = z.infer<typeof DesignReviewSnapshotSchema>;
 // What the page showed when an element locked, such as a mock's chosen variant and tweaks. The page owns its shape.
 export const LockCaptureSchema = z.record(z.unknown());
 export const ApprovedElementSchema = z.object({
-  name: z.string(), summary: z.string(), detail: z.string().optional(), kind: z.string(), parent: z.string().optional(), channels: z.array(z.string()),
+  title: z.string().optional(), name: z.string(), summary: z.string(), detail: z.string().optional(), kind: z.string(), parent: z.string().optional(), channels: z.array(z.string()),
   connections: z.array(z.object({ to: z.string(), direction: z.string(), label: z.string() }).strict()),
   examples: z.record(z.string()),
 }).strict();

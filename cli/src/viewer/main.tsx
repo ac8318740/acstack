@@ -4,7 +4,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { Check, CircleCheck, Copy } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import './viewer.css';
-import { buildDiagram, type Diagram as DiagramModel, initialExpandedGroups, projectDiagram, reconcileSelection, type MeasuredGeometry } from './alignment-graph.js';
+import { buildDiagram, type Diagram as DiagramModel, initialExpandedGroups, projectDiagram, reconcileSelection, revealElement, type MeasuredGeometry } from './alignment-graph.js';
 import { Diagram, MeasureDiagram, type MeasureDiagramHandle, type ViewportAnchor, type Zoom } from './diagram.js';
 import { CommentForm, Drawer, commentScopeForSelection, type CommentScope, type DrawerView } from './drawer.js';
 import { commentPosition } from './comment-position.js';
@@ -237,16 +237,15 @@ function App() {
   };
   // A blocker link opens its element; a question the page can answer also opens and focuses in Questions.
   const [questionRequest, setQuestionRequest] = useState<{ id: string }>();
+  const [reveal, setReveal] = useState<{ id: string }>();
   const [exampleLink, setExampleLink] = useState<ExampleLink>();
   const review = useDesignReview();
   useBlockerNavigation(blocker => {
-    if (blocker.kind === 'variant') {
-      // The Examples view needs the element itself, so open the containers it sits in rather than selecting one.
-      const groups: string[] = [];
-      for (let id = pack.graph.nodes.find(node => node.id === blocker.targetId)?.groupId; id && id !== 'design:root'; id = pack.graph.groups.find(group => group.id === id)?.parentGroupId) groups.push(id);
-      if (groups.some(id => !expanded.includes(id))) changeExpanded([...new Set([...expanded, ...groups])]);
-      setSelected(`item:${blocker.targetId}`);
-    } else setSelected(reconcileSelection(`item:${blocker.targetId}`, diagram, pack.graph));
+    // Open the containers the element sits in, so its card, drawer, and Examples view are the element's own.
+    const { groups, selection } = revealElement(pack.graph, blocker.targetId);
+    if (groups.some(id => !expanded.includes(id))) changeExpanded([...new Set([...expanded, ...groups])]);
+    setSelected(selection);
+    setReveal({ id: selection });
     setDrawerOpen(true);
     if (blocker.kind === 'variant') { setExampleLink({ nodeId: blocker.targetId, path: blocker.example }); setDrawerView('examples'); }
     else if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });
@@ -307,6 +306,7 @@ function App() {
         {liveError && <div className="layout-error" role="alert">The map has a problem, so this page stopped updating: {liveError}</div>}
         <ReactFlowProvider>
           <Diagram
+            reveal={reveal}
             diagram={diagram}
             orientation={orientation}
             layoutKey={layoutKey}

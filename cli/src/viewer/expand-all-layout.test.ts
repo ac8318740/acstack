@@ -38,3 +38,15 @@ describe('expanding every group of the worked example with measured sizes', () =
     }
   });
 });
+
+describe('revealing an element from a blocker', () => {
+  it('opens every container above an element, and only the ancestors of a container element', async () => {
+    const { revealElement } = await import('./alignment-graph.js');
+    const graph = designDocToPack(exampleDesign()).graph;
+    // Browser review interface sits in CLI package, which sits in ACStack plugin.
+    expect(revealElement(graph, EX.viewer)).toEqual({ groups: [`design:container:${EX.cli}`, `design:container:${EX.acstack}`], selection: `item:${EX.viewer}` });
+    // CLI package is itself a container: open its parent and select its frame.
+    expect(revealElement(graph, EX.cli)).toEqual({ groups: [`design:container:${EX.acstack}`], selection: `group:design:container:${EX.cli}` });
+    expect(revealElement(graph, EX.github)).toEqual({ groups: [], selection: `item:${EX.github}` });
+  });
+});

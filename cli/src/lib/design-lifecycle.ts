@@ -47,7 +47,7 @@ type Item = DesignDoc['items'][number];
 /** The element as approval keeps it: what a reviewer reads, not the digest. */
 export function approvedElement(item: Item): ApprovedElement {
   return {
-    name: item.name, summary: item.summary, ...(item.detailText && { detail: item.detailText }), kind: item.kind, ...(item.parent && { parent: item.parent }), channels: item.channels,
+    title: item.title, name: item.name, summary: item.summary, ...(item.detailText && { detail: item.detailText }), kind: item.kind, ...(item.parent && { parent: item.parent }), channels: item.channels,
     connections: item.relationships.map(edge => ({ to: edge.to, direction: edge.direction, label: edge.label })),
     examples: Object.fromEntries((item.exampleSummaries ?? []).filter(example => !example.illustrative && example.revision).map(example => [example.path, example.revision!])),
   };
@@ -56,9 +56,12 @@ export function approvedElement(item: Item): ApprovedElement {
 export function elementChanges(before: ApprovedElement, after: ApprovedElement): ElementChange[] {
   const changes: ElementChange[] = [];
   const text = (label: string, a?: string, b?: string) => { if (a !== b) changes.push({ label, ...(a && { before: a }), ...(b && { after: b }) }); };
+  if (before.title !== undefined) text('Title changed', before.title, after.title);
   text('Name changed', before.name, after.name);
   text('Summary changed', before.summary, after.summary);
-  if (before.detail !== after.detail) changes.push({ label: 'Detail changed' });
+  // Detail can run long, so its before and after are clipped to a readable excerpt.
+  const clip = (value?: string) => value && value.length > 400 ? `${value.slice(0, 400).trimEnd()}…` : value;
+  if (before.detail !== after.detail) changes.push({ label: 'Detail changed', ...(before.detail && { before: clip(before.detail) }), ...(after.detail && { after: clip(after.detail) }) });
   text('Type changed', before.kind, after.kind);
   if (before.parent !== after.parent) changes.push({ label: 'Containment changed' });
   text('Interfaces changed', before.channels.join(', ') || 'none', after.channels.join(', ') || 'none');

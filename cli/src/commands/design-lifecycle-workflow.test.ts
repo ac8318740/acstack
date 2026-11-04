@@ -306,6 +306,12 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     accepted(cli(root, ['design-doc', 'demo', '--check']));
     rejected(cli(root, ['design-review', 'approve-element', 'demo', '103']), 'already approved');
     expect(status(root).blockers).toEqual([]);
+    // Prose is part of the requirement: a body edit alone unapproves, and the change list shows before and after.
+    writeFileSync(join(root, '.acstack/maps/demo/103-node.md'), fileNode(root, '103').replace('# Node 103\n', '# Node 103\n\nKeeps every record.\n'));
+    const prose = cli(root, ['design-doc', 'demo', '--check']);
+    rejected(prose, 'detail edit');
+    expect(prose.stderr).toContain('103 (detail changed)');
+    expect(status(root).blockers[0]).toMatchObject({ kind: 'changed', changes: [{ label: 'Detail changed', after: 'Keeps every record.' }] });
   }, 30_000);
 
   it('finishes an approval that failed midway without resolving any node twice', async () => {
@@ -363,7 +369,8 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     const resumed = await start(root);
     const shown = await resumed.get();
     expect(shown.approval.valid).toBe(true);
-    writeFileSync(join(root, '.acstack/maps/demo/102-node.md'), fileNode(root, '102').replace('Runs commands.', 'Runs new commands.'));
+    // The overview changes the design without touching an approved element.
+    writeFileSync(join(root, '.acstack/maps/demo/101-node.md'), fileNode(root, '101') + '\nA new overview line.\n');
     expect(status(root).approval.valid).toBe(false);
     // The page's tuple names the design it showed, so it cannot approve the changed one.
     denied(await resumed.approve(shown));

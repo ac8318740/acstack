@@ -40,7 +40,7 @@ export const QUESTION_SUMMARY = 'Design question';
 
 type Relationship = { id: string; from: string; to: string; direction: 'one-way' | 'bidirectional'; label: string };
 type Element = {
-  id: string; name: string; summary: string; kind: z.infer<typeof DesignKindSchema>; parent?: string;
+  id: string; title: string; name: string; summary: string; kind: z.infer<typeof DesignKindSchema>; parent?: string;
   channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; source?: string; resolved: boolean; locked: boolean; configDigest: string;
   // `exampleSummaries` is filled once the files are checked, by loadMapDesign.
   examples: ExampleEntry[]; exampleSummaries?: ExampleSummary[];
@@ -116,13 +116,14 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
     if (parent === node.id) throw new Error(`Node ${node.id}: cannot contain itself`);
     if (node.status === 'fog') warnings.push(`Element ${node.id} is fog; it shows as loose`);
     return {
-      id: node.id, name: node.label, summary: node.summary ?? node.title, kind: value.kind, parent, channels: value.channels,
+      id: node.id, title: node.title, name: node.label, summary: node.summary ?? node.title, kind: value.kind, parent, channels: value.channels,
       relationships: value.connections.map(edge => {
         const to = element(node, edge.to, 'connection');
         if (to === node.id) throw new Error(`Node ${node.id}: connects to itself`);
         return { id: `${node.id}-${to}`, from: node.id, to, direction: edge.direction, label: edge.label };
       }),
-      detailText: rest || undefined, source: node.url ?? (node.file && `maps/${map}/${node.file}`), resolved: node.status === 'resolved', locked: node.status === 'resolved', configDigest: digest(config), examples: value.examples,
+      detailText: rest || undefined, source: node.url ?? (node.file && `maps/${map}/${node.file}`), resolved: node.status === 'resolved', locked: node.status === 'resolved', // Approval covers the requirement prose too; `rest` already leaves out regenerated diagrams.
+      configDigest: digest({ config, title: node.title, name: node.label, summary: node.summary ?? node.title, detail: rest }), examples: value.examples,
     };
   });
   const byElement = new Map(items.map(item => [item.id, item]));

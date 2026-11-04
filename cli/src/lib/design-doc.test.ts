@@ -194,3 +194,16 @@ describe('describing what changed since approval', () => {
     expect(elementChanges(before, before)).toEqual([]);
   });
 });
+
+describe('what an approval covers', () => {
+  it('covers the title, name, summary, and detail prose, but not regenerated diagrams', () => {
+    const digestOf = (nodes: GraphNode[]) => build(nodes).doc.items.find(item => item.id === '002')!.configDigest;
+    const base = digestOf(fixture());
+    const edit = (fields: Partial<GraphNode>) => digestOf(fixture().map(n => n.id === '002' ? { ...n, ...fields } : n));
+    expect(edit({ summary: 'Runs every command' })).not.toBe(base);
+    expect(edit({ label: 'Runner' })).not.toBe(base);
+    expect(edit({ title: 'The runner' })).not.toBe(base);
+    expect(edit({ body: fixture()[1].body!.replace('App detail', 'App detail, revised') })).not.toBe(base);
+    expect(edit({ body: fixture()[1].body!.replace('map diagram', 'a regenerated map diagram') })).toBe(base);
+  });
+});

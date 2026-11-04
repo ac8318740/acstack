@@ -46,7 +46,7 @@ A design doc belongs to one map. Use `/acstack:map` to chart it if none exists.
     - **Never lock or approve an element on your own.** Do it only on the user's explicit instruction in conversation, after reporting what changed, with `~/.claude/acstack/bin/acstack design-review approve-element <map> <id>`
     - When the element has a mock with several variants, add `--variant <example path>=<variant id>` for each, naming the variant the user chose (for example "approve variant 2"); its tweaks take their defaults
     - Otherwise only the user approves, by approving the design; there is no per-element lock in the viewer
-    - You may edit an approved element. Approval records a digest of each element's config, so an edit unapproves the element: it shows "Changed since approval" with Re-approve and stops being a requirement
+    - You may edit an approved element. Approval records a digest of each element's config, title, name, summary, and detail (not the generated diagram block), so an edit unapproves the element: it shows "Changed since approval" with Re-approve and stops being a requirement
     - The tracker node stays resolved; the digest alone marks the element as changed until the user re-approves it
 - Elements never appear on the frontier. Questions about them do
 - Put the element's config in one collapsed block, so the node stays readable on GitHub:

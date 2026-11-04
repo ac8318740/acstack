@@ -217,16 +217,26 @@ function RestoreToggleFocus({ diagram, layoutKey, requestedKey, expanded, pendin
   return null;
 }
 
-export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selected, onSelect, onAnnotate, onQuestions = () => {}, commentCounts, layoutKey = '', anchor, contentZoom = zoom, orientation = 'top-to-bottom' }: {
+export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selected, onSelect, onAnnotate, onQuestions = () => {}, commentCounts, layoutKey = '', anchor, contentZoom = zoom, orientation = 'top-to-bottom', reveal }: {
+  /** A card to bring into view once the layout holds it, such as an approval blocker's element. */
+  reveal?: { id: string };
   diagram: DiagramModel; expanded: string[]; setExpanded: (ids: string[], anchorId?: string) => void; zoom: Zoom; setZoom: (zoom: Zoom) => void; anchor?: ViewportAnchor | null;
   selected: string | null; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; onQuestions?: (id: string | null) => void; commentCounts: Map<string, number>; layoutKey?: string; contentZoom?: Zoom; orientation?: DiagramOrientation;
 }) {
   const questionCounts = useQuestionCounts(diagram);
-  const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
+  const { fitView, zoomIn, zoomOut, getViewport, setViewport, setCenter } = useReactFlow();
+  const revealed = useRef<{ id: string } | undefined>(undefined);
   const fitted = useRef(false);
   const appliedAnchor = useRef<ViewportAnchor | null>(null);
   const pending = useRef<ToggleFocus | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!reveal || revealed.current === reveal) return;
+    const node = diagram.nodes.find(item => item.id === reveal.id);
+    if (!node) return;
+    revealed.current = reveal;
+    void setCenter(node.x + node.width / 2, node.y + node.height / 2, { zoom: getViewport().zoom, duration: reducedMotion() ? 0 : 200 });
+  }, [reveal, diagram, setCenter, getViewport]);
   // Refitting on resize stops once the reviewer pans or zooms; Fit diagram hands control back.
   const userMoved = useRef(false);
   const fit = (animate = true) => {

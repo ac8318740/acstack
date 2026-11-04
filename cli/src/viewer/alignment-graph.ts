@@ -829,3 +829,16 @@ export function edgePath(points: Point[], hops: Point[], gap?: Box, additionalGa
   }
   return parts.join(' ');
 }
+
+/**
+ * The groups to open so an element shows as its own card or frame, and the selection id for it.
+ * A container element opens its ancestors but not itself; its frame is the selection.
+ */
+export function revealElement(graph: AlignmentGraph, nodeId: string): { groups: string[]; selection: string } {
+  const node = graph.nodes.find(item => item.id === nodeId);
+  const groupOf = (id?: string) => graph.groups.find(group => group.id === id);
+  const owns = Boolean(node) && groupOf(node?.groupId)?.ownerNodeId === node?.id;
+  const groups: string[] = [];
+  for (let id = owns ? groupOf(node?.groupId)?.parentGroupId : node?.groupId; id && id !== 'design:root'; id = groupOf(id)?.parentGroupId) groups.push(id);
+  return { groups, selection: owns ? `group:${node!.groupId}` : `item:${nodeId}` };
+}
