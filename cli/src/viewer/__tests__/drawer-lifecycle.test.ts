@@ -629,7 +629,7 @@ it('offers one-click re-approval for an element changed since approval', async (
   pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
   const container = create('div'), root = createRoot(container as unknown as HTMLElement);
   const buttons = (label: string) => all(container).filter(node => node.tagName === 'BUTTON' && handlers(node).children === label);
-  const pill = () => all(container).find(node => node.attributes['data-changed'] !== undefined);
+  const pill = () => all(container).find(node => node.attributes.class === 'element-changes-title');
   try {
     await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(DesignApproval), createElement(ElementLock, { id: 'app', locked: false })) }))));
     expect(handlers(pill()!).children).toBe('Changed since approval');

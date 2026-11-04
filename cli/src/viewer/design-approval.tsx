@@ -177,15 +177,13 @@ export function ElementLock({ id }: { id: string; locked?: boolean }) {
   const [error, setError] = useState<string>();
   if (!review?.changed.includes(id)) return null;
   const changes = review.changes(id);
-  return <section className="element-changes" aria-label="Changed since approval">
-    <div className="element-lock">
-      <span className="type-pill" data-changed>Changed since approval</span>
-      <button type="button" className="btn" disabled={!review.canAnswer} onClick={() => { setError(undefined); review.lock(id).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>Re-approve</button>
-    </div>
+  return <section className="element-changes" aria-labelledby={`changed-${id}`}>
+    <h3 id={`changed-${id}`} className="element-changes-title">Changed since approval</h3>
     {changes.length > 0 && <ul className="change-list">{changes.map(change => <li key={change.label}>
       <span className="change-label">{change.label}</span>
       {(change.before !== undefined || change.after !== undefined) && <span className="change-diff"><del>{change.before ?? 'none'}</del><ins>{change.after ?? 'none'}</ins></span>}
     </li>)}</ul>}
+    <button type="button" className="btn" disabled={!review.canAnswer} onClick={() => { setError(undefined); review.lock(id).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>Re-approve</button>
     {error && <p className="error" role="alert">{error}</p>}
   </section>;
 }

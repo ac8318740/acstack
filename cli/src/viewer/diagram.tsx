@@ -227,11 +227,29 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
   const appliedAnchor = useRef<ViewportAnchor | null>(null);
   const pending = useRef<ToggleFocus | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
-  const fit = () => {
+  // Refitting on resize stops once the reviewer pans or zooms; Fit diagram hands control back.
+  const userMoved = useRef(false);
+  const fit = (animate = true) => {
     pending.current = null;
+    userMoved.current = false;
     const toolbar = canvas.current?.querySelector<HTMLElement>('.toolbar');
-    void fitView({ padding: { top: `${(toolbar?.offsetHeight ?? 0) + 30}px`, bottom: '80px', x: '30px' }, minZoom: 0.15, maxZoom: 1, duration: reducedMotion() ? 0 : 200 });
+    void fitView({ padding: { top: `${(toolbar?.offsetHeight ?? 0) + 30}px`, bottom: '80px', x: '30px' }, minZoom: 0.15, maxZoom: 1, duration: animate && !reducedMotion() ? 200 : 0 });
   };
+  // The canvas narrows when the drawer opens and with the window, so the fitted view follows it.
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    let size = '';
+    const observer = new ResizeObserver(([entry]) => {
+      const next = `${Math.round(entry.contentRect.width)}x${Math.round(entry.contentRect.height)}`;
+      if (next === size) return;
+      const first = !size;
+      size = next;
+      if (!first && fitted.current && !userMoved.current) fit(false);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [fitView]);
   useEffect(() => {
     if (!diagram.nodes.length || fitted.current) return;
     let second = 0;
@@ -277,7 +295,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     const name = (id: string) => byId.get(id)?.label ?? id;
     return { id: edge.id, source: edge.source, target: edge.target, type: 'routed', ariaLabel: `${name(edge.source)} ${edge.label} ${name(edge.target)} (${edge.bidirectional ? 'both directions' : 'source to target'})`, data: { ...edge, ...actions, state, selectId: `edge:${edge.childEdgeIds[0]}`, comments, questions: questionCounts.get(`edge:${edge.childEdgeIds[0]}`) ?? 0, selected: edge === selectedEdge }, markerStart: edge.bidirectional ? { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE } : undefined, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE }, zIndex: state === 'active' ? 2 : 0 };
   });
-  return <div ref={canvas} className="diagram-canvas"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="light" zIndexMode="manual" elevateNodesOnSelect={false} nodesConnectable={false} minZoom={0.15} maxZoom={2} panOnScroll={true} zoomOnScroll={false} zoomOnPinch={true} panOnDrag={true}
+  return <div ref={canvas} className="diagram-canvas"><ReactFlow onMoveStart={event => { if (event) userMoved.current = true; }} nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="light" zIndexMode="manual" elevateNodesOnSelect={false} nodesConnectable={false} minZoom={0.15} maxZoom={2} panOnScroll={true} zoomOnScroll={false} zoomOnPinch={true} panOnDrag={true}
     onNodeClick={(_, node) => onSelect(node.id)} onEdgeClick={(_, edge) => edge.data && onSelect(edge.data.selectId)}
     onKeyDown={event => {
       if (event.key.toLowerCase() === 'f' && event.target instanceof Element && !event.target.closest('input,textarea,button')) { event.preventDefault(); fit(); return; }
@@ -296,6 +314,6 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
       <div className="segmented"><button type="button" onClick={() => { pending.current = null; setExpanded(pack.graph.groups.map(group => group.id)); }}>Expand all</button><button type="button" onClick={() => { pending.current = null; setExpanded(pack.documentKind === 'design' ? ['design:root'] : []); }}>Collapse all</button></div>
     </Panel>
     {pack.designDocument?.questions?.length ? <Panel position="bottom-right" className="question-legend"><button type="button" className="btn" onClick={() => onQuestions(null)}><ListTodo size={14} aria-hidden="true" /> Design questions</button></Panel> : null}
-    <Panel position="bottom-left" className="zoom-controls"><div role="group" aria-label="Diagram viewport"><button type="button" className="icon-btn" aria-label="Zoom out" data-tooltip="Zoom out" onClick={() => void zoomOut()}><Minus size={18} /></button><button type="button" className="icon-btn" aria-label="Zoom in" data-tooltip="Zoom in" onClick={() => void zoomIn()}><Plus size={18} /></button><button type="button" className="btn" onClick={fit} data-tooltip="Fit the complete diagram (F)">Fit diagram</button></div></Panel>
+    <Panel position="bottom-left" className="zoom-controls"><div role="group" aria-label="Diagram viewport"><button type="button" className="icon-btn" aria-label="Zoom out" data-tooltip="Zoom out" onClick={() => { userMoved.current = true; void zoomOut(); }}><Minus size={18} /></button><button type="button" className="icon-btn" aria-label="Zoom in" data-tooltip="Zoom in" onClick={() => { userMoved.current = true; void zoomIn(); }}><Plus size={18} /></button><button type="button" className="btn" onClick={() => fit()} data-tooltip="Fit the complete diagram (F)">Fit diagram</button></div></Panel>
   </ReactFlow></div>;
 }

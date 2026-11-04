@@ -157,9 +157,9 @@ export function Details({
   const linkedQuestions = openQuestions.filter(question => highlights.some(highlight => highlight.questionId === question.id));
   return (
     <section className="section">
+      <h2>{node.label}</h2>
       <ElementMetadata kind={node.elementKind} channels={node.channels} />
       <ElementLock id={node.id} locked={node.locked} />
-      <h2>{node.label}</h2>
       <p data-annotate-type="node" data-annotate-id={node.id}>
         {node.summary}
       </p>
