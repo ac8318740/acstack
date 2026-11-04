@@ -112,3 +112,16 @@ it('lists examples in the page, serves their content behind the token, and holds
   expect(after.blockers).toEqual([]);
   expect(after.locked).toEqual(['102']);
 }, 30_000);
+
+it('approves a multi-variant element for the agent only with the variant the user named', () => {
+  const root = fixture();
+  const approve = (...args: string[]) => spawnSync(process.execPath, [bin, 'design-review', 'approve-element', 'demo', '102', ...args], { cwd: root, env: env(root), encoding: 'utf8', timeout: 10_000 });
+  const missing = approve();
+  expect(missing.status).not.toBe(0);
+  expect(missing.stderr).toContain('several variants for od:checkout/home (grid, list); pass --variant <path>=<variant>');
+  expect(approve('--variant', 'od:checkout/home=gone').stderr).toContain('several variants for od:checkout/home');
+  expect(approve('--variant', 'od:other/home=grid').stderr).toContain('has no OpenDesigner mock od:other/home');
+  const approved = approve('--variant', 'od:checkout/home=list');
+  expect(approved.status, approved.stderr).toBe(0);
+  expect((JSON.parse(approved.stdout) as Status).locked).toEqual(['102']);
+});

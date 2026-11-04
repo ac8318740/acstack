@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { designDocToPack, renderDesignDocMarkdown } from '../lib/design-doc.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { inProject } from '../lib/utils.js';
-import { loadMapDesign, openDesignLifecycle } from '../lib/design-lifecycle.js';
+import { changedElements, loadMapDesign, openDesignLifecycle, reviewHistories } from '../lib/design-lifecycle.js';
 import { examplePath, loadExampleContent } from '../lib/design-examples.js';
 import { checkoutRoot } from '../lib/project.js';
 import { createReviewServer, listenForReview, REVIEW_PORT, ReviewHttpError } from '../lib/review-server.js';
@@ -24,6 +24,17 @@ export function register(program: Command): void {
   lifecycle.command('status <map>').option('--review-file <path>', 'Canonical historical feedback snapshot')
     .action(inProject((root, map: string, options: { reviewFile?: string }) => {
       console.log(JSON.stringify(openDesignLifecycle(root, map, options.reviewFile).status()));
+    }));
+  lifecycle.command('approve-element <map> <id>')
+    .description("Lock or re-approve one element. Only on the user's explicit instruction")
+    .option('--variant <path=id>', 'The variant the user chose for a mock with several; repeat per mock', (value: string, list: string[]) => [...list, value], [])
+    .action(inProject((root, map: string, id: string, options: { variant: string[] }) => {
+      const variants = Object.fromEntries(options.variant.map(value => {
+        const at = value.lastIndexOf('=');
+        if (at <= 0 || at === value.length - 1) throw new Error(`--variant takes <example path>=<variant id>, not ${value}`);
+        return [value.slice(0, at), value.slice(at + 1)];
+      }));
+      console.log(JSON.stringify(openDesignLifecycle(root, map).approveElement(id, variants)));
     }));
   lifecycle.command('reconcile <map>').requiredOption('--input <json-file>', 'Explicit reconciliation decisions')
     .option('--review-file <path>', 'Canonical historical feedback snapshot')
@@ -47,6 +58,8 @@ export function register(program: Command): void {
       if (options.check) {
         const { doc, warnings } = loadMapDesign(root, map);
         warn(warnings);
+        const changed = changedElements(doc, reviewHistories(root, doc.id).values());
+        if (changed.length) throw new Error(`Changed since the user approved: ${changed.join(', ')}. Report the change; re-approve only on the user's instruction (design-review approve-element).`);
         console.log(`Design doc ${doc.name}: ${doc.items.length} elements, ${doc.questions.length} open questions`);
         return;
       }

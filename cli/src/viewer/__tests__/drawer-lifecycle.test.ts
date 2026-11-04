@@ -607,3 +607,37 @@ it('lists approval blockers in a modal that links to each one, and sends lock ca
     expect(posts.at(-1)).toEqual({ decision: 'approved', captures: { app: { variant: 'compact' } }, expected });
   } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
 });
+
+it('offers one-click re-approval for an element changed since approval', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
+  let blockers = [{ kind: 'changed', targetId: 'app', label: 'Application', nodeId: 'app' }];
+  const posts: unknown[] = [];
+  vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
+    if (options.method === 'POST' && typeof options.body === 'string') { posts.push(JSON.parse(options.body)); blockers = []; }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: [], locked: blockers.length ? [] : ['app'], blockers, approval: { valid: false } }) });
+  }));
+  const nodes = pack.graph.nodes;
+  pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const buttons = (label: string) => all(container).filter(node => node.tagName === 'BUTTON' && handlers(node).children === label);
+  const pill = () => all(container).find(node => node.attributes['data-locked'] !== undefined)!;
+  try {
+    await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(DesignApproval), createElement(ElementLock, { id: 'app', locked: false })) }))));
+    expect(handlers(pill()).children).toBe('Changed since approval');
+    act(() => handlers(buttons('Approve this version')[0]).onClick!());
+    // One Re-approve in the blocker modal and one in the element's drawer.
+    expect(buttons('Re-approve')).toHaveLength(2);
+    await act(() => Promise.resolve(handlers(buttons('Re-approve')[0]).onClick!()));
+    expect(posts).toEqual([{ lock: 'app', expected }]);
+    expect(handlers(pill()).children).toBe('Locked');
+    expect(buttons('Re-approve')).toHaveLength(0);
+  } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
+});

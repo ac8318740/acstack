@@ -1,10 +1,11 @@
-import { relative, resolve, sep } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
-import { designDocToPack, designFromNodes, digest } from './design-doc.js';
-import { designMapInputs, readMapNodes, resolveMapNode } from './design-map.js';
+import { designDocToPack, designFromNodes, digest, type DesignDoc } from './design-doc.js';
+import { designMapInputs, readMapNodes, resolveMapNode, type ApprovalBlocker } from './design-map.js';
 import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, LockCaptureSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type DesignAnswer, type StoredDesignReview } from './design-review.js';
 import { ReviewHttpError } from './review-server.js';
-import { checkElementExamples } from './design-examples.js';
+import { checkElementExamples, unchosenMocks, variantCapture } from './design-examples.js';
 import { checkoutRoot } from './project.js';
 
 // OpenDesigner keeps its designs in the checkout, beside the code they mock.
@@ -15,30 +16,46 @@ export function loadMapDesign(root: string, map: string, checkout = checkoutRoot
   for (const item of doc.items) item.exampleSummaries = examples.summaries.get(item.id);
   return { nodes, doc, warnings: [...warnings, ...examples.warnings] };
 }
+export const reviewHistories = (root: string, id: string): Map<string, StoredDesignReview> =>
+  existsSync(join(root, 'design-reviews', id)) ? readDesignReviewHistories(root, id) : new Map<string, StoredDesignReview>();
+/**
+ * Elements whose config matches no digest the user approved. Each lock records
+ * one, so an edit after locking unapproves the element until the user
+ * re-approves it. The tracker node stays resolved; only the digest decides.
+ */
+export function changedElements(doc: DesignDoc, histories: Iterable<StoredDesignReview>): string[] {
+  const records = [...histories].flatMap(snapshot => Object.entries(snapshot.lifecycle?.locks ?? {}));
+  const changed: string[] = [];
+  for (const item of doc.items) {
+    const approved = records.filter(([id]) => id === item.id).map(([, value]) => value.config);
+    if (item.resolved && approved.length && !approved.includes(item.configDigest)) { item.locked = false; changed.push(item.id); }
+  }
+  return changed;
+}
+const hasRecord = (saved: StoredDesignReview, item: DesignDoc['items'][number]) => saved.lifecycle?.locks[item.id]?.config === item.configDigest;
 function answerMarkdown(answer: DesignAnswer): string {
   if (answer.choices === undefined) return answer.answer;
   return [...answer.choices.map(choice => `- ${choice}`), ...(answer.answer ? [`- Other: ${answer.answer}`] : [])].join('\n');
 }
 
-export function openDesignLifecycle(root: string, map: string, reviewFile?: string) {
+export function openDesignLifecycle(root: string, map: string, reviewFile?: string, checkout = checkoutRoot() ?? process.cwd()) {
   root = resolve(root);
-  const opened = loadMapDesign(root, map);
+  const opened = loadMapDesign(root, map, checkout);
   const rendered = opened.doc;
+  changedElements(rendered, reviewHistories(root, rendered.id).values());
   const review = openDesignReview(root, designDocToPack(rendered));
   const evaluate = (saved: StoredDesignReview) => {
-    const { nodes, doc, warnings } = loadMapDesign(root, map);
+    const { nodes, doc, warnings } = loadMapDesign(root, map, checkout);
     const staleRendered = doc.sourceRevision !== rendered.sourceRevision;
-    const inputs = designMapInputs(nodes, doc);
     const feedbackPath = reviewFile ? resolve(reviewFile) : review.reviewPath;
     const latestReceipts = new Map(saved.lifecycle?.reconciliations.map(receipt => [resolve(root, receipt.reviewPath), receipt]));
     const histories = readDesignReviewHistories(root, doc.id);
     histories.set(review.reviewPath, saved);
     // A lock is recorded in the revision it happened in, so look across every revision's record.
-    const locks = [...histories.values()].flatMap(snapshot => Object.entries(snapshot.lifecycle?.locks ?? {}));
-    for (const item of doc.items) {
-      const recorded = locks.filter(([id]) => id === item.id).map(([, value]) => value.config);
-      if (item.locked && recorded.length && !recorded.includes(item.configDigest)) warnings.push(`Element ${item.id} changed its config after it was locked`);
-    }
+    const changed = changedElements(doc, histories.values());
+    const inputs = designMapInputs(nodes, doc);
+    const blockers = [...inputs.blockers, ...doc.items.filter(item => changed.includes(item.id))
+      .map((item): ApprovalBlocker => ({ kind: 'changed', targetId: item.id, label: item.name, nodeId: item.id }))];
     const obligations = new Set<string>();
     for (const [path, snapshot] of histories) {
       const receipts = new Map(snapshot.lifecycle?.reconciliations.map(receipt => [resolve(root, receipt.reviewPath), receipt]));
@@ -64,10 +81,11 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     let reason: string | undefined;
     if (staleRendered) reason = 'The design changed on the map. Reopen this revision before reviewing.';
     else if (inputs.blockers.some(blocker => blocker.kind === 'question')) reason = 'Open questions target this design';
+    else if (changed.length) reason = 'Changed elements need re-approval';
     else if (inputs.blockers.length) reason = 'Choose a variant for each mock with several, by locking its element';
     else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback needs explicit reconciliation';
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
-    return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers: inputs.blockers, openQuestions: inputs.openQuestions, locked: inputs.locked, warnings,
+    return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers, openQuestions: inputs.openQuestions, locked: inputs.locked, warnings,
       approval: { valid: !reason && approved, ...(!reason && approved ? {} : { reason: reason ?? 'This revision is not approved' }) },
       feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), blocker: reason };
   };
@@ -83,11 +101,19 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     if (!sameTuple(RevisionTupleSchema.parse(expected), state)) throw new ReviewHttpError(409, 'Stale review tuple');
     return state;
   };
-  const lock = (saved: StoredDesignReview, ids: string[], items: ReturnType<typeof evaluate>['doc']['items'], captures: Record<string, z.infer<typeof LockCaptureSchema>> = {}) => {
+  // Retry-safe: an approval that failed midway left some nodes resolved, so a re-run records those without resolving them again.
+  const lock = (saved: StoredDesignReview, items: DesignDoc['items'], captures: Record<string, z.infer<typeof LockCaptureSchema>> = {}) => {
+    // Locking chooses a variant, so check every element before the tracker resolves any of them.
+    for (const item of items) {
+      // A locked element only gains a record here; it chose its variant when it locked.
+      if (item.locked) continue;
+      const unchosen = unchosenMocks(item, captures[item.id]);
+      if (unchosen.length) throw new ReviewHttpError(409, `Element ${item.id} needs a chosen variant for ${unchosen.map(mock => `${mock.path} (${mock.variants!.join(', ')})`).join('; ')}`);
+    }
     saved.lifecycle ??= { reconciliations: [], approvals: [], locks: {} };
-    for (const id of ids) {
-      resolveMapNode(root, map, id);
-      saved.lifecycle.locks[id] = { config: items.find(item => item.id === id)!.configDigest, ...(captures[id] && { capture: captures[id] }) };
+    for (const item of items) {
+      if (!item.resolved) resolveMapNode(root, map, item.id);
+      saved.lifecycle.locks[item.id] = { config: item.configDigest, ...(captures[item.id] && { capture: captures[item.id] }) };
     }
   };
   return {
@@ -110,11 +136,17 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       const item = state.doc.items.find(item => item.id === incoming.lock);
       if (!item) throw new ReviewHttpError(400, 'Unknown design element');
       if (item.locked) throw new ReviewHttpError(409, 'This element is already locked');
-      // Locking chooses the variant on screen, so a multi-variant mock needs one in the capture.
-      const chosen = (incoming.capture as { examples?: Record<string, { variant?: unknown }> } | undefined)?.examples ?? {};
-      const unchosen = (item.exampleSummaries ?? []).find(example => (example.variants?.length ?? 0) > 1 && !example.variants!.includes(chosen[example.path]?.variant as string));
-      if (unchosen) throw new ReviewHttpError(409, `Open ${unchosen.title} in Examples and pick a variant before locking`);
-      lock(saved, [item.id], state.doc.items, incoming.capture && { [item.id]: incoming.capture });
+      lock(saved, [item], incoming.capture && { [item.id]: incoming.capture });
+      return publicStatus(evaluate(saved));
+    }),
+    // Only on the user's explicit instruction: the agent's path to lock or re-approve one element.
+    // `variants` maps each multi-variant mock's path to the variant the user named; its tweaks take their defaults.
+    approveElement: (id: string, variants: Record<string, string> = {}) => review.transact(saved => {
+      const item = evaluate(saved).doc.items.find(item => item.id === id);
+      if (!item) throw new Error(`Unknown design element: ${id}`);
+      if (item.locked && hasRecord(saved, item)) throw new Error(`Element ${id} is already approved`);
+      const capture = variantCapture(item, variants, checkout);
+      lock(saved, [item], capture ? { [item.id]: capture } : {});
       return publicStatus(evaluate(saved));
     }),
     reconcile: (body: unknown) => review.transact(saved => {
@@ -140,7 +172,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       const incoming = z.object({ decision: z.literal('approved'), captures: z.record(LockCaptureSchema).optional(), expected: RevisionTupleSchema }).strict().parse(body);
       const state = current(saved, incoming.expected);
       if (state.blocker) throw new ReviewHttpError(409, state.blocker);
-      lock(saved, state.doc.items.filter(item => !item.locked).map(item => item.id), state.doc.items, incoming.captures);
+      lock(saved, state.doc.items.filter(item => !item.locked || !hasRecord(saved, item)), incoming.captures);
       saved.lifecycle!.approvals.push({ ...incoming.expected, recordedAt: new Date().toISOString() });
       return publicStatus(evaluate(saved));
     }),

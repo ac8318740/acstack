@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { projectFile } from './constants.js';
 import { digest, targetingNodes, type DesignDoc } from './design-doc.js';
+import { unchosenMocks } from './design-examples.js';
 import { nodesFromIssues } from './github-issues.js';
 import { loadNodes, mapDir, updateNode, type GraphNode } from './nodes.js';
 import { getProjectKey } from './project-config.js';
@@ -10,7 +11,7 @@ import { getProjectKey } from './project-config.js';
  * One thing holding approval, as the viewer lists it. `targetId` is the element
  * the reviewer opens to settle it; `nodeId` is the map node to settle.
  */
-export type ApprovalBlocker = { kind: 'question'; targetId: string; label: string; nodeId: string }
+export type ApprovalBlocker = { kind: 'question' | 'changed'; targetId: string; label: string; nodeId: string }
   // A loose element whose mock has several variants: locking it chooses the one on screen.
   | { kind: 'variant'; targetId: string; label: string; nodeId: string; example: string };
 
@@ -68,6 +69,6 @@ export function designMapInputs(nodes: readonly GraphNode[], doc: DesignDoc) {
 
 /** Each multi-variant mock on a loose element; approval waits until the reviewer locks the element on a chosen variant. */
 export function unchosenVariants(doc: DesignDoc): ApprovalBlocker[] {
-  return doc.items.flatMap(item => item.locked ? [] : (item.exampleSummaries ?? []).filter(example => (example.variants?.length ?? 0) > 1)
+  return doc.items.flatMap(item => item.locked ? [] : unchosenMocks(item)
     .map((example): ApprovalBlocker => ({ kind: 'variant', targetId: item.id, label: `Choose a variant of ${example.title}`, nodeId: item.id, example: example.path })));
 }

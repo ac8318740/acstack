@@ -8,6 +8,7 @@ import { z } from 'zod';
 import type { ExampleSummary } from './alignment-packs.js';
 import { parseCsv } from './csv.js';
 import { mapDir } from './nodes.js';
+import { defaultFor, type Tweak } from '../viewer/od-bridge/tweaks.js';
 
 const file = z.string().trim().min(1).max(500);
 const name = z.string().regex(/^[a-zA-Z0-9][a-zA-Z0-9._-]{0,99}$/);
@@ -66,14 +67,43 @@ export function validateFixture(owner: string, fixture: string, schema?: string)
   if (!check(value)) throw new Error(`Element ${owner}: fixture ${fixture} does not match ${schema}: ${ajv.errorsText(check.errors, { separator: '; ' })}`);
 }
 
-type OdIndex = { pages?: { id: string; variants?: { id: string }[] }[] };
-function odVariants(checkout: string, owner: string, od: { design: string; page: string }): string[] {
+type OdIndex = { tweaks?: Tweak[]; pages?: { id: string; tweaks?: Tweak[]; variants?: { id: string; tweaks?: Tweak[] }[] }[] };
+function odPage(checkout: string, owner: string, od: { design: string; page: string }) {
   const index = join(checkout, OD_DIR, 'designs', od.design, 'index.json');
   let parsed: OdIndex;
   try { parsed = JSON.parse(readFileSync(index, 'utf8')) as OdIndex; } catch { throw new Error(`Element ${owner}: OpenDesigner design ${od.design} has no readable ${index}`); }
   const page = parsed.pages?.find(item => item.id === od.page);
   if (!page) throw new Error(`Element ${owner}: OpenDesigner design ${od.design} has no page ${od.page}`);
-  return (page.variants ?? []).map(variant => variant.id);
+  return { design: parsed, page };
+}
+const odVariants = (checkout: string, owner: string, od: { design: string; page: string }) => (odPage(checkout, owner, od).page.variants ?? []).map(variant => variant.id);
+
+type Capture = { examples?: Record<string, { variant?: unknown }> };
+/** The multi-variant mocks a lock capture leaves without a valid chosen variant. */
+export function unchosenMocks(item: { exampleSummaries?: ExampleSummary[] }, capture?: Capture): ExampleSummary[] {
+  return (item.exampleSummaries ?? []).filter(mock => (mock.variants?.length ?? 0) > 1 && !mock.variants!.includes(capture?.examples?.[mock.path]?.variant as string));
+}
+
+/**
+ * The lock capture for variants the user named to the agent. Tweaks take the variant's
+ * defaults, and every state of the variant is kept, as when the user locks in the viewer.
+ */
+export function variantCapture(item: { id: string; examples: ExampleEntry[]; exampleSummaries?: ExampleSummary[] }, chosen: Record<string, string>, checkout: string) {
+  const mocks = item.exampleSummaries?.filter(summary => summary.kind === 'od-build') ?? [];
+  for (const path of Object.keys(chosen)) if (!mocks.some(mock => mock.path === path)) throw new Error(`Element ${item.id} has no OpenDesigner mock ${path}`);
+  const missing = unchosenMocks(item, { examples: Object.fromEntries(Object.entries(chosen).map(([path, variant]) => [path, { variant }])) });
+  if (missing.length) throw new Error(`Element ${item.id} has several variants for ${missing.map(mock => `${mock.path} (${mock.variants!.join(', ')})`).join('; ')}; pass --variant <path>=<variant> for each, as the user chose`);
+  const examples = Object.fromEntries(Object.entries(chosen).map(([path, variant]) => {
+    const entry = item.examples.find(example => examplePath(example) === path)!;
+    const { design, page } = odPage(checkout, item.id, entry.od!);
+    const tweaks = [...design.tweaks ?? [], ...page.tweaks ?? [], ...page.variants?.find(item => item.id === variant)?.tweaks ?? []];
+    return [path, {
+      variant,
+      tweaks: Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, defaultFor(tweak)])),
+      states: Object.fromEntries(tweaks.flatMap(tweak => tweak.type === 'state' ? [[tweak.id, (tweak.options ?? []).map(option => typeof option === 'string' ? option : option.value)]] : [])),
+    }];
+  }));
+  return Object.keys(examples).length ? { examples } : undefined;
 }
 
 /** Check every element's examples against the files on disk. Throws on a broken reference; warns on oddities. */

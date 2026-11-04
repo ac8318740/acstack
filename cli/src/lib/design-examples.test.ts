@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { checkElementExamples, elementFolder, ExampleEntrySchema, loadExampleContent, tokenMap, type ExampleEntry } from './design-examples.js';
+import { checkElementExamples, elementFolder, ExampleEntrySchema, loadExampleContent, tokenMap, unchosenMocks, variantCapture, type ExampleEntry } from './design-examples.js';
 import { designFromNodes } from './design-doc.js';
 import { unchosenVariants } from './design-map.js';
 import type { GraphNode } from './nodes.js';
@@ -143,4 +143,19 @@ it('checks the worked example with one of each file kind', () => {
     ['html', 'examples-modal.html'], ['markdown', 'review-flow.md'], ['markdown', 'comment-anchor.mmd'], ['fixture', 'comments.json'],
   ]);
   expect(warnings).toEqual(['Element 008: mock examples-modal.html has 1 variant; add another so the reviewer can compare options']);
+});
+
+it('captures a named variant with its tweak defaults and every state', () => {
+  const { checkout } = setup();
+  const design = join(checkout, '.open-designer/designs/checkout');
+  mkdirSync(design, { recursive: true });
+  writeFileSync(join(design, 'index.json'), JSON.stringify({
+    tweaks: [{ id: 'density', type: 'select', label: 'Density', options: ['cozy', 'compact'] }],
+    pages: [{ id: 'home', tweaks: [{ id: 'phase', type: 'state', label: 'State', options: ['loading', { label: 'Empty', value: 'empty' }] }], variants: [{ id: 'a' }, { id: 'b', tweaks: [{ id: 'radius', type: 'slider', label: 'Radius', default: 8 }] }] }],
+  }));
+  const item = { id: '002', examples: entries({ od: { design: 'checkout', page: 'home' } }), exampleSummaries: [{ kind: 'od-build' as const, path: 'od:checkout/home', title: 'Home', variants: ['a', 'b'] }] };
+  expect(variantCapture(item, { 'od:checkout/home': 'b' }, checkout)).toEqual({ examples: { 'od:checkout/home': { variant: 'b', tweaks: { density: 'cozy', radius: '8' }, states: { phase: ['loading', 'empty'] } } } });
+  expect(() => variantCapture(item, {}, checkout)).toThrow('several variants for od:checkout/home (a, b)');
+  expect(unchosenMocks(item, { examples: { 'od:checkout/home': { variant: 'a' } } })).toEqual([]);
+  expect(variantCapture({ ...item, exampleSummaries: [{ ...item.exampleSummaries[0], variants: ['a'] }] }, {}, checkout)).toBeUndefined();
 });

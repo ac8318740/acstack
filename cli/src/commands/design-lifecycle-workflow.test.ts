@@ -43,7 +43,7 @@ if (args[0] === 'issue' && args[1] === 'list') process.stdout.write(fs.readFileS
 else if (args[0] === 'issue' && args[1] === 'view') process.stdout.write(JSON.stringify({ body: issue(issues()).body }));
 else if (args[0] === 'issue' && args[1] === 'edit') { const all = issues(); issue(all).body = fs.readFileSync(0, 'utf8'); fs.writeFileSync('issues.json', JSON.stringify(all)); }
 else if (args[0] === 'issue' && args[1] === 'close') {
-  if (fs.existsSync('fail-close')) { console.error('close failed'); process.exit(1); }
+  if (fs.existsSync('fail-close') || fs.existsSync('fail-close-' + args[2])) { console.error('close failed'); process.exit(1); }
   const all = issues(); Object.assign(issue(all), { state: 'CLOSED', stateReason: 'COMPLETED' }); fs.writeFileSync('issues.json', JSON.stringify(all));
 } else { console.error('Unexpected gh invocation: ' + args.join(' ')); process.exit(1); }
 `);
@@ -250,7 +250,7 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     expect((await server.approve(clear)).ok).toBe(true);
   }, 30_000);
 
-  it('locks one element from the page and warns when its config changes afterwards', async () => {
+  it('locks one element from the page, unapproves it when its config changes, and re-approves it', async () => {
     const root = fixture();
     const server = await start(root);
     const before = await server.get();
@@ -263,10 +263,51 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     expect(fileNode(root, '103')).toMatch(/^status: resolved$/m);
     denied(await server.lock(after, '103'));
     denied(await server.lock(after, '101'));
+    accepted(cli(root, ['design-doc', 'demo', '--check']));
     writeFileSync(join(root, '.acstack/maps/demo/103-node.md'), fileNode(root, '103').replace('kind: store', 'kind: store\nchannels: [web]'));
-    expect(status(root).warnings).toEqual(['Element 103 changed its config after it was locked']);
     // The open page shows the old design, so it can no longer lock or answer.
     denied(await server.lock(await server.get(), '102'));
+    const failed = cli(root, ['design-doc', 'demo', '--check']);
+    rejected(failed, 'changed element');
+    expect(failed.stderr).toContain('Changed since the user approved: 103');
+    // The digest decides; the tracker node stays resolved.
+    expect(fileNode(root, '103')).toMatch(/^status: resolved$/m);
+    await stop(server.child);
+    const reopened = await start(root);
+    const changed = await reopened.get();
+    expect(changed.locked).toEqual([]);
+    expect(changed.blockers).toEqual([{ kind: 'changed', targetId: '103', label: 'Node 103', nodeId: '103' }]);
+    expect(changed.approval.reason).toBe('Changed elements need re-approval');
+    denied(await reopened.approve(changed));
+    expect((await reopened.lock(changed, '103')).ok).toBe(true);
+    expect((await reopened.get()).blockers).toEqual([]);
+    accepted(cli(root, ['design-doc', 'demo', '--check']));
+    // An agent re-approves only on the user's instruction, through the CLI.
+    writeFileSync(join(root, '.acstack/maps/demo/103-node.md'), fileNode(root, '103').replace('channels: [web]', 'channels: [cli]'));
+    rejected(cli(root, ['design-doc', 'demo', '--check']), 'changed again');
+    accepted(cli(root, ['design-review', 'approve-element', 'demo', '103']));
+    accepted(cli(root, ['design-doc', 'demo', '--check']));
+    rejected(cli(root, ['design-review', 'approve-element', 'demo', '103']), 'already approved');
+    expect(status(root).blockers).toEqual([]);
+  }, 30_000);
+
+  it('finishes an approval that failed midway without resolving any node twice', async () => {
+    const root = fixture('github');
+    const server = await start(root);
+    writeFileSync(join(root, 'fail-close-103'), '');
+    const first = await server.approve(await server.get());
+    expect(first.ok).toBe(false);
+    const halfway = await server.get();
+    expect(halfway.locked).toEqual(['102']);
+    expect(halfway.approval.valid).toBe(false);
+    rmSync(join(root, 'fail-close-103'));
+    expect((await server.approve(halfway)).ok).toBe(true);
+    const done = await server.get();
+    expect(done.approval.valid).toBe(true);
+    expect(done.locked.sort()).toEqual(['102', '103']);
+    expect(ghCalls(root).filter(args => args[1] === 'close').map(args => args[2])).toEqual(['102', '103', '103']);
+    const review = JSON.parse(readFileSync(done.reviewPath, 'utf8')) as { lifecycle: { locks: Record<string, { config: string }> } };
+    expect(Object.keys(review.lifecycle.locks).sort()).toEqual(['102', '103']);
   }, 30_000);
 
   it('requires every comment exactly once with a rationale and a current tuple', async () => {
