@@ -17,6 +17,7 @@ import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alig
 import { copy, ReviewHandoff } from './review-handoff.js';
 import { useQuestionCounts } from './design-questions.js';
 import { questionScopeForSelection } from './question-targets.js';
+import type { ExampleLink } from './examples-modal.js';
 import { DesignApproval, DesignApprovalProvider, useBlockerNavigation, useDesignReview } from './design-approval.js';
 import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, useReviewAnnotations } from './pack.js';
 
@@ -218,11 +219,13 @@ function App() {
   };
   // A blocker link opens its element; a question the page can answer also opens and focuses in Questions.
   const [questionRequest, setQuestionRequest] = useState<{ id: string }>();
+  const [exampleLink, setExampleLink] = useState<ExampleLink>();
   const review = useDesignReview();
   useBlockerNavigation(blocker => {
     setSelected(reconcileSelection(`item:${blocker.targetId}`, diagram, pack.graph));
     setDrawerOpen(true);
-    if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });
+    if (blocker.kind === 'variant') { setExampleLink({ nodeId: blocker.targetId, path: blocker.example }); setDrawerView('examples'); }
+    else if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });
     else setDrawerView('details');
   });
 
@@ -310,6 +313,7 @@ function App() {
         open={drawerOpen}
         setOpen={setDrawerOpen}
         view={drawerView}
+        exampleLink={exampleLink}
         setView={setDrawerView}
         commentScope={commentScope}
         setCommentScope={setCommentScope}

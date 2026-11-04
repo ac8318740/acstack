@@ -1,9 +1,10 @@
+import { parseCsv } from '../lib/csv.js';
 import { defaultFor, type Tweak } from './od-bridge/tweaks.js';
 
 declare const OD_BRIDGE_JS: string;
 
-// One OpenDesigner variant: a self-contained HTML build plus its own tweaks, in OpenDesigner's index.json shape.
-export type ExampleVariant = { id: string; label?: string; html: string; tweaks?: Tweak[] };
+// One OpenDesigner variant and its own tweaks, in OpenDesigner's index.json shape.
+export type ExampleVariant = { id: string; label?: string; tweaks?: Tweak[] };
 
 // One example attached to a design element. `path` is relative to the element folder and is the example's identity.
 export type ElementExample = {
@@ -12,16 +13,23 @@ export type ElementExample = {
   illustrative?: boolean;
 } & (
   | { kind: 'html'; html: string }
-  // One example is one page. `tweaks` holds the design- and page-level tweaks; each variant adds its own.
-  | { kind: 'od-build'; variants: ExampleVariant[]; tweaks?: Tweak[] }
+  // One example is one page, built as one file holding every variant. `tweaks` holds the design- and
+  // page-level tweaks; each variant adds its own. `tokens` are the design system's custom properties.
+  | { kind: 'od-build'; html: string; variants: ExampleVariant[]; tweaks?: Tweak[]; tokens?: Record<string, string> }
   | { kind: 'markdown'; markdown: string }
   | { kind: 'fixture'; format: 'json' | 'csv'; data: string }
 );
 
-// shortcut: no example source ships yet; node 011 replaces this with the map's element examples.
-let source: (nodeId: string) => ElementExample[] = () => [];
-export const examplesFor = (nodeId: string) => source(nodeId);
-export const setExampleSource = (next: (nodeId: string) => ElementExample[]) => { source = next; };
+// Loaded example content, kept for the page's lifetime so reopening and lock captures need no refetch.
+const contents = new Map<string, ElementExample>();
+export const cachedExample = (nodeId: string, path: string) => contents.get(`${nodeId}\n${path}`);
+export const cacheExample = (nodeId: string, example: ElementExample) => { contents.set(`${nodeId}\n${example.path}`, example); };
+
+// OpenDesigner's `od-variant` meta picks the variant a single-file build renders.
+export function withVariant(html: string, variant: string): string {
+  const id = variant.replace(/[&<>"]/g, char => `&#${char.charCodeAt(0)};`);
+  return html.replace(/<meta name="od-variant" content="[^"]*">/, () => `<meta name="od-variant" content="${id}">`);
+}
 
 // What the reviewer last had on screen per example. It outlives the modal, because Lock sits in the Details tab.
 export type ExampleView = { variant?: string; values: Record<string, string> };
@@ -30,8 +38,8 @@ export const exampleView = (nodeId: string, path: string): ExampleView => views.
 export const setExampleView = (nodeId: string, path: string, view: ExampleView) => { views.set(`${nodeId}\n${path}`, view); };
 
 // A lock records each viewed OpenDesigner example's variant, its tweak values, and every state that variant offers.
-export function exampleCapture(nodeId: string): { examples: Record<string, { variant: string; tweaks: Record<string, string>; states: Record<string, string[]> }> } | undefined {
-  const captured = examplesFor(nodeId).flatMap(example => {
+export function exampleCapture(nodeId: string, examples: ElementExample[]): { examples: Record<string, { variant: string; tweaks: Record<string, string>; states: Record<string, string[]> }> } | undefined {
+  const captured = examples.flatMap(example => {
     const view = views.get(`${nodeId}\n${example.path}`);
     if (example.kind !== 'od-build' || !view) return [];
     const variant = example.variants.find(item => item.id === view.variant) ?? example.variants[0];
@@ -75,25 +83,4 @@ export function fixtureTable(format: 'json' | 'csv', data: string): FixtureTable
   if (!records.every(record => record && typeof record === 'object' && !Array.isArray(record))) return { columns: ['Value'], rows: records.map(record => [cell(record)]) };
   const columns = [...new Set(records.flatMap(record => Object.keys(record as object)))];
   return { columns, rows: records.map(record => columns.map(column => column in (record as object) ? cell((record as Record<string, unknown>)[column]) : '')) };
-}
-
-// RFC 4180: quoted fields may hold commas, newlines, and doubled quotes.
-export function parseCsv(text: string): string[][] {
-  const rows: string[][] = [];
-  let row: string[] = [], field = '', quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const char = text[i];
-    if (quoted) {
-      if (char === '"' && text[i + 1] === '"') { field += '"'; i++; }
-      else if (char === '"') quoted = false;
-      else field += char;
-    } else if (char === '"') quoted = true;
-    else if (char === ',') { row.push(field); field = ''; }
-    else if (char === '\n' || char === '\r') {
-      if (char === '\r' && text[i + 1] === '\n') i++;
-      row.push(field); rows.push(row); row = []; field = '';
-    } else field += char;
-  }
-  if (field || row.length) { row.push(field); rows.push(row); }
-  return rows;
 }

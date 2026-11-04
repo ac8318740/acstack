@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
-import { exampleDocument, FRAME_CSP, fixtureTable, parseCsv } from '../examples.js';
+import { exampleDocument, FRAME_CSP, fixtureTable, withVariant } from '../examples.js';
+import { parseCsv } from '../../lib/csv.js';
 import { ReviewAnnotationSchema } from '../../lib/alignment-packs.js';
 
 const global = globalThis as { OD_BRIDGE_JS?: string };
@@ -59,4 +60,10 @@ it('stores a multi-element example anchor with variant and tweak values in the r
   expect(ReviewAnnotationSchema.parse(annotation).example).toEqual(example);
   expect(() => ReviewAnnotationSchema.parse({ ...annotation, example: { ...example, html: '<p>' } })).toThrow();
   expect(() => ReviewAnnotationSchema.parse({ ...annotation, example: { ...example, selections: Array(21).fill(example.selections[1]) } })).toThrow();
+});
+
+it('switches a single-file build to one variant through its od-variant meta', () => {
+  const build = '<meta name="od-variant" content="a"><script type="application/json" id="od-page">{}</script>';
+  expect(withVariant(build, 'b')).toBe('<meta name="od-variant" content="b"><script type="application/json" id="od-page">{}</script>');
+  expect(withVariant(build, '$&"<x')).toContain('content="$&#38;&#34;&#60;x"');
 });

@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import { AlignmentPackSchema, type AlignmentPack, type DiagramOrientation, type MapQuestion } from './alignment-packs.js';
+import { AlignmentPackSchema, type AlignmentPack, type DiagramOrientation, type ExampleSummary, type MapQuestion } from './alignment-packs.js';
 import { DIAGRAM_END, DIAGRAM_START } from './diagram.js';
+import { ExampleEntrySchema, type ExampleEntry } from './design-examples.js';
 import { bareId, isSettled, normalizeId, type GraphNode } from './nodes.js';
 
 const text = z.string().trim().min(1).max(16000);
@@ -14,6 +15,8 @@ export const DesignChannelSchema = z.enum(['web', 'mobile', 'desktop', 'cli', 'a
 const ElementConfigSchema = z.object({
   kind: DesignKindSchema, parent: reference.optional(), channels: z.array(DesignChannelSchema).max(8).default([]),
   connections: z.array(z.object({ to: reference, direction: z.enum(['one-way', 'bidirectional']), label: text }).strict()).max(200).default([]),
+  // Files in the element folder, `<project folder>/maps/<map>/elements/<id>/`; see design-examples.ts.
+  examples: z.array(ExampleEntrySchema).max(50).default([]),
 }).strict();
 const RootConfigSchema = z.object({
   concerns: z.array(z.object({
@@ -39,6 +42,8 @@ type Relationship = { id: string; from: string; to: string; direction: 'one-way'
 type Element = {
   id: string; name: string; summary: string; kind: z.infer<typeof DesignKindSchema>; parent?: string;
   channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; locked: boolean; configDigest: string;
+  // `exampleSummaries` is filled once the files are checked, by loadMapDesign.
+  examples: ExampleEntry[]; exampleSummaries?: ExampleSummary[];
 };
 type Concern = { id: string; name: string; elements: string[]; requirement: string; response: string };
 export type DesignDoc = {
@@ -115,7 +120,7 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
         if (to === node.id) throw new Error(`Node ${node.id}: connects to itself`);
         return { id: `${node.id}-${to}`, from: node.id, to, direction: edge.direction, label: edge.label };
       }),
-      detailText: rest || undefined, locked: node.status === 'resolved', configDigest: digest(config),
+      detailText: rest || undefined, locked: node.status === 'resolved', configDigest: digest(config), examples: value.examples,
     };
   });
   const byElement = new Map(items.map(item => [item.id, item]));
@@ -195,6 +200,7 @@ export function designDocToPack(doc: DesignDoc, orientation: DiagramOrientation 
       nodes: doc.items.map(item => ({
         id: item.id, groupId: containers.has(item.id) ? `design:container:${item.id}` : item.parent ? `design:container:${item.parent}` : 'design:root', label: item.name, summary: item.summary,
         elementKind: item.kind, channels: item.channels, locked: item.locked, technicalSummary: itemDetail(doc, item) || undefined, sourceRefs: [item.id],
+        ...(item.exampleSummaries?.length && { examples: item.exampleSummaries }),
       })),
       edges: edges.map(edge => ({ id: edge.id, fromNodeId: edge.from, toNodeId: edge.to, direction: edge.direction, relationship: 'design', label: edge.label, summary: edge.label, sourceRefs: [edge.from, edge.to] })), aggregateEdges: [],
     },

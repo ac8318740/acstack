@@ -5,7 +5,9 @@ import { designDocToPack, renderDesignDocMarkdown } from '../lib/design-doc.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { inProject } from '../lib/utils.js';
 import { loadMapDesign, openDesignLifecycle } from '../lib/design-lifecycle.js';
-import { createReviewServer, listenForReview, REVIEW_PORT } from '../lib/review-server.js';
+import { examplePath, loadExampleContent } from '../lib/design-examples.js';
+import { checkoutRoot } from '../lib/project.js';
+import { createReviewServer, listenForReview, REVIEW_PORT, ReviewHttpError } from '../lib/review-server.js';
 import { DiagramOrientationSchema, type DiagramOrientation } from '../lib/alignment-packs.js';
 import { ANNOTATIONS_PATH } from '../lib/alignment-review-protocol.js';
 
@@ -62,7 +64,11 @@ export function register(program: Command): void {
         if (body && typeof body === 'object' && 'questionId' in body) return lifecycle.answer(body);
         if (body && typeof body === 'object' && 'lock' in body) return lifecycle.lock(body);
         return lifecycle.approve(body);
-      } }, get: review.get, post: review.post });
+      } }, get: review.get, post: review.post, examples: async query => {
+        const entry = doc.items.find(item => item.id === query.get('element'))?.examples.find(example => examplePath(example) === query.get('path'));
+        if (!entry) throw new ReviewHttpError(404, 'Unknown example');
+        return await loadExampleContent(root, map, query.get('element')!, entry, checkoutRoot() ?? process.cwd());
+      } });
       console.log(`Agent feedback: ${review.reviewPath}`);
       await listenForReview(server, port, doc.name);
     }));

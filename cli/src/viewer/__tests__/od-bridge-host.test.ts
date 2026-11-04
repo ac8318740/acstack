@@ -1,4 +1,4 @@
-// Vendored from OpenDesigner at commit 13319188b6ce84554bf8efdae3949ffa7d8d2e9c,
+// Vendored from OpenDesigner at commit 7177a081cc091e5fd32e2ff9387eb529cebfd9d9,
 // viewer/src/__tests__/bridge-host.test.ts, with import paths adjusted. Covers the vendored host trust checks.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { BridgeHost } from "../od-bridge/host.js";

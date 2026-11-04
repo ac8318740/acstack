@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Examples modal</title>
+<style>
+  body { margin: 0; font: 14px/1.5 system-ui, sans-serif; color: #1f2430; background: #f6f7f9; }
+  .modal { display: grid; grid-template-columns: 1fr 260px; height: 100vh; }
+  .frame { margin: 16px; border: 1px solid #d5d9e0; border-radius: 8px; background: white; display: grid; place-items: center; color: #6b7280; }
+  aside { border-left: 1px solid #d5d9e0; padding: 16px; display: grid; align-content: start; gap: 12px; background: white; }
+  button { font: inherit; padding: 6px 10px; border: 1px solid #c7ccd6; border-radius: 6px; background: white; }
+  textarea { font: inherit; width: 100%; box-sizing: border-box; }
+</style>
+</head>
+<body>
+  <div class="modal">
+    <div class="frame" data-od-component="ExampleFrame">Sandboxed mock renders here</div>
+    <aside>
+      <button type="button" aria-pressed="false">Pick elements</button>
+      <label for="comment">Comment on this example</label>
+      <textarea id="comment" rows="3"></textarea>
+      <button type="button">Post comment</button>
+    </aside>
+  </div>
+</body>
+</html>

@@ -4,10 +4,16 @@ import { designDocToPack, designFromNodes, digest } from './design-doc.js';
 import { designMapInputs, readMapNodes, resolveMapNode } from './design-map.js';
 import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, LockCaptureSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type DesignAnswer, type StoredDesignReview } from './design-review.js';
 import { ReviewHttpError } from './review-server.js';
+import { checkElementExamples } from './design-examples.js';
+import { checkoutRoot } from './project.js';
 
-export function loadMapDesign(root: string, map: string) {
+// OpenDesigner keeps its designs in the checkout, beside the code they mock.
+export function loadMapDesign(root: string, map: string, checkout = checkoutRoot() ?? process.cwd()) {
   const nodes = readMapNodes(root, map);
-  return { nodes, ...designFromNodes(map, nodes) };
+  const { doc, warnings } = designFromNodes(map, nodes);
+  const examples = checkElementExamples(root, map, doc.items, checkout);
+  for (const item of doc.items) item.exampleSummaries = examples.summaries.get(item.id);
+  return { nodes, doc, warnings: [...warnings, ...examples.warnings] };
 }
 function answerMarkdown(answer: DesignAnswer): string {
   if (answer.choices === undefined) return answer.answer;
@@ -57,7 +63,8 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       && (!scope.fresh || scope.receipt?.decisions.some(decision => decision.outcome === 'needs-human')));
     let reason: string | undefined;
     if (staleRendered) reason = 'The design changed on the map. Reopen this revision before reviewing.';
-    else if (inputs.blockers.length) reason = 'Open questions target this design';
+    else if (inputs.blockers.some(blocker => blocker.kind === 'question')) reason = 'Open questions target this design';
+    else if (inputs.blockers.length) reason = 'Choose a variant for each mock with several, by locking its element';
     else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback needs explicit reconciliation';
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
     return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers: inputs.blockers, openQuestions: inputs.openQuestions, locked: inputs.locked, warnings,
@@ -103,6 +110,10 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       const item = state.doc.items.find(item => item.id === incoming.lock);
       if (!item) throw new ReviewHttpError(400, 'Unknown design element');
       if (item.locked) throw new ReviewHttpError(409, 'This element is already locked');
+      // Locking chooses the variant on screen, so a multi-variant mock needs one in the capture.
+      const chosen = (incoming.capture as { examples?: Record<string, { variant?: unknown }> } | undefined)?.examples ?? {};
+      const unchosen = (item.exampleSummaries ?? []).find(example => (example.variants?.length ?? 0) > 1 && !example.variants!.includes(chosen[example.path]?.variant as string));
+      if (unchosen) throw new ReviewHttpError(409, `Open ${unchosen.title} in Examples and pick a variant before locking`);
       lock(saved, [item.id], state.doc.items, incoming.capture && { [item.id]: incoming.capture });
       return publicStatus(evaluate(saved));
     }),
