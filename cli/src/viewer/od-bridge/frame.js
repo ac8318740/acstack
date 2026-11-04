@@ -1,5 +1,5 @@
 // Vendored from OpenDesigner (github.com/ac8318740/open-designer) at commit
-// 7177a081cc091e5fd32e2ff9387eb529cebfd9d9, viewer/dist/od-bridge.js
+// deb10a1db2cbb4fa50ac5ad57abae7f91caf1725, viewer/dist/od-bridge.js
 // (built from viewer/src/bridge/frame.ts). Do not edit; re-vendor to update.
 // OpenDesigner bridge, protocol version 1. Built from src/bridge/frame.ts.
 (() => {
@@ -332,6 +332,20 @@
       addSelection(target);
       sendSelection();
     }
+    function textWithoutBadges(el) {
+      const badges = Array.from(el.querySelectorAll(`.${BADGE_CLASS}, .${MARK_CLASS}`));
+      const prev = badges.map((b) => b.style.display);
+      badges.forEach((b) => {
+        b.style.display = "none";
+      });
+      try {
+        return el.innerText ?? "";
+      } finally {
+        badges.forEach((b, i) => {
+          b.style.display = prev[i];
+        });
+      }
+    }
     function addSelection(el) {
       const id = picked.length + 1;
       const snap = {
@@ -339,7 +353,7 @@
         selector: computeSelector(el).slice(0, SELECTOR_LIMIT),
         rect: rectOf(el),
         html: (el.outerHTML ?? "").slice(0, HTML_LIMIT),
-        text: (el.innerText ?? "").trim().slice(0, TEXT_LIMIT),
+        text: textWithoutBadges(el).trim().slice(0, TEXT_LIMIT),
         styles: collectStyles(el)
       };
       const component = componentOf(el);
@@ -425,7 +439,7 @@
           break;
         }
         let part = node.tagName.toLowerCase();
-        const cls = typeof node.className === "string" ? node.className.trim().split(/\s+/).filter(Boolean).slice(0, 2) : [];
+        const cls = typeof node.className === "string" ? node.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("od-")).slice(0, 2) : [];
         if (cls.length) part += "." + cls.map((c) => CSS.escape(c)).join(".");
         const parent = node.parentElement;
         if (parent) {

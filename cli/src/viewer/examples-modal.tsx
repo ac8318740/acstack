@@ -108,9 +108,8 @@ const brief = (text: string) => text.length > 48 ? `${text.slice(0, 47).trimEnd(
 export const describe = (selection: { selector: string; text?: string; component?: { name: string } }) => [selection.component?.name, brief(selection.text || selection.selector)].filter(Boolean).join(': ');
 const anchorLabel = (anchor: Anchor) => anchor.selections?.length ? anchor.selections.map(describe).join('; ') : 'Whole example';
 // Keys follow ReviewAnnotationSchema's order, because the save acknowledgement compares the server's parsed copy as JSON.
-// shortcut: OpenDesigner's picker writes its own body class into selectors, so strip it until the bridge stops; then re-vendor.
 const anchorSelection = ({ selector, text, rect, component }: Selection): AnchorSelection => ({
-  selector: selector.replace(/\.od-picker-on\b/g, ''), ...(text ? { text } : {}), rect,
+  selector, ...(text ? { text } : {}), rect,
   ...(component ? { component: { name: component.name, ...(component.source ? { source: component.source } : {}), ...(component.props ? { props: component.props } : {}), ...(component.fixture ? { fixture: component.fixture } : {}) } } : {}),
 });
 
