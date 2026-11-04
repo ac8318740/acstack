@@ -43,13 +43,34 @@ function answerMarkdown(answer: DesignAnswer): string {
   return [...answer.choices.map(choice => `- ${choice}`), ...(answer.answer ? [`- Other: ${answer.answer}`] : [])].join('\n');
 }
 
-// `carried` names reviews a live session opened before the design changed; their comments stay obligations, not lost.
-export function openDesignLifecycle(root: string, map: string, reviewFile?: string, carried: string[] = [], checkout = checkoutRoot() ?? process.cwd()) {
+/** Which elements a design change touched, as the tag on comments from before it: "before App changed". */
+export function describeChange(before: DesignDoc, after: DesignDoc): string {
+  const content = (item: DesignDoc['items'][number]) => JSON.stringify({ ...item, locked: undefined, resolved: undefined });
+  const earlier = new Map(before.items.map(item => [item.id, item]));
+  const changes = [
+    ...after.items.flatMap(item => { const old = earlier.get(item.id); return !old ? [`${item.name} was added`] : content(old) !== content(item) ? [`${item.name} changed`] : []; }),
+    ...before.items.filter(old => !after.items.some(item => item.id === old.id)).map(old => `${old.name} was removed`),
+  ];
+  if (!changes.length) return 'before the design overview changed';
+  return `before ${changes.length > 3 ? `${changes.length} elements changed` : changes.join(', ')}`;
+}
+export type CarriedReview = { path: string; label: string };
+
+// `carried` names reviews of earlier revisions; their comments stay visible obligations, recorded in this review.
+export function openDesignLifecycle(root: string, map: string, reviewFile?: string, carried: CarriedReview[] = [], checkout = checkoutRoot() ?? process.cwd()) {
   root = resolve(root);
   const opened = loadMapDesign(root, map, checkout);
   const rendered = opened.doc;
   changedElements(rendered, reviewHistories(root, rendered.id).values());
   const review = openDesignReview(root, designDocToPack(rendered));
+  const toRelative = (path: string) => relative(root, path).split(sep).join('/');
+  const carry = (entries: CarriedReview[]) => review.transact(saved => {
+    const kept = new Map((saved.carried ?? []).map(entry => [entry.reviewPath, entry]));
+    for (const entry of entries) if (resolve(entry.path) !== review.reviewPath) kept.set(toRelative(entry.path), { reviewPath: toRelative(entry.path), label: entry.label });
+    if (kept.size) saved.carried = [...kept.values()];
+  });
+  if (carried.length) carry(carried);
+  const carriedReviews = (saved: StoredDesignReview): CarriedReview[] => (saved.carried ?? []).map(entry => ({ path: resolve(root, entry.reviewPath), label: entry.label }));
   const evaluate = (saved: StoredDesignReview) => {
     const { nodes, doc, warnings } = loadMapDesign(root, map, checkout);
     const staleRendered = doc.sourceRevision !== rendered.sourceRevision;
@@ -62,7 +83,11 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     const inputs = designMapInputs(nodes, doc);
     const blockers = [...inputs.blockers, ...doc.items.filter(item => changed.includes(item.id))
       .map((item): ApprovalBlocker => ({ kind: 'changed', targetId: item.id, label: item.name, nodeId: item.id }))];
-    const obligations = new Set<string>(carried.filter(path => histories.get(path)?.annotations.length));
+    const earlier = carriedReviews(saved).flatMap(entry => {
+      const snapshot = histories.get(entry.path);
+      return snapshot?.annotations.length ? [{ reviewPath: entry.path, packVersion: snapshot.packVersion, label: entry.label, annotations: snapshot.annotations }] : [];
+    });
+    const obligations = new Set<string>(earlier.map(entry => entry.reviewPath));
     for (const [path, snapshot] of histories) {
       const receipts = new Map(snapshot.lifecycle?.reconciliations.map(receipt => [resolve(root, receipt.reviewPath), receipt]));
       for (const [selected, receipt] of receipts) {
@@ -93,12 +118,12 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
     return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers, openQuestions: inputs.openQuestions, locked: inputs.locked, warnings,
       approval: { valid: !reason && approved, ...(!reason && approved ? {} : { reason: reason ?? 'This revision is not approved' }) },
-      feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), blocker: reason };
+      feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), earlier, blocker: reason };
   };
   const publicStatus = (result: ReturnType<typeof evaluate>) => ({
     sourceRevision: result.sourceRevision, reviewRevision: result.reviewRevision, commentsDigest: result.commentsDigest, mapInputsDigest: result.mapInputsDigest,
     map: result.map, reviewPath: result.reviewPath, blockers: result.blockers, openQuestions: result.openQuestions, locked: result.locked,
-    warnings: result.warnings, feedbackPaths: result.feedbackPaths, approval: result.approval,
+    warnings: result.warnings, feedbackPaths: result.feedbackPaths, earlier: result.earlier, approval: result.approval,
   });
   // Every write from the page checks the exact tuple it was shown, so a stale page cannot settle the map.
   const current = (saved: StoredDesignReview, expected: unknown) => {
@@ -123,7 +148,8 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     }
   };
   return {
-    review, doc: rendered, warnings: opened.warnings,
+    review, doc: rendered, warnings: opened.warnings, carry,
+    carried: () => review.transact(carriedReviews),
     status: () => review.transact(saved => publicStatus(evaluate(saved))),
     answer: (body: unknown) => review.transact(saved => {
       const incoming = DesignAnswerSchema.extend({ expected: RevisionTupleSchema }).strict().parse(body);

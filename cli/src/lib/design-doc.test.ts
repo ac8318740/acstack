@@ -160,3 +160,19 @@ describe('design docs built from map nodes', () => {
     }
   });
 });
+
+describe('describing a design change for carried comments', () => {
+  it('names changed, added, and removed elements, and falls back to the overview', async () => {
+    const { describeChange } = await import('./design-lifecycle.js');
+    const before = build(fixture()).doc;
+    const edited = build(fixture().map(n => n.id === '002' ? { ...n, summary: 'Runs more' } : n)).doc;
+    expect(describeChange(before, edited)).toBe('before App changed');
+    const grown = build([...fixture(), node('004', { label: 'Cache', body: block('Design element', 'kind: store\nparent: "002"') })]).doc;
+    expect(describeChange(before, grown)).toBe('before Cache was added');
+    expect(describeChange(grown, before)).toBe('before Cache was removed');
+    const overview = build(fixture().map(n => n.id === '001' ? { ...n, body: n.body!.replace('Overview', 'New overview') } : n)).doc;
+    expect(describeChange(before, overview)).toBe('before the design overview changed');
+    // Locking alone is not a design change.
+    expect(describeChange(before, build(fixture().map(n => n.id === '002' ? { ...n, status: 'resolved' as const } : n)).doc)).toBe('before the design overview changed');
+  });
+});

@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { MapQuestion } from '../lib/alignment-packs.js';
+import type { MapQuestion, ReviewAnnotation } from '../lib/alignment-packs.js';
 import { ChevronRight, ListFilter, ListTodo, Maximize2, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
 import { revealHighlights } from './markdown-highlights.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
@@ -255,7 +255,7 @@ export function DocumentOverview() {
 
 type ShowComment = (annotation: Annotation, element: HTMLElement, keyboard: boolean) => void;
 
-export function Comments({ annotations, onSelect, onDelete, onEdit, onShowComment, editDrafts, onEditDraft }: { editDrafts?: Record<string, string>; onEditDraft?: (id: string, text: string | undefined) => void; annotations: Annotation[]; onSelect: (id: string) => void; onDelete: (id: string) => void; onEdit: (id: string, comment: string) => void; onShowComment?: ShowComment }) {
+export function Comments({ annotations, earlier = [], onSelect, onDelete, onEdit, onShowComment, editDrafts, onEditDraft }: { editDrafts?: Record<string, string>; onEditDraft?: (id: string, text: string | undefined) => void; annotations: Annotation[]; earlier?: Array<ReviewAnnotation & { label: string }>; onSelect: (id: string) => void; onDelete: (id: string) => void; onEdit: (id: string, comment: string) => void; onShowComment?: ShowComment }) {
   const [localDrafts, setLocalDrafts] = useState<Record<string, string>>({});
   const drafts = editDrafts ?? localDrafts;
   const setDraft = onEditDraft ?? ((id: string, text: string | undefined) => {
@@ -269,7 +269,7 @@ export function Comments({ annotations, onSelect, onDelete, onEdit, onShowCommen
   const titleId = useId();
   return (
     <section className="section">
-      {annotations.length === 0 ? (
+      {annotations.length === 0 && !earlier.length ? (
         <p className="muted">No comments yet.</p>
       ) : (
         <ul className="comments">
@@ -291,6 +291,17 @@ export function Comments({ annotations, onSelect, onDelete, onEdit, onShowCommen
                 <p>{annotation.comment}</p>
               </>}
               {onShowComment && <button type="button" className="btn ghost" onClick={event => onShowComment(annotation, event.currentTarget, event.detail === 0)}>Show comment</button>}
+            </li>
+          ))}
+          {/* Read-only: these belong to an earlier revision and wait for the agent to reconcile them. */}
+          {earlier.map((annotation, index) => (
+            <li key={`earlier:${index}`} className="earlier-comment">
+              <div className="row between">
+                <button type="button" className="link strong" onClick={() => onSelect(diagramId(annotation.target))}>{targetLabel(annotation.target)}</button>
+              </div>
+              <span className="type-pill" data-earlier>{`On an earlier version, ${annotation.label}`}</span>
+              {annotation.selectedText && <blockquote>{annotation.selectedText}</blockquote>}
+              <p>{annotation.comment}</p>
             </li>
           ))}
         </ul>
@@ -472,6 +483,8 @@ export function Drawer({
   // Canvas clicks retain grouped-edge context; menu choices always address exactly one commented target.
   const context = commentScope === 'all' ? documentContext : commentScope.startsWith('selection:') ? commentContext(commentScope.slice(10), diagram) : commentContext(commentScope, { ...diagram, edges: [] });
   const visibleComments = commentScope === 'all' ? annotations : annotations.filter(annotation => context?.matches(annotation.target));
+  const earlierComments = (review?.earlier ?? []).flatMap(entry => entry.annotations.map(annotation => ({ ...annotation, label: entry.label })))
+    .filter(annotation => commentScope === 'all' || context?.matches(annotation.target));
   const options = commentScopeOptions(annotations);
   const currentLabel = commentScope !== 'all' && context ? scopeLabel(context.target) : 'All targets';
   const exampleNode = selected?.startsWith('item:') ? selected.slice(5) : selected?.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId ?? null : null;
@@ -551,7 +564,7 @@ export function Drawer({
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}
-            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
+            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} earlier={earlierComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
           </div>
         )}
       </div>

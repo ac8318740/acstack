@@ -46,7 +46,11 @@ export function validateDesignAnswer(question: MapQuestion, answer: DesignAnswer
   const count = selected.length + Number(Boolean(answer.answer));
   if (count === 0 || (!question.multiple && count !== 1)) throw new Error('Select an answer or write Other; single-choice questions allow only one response');
 }
-const StoredReviewSchema = DesignReviewSnapshotSchema.extend({ lifecycle: EvidenceSchema.optional() }).strict();
+const StoredReviewSchema = DesignReviewSnapshotSchema.extend({
+  lifecycle: EvidenceSchema.optional(),
+  // Reviews of earlier revisions whose comments carry forward, each with the change that ended it.
+  carried: z.array(z.object({ reviewPath: z.string().min(1), label: z.string().min(1).max(500) }).strict()).max(1000).optional(),
+}).strict();
 export type StoredDesignReview = z.infer<typeof StoredReviewSchema>;
 
 export function readDesignReviewHistory(root: string, identity: string, path: string): StoredDesignReview {

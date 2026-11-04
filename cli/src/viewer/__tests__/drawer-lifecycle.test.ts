@@ -675,3 +675,28 @@ it('keeps the drawer view, expanded rows, and drafts when a rebuilt pack swaps i
     expect(all(container).find(node => node.tagName === 'TEXTAREA')!.value).toBe('Unsent answer');
   } finally { act(() => root.unmount()); pack.designDocument = original; }
 });
+
+it('lists comments from an earlier version, tagged with the change, beside the current ones', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const earlier = [{ reviewPath: '/reviews/v1/review.json', packVersion: 'design@v1', label: 'before Application changed', annotations: [{ packVersion: 'design@v1', target: { type: 'node', id: 'app' }, comment: 'Name the command' }] }];
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ sourceRevision: 's', reviewRevision: 0, commentsDigest: 'c', mapInputsDigest: 'm', openQuestions: [], locked: [], blockers: [], earlier, approval: { valid: false } }) })));
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const current = { id: 'now', packVersion: 'design@v2', target: { type: 'node' as const, id: 'app' }, comment: 'Current note' };
+  const props: ComponentProps<typeof Drawer> = { questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'comments', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: null, diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [current], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
+  const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
+  try {
+    await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement(Drawer, props) }))));
+    expect(text()).toContain('Current note');
+    expect(text()).toContain('Name the command');
+    expect(text()).toContain('On an earlier version, before Application changed');
+    // Earlier comments are read-only: only the current comment can be edited or deleted.
+    expect(all(container).filter(node => node.attributes['aria-label'] === 'Delete comment')).toHaveLength(1);
+  } finally { act(() => root.unmount()); }
+});

@@ -113,4 +113,11 @@ it('keeps comments from before a design change as obligations and names them in 
   const status = live.lifecycle().status();
   expect(status.feedbackPaths).toContain(first);
   expect(status.approval.reason).toBe('Feedback needs explicit reconciliation');
+  // The comment stays listed, tagged with the change that ended its revision.
+  expect(status.earlier).toEqual([{ reviewPath: first, packVersion: snapshot.packVersion, label: 'before App changed', annotations: [expect.objectContaining({ comment: 'Name the command' })] }]);
+  // The carry is recorded in the new review, so a restarted server still shows it.
+  live.stop();
+  const restarted = liveDesignDoc(root, 'demo');
+  cleanups.push(() => restarted.stop());
+  expect(restarted.lifecycle().status().earlier.map(entry => entry.label)).toEqual(['before App changed']);
 });

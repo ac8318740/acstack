@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { designDocToPack, renderDesignDocMarkdown } from '../lib/design-doc.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { inProject } from '../lib/utils.js';
-import { changedElements, loadMapDesign, openDesignLifecycle, reviewHistories } from '../lib/design-lifecycle.js';
+import { changedElements, describeChange, loadMapDesign, openDesignLifecycle, reviewHistories } from '../lib/design-lifecycle.js';
 import { createEventHub, createReviewServer, listenForReview, REVIEW_PORT, ReviewHttpError } from '../lib/review-server.js';
 import { designWatchRoots, notifyDesign, watchDesign } from '../lib/design-watch.js';
 import { examplePath, loadExampleContent } from '../lib/design-examples.js';
@@ -27,18 +27,18 @@ export function generateDesignDoc(root: string, map: string, output: string, mar
 export function liveDesignDoc(root: string, map: string, orientation: DiagramOrientation = 'top-to-bottom') {
   let lifecycle = openDesignLifecycle(root, map);
   lifecycle.status();
-  let carried: string[] = [];
   const build = () => designDocToPack(lifecycle.doc, orientation);
   let html = renderAlignmentPackHtml(build());
   const events = createEventHub();
-  const prompt = () => `Read the review JSON at ${[lifecycle.review.reviewPath, ...carried].map(path => JSON.stringify(path)).join(', ')}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status, explicitly reconcile every comment with design-review reconcile (using --review-file for an earlier review), then reopen the review with design-doc for approval of the resulting revision.`;
+  const prompt = () => `Read the review JSON at ${[lifecycle.review.reviewPath, ...lifecycle.carried().map(entry => entry.path)].map(path => JSON.stringify(path)).join(', ')}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status, explicitly reconcile every comment with design-review reconcile (using --review-file for an earlier review), then reopen the review with design-doc for approval of the resulting revision.`;
   const reload = () => {
     try {
-      const candidates = [...new Set([...carried, lifecycle.review.reviewPath])];
-      const next = openDesignLifecycle(root, map, undefined, candidates);
+      const previous = lifecycle;
+      const next = openDesignLifecycle(root, map);
+      // A changed design moves comments to a new review; the earlier ones carry forward, tagged with what changed.
+      if (next.review.reviewPath !== previous.review.reviewPath) next.carry([...previous.carried(), { path: previous.review.reviewPath, label: describeChange(previous.doc, next.doc) }]);
       next.status();
       lifecycle = next;
-      carried = candidates.filter(path => path !== next.review.reviewPath);
       const pack = build();
       html = renderAlignmentPackHtml(pack);
       events.send({ type: 'design', pack, handoffPrompt: prompt() });
