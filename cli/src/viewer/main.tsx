@@ -240,7 +240,13 @@ function App() {
   const [exampleLink, setExampleLink] = useState<ExampleLink>();
   const review = useDesignReview();
   useBlockerNavigation(blocker => {
-    setSelected(reconcileSelection(`item:${blocker.targetId}`, diagram, pack.graph));
+    if (blocker.kind === 'variant') {
+      // The Examples view needs the element itself, so open the containers it sits in rather than selecting one.
+      const groups: string[] = [];
+      for (let id = pack.graph.nodes.find(node => node.id === blocker.targetId)?.groupId; id && id !== 'design:root'; id = pack.graph.groups.find(group => group.id === id)?.parentGroupId) groups.push(id);
+      if (groups.some(id => !expanded.includes(id))) changeExpanded([...new Set([...expanded, ...groups])]);
+      setSelected(`item:${blocker.targetId}`);
+    } else setSelected(reconcileSelection(`item:${blocker.targetId}`, diagram, pack.graph));
     setDrawerOpen(true);
     if (blocker.kind === 'variant') { setExampleLink({ nodeId: blocker.targetId, path: blocker.example }); setDrawerView('examples'); }
     else if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });

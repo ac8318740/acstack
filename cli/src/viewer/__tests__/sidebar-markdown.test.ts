@@ -1,7 +1,7 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
-import { MermaidDiagram, SidebarMarkdown, mermaidFrameDocument } from '../sidebar-markdown.js';
+import { MermaidDiagram, SidebarMarkdown, mermaidFrameDocument, mermaidHeight } from '../sidebar-markdown.js';
 
 const render = (text: string) => renderToStaticMarkup(createElement(SidebarMarkdown, { children: text, hideImages: true }));
 
@@ -109,4 +109,11 @@ it('does not start Mermaid for oversized source', () => {
 
 it('leaves ordinary code fences intact', () => {
   expect(render('```sql\nselect * from agent_runs;\n```')).toContain('<pre><code class="language-sql">select * from agent_runs;');
+});
+
+it('accepts only a finite, clamped height from a Mermaid frame', () => {
+  expect(mermaidHeight({ mermaidHeight: 321.2 })).toBe(322);
+  expect(mermaidHeight({ mermaidHeight: 1e9 })).toBe(4000);
+  expect(mermaidHeight({ mermaidHeight: 2 })).toBe(80);
+  for (const data of [null, 'x', { mermaidHeight: '300' }, { mermaidHeight: NaN }, { mermaidHeight: Infinity }]) expect(mermaidHeight(data)).toBeUndefined();
 });

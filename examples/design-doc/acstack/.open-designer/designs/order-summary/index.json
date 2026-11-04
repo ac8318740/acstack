@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "name": "order-summary",
+  "pages": [
+    {
+      "id": "summary",
+      "label": "Order summary",
+      "tweaks": [
+        { "id": "accent", "label": "Accent colour", "type": "color", "target": "--accent", "default": "#3b5bdb" },
+        { "id": "radius", "label": "Corner radius", "type": "slider", "target": "--radius", "min": 0, "max": 24, "step": 2, "unit": "px", "default": 12 },
+        { "id": "promo", "label": "Promo code field", "type": "toggle", "default": "1", "discardReason": "Decide whether checkout offers promo codes" }
+      ],
+      "variants": [
+        { "id": "card", "label": "Summary card", "file": "card.html" },
+        { "id": "receipt", "label": "Itemised receipt", "file": "receipt.html", "discardReason": "A receipt layout suits long orders but hides the call to action below the fold" }
+      ]
+    }
+  ]
+}

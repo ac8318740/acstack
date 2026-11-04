@@ -160,7 +160,9 @@ it('defers Mermaid execution until its enclosing disclosure is visible and clean
   const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
   Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
   vi.stubGlobal('document', document);
-  vi.stubGlobal('window', { document, HTMLIFrameElement: class {} });
+  // The diagram listens for its frame's height report, and must stop listening on unmount.
+  const addEventListener = vi.fn(), removeEventListener = vi.fn();
+  vi.stubGlobal('window', { document, HTMLIFrameElement: class {}, addEventListener, removeEventListener });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   let notify: (width: number) => void = () => {};
   const observe = vi.fn(), disconnect = vi.fn();
@@ -183,6 +185,7 @@ it('defers Mermaid execution until its enclosing disclosure is visible and clean
     expect(disconnect).toHaveBeenCalledOnce();
   } finally { act(() => root.unmount()); }
   expect(disconnect).toHaveBeenCalledTimes(2);
+  expect(removeEventListener).toHaveBeenCalledWith('message', addEventListener.mock.calls.find(([type]) => type === 'message')?.[1]);
 });
 
 it('retains composer and posted-comment edits through actual child unmounts, scoped navigation, save, and cancel', () => {
@@ -736,7 +739,7 @@ it('keeps answered questions under Answered with the answer, counts both in the 
     expect(text()).not.toContain('No questions');
     expect(text()).not.toContain('resolves the question on the map');
     expect(all(container).some(node => node.attributes['aria-label'] === '1 open')).toBe(true);
-    expect(all(container).some(node => node.attributes['aria-label'] === '1 answered')).toBe(true);
+    expect(all(container).some(node => node.attributes['aria-label'] === '1 answered')).toBe(false); // One chip at a time keeps the tab compact; answered shows once nothing is open.
     act(() => handlers(button('Retry on conflict?')!).onClick!());
     expect(text()).toContain('Your answer');
     expect(text()).toContain('Refresh');

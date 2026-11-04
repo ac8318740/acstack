@@ -37,7 +37,7 @@ const modal = (path: string, annotations: Annotation[] = []) => renderToStaticMa
 
 it('lists an element\'s examples with their kind in the Examples tab', () => {
   const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', annotations: [comment], setAnnotations: vi.fn() }));
-  for (const text of ['Checkout mock', 'HTML mock, 1 comment', 'OpenDesigner build', 'Markdown', 'Fixture, illustrative']) expect(html).toContain(text);
+  for (const text of ['Checkout mock', 'Mock, 1 comment', 'Cart build', 'Document', 'Sample data, illustrative']) expect(html).toContain(text);
   expect(html).toContain('aria-haspopup="dialog"');
   expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'other', annotations: [], setAnnotations: vi.fn() }))).toContain('This element has no examples.');
 });
@@ -52,7 +52,11 @@ it('renders inline HTML in an opaque-origin frame with labelled controls', () =>
   expect(html).toMatch(/aria-labelledby="[^"]+"/);
   // The authored mock never lands in the viewer document; the bridge loads it into the frame.
   expect(html).not.toContain('<button>Pay</button>');
-  expect(html).toContain('1. PayButton: &lt;b&gt;Pay&lt;/b&gt;; #total');
+  expect(html).toContain('PayButton: &lt;b&gt;Pay&lt;/b&gt;; #total');
+  expect(html).toContain('<span class="mark-number" aria-hidden="true">1</span>');
+  // One composer, no explanatory prose.
+  expect(html.match(/<textarea/g)).toHaveLength(1);
+  expect(html).not.toContain('Comments anchor to the whole example');
 });
 
 it('renders an OpenDesigner build in the srcdoc frame with a variant switcher and its tweaks', () => {
@@ -63,9 +67,11 @@ it('renders an OpenDesigner build in the srcdoc frame with a variant switcher an
   expect(html).toContain('Variant');
   expect(html).not.toContain('data-od-component');
   // Design-level and variant-level tweaks are both drawn, as ACStack controls.
-  expect(html).toContain('<legend>Tweaks</legend>');
+  // Variants show as a segmented control; tweaks sit behind a popover button.
+  expect(html).toMatch(/role="group" aria-label="Variant"><button type="button" aria-pressed="true">Grid<\/button><button type="button" aria-pressed="false">List<\/button>/);
+  expect(html).toMatch(/popover="auto" role="dialog" aria-label="Tweaks"/);
   expect(html).toContain('Density');
-  expect(html).toMatch(/<label[^>]*for="([^"]+)"[^>]*>Corner radius \(8px\)<\/label><input id="\1" type="range" min="0" max="24"/);
+  expect(html).toMatch(/<label[^>]*for="([^"]+)"[^>]*>Corner radius<span class="tweak-value">8px<\/span><\/label><input id="\1" type="range" min="0" max="24"/);
 });
 
 it('draws a labelled control for each tweak type', () => {
@@ -75,8 +81,8 @@ it('draws a labelled control for each tweak type', () => {
     { id: 'copy', label: 'Heading', type: 'text', default: 'Hi' },
     { id: 'phase', label: 'State', type: 'state', options: [{ label: 'Loading', value: 'loading' }] },
   ] }));
-  expect(html).toMatch(/for="[^"]+">Brand<\/label><input[^>]*type="color" value="#112233"/);
-  expect(html).toMatch(/<label class="tweak-row"><input type="checkbox" checked=""\/>Show badge<\/label>/);
+  expect(html).toMatch(/for="[^"]+">Brand<\/label><div class="tweak-color"><input[^>]*type="color" value="#112233"/);
+  expect(html).toMatch(/<label class="tweak-row tweak-toggle"><span class="tweak-label">Show badge<\/span><input type="checkbox" role="switch" checked=""\/><\/label>/);
   expect(html).toMatch(/for="[^"]+">Heading<\/label><input[^>]*type="text" value="Hi"/);
   expect(html).toContain('Loading');
 });

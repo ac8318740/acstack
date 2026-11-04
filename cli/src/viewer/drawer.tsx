@@ -443,6 +443,27 @@ export function Drawer({
   const activeQuestionScope = exactQuestionScope && questionScope.startsWith('selection:') && scopedQuestions.every(question => scopeIdFor(question.target) === exactQuestionScope) ? exactQuestionScope : questionScope;
   const questionLabel = questionContext ? scopeLabel(questionContext.target) : 'All targets';
   const needsInput = openQuestions.length;
+  // The tab strip scrolls when its tabs outgrow the drawer; fades mark the hidden side.
+  const tabStrip = useRef<HTMLDivElement>(null);
+  const [tabFade, setTabFade] = useState({ start: false, end: false });
+  const measureTabs = () => {
+    const strip = tabStrip.current;
+    if (!strip) return;
+    const next = { start: strip.scrollLeft > 1, end: strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1 };
+    setTabFade(previous => previous.start === next.start && previous.end === next.end ? previous : next);
+  };
+  useEffect(() => {
+    const strip = tabStrip.current;
+    if (!strip || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measureTabs);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [open]);
+  // Tabs come and go with the selection, so check the fit after every render; the state only changes when it does.
+  useEffect(measureTabs);
+  useEffect(() => {
+    tabStrip.current?.querySelector?.<HTMLElement>('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [view]);
   const answeredCount = authoredQuestions.length - needsInput;
   const [inspection, setInspection] = useState<DetailInspection | null>(null);
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, AnswerDraft>>({});
@@ -545,12 +566,12 @@ export function Drawer({
         onLostPointerCapture={() => { drag.current = null; }}
       />
       <header className="drawer-head">
-        <div className="drawer-tabs" aria-label="Panel view">
+        <div ref={tabStrip} className="drawer-tabs" aria-label="Panel view" data-fade-start={tabFade.start || undefined} data-fade-end={tabFade.end || undefined} onScroll={measureTabs}>
           <button type="button" aria-pressed={view === 'details'} onClick={() => setView('details')}>Details</button>
           <button type="button" aria-pressed={view === 'comments'} onClick={() => { if (view !== 'comments') { setCommentScope(commentScopeForSelection(selected, diagram)); setView('comments'); } }}>Comments</button>
           {pack.designDocument && <button type="button" aria-pressed={view === 'questions'} onClick={() => { if (view !== 'questions') { setQuestionScope(questionScopeForSelection(selected)); setView('questions'); } }}>Questions
             {needsInput > 0 && <span className="tab-count" aria-label={`${needsInput} open`}>{needsInput}</span>}
-            {answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
+            {needsInput === 0 && answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
           </button>}
           {exampleNode && examplesFor(exampleNode).length > 0 && <button type="button" aria-pressed={view === 'examples'} onClick={() => setView('examples')}>Examples</button>}
         </div>

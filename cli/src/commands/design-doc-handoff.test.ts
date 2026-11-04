@@ -15,6 +15,11 @@ vi.mock('../lib/utils.js', async original => ({
   ...await original<typeof import('../lib/utils.js')>(),
   inProject: (action: (root: string, ...args: unknown[]) => Promise<void>) => (...args: unknown[]) => action(context.root, ...args),
 }));
+// The worked example's mock lives in its own OpenDesigner folder, copied beside each fixture's map.
+vi.mock('../lib/project.js', async original => ({
+  ...await original<typeof import('../lib/project.js')>(),
+  checkoutRoot: () => context.root,
+}));
 vi.mock('../lib/review-server.js', async original => ({
   ...await original<typeof import('../lib/review-server.js')>(),
   listenForReview: (server: Server) => { context.server = server; },
@@ -88,6 +93,7 @@ it.each(['top-to-bottom', 'left-to-right'] as const)('passes %s through live HTM
   const root = mkdtempSync(join(tmpdir(), 'orientation-'));
   roots.push(root);
   cpSync(join(EXAMPLE_ROOT, 'maps'), join(root, 'maps'), { recursive: true });
+  cpSync(join(EXAMPLE_ROOT, '.open-designer'), join(root, '.open-designer'), { recursive: true });
   const entry = EXAMPLE_MAP;
   context.root = root;
   vi.spyOn(console, 'log').mockImplementation(() => {});

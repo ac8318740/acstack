@@ -1,6 +1,7 @@
 // Vendored from OpenDesigner (github.com/ac8318740/open-designer) at commit
-// 7177a081cc091e5fd32e2ff9387eb529cebfd9d9, viewer/dist/od-bridge.js
+// deb10a1db2cbb4fa50ac5ad57abae7f91caf1725, viewer/dist/od-bridge.js
 // (built from viewer/src/bridge/frame.ts). Do not edit; re-vendor to update.
+// Locally patched: picker outlines and badges sit outside the picked element (sent to OpenDesigner PR #12).
 // OpenDesigner bridge, protocol version 1. Built from src/bridge/frame.ts.
 (() => {
   (() => {
@@ -272,17 +273,17 @@
       const style = document.createElement("style");
       style.setAttribute("data-od-bridge", "");
       style.textContent = `
-      #${HOVER_ID} { position: fixed; pointer-events: none; border: 2px dashed #f59e0b;
-        background: rgba(245, 158, 11, 0.06); z-index: 2147483646; display: none; }
+      #${HOVER_ID} { position: fixed; box-sizing: border-box; pointer-events: none; outline: 2px dashed #f59e0b;
+        outline-offset: 2px; background: rgba(245, 158, 11, 0.06); z-index: 2147483646; display: none; }
       body:not(.od-picker-on) #${HOVER_ID} { display: none !important; }
       [${SELECTED_ATTR}] { outline: 2px solid #f59e0b !important; outline-offset: 2px; position: relative; }
       [${MARK_ATTR}] { position: relative; }
       [${FLASH_ATTR}] { outline: 3px solid #3b82f6 !important; outline-offset: 2px; }
-      .${BADGE_CLASS}, .${MARK_CLASS} { position: absolute; top: -10px; left: -10px; min-width: 22px; height: 22px;
+      .${BADGE_CLASS}, .${MARK_CLASS} { position: absolute; top: -3px; left: -3px; transform: translate(-100%, -100%); min-width: 22px; height: 22px;
         padding: 0 4px; box-sizing: border-box; border-radius: 11px; background: #f59e0b; color: #1f1300;
         font: 600 12px/22px ui-sans-serif, system-ui, sans-serif; text-align: center;
         z-index: 2147483647; pointer-events: none; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
-      .${MARK_CLASS} { background: #3b82f6; color: #fff; left: auto; right: -10px; pointer-events: auto; cursor: pointer; }
+      .${MARK_CLASS} { background: #3b82f6; color: #fff; left: auto; right: -3px; transform: translate(100%, -100%); pointer-events: auto; cursor: pointer; }
     `;
       (document.head ?? document.documentElement).appendChild(style);
       hover = document.createElement("div");
@@ -332,6 +333,20 @@
       addSelection(target);
       sendSelection();
     }
+    function textWithoutBadges(el) {
+      const badges = Array.from(el.querySelectorAll(`.${BADGE_CLASS}, .${MARK_CLASS}`));
+      const prev = badges.map((b) => b.style.display);
+      badges.forEach((b) => {
+        b.style.display = "none";
+      });
+      try {
+        return el.innerText ?? "";
+      } finally {
+        badges.forEach((b, i) => {
+          b.style.display = prev[i];
+        });
+      }
+    }
     function addSelection(el) {
       const id = picked.length + 1;
       const snap = {
@@ -339,7 +354,7 @@
         selector: computeSelector(el).slice(0, SELECTOR_LIMIT),
         rect: rectOf(el),
         html: (el.outerHTML ?? "").slice(0, HTML_LIMIT),
-        text: (el.innerText ?? "").trim().slice(0, TEXT_LIMIT),
+        text: textWithoutBadges(el).trim().slice(0, TEXT_LIMIT),
         styles: collectStyles(el)
       };
       const component = componentOf(el);
@@ -425,7 +440,7 @@
           break;
         }
         let part = node.tagName.toLowerCase();
-        const cls = typeof node.className === "string" ? node.className.trim().split(/\s+/).filter(Boolean).slice(0, 2) : [];
+        const cls = typeof node.className === "string" ? node.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("od-")).slice(0, 2) : [];
         if (cls.length) part += "." + cls.map((c) => CSS.escape(c)).join(".");
         const parent = node.parentElement;
         if (parent) {

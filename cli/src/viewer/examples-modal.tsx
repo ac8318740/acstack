@@ -1,6 +1,5 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import { MousePointerClick, X } from 'lucide-react';
-import { CommentForm } from './drawer.js';
+import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
+import { MousePointerClick, SlidersHorizontal, X } from 'lucide-react';
 import { Dropdown } from './dropdown.js';
 import { ExampleFrame, type FrameControl } from './example-frame.js';
 import { useDesignReview } from './design-approval.js';
@@ -12,7 +11,7 @@ import { defaultFor, tweakPayload, type Tweak } from './od-bridge/tweaks.js';
 import { type Annotation, annotationId, pack, token } from './pack.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
 
-const KIND_LABELS: Record<ElementExample['kind'], string> = { html: 'HTML mock', 'od-build': 'OpenDesigner build', markdown: 'Markdown', fixture: 'Fixture' };
+const KIND_LABELS: Record<ElementExample['kind'], string> = { html: 'Mock', 'od-build': 'Mock', markdown: 'Document', fixture: 'Sample data' };
 
 export const examplesFor = (nodeId: string): ExampleSummary[] => pack.graph.nodes.find(node => node.id === nodeId)?.examples ?? [];
 
@@ -104,10 +103,13 @@ export function FixtureView({ format, data }: { format: 'json' | 'csv'; data: st
 // Frame-supplied fields are untrusted: they appear as plain text only.
 type Anchor = NonNullable<Annotation['example']>;
 type AnchorSelection = NonNullable<Anchor['selections']>[number];
-export const describe = (selection: { selector: string; text?: string; component?: { name: string } }) => [selection.component?.name, selection.text || selection.selector].filter(Boolean).join(': ');
+// A container's text can run to 200 characters; a label needs only enough to tell picks apart.
+const brief = (text: string) => text.length > 48 ? `${text.slice(0, 47).trimEnd()}…` : text;
+export const describe = (selection: { selector: string; text?: string; component?: { name: string } }) => [selection.component?.name, brief(selection.text || selection.selector)].filter(Boolean).join(': ');
 const anchorLabel = (anchor: Anchor) => anchor.selections?.length ? anchor.selections.map(describe).join('; ') : 'Whole example';
+// Keys follow ReviewAnnotationSchema's order, because the save acknowledgement compares the server's parsed copy as JSON.
 const anchorSelection = ({ selector, text, rect, component }: Selection): AnchorSelection => ({
-  selector, rect, ...(text ? { text } : {}),
+  selector, ...(text ? { text } : {}), rect,
   ...(component ? { component: { name: component.name, ...(component.source ? { source: component.source } : {}), ...(component.props ? { props: component.props } : {}), ...(component.fixture ? { fixture: component.fixture } : {}) } } : {}),
 });
 
@@ -116,26 +118,60 @@ export function TweakControls({ tweaks, values, onChange }: { tweaks: Tweak[]; v
   const fieldId = useId();
   if (!tweaks.length) return null;
   return (
-    <fieldset className="example-tweaks">
-      <legend>Tweaks</legend>
+    <div className="example-tweaks">
       {tweaks.map(tweak => {
         const id = `${fieldId}-${tweak.id}`;
         const value = values[tweak.id] ?? defaultFor(tweak);
         if (tweak.type === 'select' || tweak.type === 'state') {
           const options = (tweak.options ?? []).map(option => typeof option === 'string' ? { value: option, label: option } : option);
-          return <div key={tweak.id} className="tweak-row"><span className="comment-label">{tweak.label}</span><Dropdown label={tweak.label} value={value} options={options} onChange={next => onChange(tweak.id, next)} /></div>;
+          return <div key={tweak.id} className="tweak-row"><span className="tweak-label">{tweak.label}</span><Dropdown label={tweak.label} value={value} options={options} onChange={next => onChange(tweak.id, next)} /></div>;
         }
-        if (tweak.type === 'toggle') return <label key={tweak.id} className="tweak-row"><input type="checkbox" checked={value === '1' || value === (tweak.on ?? '1')} onChange={event => onChange(tweak.id, event.target.checked ? '1' : '0')} />{tweak.label}</label>;
+        if (tweak.type === 'toggle') return <label key={tweak.id} className="tweak-row tweak-toggle"><span className="tweak-label">{tweak.label}</span><input type="checkbox" role="switch" checked={value === '1' || value === (tweak.on ?? '1')} onChange={event => onChange(tweak.id, event.target.checked ? '1' : '0')} /></label>;
         return (
           <div key={tweak.id} className="tweak-row">
-            <label className="comment-label" htmlFor={id}>{tweak.label}{tweak.type === 'slider' ? ` (${value}${tweak.unit ?? ''})` : ''}</label>
+            <label className="tweak-label" htmlFor={id}>{tweak.label}{tweak.type === 'slider' && <span className="tweak-value">{value}{tweak.unit ?? ''}</span>}</label>
             {tweak.type === 'slider' ? <input id={id} type="range" min={tweak.min ?? 0} max={tweak.max ?? 100} step={tweak.step ?? 1} value={value} onChange={event => onChange(tweak.id, event.target.value)} />
-              : tweak.type === 'color' ? <input id={id} type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'} onChange={event => onChange(tweak.id, event.target.value)} />
+              : tweak.type === 'color' ? <div className="tweak-color"><input id={id} type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'} onChange={event => onChange(tweak.id, event.target.value)} /><span>{value}</span></div>
                 : <input id={id} type="text" value={value} onChange={event => onChange(tweak.id, event.target.value)} />}
           </div>
         );
       })}
-    </fieldset>
+    </div>
+  );
+}
+
+// A native popover: the browser gives it light dismiss and Escape, and it stays in the dialog's top layer.
+function TweaksPopover({ tweaks, values, onChange }: { tweaks: Tweak[]; values: Record<string, string>; onChange: (id: string, value: string) => void }) {
+  const id = useId();
+  const button = useRef<HTMLButtonElement>(null);
+  const [place, setPlace] = useState<CSSProperties>();
+  return <>
+    <button ref={button} type="button" className="btn" popoverTarget={id} aria-haspopup="dialog"><SlidersHorizontal size={16} aria-hidden="true" />Tweaks</button>
+    <div id={id} popover="auto" role="dialog" aria-label="Tweaks" className="tweaks-popover" style={place}
+      onToggle={event => {
+        if ((event as unknown as ToggleEvent).newState !== 'open' || !button.current) return;
+        const rect = button.current.getBoundingClientRect();
+        setPlace({ top: rect.bottom + 6, left: Math.max(8, rect.right - 320) });
+      }}
+      onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }}>
+      <TweakControls tweaks={tweaks} values={values} onChange={onChange} />
+    </div>
+  </>;
+}
+
+function Composer({ label, placeholder, text, onText, onPost }: { label: string; placeholder: string; text: string; onText: (text: string) => void; onPost: (text: string) => void }) {
+  const id = useId();
+  const post = () => { if (text.trim()) onPost(text.trim()); };
+  return (
+    <div className="example-composer">
+      <label className="visually-hidden" htmlFor={id}>{label}</label>
+      <textarea id={id} rows={3} value={text} placeholder={placeholder} onChange={event => onText(event.target.value)}
+        onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); post(); } }} />
+      <div className="row between">
+        <span className="hint"><kbd>Ctrl</kbd> + <kbd>Enter</kbd></span>
+        <button type="button" className="btn primary" disabled={!text.trim()} onClick={post}>Post comment</button>
+      </div>
+    </div>
   );
 }
 
@@ -166,6 +202,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
   const [picked, setPicked] = useState<Selection[]>([]);
   const [unanchored, setUnanchored] = useState<string[]>([]);
   const [focused, setFocused] = useState<string>();
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   useEffect(() => { dialog.current?.showModal(); }, []);
   useEffect(() => { setPicker(false); setPicked([]); setFocused(undefined); }, [example.path, variant?.id]);
   // Marks only for comments made on the variant on screen; a comment's number is its place in the list.
@@ -177,6 +214,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
     if (picked.length) anchor.selections = picked.map(anchorSelection);
     if (tweaks.length) anchor.tweaks = Object.fromEntries(tweaks.map(tweak => [tweak.id, view.values[tweak.id] ?? defaultFor(tweak)]));
     setAnnotations([...annotations, { id: annotationId(), packVersion: pack.packVersion, target: { type: 'node', id: nodeId }, example: anchor, comment, time: new Date().toISOString() }]);
+    setDrafts(previous => ({ ...previous, [example.path]: '' }));
     frame.current?.clearSelections();
     setPicked([]);
     setPicker(false);
@@ -187,58 +225,76 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
     setPicked(previous => previous.filter(item => item.id !== id).map((item, index) => ({ ...item, id: index + 1 })));
   };
   const close = () => dialog.current?.close();
+  const element = pack.graph.nodes.find(node => node.id === nodeId)?.label ?? nodeId;
+  const variants = content?.kind === 'od-build' ? content.variants : [];
+  const stage = html !== undefined ? (
+    <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} path={example.path} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
+      picker={picker} marks={marks} tweaks={tweakPayload(tweaks, view.values, tokens)} control={frame} events={{
+        onPicker: setPicker,
+        onSelection: setPicked,
+        onMarkClick: key => { const id = key.slice(0, key.lastIndexOf('#')); if (comments.some(comment => comment.id === id)) setFocused(id); },
+        onRevealed: (key, found) => setUnanchored(previous => found ? previous.filter(id => id !== key) : [...new Set([...previous, key])]),
+        onEscape: close,
+      }} />
+  ) : content?.kind === 'markdown' ? <div className="example-doc"><div className="markdown"><SidebarMarkdown hideImages>{content.markdown}</SidebarMarkdown></div></div>
+    : content?.kind === 'fixture' ? <div className="example-doc"><FixtureView format={content.format} data={content.data} /></div>
+      : error ? <div className="example-doc" role="alert"><p>This example could not load.</p><pre>{error}</pre></div> : <p className="example-loading" role="status">Loading example...</p>;
   return (
-    <dialog ref={dialog} className="modal target-details-modal examples-modal" aria-labelledby={titleId} onClose={onClose}
+    <dialog ref={dialog} className="examples-modal" aria-labelledby={titleId} onClose={onClose}
       onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }}
       onMouseUp={event => event.stopPropagation()}>
-      <header className="target-details-head">
-        <div><h2 id={titleId}>{example.title}</h2><p className="hint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}: {example.path}</p></div>
-        <div className="row">
-          {examples.length > 1 && <Dropdown label="Example" value={example.path} currentLabel={example.title} options={examples.map(item => ({ value: item.path, label: item.title }))} onChange={onPath} />}
-          {content?.kind === 'od-build' && content.variants.length > 1 && variant && <Dropdown label="Variant" value={variant.id} currentLabel={variant.label ?? variant.id} options={content.variants.map(item => ({ value: item.id, label: item.label ?? item.id }))} onChange={id => updateView({ ...view, variant: id })} />}
-          {html !== undefined && <button type="button" className="btn" aria-pressed={picker} onClick={() => setPicker(!picker)}><MousePointerClick size={16} aria-hidden="true" />{picker ? 'Picking elements' : 'Pick elements'}</button>}
-          <button type="button" className="btn" aria-label="Close examples" autoFocus onClick={close}>Close</button>
-        </div>
+      <header className="examples-head">
+        <h2 id={titleId}><span className="examples-crumb">{element}</span><span aria-hidden="true"> / </span>Examples</h2>
+        <button type="button" className="icon-btn" aria-label="Close examples" data-tooltip="Close" autoFocus onClick={close}><X size={18} aria-hidden="true" /></button>
       </header>
-      <div className="examples-body">
-        <div className="example-view">
-          {html !== undefined ? (
-            <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} path={example.path} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
-              picker={picker} marks={marks} tweaks={tweakPayload(tweaks, view.values, tokens)} control={frame} events={{
-                onPicker: setPicker,
-                onSelection: setPicked,
-                onMarkClick: key => { const id = key.slice(0, key.lastIndexOf('#')); if (comments.some(comment => comment.id === id)) setFocused(id); },
-                onRevealed: (key, found) => setUnanchored(previous => found ? previous.filter(id => id !== key) : [...new Set([...previous, key])]),
-                onEscape: close,
-              }} />
-          ) : content?.kind === 'markdown' ? <div className="markdown"><SidebarMarkdown hideImages>{content.markdown}</SidebarMarkdown></div>
-            : content?.kind === 'fixture' ? <FixtureView format={content.format} data={content.data} />
-              : error ? <div role="alert"><p>This example could not load.</p><pre>{error}</pre></div> : <p role="status">Loading example...</p>}
-        </div>
-        <aside className="example-comments" aria-label="Comments on this example">
-          <TweakControls tweaks={tweaks} values={view.values} onChange={(id, value) => updateView({ ...view, values: { ...view.values, [id]: value } })} />
-          {html !== undefined && (picked.length ? (
-            <ul className="example-picks" aria-label="Selected elements">
-              {picked.map(item => <li key={item.id}><span>{item.id}. {describe(item)}</span><button type="button" className="icon-btn" aria-label={`Remove selection ${item.id}`} onClick={() => unpick(item.id)}><X size={14} aria-hidden="true" /></button></li>)}
-            </ul>
-          ) : <p className="hint" role="status">{picker ? 'Click elements in the example to anchor your comment.' : 'Comments anchor to the whole example unless you pick elements.'}</p>)}
-          <CommentForm key={example.path} label={picked.length ? `Comment on ${picked.length} selected element${picked.length === 1 ? '' : 's'}` : 'Comment on this example'} onSave={post} />
-          {comments.length > 0 && <ol className="comments">
+      <div className="examples-toolbar" role="toolbar" aria-label="Example controls">
+        <Dropdown label="Example" value={example.path} currentLabel={<><span className="example-kind">{KIND_LABELS[example.kind]}</span>{example.title}</>} options={examples.map(item => ({ value: item.path, label: `${item.title} (${KIND_LABELS[item.kind]})` }))} onChange={onPath} />
+        {example.illustrative && <span className="example-tag" data-tooltip="Shown for illustration; not a requirement">Illustrative</span>}
+        {variants.length > 1 && variant && (
+          <div className="segmented" role="group" aria-label="Variant">
+            {variants.map(item => <button key={item.id} type="button" aria-pressed={item.id === variant.id} onClick={() => updateView({ ...view, variant: item.id })}>{item.label ?? item.id}</button>)}
+          </div>
+        )}
+        <span className="toolbar-spacer" />
+        {tweaks.length > 0 && <TweaksPopover tweaks={tweaks} values={view.values} onChange={(id, value) => updateView({ ...view, values: { ...view.values, [id]: value } })} />}
+        {html !== undefined && <button type="button" className="btn" aria-pressed={picker} onClick={() => setPicker(!picker)}><MousePointerClick size={16} aria-hidden="true" />{picker ? 'Picking' : 'Pick elements'}</button>}
+      </div>
+      <div className="examples-main">
+        <div className="examples-stage">{stage}</div>
+        <aside className="examples-rail" aria-label="Comments on this example">
+          <h3 className="rail-title">Comments{comments.length > 0 && <span className="rail-count-text">{comments.length}</span>}</h3>
+          {comments.length ? <ol className="example-comment-list">
             {comments.map((comment, index) => {
               const anchor = comment.example!;
               const key = `${comment.id}#0`;
+              const variantName = (id?: string) => variants.find(item => item.id === id)?.label ?? id;
+              const target = anchor.selections?.length ? anchorLabel(anchor) : variant && anchor.variant !== variant.id ? `On ${variantName(anchor.variant) ?? 'another variant'}` : 'Whole example';
               return (
                 <li key={comment.id} className={focused === comment.id ? 'focused' : undefined}>
-                  {onScreen(anchor) && anchor.selections?.length
-                    ? <button type="button" className="link strong" ref={element => { if (focused === comment.id) element?.focus(); }} onClick={() => frame.current?.reveal(key)}>{index + 1}. {anchorLabel(anchor)}</button>
-                    : <strong>{index + 1}. {anchorLabel(anchor)}</strong>}
-                  {anchor.variant && !onScreen(anchor) && <p className="hint">On variant {anchor.variant}</p>}
-                  {unanchored.includes(key) && <p role="status">Unanchored: this element is no longer in the example.</p>}
-                  <p>{comment.comment}</p>
+                  <span className="mark-number" aria-hidden="true">{index + 1}</span>
+                  <div>
+                    {onScreen(anchor) && anchor.selections?.length
+                      ? <button type="button" className="link comment-target" ref={element => { if (focused === comment.id) element?.focus(); }} onClick={() => frame.current?.reveal(key)}>{target}</button>
+                      : <span className="comment-target">{target}</span>}
+                    {anchor.variant && !onScreen(anchor) && anchor.selections?.length ? <span className="comment-variant">On {variantName(anchor.variant)}</span> : null}
+                    <p>{comment.comment}</p>
+                    {unanchored.includes(key) && <p className="hint" role="status">This element is no longer in the example.</p>}
+                  </div>
                 </li>
               );
             })}
-          </ol>}
+          </ol> : <p className="rail-empty">No comments on this example yet.</p>}
+          <div className="rail-composer">
+            {picked.length > 0 && <div className="example-picks">
+              <p className="picks-count">{picked.length} element{picked.length === 1 ? '' : 's'} picked</p>
+              <ul aria-label="Picked elements">
+                {picked.map(item => <li key={item.id} className="chip"><span>{describe(item)}</span><button type="button" aria-label={`Remove ${describe(item)}`} onClick={() => unpick(item.id)}><X size={12} aria-hidden="true" /></button></li>)}
+              </ul>
+            </div>}
+            <Composer key={example.path} label={picked.length ? `Comment on ${picked.length} picked element${picked.length === 1 ? '' : 's'}` : 'Comment on this example'}
+              placeholder={picked.length ? `Comment on ${picked.length === 1 ? 'this element' : `these ${picked.length} elements`}` : picker ? 'Click elements in the mock to pick them' : 'Comment on this example'}
+              text={drafts[example.path] ?? ''} onText={text => setDrafts(previous => ({ ...previous, [example.path]: text }))} onPost={post} />
+          </div>
         </aside>
       </div>
     </dialog>
