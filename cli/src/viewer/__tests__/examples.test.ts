@@ -1,5 +1,5 @@
 import { afterEach, expect, it } from 'vitest';
-import { exampleDocument, FRAME_CSP, fixtureTable, frameUrl, parseCsv } from '../examples.js';
+import { exampleDocument, FRAME_CSP, fixtureTable, parseCsv } from '../examples.js';
 
 const global = globalThis as { OD_BRIDGE_JS?: string };
 afterEach(() => { delete global.OD_BRIDGE_JS; });
@@ -27,10 +27,11 @@ it('injects the vendored bridge before author markup and keeps it inside its scr
   expect(document.match(/<\/script>/g)).toHaveLength(1);
 });
 
-it('loads only web URLs in a URL frame', () => {
-  expect(frameUrl('http://127.0.0.1:5180/designs/a.html')).toBe('http://127.0.0.1:5180/designs/a.html');
-  expect(frameUrl('https://example.com/b')).toBe('https://example.com/b');
-  for (const url of ['javascript:alert(1)', 'data:text/html,<p>', 'file:///etc/passwd', 'not a url']) expect(frameUrl(url)).toBeNull();
+it('keeps the CSP but adds no second bridge to an OpenDesigner build that carries one', () => {
+  global.OD_BRIDGE_JS = 'vendored()';
+  const document = exampleDocument('<script data-od-bridge>built()</script><p>Build</p>');
+  expect(document.startsWith(`<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${FRAME_CSP}">`)).toBe(true);
+  expect(document).not.toContain('vendored()');
 });
 
 it('turns JSON fixtures into text cells', () => {

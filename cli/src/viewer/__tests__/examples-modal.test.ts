@@ -13,7 +13,7 @@ vi.mock('../pack.js', () => ({
 
 const examples: ElementExample[] = [
   { kind: 'html', path: 'checkout.html', title: 'Checkout mock', html: '<button>Pay</button>' },
-  { kind: 'od-build', path: 'cart.od', title: 'Cart build', url: 'http://127.0.0.1:5180/designs/cart' },
+  { kind: 'od-build', path: 'cart.html', title: 'Cart build', html: '<div data-od-component="Cart">Cart</div>' },
   { kind: 'markdown', path: 'flow.md', title: 'Checkout flow', markdown: '## Steps\n\n| Step | Who |\n|---|---|\n| Pay | Customer |\n\n```mermaid\nflowchart LR\n  A --> B\n```' },
   { kind: 'fixture', path: 'order.json', title: 'Order fixture', format: 'json', data: '[{"id":1,"note":"<img src=x onerror=alert(1)>"}]', illustrative: true },
 ];
@@ -43,11 +43,11 @@ it('renders inline HTML in an opaque-origin frame with labelled controls', () =>
   expect(html).toContain('1. PayButton: &lt;b&gt;Pay&lt;/b&gt;');
 });
 
-it('renders an OpenDesigner build in a sandboxed frame and refuses non-web URLs', () => {
-  expect(modal('cart.od')).toContain('sandbox="allow-scripts"');
-  const unsafe = renderToStaticMarkup(createElement(ExamplesModal, { nodeId: 'checkout', examples: [{ kind: 'od-build', path: 'x.od', title: 'X', url: 'javascript:alert(1)' }], path: 'x.od', onPath: vi.fn(), onClose: vi.fn(), annotations: [], setAnnotations: vi.fn() }));
-  expect(unsafe).not.toContain('<iframe');
-  expect(unsafe).toContain('not a web URL');
+it('renders an OpenDesigner build in the same sandboxed srcdoc frame', () => {
+  const html = modal('cart.html');
+  expect(html).toContain('sandbox="allow-scripts"');
+  expect(html).toContain('Pick element');
+  expect(html).not.toContain('data-od-component');
 });
 
 it('renders Markdown and Mermaid with the existing renderer, with no picker', () => {

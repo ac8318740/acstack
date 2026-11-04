@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { BridgeHost, type FrameLike } from './od-bridge/host.js';
 import type { FrameMessage, Mark, Selection } from './od-bridge/protocol.js';
-import { exampleDocument, frameUrl, type ElementExample } from './examples.js';
+import { exampleDocument, type ElementExample } from './examples.js';
 
 type FramedExample = Extract<ElementExample, { kind: 'html' | 'od-build' }>;
 export type FrameStatusValue = { state: 'loading' | 'ready' | 'closed' | 'mismatch' } | { state: 'error'; message: string };
@@ -38,7 +38,6 @@ export function ExampleFrame({ example, picker, marks, reveal, hasSelection, eve
   latest.current = { picker, marks, events };
   const revealing = useRef<string | null>(null);
   const [status, setStatus] = useState<FrameStatusValue>({ state: 'loading' });
-  const url = example.kind === 'od-build' ? frameUrl(example.url) : null;
 
   // A layout effect starts the load before any frame task can run, so the bridge sees every load.
   useLayoutEffect(() => {
@@ -54,7 +53,7 @@ export function ExampleFrame({ example, picker, marks, reveal, hasSelection, eve
     host.current = bridge;
     const receive = (event: MessageEvent) => bridge.receive(event);
     window.addEventListener('message', receive);
-    bridge.load(() => { if (example.kind === 'html') element.srcdoc = exampleDocument(example.html); else if (url) element.src = url; });
+    bridge.load(() => { element.srcdoc = exampleDocument(example.html); });
     return () => { alive = false; host.current = null; window.removeEventListener('message', receive); };
   }, []);
 
@@ -88,7 +87,6 @@ export function ExampleFrame({ example, picker, marks, reveal, hasSelection, eve
     host.current?.send('reveal', { key: reveal.key });
   }, [reveal]);
 
-  if (example.kind === 'od-build' && !url) return <p role="alert">This example's address is not a web URL, so it was not loaded.</p>;
   return (
     <div className="example-frame">
       <FrameStatus status={status} />

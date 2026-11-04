@@ -6,8 +6,8 @@ export type ElementExample = {
   title: string;
   illustrative?: boolean;
 } & (
-  | { kind: 'html'; html: string }
-  | { kind: 'od-build'; url: string }
+  // An OpenDesigner build is one self-contained HTML file, shown exactly like inline HTML.
+  | { kind: 'html' | 'od-build'; html: string }
   | { kind: 'markdown'; markdown: string }
   | { kind: 'fixture'; format: 'json' | 'csv'; data: string }
 );
@@ -23,17 +23,11 @@ export const FRAME_CSP = "default-src 'none'; script-src 'unsafe-inline' https:;
 // Prepending, not searching for <head>, keeps the policy first even when the author's markup hides a <head> in a comment or script.
 // The parser then folds the author's doctype, <html>, and <head> into this head.
 export function exampleDocument(html: string): string {
-  const bridge = typeof OD_BRIDGE_JS === 'undefined' ? '' : OD_BRIDGE_JS.replace(/<\/script/gi, '<\\/script');
-  return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${FRAME_CSP}"><script data-od-bridge>${bridge}</script>${html}`;
+  // OpenDesigner builds already carry the bridge, and two copies would both answer the host.
+  // Skipping it only costs interaction: the sandbox and CSP, not the bridge, keep the frame contained.
+  const bridge = typeof OD_BRIDGE_JS === 'undefined' || html.includes('data-od-bridge') ? '' : `<script data-od-bridge>${OD_BRIDGE_JS.replace(/<\/script/gi, '<\\/script')}</script>`;
+  return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${FRAME_CSP}">${bridge}${html}`;
 }
-
-// Only web URLs load in a frame; javascript:, data:, and file: never do.
-export const frameUrl = (url: string): string | null => {
-  try {
-    const parsed = new URL(url);
-    return parsed.protocol === 'http:' || parsed.protocol === 'https:' ? parsed.href : null;
-  } catch { return null; }
-};
 
 export type FixtureTable = { columns: string[]; rows: string[][] } | { error: string };
 
