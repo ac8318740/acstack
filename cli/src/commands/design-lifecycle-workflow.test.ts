@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -265,8 +265,8 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     denied(await server.lock(after, '101'));
     accepted(cli(root, ['design-doc', 'demo', '--check']));
     writeFileSync(join(root, '.acstack/maps/demo/103-node.md'), fileNode(root, '103').replace('kind: store', 'kind: store\nchannels: [web]'));
-    // The open page shows the old design, so it can no longer lock or answer.
-    denied(await server.lock(await server.get(), '102'));
+    // A tuple from before the edit names the old design, so it can no longer lock or answer.
+    denied(await server.lock(after, '102'));
     const failed = cli(root, ['design-doc', 'demo', '--check']);
     rejected(failed, 'changed element');
     expect(failed.stderr).toContain('Changed since the user approved: 103');
@@ -344,11 +344,16 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     expect((await server.get()).approval.valid).toBe(true);
     await stop(server.child);
     const resumed = await start(root);
-    expect((await resumed.get()).approval.valid).toBe(true);
+    const shown = await resumed.get();
+    expect(shown.approval.valid).toBe(true);
     writeFileSync(join(root, '.acstack/maps/demo/102-node.md'), fileNode(root, '102').replace('Runs commands.', 'Runs new commands.'));
     expect(status(root).approval.valid).toBe(false);
-    // Even a fresh status tuple cannot let this old rendered page approve a changed design.
-    denied(await resumed.approve(await resumed.get()));
+    // The page's tuple names the design it showed, so it cannot approve the changed one.
+    denied(await resumed.approve(shown));
+    // The live server rebuilds and pushes the changed design; that revision needs its own approval.
+    await vi.waitFor(async () => expect((await resumed.get()).sourceRevision).not.toBe(shown.sourceRevision), { timeout: 5_000 });
+    expect((await resumed.get()).approval.valid).toBe(false);
+    expect((await resumed.approve(await resumed.get())).ok).toBe(true);
   }, 30_000);
 
   it('authenticates lifecycle requests and keeps saved feedback intact', async () => {

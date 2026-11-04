@@ -173,7 +173,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
       <div className="examples-body">
         <div className="example-view">
           {html !== undefined ? (
-            <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
+            <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} path={example.path} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
               picker={picker} marks={marks} tweaks={tweakPayload(tweaks, view.values)} control={frame} events={{
                 onPicker: setPicker,
                 onSelection: setPicked,

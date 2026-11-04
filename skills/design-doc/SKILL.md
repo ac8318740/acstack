@@ -151,6 +151,10 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
 - It warns on oddities: a fog element, a locked element inside a loose one, and an open question on a locked element
 - Fix contradictions before asking the user to review
 - Keep the command running while the reviewer works
+- The open page updates live: the server watches the map folder, element folders, and fixtures, and pushes each rebuild
+    - Selection, the drawer, the diagram's viewport, drafts, and open modals stay; example frames reload with their scroll and state
+    - On the GitHub tracker, run `~/.claude/acstack/bin/acstack design-review refresh <map>` after each `gh` write; edits by other people show on a manual refresh
+    - A contradiction mid-edit keeps the last good page and shows why it stopped updating
 - Open the printed localhost URL when the browser and agent share a device
 - On separate devices, run the printed SSH forwarding command from the browser's device, then open the localhost URL
 - Use `--port <port>` when another review already uses the default port
@@ -170,7 +174,8 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
 - Choose Send to agent to finish pending saves and copy the feedback prompt
 - Read the prompt's `review.json` file, resolve each comment against the map, and revise element nodes
 - Comments do not approve a design or authorize implementation
-- Restart the review after element nodes change; the open page refuses writes against a changed design
+- A design change moves new comments to the new revision; comments on the earlier one stay saved, appear in the handoff prompt, and still need reconciling
+- The page refuses writes made against a design it no longer shows
 
 ## Reconcile feedback and approve
 

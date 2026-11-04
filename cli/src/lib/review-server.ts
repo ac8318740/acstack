@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type ServerResponse } from 'node:http';
 import { hostname } from 'node:os';
 import { REVIEW_HANDOFF_ID, REVIEW_MODE_META, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from './alignment-review-protocol.js';
 import { embeddedJson } from './alignment-pack-renderer.js';
@@ -12,11 +12,33 @@ export class ReviewHttpError extends Error {
 }
 
 // The same loopback/token boundary protects decision reviews and live design comments.
+/**
+ * Server-sent events for open review pages, behind the same token gate as the
+ * write API. A stream is a fetch, not an EventSource, because EventSource
+ * cannot send the token header.
+ */
+export function createEventHub() {
+  const clients = new Set<ServerResponse>();
+  return {
+    attach(res: ServerResponse) {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', connection: 'keep-alive' });
+      res.write(': connected\n\n');
+      clients.add(res);
+      res.on('close', () => clients.delete(res));
+    },
+    send(event: unknown) { for (const res of clients) res.write(`data: ${JSON.stringify(event)}\n\n`); },
+    close() { for (const res of clients) res.end(); clients.clear(); },
+  };
+}
+export type EventHub = ReturnType<typeof createEventHub>;
+
 export function createReviewServer(options: {
-  html: string;
+  // A function lets a live design doc serve its latest build on reload.
+  html: string | (() => string);
   path: string;
   mode?: 'comments';
-  handoffPrompt?: string;
+  handoffPrompt?: string | (() => string);
+  events?: EventHub;
   get?: () => unknown;
   post: (body: unknown) => unknown;
   recorded?: () => void;
@@ -24,9 +46,12 @@ export function createReviewServer(options: {
 }): Server {
   const token = randomBytes(16).toString('hex');
   const metadata = `<meta name="${REVIEW_TOKEN_META}" content="${token}">${options.mode ? `<meta name="${REVIEW_MODE_META}" content="comments">` : ''}`;
-  const handoff = options.mode === 'comments' && options.handoffPrompt
-    ? `<script id="${REVIEW_HANDOFF_ID}" type="application/json">${embeddedJson(options.handoffPrompt)}</script>` : '';
-  const html = options.html.replace('</head>', `${metadata}${handoff}\n</head>`);
+  const page = () => {
+    const prompt = typeof options.handoffPrompt === 'function' ? options.handoffPrompt() : options.handoffPrompt;
+    const handoff = options.mode === 'comments' && prompt
+      ? `<script id="${REVIEW_HANDOFF_ID}" type="application/json">${embeddedJson(prompt)}</script>` : '';
+    return (typeof options.html === 'function' ? options.html() : options.html).replace('</head>', `${metadata}${handoff}\n</head>`);
+  };
   let busy = false;
   return createServer((req, res) => {
     const reply = (status: number, body: unknown) => {
@@ -38,7 +63,12 @@ export function createReviewServer(options: {
     if (!/^(localhost|127\.0\.0\.1):\d+$/.test(req.headers.host ?? '')) return reply(421, { error: 'Unknown host' });
     if (req.method === 'GET' && req.url === '/') {
       res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
-      res.end(html);
+      res.end(page());
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/api/events' && options.events) {
+      if (req.headers[REVIEW_TOKEN_HEADER] !== token) return reply(403, { error: 'This page is from an older review. Reload it.' });
+      options.events.attach(res);
       return;
     }
     const endpoint = req.url === '/api/design-review' ? options.designReview : req.url === options.path ? options : undefined;

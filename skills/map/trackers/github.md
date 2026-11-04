@@ -106,6 +106,8 @@ the dependencies API nor a GraphQL parent query.
 
 **update**
 
+After any write while a design doc review is open, run `~/.claude/acstack/bin/acstack design-review refresh <map>` so the open page rebuilds. The server never polls GitHub.
+
 - Fields: `gh issue edit <n> --add-label / --remove-label / --title / --body`
 - Claim: `gh issue edit <n> --add-label claimed`. Release removes it.
 - Resolve: append the answer to the body. Then run `gh issue close <n> --reason completed`

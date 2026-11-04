@@ -18,7 +18,7 @@ import { copy, ReviewHandoff } from './review-handoff.js';
 import { useQuestionCounts } from './design-questions.js';
 import { questionScopeForSelection } from './question-targets.js';
 import { DesignApproval, DesignApprovalProvider, useBlockerNavigation, useDesignReview } from './design-approval.js';
-import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, useReviewAnnotations } from './pack.js';
+import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, followLiveUpdates, usePackRevision, useReviewAnnotations } from './pack.js';
 
 const orientation = pack.viewState.orientation ?? (pack.documentKind === 'design' ? 'top-to-bottom' : 'left-to-right');
 
@@ -44,6 +44,9 @@ function useTextSelection(popover: React.RefObject<HTMLDivElement | null>, onDra
 }
 
 function App() {
+  // A rebuilt pack re-renders the app in place, so selection, drawer, viewport, drafts, and modals all stay.
+  const packRevision = usePackRevision();
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => initialExpandedGroups(pack));
   const [zoom, setZoom] = useState<Zoom>(pack.viewState.semanticZoom === 'technical' ? 'technical' : 'business');
   const [selected, setSelected] = useState<string | null>(null);
@@ -77,12 +80,12 @@ function App() {
     viewportAnchor.current = node ? { key, before: diagram, node: { id: node.id, x: node.x, y: node.y } } : null;
     setExpanded(ids);
   };
-  const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded]);
+  const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded, packRevision]);
   const questionCounts = useQuestionCounts(projection);
-  const [measurement, setMeasurement] = useState<{ key: string; geometry: MeasuredGeometry } | null>(null);
+  const [measurement, setMeasurement] = useState<{ key: string; revision: number; geometry: MeasuredGeometry } | null>(null);
   const onMeasured = useCallback((geometry: MeasuredGeometry) => {
-    setMeasurement(previous => previous?.key === requestedKey && JSON.stringify(previous.geometry) === JSON.stringify(geometry) ? previous : { key: requestedKey, geometry });
-  }, [requestedKey]);
+    setMeasurement(previous => previous?.key === requestedKey && previous.revision === packRevision && JSON.stringify(previous.geometry) === JSON.stringify(geometry) ? previous : { key: requestedKey, revision: packRevision, geometry });
+  }, [requestedKey, packRevision]);
   const generation = useRef(0);
   const measurementTree = useRef<MeasureDiagramHandle>(null);
   const popover = useRef<HTMLDivElement>(null);
@@ -139,7 +142,8 @@ function App() {
   }, [annotations]);
   useEffect(() => {
     const request = ++generation.current;
-    if (measurement?.key !== requestedKey) return;
+    // A swapped pack waits for its own measurement, so new cards never lay out with stale sizes.
+    if (measurement?.key !== requestedKey || measurement.revision !== packRevision) return;
     const previous = previousLayout.current?.key === requestedKey ? previousLayout.current.diagram : acceptedLayout.current;
     const measurer = measurementTree.current;
     void buildDiagram(pack.graph, expanded, measurement.geometry, previous, orientation, nodes => {
@@ -160,7 +164,8 @@ function App() {
       if (request === generation.current) setLayoutError(error instanceof Error ? error.message : String(error));
     });
     return () => { generation.current += 1; };
-  }, [expanded, measurement, requestedKey, zoom, commentCounts, questionCounts]);
+  }, [expanded, measurement, requestedKey, zoom, commentCounts, questionCounts, packRevision]);
+  useEffect(() => liveComments && pack.documentKind === 'design' ? followLiveUpdates(setLiveError) : undefined, []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !(event.target as Element | null)?.closest?.('[data-review-handoff]') && !event.defaultPrevented && !(event.target instanceof HTMLTextAreaElement) && setSelected(null);
     document.addEventListener('keydown', onKey);
@@ -276,6 +281,7 @@ function App() {
       <main className="canvas">
         <MeasureDiagram ref={measurementTree} diagram={projection} zoom={zoom} commentCounts={commentCounts} onMeasured={onMeasured} />
         {layoutError && <div className="layout-error" role="alert">{layoutError} The previous valid diagram remains visible.</div>}
+        {liveError && <div className="layout-error" role="alert">The map has a problem, so this page stopped updating: {liveError}</div>}
         <ReactFlowProvider>
           <Diagram
             diagram={diagram}

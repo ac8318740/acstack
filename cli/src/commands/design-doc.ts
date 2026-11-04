@@ -5,7 +5,8 @@ import { designDocToPack, renderDesignDocMarkdown } from '../lib/design-doc.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { inProject } from '../lib/utils.js';
 import { changedElements, loadMapDesign, openDesignLifecycle, reviewHistories } from '../lib/design-lifecycle.js';
-import { createReviewServer, listenForReview, REVIEW_PORT } from '../lib/review-server.js';
+import { createEventHub, createReviewServer, listenForReview, REVIEW_PORT } from '../lib/review-server.js';
+import { notifyDesign, watchDesign } from '../lib/design-watch.js';
 import { DiagramOrientationSchema, type DiagramOrientation } from '../lib/alignment-packs.js';
 import { ANNOTATIONS_PATH } from '../lib/alignment-review-protocol.js';
 
@@ -15,6 +16,42 @@ export function generateDesignDoc(root: string, map: string, output: string, mar
   // Exclusive creation protects existing files and reviewer artifacts, including symlinks.
   writeFileSync(resolve(output), html, { flag: 'wx' });
   if (markdown) writeFileSync(resolve(markdown), renderDesignDocMarkdown(doc, orientation), { flag: 'wx' });
+}
+/**
+ * A design doc review that follows the map: the watcher rebuilds the page and
+ * pushes it to open viewers. A design change moves comments to a new review, so
+ * the earlier ones stay obligations for the agent instead of vanishing.
+ */
+export function liveDesignDoc(root: string, map: string, orientation: DiagramOrientation = 'top-to-bottom') {
+  let lifecycle = openDesignLifecycle(root, map);
+  lifecycle.status();
+  let carried: string[] = [];
+  const build = () => designDocToPack(lifecycle.doc, orientation);
+  let html = renderAlignmentPackHtml(build());
+  const events = createEventHub();
+  const prompt = () => `Read the review JSON at ${[lifecycle.review.reviewPath, ...carried].map(path => JSON.stringify(path)).join(', ')}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status, explicitly reconcile every comment with design-review reconcile (using --review-file for an earlier review), then reopen the review with design-doc for approval of the resulting revision.`;
+  const reload = () => {
+    try {
+      const candidates = [...new Set([...carried, lifecycle.review.reviewPath])];
+      const next = openDesignLifecycle(root, map, undefined, candidates);
+      next.status();
+      lifecycle = next;
+      carried = candidates.filter(path => path !== next.review.reviewPath);
+      const pack = build();
+      html = renderAlignmentPackHtml(pack);
+      events.send({ type: 'design', pack, handoffPrompt: prompt() });
+    } catch (error) {
+      // Mid-edit contradictions keep the last good page; the viewer shows why it stopped updating.
+      events.send({ type: 'error', message: error instanceof Error ? error.message : String(error) });
+    }
+  };
+  const server = createReviewServer({ handoffPrompt: prompt, html: () => html, events, path: ANNOTATIONS_PATH, mode: 'comments', designReview: { get: () => lifecycle.status(), post: body => {
+    if (body && typeof body === 'object' && 'questionId' in body) return lifecycle.answer(body);
+    if (body && typeof body === 'object' && 'lock' in body) return lifecycle.lock(body);
+    return lifecycle.approve(body);
+  } }, get: () => lifecycle.review.get(), post: body => lifecycle.review.post(body) });
+  const unwatch = watchDesign(root, map, reload);
+  return { server, events, reload, lifecycle: () => lifecycle, stop: () => { unwatch(); events.close(); server.close(); } };
 }
 const warn = (warnings: string[]) => { for (const warning of warnings) console.error(`warning: ${warning}`); };
 export function register(program: Command): void {
@@ -27,6 +64,11 @@ export function register(program: Command): void {
     .description("Lock or re-approve one element. Only on the user's explicit instruction")
     .action(inProject((root, map: string, id: string) => {
       console.log(JSON.stringify(openDesignLifecycle(root, map).approveElement(id)));
+    }));
+  lifecycle.command('refresh <map>')
+    .description('Tell a running design-doc review to rebuild, after a write it cannot see, such as a gh edit')
+    .action(inProject((root, map: string) => {
+      console.log(notifyDesign(root, map) ? `Notified the design doc for ${map}` : `No design-doc review has run for ${map}`);
     }));
   lifecycle.command('reconcile <map>').requiredOption('--input <json-file>', 'Explicit reconciliation decisions')
     .option('--review-file <path>', 'Canonical historical feedback snapshot')
@@ -57,20 +99,12 @@ export function register(program: Command): void {
       }
       const port = Number(options.port);
       if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Port must be an integer from 0 to 65535');
-      const lifecycle = openDesignLifecycle(root, map);
-      const doc = lifecycle.doc;
-      warn(lifecycle.warnings);
-      const pack = designDocToPack(doc, options.orientation);
+      const live = liveDesignDoc(root, map, options.orientation);
+      const doc = live.lifecycle().doc;
+      warn(live.lifecycle().warnings);
       if (options.markdown) writeFileSync(resolve(options.markdown), renderDesignDocMarkdown(doc, options.orientation), { flag: 'wx' });
-      lifecycle.status();
-      const review = lifecycle.review;
-      const handoffPrompt = `Read the review JSON at ${JSON.stringify(review.reviewPath)}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status, explicitly reconcile every comment with design-review reconcile, then reopen the review with design-doc for approval of the resulting revision.`;
-      const server = createReviewServer({ handoffPrompt, html: renderAlignmentPackHtml(pack), path: ANNOTATIONS_PATH, mode: 'comments', designReview: { get: lifecycle.status, post: body => {
-        if (body && typeof body === 'object' && 'questionId' in body) return lifecycle.answer(body);
-        if (body && typeof body === 'object' && 'lock' in body) return lifecycle.lock(body);
-        return lifecycle.approve(body);
-      } }, get: review.get, post: review.post });
-      console.log(`Agent feedback: ${review.reviewPath}`);
+      const server = live.server;
+      console.log(`Agent feedback: ${live.lifecycle().review.reviewPath}`);
       await listenForReview(server, port, doc.name);
     }));
 }

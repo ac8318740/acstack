@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { BridgeHost, type FrameLike } from './od-bridge/host.js';
-import type { FrameMessage, Mark, Selection, TweakPayload } from './od-bridge/protocol.js';
+import type { FrameMessage, Mark, Restore, Selection, TweakPayload } from './od-bridge/protocol.js';
 import { exampleDocument } from './examples.js';
 
 export type FrameStatusValue = { state: 'loading' | 'ready' | 'closed' | 'mismatch' } | { state: 'error'; message: string };
@@ -23,8 +23,14 @@ function liveFrame(element: HTMLIFrameElement, alive: () => boolean): FrameLike 
   };
 }
 
-// Mount with a key per document: the bridge counts this iframe's loads, so a new document needs a new iframe.
-export function ExampleFrame({ html, title, picker, marks, tweaks, control, events }: {
+// Bridge spec, Reload: the host waits at most this long for the old frame's snapshot.
+export const SNAPSHOT_WAIT_MS = 300;
+// App state belongs to one example path; it returns only to a reload of that path.
+const snapshots = new Map<string, unknown>();
+
+// Mount with a key per example and variant. A new `html` for the same key reloads in place, restoring the frame's state.
+export function ExampleFrame({ path, html, title, picker, marks, tweaks, control, events }: {
+  path: string;
   html: string;
   title: string;
   picker: boolean;
@@ -38,6 +44,10 @@ export function ExampleFrame({ html, title, picker, marks, tweaks, control, even
   const latest = useRef({ picker, marks, tweaks, events });
   latest.current = { picker, marks, tweaks, events };
   const revealing = useRef<string | null>(null);
+  const scroll = useRef({ x: 0, y: 0 });
+  const selections = useRef<string[]>([]);
+  const restore = useRef<Restore | undefined>(undefined);
+  const loaded = useRef(html);
   const [status, setStatus] = useState<FrameStatusValue>({ state: 'loading' });
 
   // A layout effect starts the load before any frame task can run, so the bridge sees every load.
@@ -66,9 +76,17 @@ export function ExampleFrame({ html, title, picker, marks, tweaks, control, even
   const handle = (bridge: BridgeHost, message: FrameMessage) => {
     const { events, marks, tweaks, picker } = latest.current;
     switch (message.type) {
-      case 'ready': bridge.init({ tokens: [], tweaks, picker, keys: ['escape'], marks }); break;
+      case 'ready': {
+        const app = snapshots.get(path);
+        const pending = restore.current;
+        restore.current = undefined;
+        bridge.init({ tokens: [], tweaks, picker, keys: ['escape'], marks, ...(pending && { restore: { ...pending, ...(app !== undefined && { app }) } }) });
+        break;
+      }
+      case 'scroll': scroll.current = { x: message.x, y: message.y }; break;
+      case 'navigate': snapshots.delete(path); break;
       case 'applied': setStatus({ state: 'ready' }); bridge.send('marks', { items: marks }); break;
-      case 'selection': events.onSelection(message.items); break;
+      case 'selection': selections.current = message.items.map(item => item.selector); events.onSelection(message.items); break;
       case 'picker': events.onPicker(false); break;
       case 'key': if (message.combo === 'escape') events.onEscape(); break;
       case 'mark-click': events.onMarkClick(message.key); break;
@@ -76,6 +94,23 @@ export function ExampleFrame({ html, title, picker, marks, tweaks, control, even
       case 'error': setStatus({ state: 'error', message: message.message }); break;
     }
   };
+
+  // A rebuilt example reloads through snapshot then restore, per the bridge spec.
+  useEffect(() => {
+    if (html === loaded.current) return;
+    loaded.current = html;
+    const bridge = host.current, element = frame.current;
+    if (!bridge || !element) return;
+    let current = true;
+    void bridge.requestSnapshot(SNAPSHOT_WAIT_MS).then(snapshot => {
+      if (!current || loaded.current !== html) return;
+      if (snapshot?.app !== undefined) snapshots.set(path, snapshot.app); else snapshots.delete(path);
+      restore.current = { scroll: snapshot?.scroll ?? scroll.current, selections: selections.current };
+      setStatus({ state: 'loading' });
+      bridge.load(() => { element.srcdoc = exampleDocument(html); });
+    });
+    return () => { current = false; };
+  }, [html]);
 
   useEffect(() => { host.current?.setPicker(picker); }, [picker]);
   const markKey = JSON.stringify(marks);

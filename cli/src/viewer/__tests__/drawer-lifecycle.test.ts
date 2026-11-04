@@ -16,6 +16,7 @@ vi.mock('../pack.js', () => {
     pack: { documentKind: 'design', graph: { nodes: [], edges: [], groups: [] }, source: { references: [] } },
     liveComments: true,
     token: 'test-token',
+    usePackRevision: () => 0,
     useReviewAnnotations: () => ({ syncState, flush: () => Promise.resolve() }),
   };
 });
@@ -640,4 +641,37 @@ it('offers one-click re-approval for an element changed since approval', async (
     expect(handlers(pill()).children).toBe('Locked');
     expect(buttons('Re-approve')).toHaveLength(0);
   } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
+});
+
+it('keeps the drawer view, expanded rows, and drafts when a rebuilt pack swaps in', () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const container = create('div');
+  const root = createRoot(container as unknown as HTMLElement);
+  const original = pack.designDocument;
+  pack.designDocument = { id: 'live', name: 'Design', summary: 'Design summary', questions: [{ id: 'first', target: { type: 'node', id: 'first' }, question: 'Question first' }] };
+  const props: ComponentProps<typeof Drawer> = {
+    open: true, setOpen: vi.fn(), view: 'questions', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), questionScope: 'all', setQuestionScope: vi.fn(),
+    selected: 'item:first', diagram: { nodes: [], edges: [], nodeToVisible: { first: 'item:first', second: 'item:second' } }, focusKey: 0,
+    annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn(),
+  };
+  const render = () => act(() => root.render(createElement(Drawer, props)));
+  const summary = (id: string) => all(container).find(node => node.tagName === 'BUTTON' && node.attributes['aria-label'] === `Question ${id}`);
+  try {
+    render();
+    act(() => handlers(summary('first')!).onClick?.());
+    act(() => handlers(all(container).find(node => node.tagName === 'TEXTAREA')!).onChange?.({ target: { value: 'Unsent answer' } }));
+    // The swap replaces the data and re-renders; nothing remounts.
+    pack.designDocument = { ...pack.designDocument, questions: [...pack.designDocument.questions!, { id: 'second', target: { type: 'node', id: 'second' }, question: 'Question second' }] };
+    render();
+    expect(summary('second')).toBeDefined();
+    expect(summary('first')!.attributes['aria-expanded']).toBe('true');
+    expect(all(container).find(node => node.tagName === 'TEXTAREA')!.value).toBe('Unsent answer');
+  } finally { act(() => root.unmount()); pack.designDocument = original; }
 });

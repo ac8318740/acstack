@@ -32,7 +32,8 @@ function answerMarkdown(answer: DesignAnswer): string {
   return [...answer.choices.map(choice => `- ${choice}`), ...(answer.answer ? [`- Other: ${answer.answer}`] : [])].join('\n');
 }
 
-export function openDesignLifecycle(root: string, map: string, reviewFile?: string) {
+// `carried` names reviews a live session opened before the design changed; their comments stay obligations, not lost.
+export function openDesignLifecycle(root: string, map: string, reviewFile?: string, carried: string[] = []) {
   root = resolve(root);
   const opened = loadMapDesign(root, map);
   const rendered = opened.doc;
@@ -50,7 +51,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     const inputs = designMapInputs(nodes, doc);
     const blockers = [...inputs.blockers, ...doc.items.filter(item => changed.includes(item.id))
       .map((item): ApprovalBlocker => ({ kind: 'changed', targetId: item.id, label: item.name, nodeId: item.id }))];
-    const obligations = new Set<string>();
+    const obligations = new Set<string>(carried.filter(path => histories.get(path)?.annotations.length));
     for (const [path, snapshot] of histories) {
       const receipts = new Map(snapshot.lifecycle?.reconciliations.map(receipt => [resolve(root, receipt.reviewPath), receipt]));
       for (const [selected, receipt] of receipts) {

@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, type MutableRef
 import type { DesignAnswer } from '../lib/design-review.js';
 import type { ApprovalBlocker } from '../lib/design-map.js';
 import { REVIEW_TOKEN_HEADER } from '../lib/alignment-review-protocol.js';
-import { liveComments, pack, token, useReviewAnnotations } from './pack.js';
+import { liveComments, pack, token, usePackRevision, useReviewAnnotations } from './pack.js';
 
 type Status = {
   sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string;
@@ -63,6 +63,7 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
   const captures = useRef(new Map<string, () => LockCapture | undefined>());
   const captured = (ids: string[]) => Object.fromEntries(ids.flatMap(id => { const value = captures.current.get(id)?.(); return value ? [[id, value]] : []; }));
   const showBlockers = () => { confirm.current?.close(); blockerDialog.current?.showModal(); };
+  const packRevision = usePackRevision();
   useEffect(() => {
     if (!enabled || pending) return;
     let active = true;
@@ -71,7 +72,7 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
       .catch((error: unknown) => { if (active) setError(error instanceof Error ? error.message : String(error)); });
     return () => { active = false; };
   // Approval itself refreshes the inputs; finishing it must not reload and hide its result.
-  }, [enabled, syncState]);
+  }, [enabled, syncState, packRevision]);
   const approve = async () => {
     if (!status || pending || syncState?.status !== 'Saved') return;
     const { sourceRevision, reviewRevision, commentsDigest, mapInputsDigest } = status;
