@@ -384,7 +384,7 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     const root = fixture();
     const first = await start(root);
     const comments = await savedComments(first);
-    const { reviewPath } = await first.get() as Status & { reviewPath: string };
+    const { reviewPath } = await first.get();
     await stop(first.child);
     const corrupt = JSON.parse(readFileSync(reviewPath, 'utf8')) as Snapshot;
     corrupt.annotations = [{ ...comments[0], packVersion: undefined }];
@@ -398,7 +398,7 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
       expect((await response.json() as { error: string }).error).toContain(problem);
     }
     denied(await server.save({ ...corrupt, annotations: [] }));
-    denied(await server.approve({ sourceRevision: '0'.repeat(64), reviewRevision: 1, commentsDigest: '0'.repeat(64), mapInputsDigest: '0'.repeat(64) } as Tuple));
+    denied(await server.approve({ sourceRevision: '0'.repeat(64), reviewRevision: 1, commentsDigest: '0'.repeat(64), mapInputsDigest: '0'.repeat(64) }));
     expect(readFileSync(reviewPath, 'utf8')).toBe(text);
     const result = cli(root, ['design-review', 'status', 'demo']);
     expect(result.status).not.toBe(0);

@@ -491,7 +491,7 @@ export function Drawer({
     else next[id] = text;
     return next;
   });
-  const [width, setWidth] = useState(400);
+  const [width, setWidth] = useState(440);
   const [viewportWidth, setViewportWidth] = useState(() => typeof window === 'undefined' ? 1360 : window.innerWidth);
   const drag = useRef<{ x: number; width: number; pointer: number; handle: HTMLDivElement } | null>(null);
   useEffect(() => {
@@ -514,6 +514,15 @@ export function Drawer({
   const options = commentScopeOptions(annotations);
   const currentLabel = commentScope !== 'all' && context ? scopeLabel(context.target) : 'All targets';
   const exampleNode = selected?.startsWith('item:') ? selected.slice(5) : selected?.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId ?? null : null;
+  // Examples filter like Comments and Questions: the selected element, or every example with nothing selected.
+  const exampleNodes = pack.graph.nodes.filter(node => node.examples?.length).map(node => node.id);
+  const exampleScopeFor = (node: string | null) => node ? `item:${node}` : 'all';
+  const [exampleScope, setExampleScope] = useState(() => exampleScopeFor(exampleNode));
+  useEffect(() => { setExampleScope(exampleScopeFor(exampleNode)); }, [exampleNode]);
+  const scopedExamples = exampleScope === 'all' ? exampleNodes : [exampleScope.slice(5)];
+  const exampleCount = scopedExamples.reduce((sum, id) => sum + examplesFor(id).length, 0);
+  const exampleOptions = reviewScopeOptions(exampleNodes.flatMap(id => examplesFor(id).map((): Annotation['target'] => ({ type: 'node', id }))));
+  const exampleLabel = exampleScope === 'all' ? 'All targets' : scopeLabel({ type: 'node', id: exampleScope.slice(5) });
   const openAllComments = () => { setCommentScope('all'); setView('comments'); setOpen(true); };
   if (!open) {
     return (
@@ -577,7 +586,7 @@ export function Drawer({
             {needsInput > 0 && <span className="tab-count" aria-label={`${needsInput} open`}>{needsInput}</span>}
             {needsInput === 0 && answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
           </button>}
-          {exampleNode && examplesFor(exampleNode).length > 0 && <button type="button" aria-pressed={view === 'examples'} onClick={() => setView('examples')}>Examples<span className="tab-count" aria-label={`${examplesFor(exampleNode).length} examples`}>{examplesFor(exampleNode).length}</span></button>}
+          {pack.designDocument && <button type="button" aria-pressed={view === 'examples'} onClick={() => { if (view !== 'examples') { setExampleScope(exampleScopeFor(exampleNode)); setView('examples'); } }}>Examples{exampleNode && examplesFor(exampleNode).length > 0 && <span className="tab-count" aria-label={`${examplesFor(exampleNode).length} example${examplesFor(exampleNode).length === 1 ? '' : 's'}`}>{examplesFor(exampleNode).length}</span>}</button>}
         </div>
         <div className="row">
           <button type="button" className="icon-btn" data-tooltip="Collapse details panel" aria-label="Collapse details panel" onClick={() => setOpen(false)}>
@@ -589,7 +598,10 @@ export function Drawer({
         {view === 'details' ? (
           selected && selected !== 'group:design:root' ? <Details selected={selected} diagram={diagram} openQuestions={openQuestions} onQuestion={openQuestion} onInspect={selected => setInspection({ selected })} onSelect={onSelect} onOpenGroup={onOpenGroup} /> :
             pack.designDocument ? <DocumentOverview /> : <p className="muted">Select a box or relationship to see its details.</p>
-        ) : view === 'examples' ? (exampleNode ? <ExamplesTab key={exampleNode} nodeId={exampleNode} link={exampleLink} annotations={annotations} setAnnotations={setAnnotations} /> : <p className="muted">Select an element to see its examples.</p>) : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
+        ) : view === 'examples' ? <div className="drawer-examples">
+          <div className="review-toolbar"><ReviewScope label="Example scope" value={exampleScope} currentLabel={exampleLabel} count={exampleCount} options={exampleOptions} onChange={setExampleScope} /></div>
+          <ExamplesTab nodeIds={scopedExamples} empty={exampleNodes.length ? 'No examples match this filter.' : 'This design has no examples.'} link={exampleLink} annotations={annotations} setAnnotations={setAnnotations} />
+        </div> : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}

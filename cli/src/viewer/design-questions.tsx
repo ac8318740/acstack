@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import type { MapQuestion } from '../lib/alignment-packs.js';
 import type { DesignAnswer } from '../lib/design-review.js';
 import type { Diagram } from './alignment-graph.js';
@@ -90,7 +90,7 @@ export function DesignQuestions({ selected, diagram, drafts, onDraft, onDetails,
     return <article key={question.id} className="question-card" data-question-id={question.id} data-answered={done || undefined} data-selected={questionLocation(question, diagram, pack.graph) === selected}>
       <button ref={node => { if (node) summaries.current.set(question.id, node); else summaries.current.delete(question.id); }} type="button" className="question-summary" aria-label={question.question} aria-expanded={expandedCard} aria-controls={bodyId} onClick={toggle}>
         {expandedCard ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-        <span><span className="question-title">{question.question}</span><span className="question-meta">{targetLabel(question.target)}</span></span>
+        <span><span className="question-title">{done && <Check size={14} className="done-icon" aria-hidden="true" />}{question.question}</span><span className="question-meta">{targetLabel(question.target)}</span></span>
       </button>
       {expandedCard && <div id={bodyId} className="question-body">
         {question.detail && <div className="markdown"><SidebarMarkdown hideImages>{question.detail}</SidebarMarkdown></div>}

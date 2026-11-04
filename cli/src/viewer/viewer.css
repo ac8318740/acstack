@@ -93,7 +93,7 @@ kbd { padding: 1px 5px; border: 1px solid var(--border); border-bottom-width: 2p
 /* Fixed width so the label swap to "Copied" never shifts the button. */
 .done .btn { display: inline-flex; gap: 6px; align-items: center; justify-content: center; width: 132px; }
 .canvas { position: relative; min-width: 0; background: var(--canvas); }
-.drawer { position: relative; width: min(var(--drawer-width, 400px), calc(100vw - 320px)); display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg); min-height: 0; }
+.drawer { position: relative; width: min(var(--drawer-width, 440px), calc(100vw - 320px)); display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg); min-height: 0; }
 .drawer-resize { position: absolute; z-index: 16; inset: 0 auto 0 -6px; width: 12px; cursor: col-resize; touch-action: none; user-select: none; }
 .drawer-resize::after { content: ''; position: absolute; inset: 0 auto 0 5px; width: 2px; }
 .drawer-resize:hover::after, .drawer-resize:focus-visible::after { background: var(--accent); }
@@ -109,7 +109,7 @@ kbd { padding: 1px 5px; border: 1px solid var(--border); border-bottom-width: 2p
 .drawer-tabs button { flex: none; min-height: 32px; padding: 6px 6px; border: 0; border-radius: var(--radius); background: none; color: var(--muted); font-size: var(--size-sm); font-weight: 600; }
 .drawer-tabs button:hover { background: var(--hover); color: var(--text); }
 .drawer-tabs button[aria-pressed="true"], .drawer-head .icon-btn[aria-pressed="true"], .rail .icon-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
-.drawer-comments { display: grid; gap: 16px; min-width: 0; }
+.drawer-comments, .drawer-examples { display: grid; gap: 16px; min-width: 0; }
 .review-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
 .review-toolbar > .btn { flex: none; min-height: 32px; padding: 6px 8px; font-size: var(--size-xs); }
 .review-scope { flex: 1; min-width: 0; }
@@ -214,6 +214,11 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); box-sh
 .design-questions { display: grid; align-content: start; gap: 8px; }
 .question-card { border: 1px solid var(--border); border-radius: var(--radius); overflow-wrap: anywhere; }
 .question-card[data-selected='true'] { border-color: var(--accent); }
+.question-card[data-answered] { background: oklch(98.2% 0.016 155); border-color: oklch(86% 0.05 155); }
+.question-card[data-answered][data-selected='true'] { border-color: var(--ok); }
+.question-card[data-answered] .question-summary:hover { background: var(--ok-soft); }
+.question-card[data-answered] .question-answer { background: var(--bg); }
+.question-title .done-icon { margin-right: 4px; vertical-align: -2px; }
 .question-summary { display: flex; align-items: flex-start; gap: 6px; width: 100%; padding: 10px; border: 0; border-radius: var(--radius); background: none; text-align: left; color: var(--text); cursor: pointer; }
 .question-summary:hover { background: var(--hover); }
 .question-summary > svg { flex: none; margin-top: 2px; }
@@ -467,6 +472,9 @@ button.comment-target { color: var(--accent); }
 .tweak-color { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: var(--size-sm); font-variant-numeric: tabular-nums; }
 .tweak-color input[type="color"] { width: 44px; height: 30px; padding: 2px; cursor: pointer; }
 .tweak-toggle input[type="checkbox"] { width: 16px; height: 16px; margin: 0; accent-color: var(--accent); }
+.drawer-examples > .section { display: grid; gap: 16px; }
+.example-group { display: grid; gap: 4px; }
+.example-group-title { margin: 0; padding: 0 10px; font-size: var(--size-xs); font-weight: 600; color: var(--muted); }
 .example-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
 .fixture-table { overflow: auto; border: 1px solid var(--border); border-radius: var(--radius); }
 .fixture-table table { width: 100%; border-collapse: collapse; font-size: var(--size-sm); }

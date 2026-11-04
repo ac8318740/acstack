@@ -59,32 +59,39 @@ export function useExampleCaptures() {
   }, [review]);
 }
 
-export function ExamplesTab({ nodeId, link, annotations, setAnnotations }: { nodeId: string; link?: ExampleLink } & Comments) {
-  const examples = examplesFor(nodeId);
+/** Lists the examples of each element in `nodeIds`, labelled by element; a click opens that example's modal. */
+export function ExamplesTab({ nodeIds, empty, link, annotations, setAnnotations }: { nodeIds: string[]; empty: string; link?: ExampleLink } & Comments) {
   const follow = (target?: ExampleLink) => {
-    if (!target || target.nodeId !== nodeId || !examples.some(example => example.path === target.path)) return null;
-    if (target.variant) setExampleView(nodeId, target.path, { ...exampleView(nodeId, target.path), variant: target.variant });
-    return target.path;
+    // A link opens even before the filter catches up with the element it selects.
+    if (!target || !examplesFor(target.nodeId).some(example => example.path === target.path)) return null;
+    if (target.variant) setExampleView(target.nodeId, target.path, { ...exampleView(target.nodeId, target.path), variant: target.variant });
+    return { nodeId: target.nodeId, path: target.path };
   };
-  const [open, setOpen] = useState<string | null>(() => follow(link));
-  const [revealComment, setRevealComment] = useState(link?.nodeId === nodeId ? link.comment : undefined);
-  useEffect(() => { const path = follow(link); if (path) { setOpen(path); setRevealComment(link?.comment); } }, [link]);
-  if (!examples.length) return <p className="muted">This element has no examples.</p>;
+  const [open, setOpen] = useState<{ nodeId: string; path: string } | null>(() => follow(link));
+  const [revealComment, setRevealComment] = useState(link?.comment);
+  useEffect(() => { const target = follow(link); if (target) { setOpen(target); setRevealComment(link?.comment); } }, [link]);
+  const listed = nodeIds.filter(nodeId => examplesFor(nodeId).length);
+  if (!listed.length) return <p className="muted">{empty}</p>;
   return (
     <section className="section">
-      <ul className="example-list">
-        {examples.map(example => {
-          const count = commentsOn(annotations, nodeId, example.path).length;
-          return (
-            <li key={example.path}>
-              <button type="button" className="relationship-link example-link" aria-haspopup="dialog" onClick={() => { setRevealComment(undefined); setOpen(example.path); }}>
-                <span><span className="relationship-label">{example.title}</span><span className="relationship-endpoint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}{count ? `, ${count} comment${count === 1 ? '' : 's'}` : ''}</span></span><ChevronRight size={16} aria-hidden="true" />
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-      {open && <ExamplesModal nodeId={nodeId} examples={examples} path={open} reveal={revealComment} onPath={setOpen} onClose={() => setOpen(null)} annotations={annotations} setAnnotations={setAnnotations} />}
+      {listed.map(nodeId => (
+        <div key={nodeId} className="example-group">
+          <h3 className="example-group-title">{pack.graph.nodes.find(node => node.id === nodeId)?.label ?? nodeId}</h3>
+          <ul className="example-list">
+            {examplesFor(nodeId).map(example => {
+              const count = commentsOn(annotations, nodeId, example.path).length;
+              return (
+                <li key={example.path}>
+                  <button type="button" className="relationship-link example-link" aria-haspopup="dialog" onClick={() => { setRevealComment(undefined); setOpen({ nodeId, path: example.path }); }}>
+                    <span><span className="relationship-label">{example.title}</span><span className="relationship-endpoint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}{count ? `, ${count} comment${count === 1 ? '' : 's'}` : ''}</span></span><ChevronRight size={16} aria-hidden="true" />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+      {open && <ExamplesModal key={open.nodeId} nodeId={open.nodeId} examples={examplesFor(open.nodeId)} path={open.path} reveal={revealComment} onPath={path => setOpen({ nodeId: open.nodeId, path })} onClose={() => setOpen(null)} annotations={annotations} setAnnotations={setAnnotations} />}
     </section>
   );
 }

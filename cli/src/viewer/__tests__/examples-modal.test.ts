@@ -36,10 +36,19 @@ for (const example of examples) cacheExample('checkout', example);
 const modal = (path: string, annotations: Annotation[] = []) => renderToStaticMarkup(createElement(ExamplesModal, { nodeId: 'checkout', examples: summaries, path, onPath: vi.fn(), onClose: vi.fn(), annotations, setAnnotations: vi.fn() }));
 
 it('lists an element\'s examples with their kind in the Examples tab', () => {
-  const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', annotations: [comment], setAnnotations: vi.fn() }));
+  const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', annotations: [comment], setAnnotations: vi.fn() }));
   for (const text of ['Checkout mock', 'Mock, 1 comment', 'Cart build', 'Document', 'Sample data, illustrative']) expect(html).toContain(text);
   expect(html).toContain('aria-haspopup="dialog"');
-  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'other', annotations: [], setAnnotations: vi.fn() }))).toContain('This element has no examples.');
+  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['other'], empty: 'No examples match this filter.', annotations: [], setAnnotations: vi.fn() }))).toContain('No examples match this filter.');
+});
+
+it('labels each listed example by its element, across the whole design', () => {
+  (pack.graph.nodes as unknown[]).push({ id: 'orders', label: 'Order history', examples: [summaries[0]] });
+  try {
+    const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout', 'orders', 'plain'], empty: 'None.', annotations: [], setAnnotations: vi.fn() }));
+    expect(html.match(/class="example-group"/g)).toHaveLength(2);
+    expect(html).toContain('>Order history</h3>');
+  } finally { (pack.graph.nodes as unknown[]).pop(); }
 });
 
 it('renders inline HTML in an opaque-origin frame with labelled controls', () => {
@@ -112,12 +121,12 @@ it('renders frame-supplied error text and selections as text only', () => {
 });
 
 it('opens straight to a linked example and variant', () => {
-  const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'checkout', path: 'cart', variant: 'b' }, annotations: [], setAnnotations: vi.fn() }));
+  const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'checkout', path: 'cart', variant: 'b' }, annotations: [], setAnnotations: vi.fn() }));
   expect(html).toContain('<dialog');
   expect(html).toContain('title="Cart build, List"');
   // A link for another element or a missing example opens nothing.
-  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'other', path: 'cart' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
-  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'checkout', path: 'gone' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
+  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'other', path: 'cart' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
+  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'checkout', path: 'gone' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
 });
 
 it('captures the viewed variant, its tweak values, and all its states for a lock', () => {
