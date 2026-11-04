@@ -2,7 +2,7 @@ import { createElement, act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Drawer } from '../drawer.js';
-import { DesignApproval, DesignApprovalProvider } from '../design-approval.js';
+import { DesignApproval, DesignApprovalProvider, ElementLock, useBlockerNavigation, useLockCapture } from '../design-approval.js';
 import { pack } from '../pack.js';
 import { DesignQuestions, useQuestionCounts } from '../design-questions.js';
 import type { DesignAnswer } from '../../lib/design-review.js';
@@ -515,7 +515,7 @@ it('shares one confirmation and approval result between header and document cont
     act(() => handlers(button(dialog, 'Cancel')).onClick!());
     expect(dialog.attributes.open).toBeUndefined();
     act(() => handlers(button(details, 'Approve this version')).onClick!());
-    expect(all(container).filter(node => node.tagName === 'DIALOG')).toHaveLength(1);
+    expect(all(container).filter(node => node.tagName === 'DIALOG' && node.attributes['aria-labelledby'] === 'design-approval-title')).toHaveLength(1);
     expect(dialog.attributes.open).toBe('');
     await act(() => Promise.resolve(handlers(button(dialog, 'Approve this version')).onClick!()));
     const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
@@ -562,5 +562,48 @@ it('locks a loose element from its drawer against the exact tuple shown', async 
     expect(JSON.parse(body)).toEqual({ lock: 'app', expected });
     expect(handlers(pill()).children).toBe('Locked');
     expect(lock()).toBeUndefined();
+  } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
+});
+
+it('lists approval blockers in a modal that links to each one, and sends lock captures', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
+  const blocker = { kind: 'question', targetId: 'app', label: 'Retry after a conflict?', nodeId: '104' };
+  let blockers = [blocker];
+  const posts: unknown[] = [];
+  const fetch = vi.fn((_url: string, options: RequestInit) => {
+    if (options.method === 'POST' && typeof options.body === 'string') posts.push(JSON.parse(options.body));
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: ['104'], locked: [], blockers, approval: { valid: false, reason: blockers.length ? 'Open questions target this design' : 'This revision is not approved' } }) });
+  });
+  vi.stubGlobal('fetch', fetch);
+  const nodes = pack.graph.nodes;
+  pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
+  const navigated: unknown[] = [];
+  const capture = () => ({ variant: 'compact' });
+  function Probe() { useBlockerNavigation(target => navigated.push(target)); useLockCapture('app', capture); return null; }
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === label);
+  const dialog = () => all(container).find(node => node.tagName === 'DIALOG' && node.attributes['aria-labelledby'] === 'design-blockers-title')!;
+  const render = () => act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(Probe), createElement(DesignApproval), createElement(ElementLock, { id: 'app', locked: false })) }))));
+  try {
+    await render();
+    act(() => handlers(button('Approve this version')!).onClick!());
+    expect(dialog().attributes.open).toBe('');
+    act(() => handlers(button('Retry after a conflict?')!).onClick!());
+    expect(navigated).toEqual([blocker]);
+    expect(dialog().attributes).not.toHaveProperty('open');
+    await act(() => Promise.resolve(handlers(button('Lock')!).onClick!()));
+    expect(posts.at(-1)).toEqual({ lock: 'app', capture: { variant: 'compact' }, expected });
+    blockers = [];
+    await render();
+    await act(() => Promise.resolve(handlers(all(container).filter(node => node.tagName === 'BUTTON' && handlers(node).children === 'Approve this version').at(-1)!).onClick!()));
+    expect(posts.at(-1)).toEqual({ decision: 'approved', captures: { app: { variant: 'compact' } }, expected });
   } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
 });

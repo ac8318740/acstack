@@ -170,7 +170,7 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
 
 ## Reconcile feedback and approve
 
-- Read `~/.claude/acstack/bin/acstack design-review status <map>` for the exact revision tuple, open questions, and warnings
+- Read `~/.claude/acstack/bin/acstack design-review status <map>` for the exact revision tuple, open questions, `blockers`, and warnings
 - Select older feedback with `--review-file <canonical-review.json>` when the design changed
 - Write reconciliation input with `sourceRevision`, `reviewRevision`, `commentsDigest`, and `mapInputsDigest`
 - Add a `decisions` array with `comments`, `outcome`, and a nonempty `rationale` in each decision
@@ -180,6 +180,7 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
 - Approval waits on every open node that targets an element, in any mode, including fog
     - Resolve each one, or mark it out of scope
 - The user chooses Approve this version; approval locks every loose element
+    - While anything blocks approval, the viewer lists each blocker and links straight to its element and question
 - Require `approval.valid: true` from status before implementation
 - Changed element nodes, saved comments, or targeting nodes reopen the gate
 - Keep `workflow.design_review` unchanged; it controls the separate frontend design pass

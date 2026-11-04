@@ -17,7 +17,7 @@ import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alig
 import { copy, ReviewHandoff } from './review-handoff.js';
 import { useQuestionCounts } from './design-questions.js';
 import { questionScopeForSelection } from './question-targets.js';
-import { DesignApproval, DesignApprovalProvider } from './design-approval.js';
+import { DesignApproval, DesignApprovalProvider, useBlockerNavigation, useDesignReview } from './design-approval.js';
 import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, useReviewAnnotations } from './pack.js';
 
 const orientation = pack.viewState.orientation ?? (pack.documentKind === 'design' ? 'top-to-bottom' : 'left-to-right');
@@ -216,6 +216,15 @@ function App() {
       if (drawerView !== 'details') setCommentScope(commentScopeForSelection(id, diagram));
     }
   };
+  // A blocker link opens its element; a question the page can answer also opens and focuses in Questions.
+  const [questionRequest, setQuestionRequest] = useState<{ id: string }>();
+  const review = useDesignReview();
+  useBlockerNavigation(blocker => {
+    setSelected(reconcileSelection(`item:${blocker.targetId}`, diagram, pack.graph));
+    setDrawerOpen(true);
+    if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });
+    else setDrawerView('details');
+  });
 
   return (
     <div className="app">
@@ -313,6 +322,7 @@ function App() {
         setAnnotations={setAnnotations}
         onEdit={editComment}
         onShowComment={postedComments.show}
+        questionRequest={questionRequest}
         onSelect={id => {
           setDrawerView('details');
           if (id === 'group:design:root') setSelected(null);

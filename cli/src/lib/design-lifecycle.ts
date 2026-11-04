@@ -2,7 +2,7 @@ import { relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { designDocToPack, designFromNodes, digest } from './design-doc.js';
 import { designMapInputs, readMapNodes, resolveMapNode } from './design-map.js';
-import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type DesignAnswer, type StoredDesignReview } from './design-review.js';
+import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, LockCaptureSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type DesignAnswer, type StoredDesignReview } from './design-review.js';
 import { ReviewHttpError } from './review-server.js';
 
 export function loadMapDesign(root: string, map: string) {
@@ -30,7 +30,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     // A lock is recorded in the revision it happened in, so look across every revision's record.
     const locks = [...histories.values()].flatMap(snapshot => Object.entries(snapshot.lifecycle?.locks ?? {}));
     for (const item of doc.items) {
-      const recorded = locks.filter(([id]) => id === item.id).map(([, value]) => value);
+      const recorded = locks.filter(([id]) => id === item.id).map(([, value]) => value.config);
       if (item.locked && recorded.length && !recorded.includes(item.configDigest)) warnings.push(`Element ${item.id} changed its config after it was locked`);
     }
     const obligations = new Set<string>();
@@ -57,16 +57,16 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       && (!scope.fresh || scope.receipt?.decisions.some(decision => decision.outcome === 'needs-human')));
     let reason: string | undefined;
     if (staleRendered) reason = 'The design changed on the map. Reopen this revision before reviewing.';
-    else if (inputs.blockingQuestions.length) reason = 'Open questions target this design';
+    else if (inputs.blockers.length) reason = 'Open questions target this design';
     else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback needs explicit reconciliation';
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
-    return { ...tuple, doc, map, reviewPath: review.reviewPath, blockingQuestions: inputs.blockingQuestions, openQuestions: inputs.openQuestions, locked: inputs.locked, warnings,
+    return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers: inputs.blockers, openQuestions: inputs.openQuestions, locked: inputs.locked, warnings,
       approval: { valid: !reason && approved, ...(!reason && approved ? {} : { reason: reason ?? 'This revision is not approved' }) },
       feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), blocker: reason };
   };
   const publicStatus = (result: ReturnType<typeof evaluate>) => ({
     sourceRevision: result.sourceRevision, reviewRevision: result.reviewRevision, commentsDigest: result.commentsDigest, mapInputsDigest: result.mapInputsDigest,
-    map: result.map, reviewPath: result.reviewPath, blockingQuestions: result.blockingQuestions, openQuestions: result.openQuestions, locked: result.locked,
+    map: result.map, reviewPath: result.reviewPath, blockers: result.blockers, openQuestions: result.openQuestions, locked: result.locked,
     warnings: result.warnings, feedbackPaths: result.feedbackPaths, approval: result.approval,
   });
   // Every write from the page checks the exact tuple it was shown, so a stale page cannot settle the map.
@@ -76,11 +76,11 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     if (!sameTuple(RevisionTupleSchema.parse(expected), state)) throw new ReviewHttpError(409, 'Stale review tuple');
     return state;
   };
-  const lock = (saved: StoredDesignReview, ids: string[], items: ReturnType<typeof evaluate>['doc']['items']) => {
+  const lock = (saved: StoredDesignReview, ids: string[], items: ReturnType<typeof evaluate>['doc']['items'], captures: Record<string, z.infer<typeof LockCaptureSchema>> = {}) => {
     saved.lifecycle ??= { reconciliations: [], approvals: [], locks: {} };
     for (const id of ids) {
       resolveMapNode(root, map, id);
-      saved.lifecycle.locks[id] = items.find(item => item.id === id)!.configDigest;
+      saved.lifecycle.locks[id] = { config: items.find(item => item.id === id)!.configDigest, ...(captures[id] && { capture: captures[id] }) };
     }
   };
   return {
@@ -98,12 +98,12 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       return publicStatus(evaluate(saved));
     }),
     lock: (body: unknown) => review.transact(saved => {
-      const incoming = z.object({ lock: z.string().min(1), expected: RevisionTupleSchema }).strict().parse(body);
+      const incoming = z.object({ lock: z.string().min(1), capture: LockCaptureSchema.optional(), expected: RevisionTupleSchema }).strict().parse(body);
       const state = current(saved, incoming.expected);
       const item = state.doc.items.find(item => item.id === incoming.lock);
       if (!item) throw new ReviewHttpError(400, 'Unknown design element');
       if (item.locked) throw new ReviewHttpError(409, 'This element is already locked');
-      lock(saved, [item.id], state.doc.items);
+      lock(saved, [item.id], state.doc.items, incoming.capture && { [item.id]: incoming.capture });
       return publicStatus(evaluate(saved));
     }),
     reconcile: (body: unknown) => review.transact(saved => {
@@ -126,10 +126,10 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     }),
     // Approval locks every loose element; the gate already holds it while any question targets one.
     approve: (body: unknown) => review.transact(saved => {
-      const incoming = z.object({ decision: z.literal('approved'), expected: RevisionTupleSchema }).strict().parse(body);
+      const incoming = z.object({ decision: z.literal('approved'), captures: z.record(LockCaptureSchema).optional(), expected: RevisionTupleSchema }).strict().parse(body);
       const state = current(saved, incoming.expected);
       if (state.blocker) throw new ReviewHttpError(409, state.blocker);
-      lock(saved, state.doc.items.filter(item => !item.locked).map(item => item.id), state.doc.items);
+      lock(saved, state.doc.items.filter(item => !item.locked).map(item => item.id), state.doc.items, incoming.captures);
       saved.lifecycle!.approvals.push({ ...incoming.expected, recordedAt: new Date().toISOString() });
       return publicStatus(evaluate(saved));
     }),

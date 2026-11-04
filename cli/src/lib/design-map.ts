@@ -6,6 +6,12 @@ import { nodesFromIssues } from './github-issues.js';
 import { loadNodes, mapDir, updateNode, type GraphNode } from './nodes.js';
 import { getProjectKey } from './project-config.js';
 
+/**
+ * One thing holding approval, as the viewer lists it. `targetId` is the element
+ * the reviewer opens to settle it; `nodeId` is the map node to settle.
+ */
+export type ApprovalBlocker = { kind: 'question'; targetId: string; label: string; nodeId: string };
+
 const gh = (args: string[], input?: string): string => execFileSync('gh', args, { encoding: 'utf8', input, maxBuffer: 16 * 1024 * 1024 });
 const onGithub = (root: string): boolean => {
   const tracked = getProjectKey(projectFile(root), 'workflow.maps.tracker');
@@ -49,7 +55,7 @@ export function designMapInputs(nodes: readonly GraphNode[], doc: DesignDoc) {
   const open = new Set(targeting.map(node => node.id));
   return {
     mapInputsDigest: digest(targeting.map(node => [node.id, node.status, node.title, node.body ?? ''])),
-    blockingQuestions: targeting.map(node => ({ id: node.id, title: node.title })),
+    blockers: targeting.map((node): ApprovalBlocker => ({ kind: 'question', targetId: node.answers as string, label: node.title, nodeId: node.id })),
     openQuestions: doc.questions.filter(question => open.has(question.id)).map(question => question.id),
     locked: doc.items.filter(item => item.locked).map(item => item.id),
   };

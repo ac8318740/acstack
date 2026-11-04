@@ -393,6 +393,7 @@ export function Drawer({
   onSelect,
   onComment,
   onOpenGroup,
+  questionRequest,
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -412,6 +413,8 @@ export function Drawer({
   onSelect: (id: string | null) => void;
   onComment: (target: Annotation['target'], comment: string) => void;
   onOpenGroup: (groupId: string) => void;
+  /** A request from outside the drawer, such as an approval blocker, to open and focus one question. */
+  questionRequest?: { id: string };
 }) {
   const review = useDesignReview();
   const authoredQuestions = pack.designDocument?.questions ?? [];
@@ -437,6 +440,7 @@ export function Drawer({
     if (!question) return;
     setInspection(null); setQuestionScope(diagramId(question.target)); setQuestionFocus({ id }); setView('questions'); setOpen(true);
   };
+  useEffect(() => { if (questionRequest) openQuestion(questionRequest.id); }, [questionRequest]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [editDrafts, setEditDrafts] = useState<Record<string, string>>({});
   const setEditDraft = (id: string, text: string | undefined) => setEditDrafts(previous => {

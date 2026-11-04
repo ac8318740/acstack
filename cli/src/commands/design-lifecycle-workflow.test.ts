@@ -13,7 +13,7 @@ const bin = fileURLToPath(new URL('../../bin/acstack.js', import.meta.url));
 const roots: string[] = [];
 const children: ChildProcess[] = [];
 type Tuple = { sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string };
-type Status = Tuple & { reviewPath: string; openQuestions: string[]; locked: string[]; warnings: string[]; blockingQuestions: Array<{ id: string }>; approval: { valid: boolean; reason?: string } };
+type Status = Tuple & { reviewPath: string; openQuestions: string[]; locked: string[]; warnings: string[]; blockers: Array<{ kind: string; targetId: string; label: string; nodeId: string }>; approval: { valid: boolean; reason?: string } };
 type Snapshot = { packVersion: string; revision: number; annotations: Record<string, unknown>[] };
 type Node = { id: string; kind: string; status: string; mode?: string; answers?: string; body?: string };
 type Tracker = 'files' | 'github';
@@ -155,7 +155,7 @@ async function start(root: string) {
     child, html, api, headers, get: () => get<Status>(api), comments: () => get<Snapshot>(annotations), save: (value: unknown) => post(annotations, value),
     approve: (expected: Tuple) => post(api, { decision: 'approved', expected: tuple(expected) }),
     answer: (expected: Tuple, body: Record<string, unknown>) => post(api, { ...body, expected: tuple(expected) }),
-    lock: (expected: Tuple, id: string) => post(api, { lock: id, expected: tuple(expected) }),
+    lock: (expected: Tuple, id: string, capture?: Record<string, unknown>) => post(api, { lock: id, ...(capture && { capture }), expected: tuple(expected) }),
   };
 }
 function annotation(snapshot: Snapshot, comment = 'Keep records local') {
@@ -237,13 +237,16 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     ]);
     const server = await start(root);
     const blocked = await server.get();
-    expect(blocked.blockingQuestions.map(node => node.id)).toEqual(['104', '105']);
+    expect(blocked.blockers).toEqual([
+      { kind: 'question', targetId: '103', label: 'Node 104', nodeId: '104' },
+      { kind: 'question', targetId: '102', label: 'Node 105', nodeId: '105' },
+    ]);
     expect(blocked.openQuestions).toEqual([]);
     // Research and fog stay on the map; the page cannot answer them.
     denied(await server.answer(blocked, { questionId: '104', answer: 'Done' }));
     nodes(root, 'files', [...base(), { id: '104', kind: 'research', status: 'resolved', mode: 'afk', answers: '103' }, { id: '105', kind: 'decision', status: 'out-of-scope', answers: '102' }, { id: '106', kind: 'decision', status: 'open', answers: '101' }]);
     const clear = await server.get();
-    expect(clear.blockingQuestions).toEqual([]);
+    expect(clear.blockers).toEqual([]);
     expect((await server.approve(clear)).ok).toBe(true);
   }, 30_000);
 
@@ -251,7 +254,9 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     const root = fixture();
     const server = await start(root);
     const before = await server.get();
-    expect((await server.lock(before, '103')).ok).toBe(true);
+    expect((await server.lock(before, '103', { variant: 'compact', tweaks: { density: 2 } })).ok).toBe(true);
+    const review = JSON.parse(readFileSync(before.reviewPath, 'utf8')) as { lifecycle: { locks: Record<string, { capture?: unknown }> } };
+    expect(review.lifecycle.locks['103'].capture).toEqual({ variant: 'compact', tweaks: { density: 2 } });
     const after = await server.get();
     expect(after.locked).toEqual(['103']);
     expect(after.sourceRevision).toBe(before.sourceRevision);

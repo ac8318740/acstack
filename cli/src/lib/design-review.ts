@@ -12,6 +12,8 @@ export const DesignReviewSnapshotSchema = z.object({
 }).strict();
 export type DesignReviewSnapshot = z.infer<typeof DesignReviewSnapshotSchema>;
 
+// What the page showed when an element locked, such as a mock's chosen variant and tweaks. The page owns its shape.
+export const LockCaptureSchema = z.record(z.unknown());
 const RevisionTupleSchema = z.object({
   sourceRevision: z.string().regex(/^[a-f0-9]{64}$/), reviewRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   commentsDigest: z.string().regex(/^[a-f0-9]{64}$/), mapInputsDigest: z.string().regex(/^[a-f0-9]{64}$/),
@@ -25,8 +27,8 @@ export const ReconciliationSchema = RevisionTupleSchema.extend({
 const EvidenceSchema = z.object({
   reconciliations: z.array(ReconciliationSchema.extend({ reviewPath: z.string(), feedbackPackVersion: z.string(), scopeCommentsDigest: z.string().regex(/^[a-f0-9]{64}$/), recordedAt: z.string() }).strict()).default([]),
   approvals: z.array(RevisionTupleSchema.extend({ recordedAt: z.string() }).strict()).default([]),
-  // Element id to the config digest the user locked, so a later config edit can be flagged.
-  locks: z.record(z.string().regex(/^[a-f0-9]{64}$/)).default({}),
+  // Element id to the config digest the user locked, so a later config edit can be flagged, and what the page showed then.
+  locks: z.record(z.object({ config: z.string().regex(/^[a-f0-9]{64}$/), capture: LockCaptureSchema.optional() }).strict()).default({}),
 }).strict();
 export const DesignAnswerSchema = z.object({
   questionId: z.string().min(1).max(80), answer: z.string().trim().max(16000),
