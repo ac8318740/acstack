@@ -89,7 +89,7 @@ async function start(root: string, options: { port?: number; ssh?: boolean; mark
     return await response.json() as Snapshot;
   };
   const post = (snapshot: Snapshot) => fetch(api, {
-    method: 'POST', headers: { 'x-review-token': token, 'content-type': 'application/json' }, body: JSON.stringify(snapshot),
+    method: 'POST', headers: { 'x-review-token': token, 'content-type': 'application/json', origin: new URL(url).origin }, body: JSON.stringify(snapshot),
   });
   return { child, url, api, token, html, get, post, output: () => output };
 }
@@ -238,7 +238,7 @@ describe('live design review CLI and HTTP contract', () => {
     expect(Buffer.byteLength(body, 'utf8')).toBeGreaterThan(1_000_000);
     const response = await fetch(server.api, {
       method: 'POST',
-      headers: { 'x-review-token': server.token, 'content-type': 'application/json' },
+      headers: { 'x-review-token': server.token, 'content-type': 'application/json', origin: new URL(server.url).origin },
       body,
     });
     expect(response.status).toBeGreaterThanOrEqual(400);
@@ -253,7 +253,7 @@ describe('live design review CLI and HTTP contract', () => {
     expect((await server.post({ ...initial, annotations })).ok).toBe(true);
     const saved = { ...initial, revision: 1, annotations };
     const valid = JSON.stringify({ ...saved, annotations: [] });
-    const headers = { 'x-review-token': server.token, 'content-type': 'application/json' };
+    const headers = { 'x-review-token': server.token, 'content-type': 'application/json', origin: new URL(server.url).origin };
     const attempts: RequestInit[] = [
       { method: 'GET', headers: { 'x-review-token': 'wrong-token' } },
       { method: 'GET' },

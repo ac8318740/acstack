@@ -5,7 +5,7 @@
 // The generated module is committed: CI typechecks and tests without building,
 // and the renderer imports it like any other source file.
 import { build } from 'esbuild';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 const mermaid = await build({
   entryPoints: ['src/viewer/mermaid-frame.ts'], bundle: true, minify: true,
@@ -23,7 +23,7 @@ const result = await build({
   outdir: 'viewer-out',
   write: false,
   legalComments: 'none',
-  define: { 'process.env.NODE_ENV': '"production"', MERMAID_FRAME_JS: JSON.stringify(mermaid.outputFiles[0].text) },
+  define: { 'process.env.NODE_ENV': '"production"', MERMAID_FRAME_JS: JSON.stringify(mermaid.outputFiles[0].text), OD_BRIDGE_JS: JSON.stringify(readFileSync('src/viewer/od-bridge/frame.js', 'utf8')) },
 });
 
 const output = ext => result.outputFiles.find(file => file.path.endsWith(ext)).text;

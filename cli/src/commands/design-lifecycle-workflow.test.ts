@@ -142,7 +142,7 @@ async function start(root: string) {
   const meta = html.match(/<meta\b[^>]*>/g)?.find(tag => /\bname=["']acstack-review-token["']/.test(tag));
   const token = meta?.match(/\bcontent=["']([^"']+)["']/)?.[1];
   if (!token) throw new Error('Missing review authentication token');
-  const headers = { 'x-review-token': token, 'content-type': 'application/json' };
+  const headers = { 'x-review-token': token, 'content-type': 'application/json', origin: new URL(url).origin };
   const api = new URL('/api/design-review', url);
   const annotations = new URL('/api/annotations', url);
   async function get<T>(path: URL): Promise<T> {
