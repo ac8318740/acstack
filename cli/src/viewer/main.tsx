@@ -15,6 +15,8 @@ import { AppTooltipLayer } from './tooltip.js';
 import type { ReviewStatus } from '../lib/alignment-packs.js';
 import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alignment-review-protocol.js';
 import { copy, ReviewHandoff } from './review-handoff.js';
+import { useQuestionCounts } from './design-questions.js';
+import { questionScopeForSelection } from './question-targets.js';
 import { DesignApproval, DesignApprovalProvider } from './design-approval.js';
 import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, useReviewAnnotations } from './pack.js';
 
@@ -48,6 +50,7 @@ function App() {
   const [drawerOpen, setDrawerOpen] = useState(true);
   const [drawerView, setDrawerView] = useState<DrawerView>('details');
   const [commentScope, setCommentScope] = useState<CommentScope>('all');
+  const [questionScope, setQuestionScope] = useState('all');
   const { annotations, setAnnotations, syncState, retry, flush } = useReviewAnnotations();
   const [status, setStatus] = useState<ReviewStatus | 'pending'>(pack.reviewState.approval?.status ?? 'pending');
   // Set once the review is recorded: the prompt for the agent, and whether it reached the clipboard.
@@ -75,6 +78,7 @@ function App() {
     setExpanded(ids);
   };
   const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded]);
+  const questionCounts = useQuestionCounts(projection);
   const [measurement, setMeasurement] = useState<{ key: string; geometry: MeasuredGeometry } | null>(null);
   const onMeasured = useCallback((geometry: MeasuredGeometry) => {
     setMeasurement(previous => previous?.key === requestedKey && JSON.stringify(previous.geometry) === JSON.stringify(geometry) ? previous : { key: requestedKey, geometry });
@@ -156,7 +160,7 @@ function App() {
       if (request === generation.current) setLayoutError(error instanceof Error ? error.message : String(error));
     });
     return () => { generation.current += 1; };
-  }, [expanded, measurement, requestedKey, zoom, commentCounts]);
+  }, [expanded, measurement, requestedKey, zoom, commentCounts, questionCounts]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !(event.target as Element | null)?.closest?.('[data-review-handoff]') && !event.defaultPrevented && !(event.target instanceof HTMLTextAreaElement) && setSelected(null);
     document.addEventListener('keydown', onKey);
@@ -204,7 +208,9 @@ function App() {
     }
   };
   const select = (id: string | null) => {
-    setSelected(reconcileSelection(id, diagram, pack.graph));
+    const target = reconcileSelection(id, diagram, pack.graph);
+    setSelected(target);
+    if (drawerView === 'questions') setQuestionScope(questionScopeForSelection(target));
     if (id) {
       setDrawerOpen(true);
       if (drawerView !== 'details') setCommentScope(commentScopeForSelection(id, diagram));
@@ -286,6 +292,7 @@ function App() {
               setDrawerView('comments');
               setFocusKey(focusKey + 1);
             }}
+            onQuestions={id => { select(id); setQuestionScope(questionScopeForSelection(id)); setDrawerOpen(true); setDrawerView('questions'); }}
             commentCounts={commentCounts}
           />
         </ReactFlowProvider>
@@ -297,6 +304,8 @@ function App() {
         setView={setDrawerView}
         commentScope={commentScope}
         setCommentScope={setCommentScope}
+        questionScope={questionScope}
+        setQuestionScope={setQuestionScope}
         selected={selected}
         diagram={diagram}
         focusKey={focusKey}

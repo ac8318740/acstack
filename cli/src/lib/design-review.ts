@@ -2,7 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, opendirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
 import { z } from 'zod';
-import { type AlignmentPack, AlignmentPackSchema, ReviewAnnotationSchema, ReviewStateSchema } from './alignment-packs.js';
+import { type AlignmentPack, type DesignQuestion, AlignmentPackSchema, DesignQuestionSchema, ReviewAnnotationSchema, ReviewStateSchema } from './alignment-packs.js';
 import { ReviewHttpError } from './review-server.js';
 
 export const DesignReviewSnapshotSchema = z.object({
@@ -19,6 +19,7 @@ const RevisionTupleSchema = z.object({
 export { RevisionTupleSchema };
 export const ReconciliationSchema = RevisionTupleSchema.extend({
   decisions: z.array(z.object({ comments: z.array(z.number().int().nonnegative()), contributions: z.array(z.string()),
+    answers: z.array(z.number().int().nonnegative()).optional(),
     outcome: z.enum(['applied', 'retained', 'needs-human']), rationale: z.string().trim().min(1).max(16000),
   }).strict()),
 }).strict();
@@ -40,7 +41,39 @@ const ImportSchema = z.object({
     feedback: LegacyFeedbackSchema.optional(), decisionLog: z.object({ path: z.string(), content: z.string() }).strict().optional(),
   }).strict(),
 }).strict();
-const StoredReviewSchema = DesignReviewSnapshotSchema.extend({ lifecycle: EvidenceSchema.optional(), imports: z.array(ImportSchema).optional() }).strict();
+export const DesignAnswerSchema = z.object({
+  questionId: z.string().min(1).max(80), answer: z.string().trim().max(16000),
+  choices: z.array(z.string().max(500)).max(12).optional(),
+}).strict();
+export type DesignAnswer = z.infer<typeof DesignAnswerSchema>;
+
+export function validateDesignAnswer(question: DesignQuestion, answer: DesignAnswer): void {
+  if (!question.choices) {
+    if (answer.choices !== undefined || !answer.answer) throw new Error('Text questions require a nonempty text answer without choices');
+    return;
+  }
+  const selected = answer.choices ?? [];
+  if (new Set(selected).size !== selected.length || selected.some(choice => !question.choices?.includes(choice))) throw new Error('Unknown or duplicate answer choice');
+  const count = selected.length + Number(Boolean(answer.answer));
+  if (count === 0 || (!question.multiple && count !== 1)) throw new Error('Select an answer or write Other; single-choice questions allow only one response');
+}
+const StoredReviewSchema = DesignReviewSnapshotSchema.extend({
+  lifecycle: EvidenceSchema.optional(), imports: z.array(ImportSchema).optional(),
+  questions: z.array(DesignQuestionSchema).max(100).optional(), answers: z.array(DesignAnswerSchema).max(100).optional(),
+}).strict().superRefine((review, context) => {
+  const questions = new Set((review.questions ?? []).map(question => question.id));
+  const answers = new Set<string>();
+  if (questions.size !== (review.questions ?? []).length) context.addIssue({ code: 'custom', message: 'Duplicate question identity' });
+  for (const answer of review.answers ?? []) {
+    if (!questions.has(answer.questionId) || answers.has(answer.questionId)) context.addIssue({ code: 'custom', message: 'Unknown or duplicate question answer' });
+    const question = review.questions?.find(item => item.id === answer.questionId);
+    if (question) {
+      try { validateDesignAnswer(question, answer); }
+      catch (error) { context.addIssue({ code: 'custom', message: error instanceof Error ? error.message : 'Invalid answer' }); }
+    }
+    answers.add(answer.questionId);
+  }
+});
 export type StoredDesignReview = z.infer<typeof StoredReviewSchema>;
 
 export function readDesignReviewHistory(root: string, identity: string, path: string): StoredDesignReview {
@@ -131,10 +164,13 @@ export function openDesignReview(root: string, pack: AlignmentPack, initialOpera
       if (!stat.isFile() || stat.size > 1_000_000) throw new Error('Invalid review file');
       const saved = StoredReviewSchema.parse(JSON.parse(readFileSync(canonical, 'utf8')) as unknown);
       validate(saved);
+      if (JSON.stringify(saved.questions ?? []) !== JSON.stringify(pack.designDocument?.questions ?? [])) throw new Error('Design review questions mismatch');
       return saved;
     } catch (error) { throw new Error(`Cannot read canonical design review: ${error instanceof Error ? error.message : String(error)}`); }
   };
-  let snapshot: StoredDesignReview = { packVersion: pack.packVersion, revision: 0, annotations: [] };
+  let snapshot: StoredDesignReview = { packVersion: pack.packVersion, revision: 0, annotations: [],
+    ...(pack.designDocument?.questions?.length ? { questions: pack.designDocument.questions } : {}),
+  };
   acquire();
   try {
     if (lstatSync(canonical, { throwIfNoEntry: false })) snapshot = readSnapshot();

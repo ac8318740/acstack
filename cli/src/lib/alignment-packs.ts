@@ -1,5 +1,27 @@
 import { z } from 'zod';
 
+const sourcePoint = z.object({ line: z.number().int().min(1).max(262145), column: z.number().int().min(1).max(262145) }).strict();
+export const DesignHighlightSchema = z.object({
+  element: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/), start: sourcePoint, end: sourcePoint,
+}).strict().refine(({ start, end }) => end.line > start.line || (end.line === start.line && end.column > start.column), 'Highlight end must follow start');
+export type DesignHighlight = z.infer<typeof DesignHighlightSchema>;
+
+const questionText = z.string().trim().min(1).max(16000);
+export const DesignQuestionSchema = z.object({
+  id: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/),
+  target: z.object({ type: z.enum(['node', 'edge']), id: z.string().min(1).max(80) }).strict(),
+  question: questionText, proposal: questionText, recommendation: questionText,
+  choices: z.array(z.string().trim().min(1).max(500)).min(2).max(12).optional(),
+  multiple: z.boolean().optional(),
+  highlights: z.array(DesignHighlightSchema).min(1).max(20).optional(),
+}).strict().superRefine((question, context) => {
+  if (question.multiple && !question.choices) context.addIssue({ code: 'custom', message: 'Multiple selection requires choices' });
+  if (question.choices && (new Set(question.choices).size !== question.choices.length || question.choices.some(choice => choice.toLowerCase() === 'other'))) {
+    context.addIssue({ code: 'custom', message: 'Choices must be unique; Other is provided automatically' });
+  }
+});
+export type DesignQuestion = z.infer<typeof DesignQuestionSchema>;
+
 const SourceReferenceSchema = z
   .object({
     id: z.string().min(1),
@@ -122,6 +144,7 @@ export const AlignmentPackSchema = z
     documentKind: z.literal('design').optional(),
     designDocument: z.object({
       id: z.string().min(1), name: z.string().min(1), summary: z.string().min(1), detail: z.string().optional(),
+      questions: z.array(DesignQuestionSchema).max(100).optional(),
     }).strict().optional(),
     packVersion: z.string().min(1),
     source: z

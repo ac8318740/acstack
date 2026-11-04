@@ -18,7 +18,8 @@ vi.mock('react', async original => ({
   useLayoutEffect: vi.fn(),
   useEffect: (effect: () => void | (() => void)) => { hooks.effects.push(effect); },
 }));
-vi.mock('react-dom', async original => ({ ...await original<typeof import('react-dom')>(), createPortal: (node: ReactNode) => node }));
+const portals = vi.hoisted(() => ({ create: vi.fn((node: ReactNode, container: unknown) => { void container; return node; }) }));
+vi.mock('react-dom', async original => ({ ...await original<typeof import('react-dom')>(), createPortal: portals.create }));
 import { Dropdown, dropdownPosition } from '../dropdown.js';
 
 type Props = { children?: ReactNode; role?: string; ref?: { current: unknown }; 'aria-expanded'?: boolean; 'aria-selected'?: boolean; 'aria-activedescendant'?: string; id?: string; onClick?: () => void; onBlur?: () => void; onKeyDown?: (event: unknown) => void; onPointerDown?: (event: unknown) => void };
@@ -34,7 +35,7 @@ function harness() {
   const tree = () => { hooks.cursor = 0; hooks.effects = []; return elements(Dropdown({ label: 'Fruit', value, options, onChange: changed })); };
   const trigger = () => tree().find(node => node.props.role === 'combobox')!;
   const focus = vi.fn();
-  trigger().props.ref!.current = { focus, contains: (target: unknown) => target === 'trigger' };
+  trigger().props.ref!.current = { focus, closest: () => null, contains: (target: unknown) => target === 'trigger' };
   const key = (key: string) => {
     const event = { key, preventDefault: vi.fn(), stopPropagation: vi.fn() };
     trigger().props.onKeyDown!(event);
@@ -103,6 +104,15 @@ it('selects by pointer, closes on blur, and dismisses outside pointer presses', 
   events.dispatchEvent(new Event('pointerdown'));
   expect(h.trigger().props['aria-expanded']).toBe(false);
   if (cleanup) cleanup();
+});
+
+it('keeps the picker inside the containing modal so it remains interactive in the top layer', () => {
+  const h = harness();
+  const dialog = {};
+  Object.assign(h.trigger().props.ref!.current as object, { closest: () => dialog });
+  h.trigger().props.onClick!();
+  h.tree();
+  expect(portals.create.mock.calls.at(-1)?.[1]).toBe(dialog);
 });
 
 it('flips above a low trigger and clamps long menus within narrow viewports', () => {

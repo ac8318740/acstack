@@ -27,9 +27,9 @@ vi.mock('../pack.js', () => ({
   },
 }));
 
-function Drawer(props: Omit<ComponentProps<typeof ActualDrawer>, 'view' | 'commentScope' | 'setCommentScope'> & { view: DrawerView | 'all-comments' | 'document-comments'; commentScope?: string }) {
+function Drawer(props: Omit<ComponentProps<typeof ActualDrawer>, 'view' | 'commentScope' | 'setCommentScope' | 'questionScope' | 'setQuestionScope'> & { view: DrawerView | 'all-comments' | 'document-comments'; commentScope?: string }) {
   const { view } = props;
-  return createElement(ActualDrawer, { ...props, view: view === 'details' ? 'details' : 'comments', commentScope: props.commentScope ?? (view === 'all-comments' ? 'all' : view === 'document-comments' ? 'group:design:root' : props.selected ?? 'group:design:root'), setCommentScope: vi.fn() });
+  return createElement(ActualDrawer, { ...props, questionScope: 'all', setQuestionScope: vi.fn(), view: view === 'details' ? 'details' : 'comments', commentScope: props.commentScope ?? (view === 'all-comments' ? 'all' : view === 'document-comments' ? 'group:design:root' : props.selected ?? 'group:design:root'), setCommentScope: vi.fn() });
 }
 
 type ButtonProps = { children?: ReactNode; onClick?: () => void };
@@ -191,8 +191,8 @@ it('derives filter options from all comments, excluding empty targets and dedupl
   expect(options.map(option => option.value)).toEqual(['all', 'item:github', 'item:author', 'edge:publishes']);
   expect(options.find(option => option.value === 'item:author')?.label).toContain('(2)');
   expect(options.some(option => option.value === 'group:design:root')).toBe(false);
-  expect(commentScopeOptions([])).toEqual([{ value: 'all', label: 'All comments (0)' }]);
-  expect(commentScopeOptions([...annotations, { id: 'root', packVersion: 'v1', target: { type: 'group', id: 'design:root' }, comment: 'Root' }])[1]).toEqual({ value: 'group:design:root', label: 'Document (1)' });
+  expect(commentScopeOptions([])).toEqual([{ value: 'all', label: 'All targets (0)' }]);
+  expect(commentScopeOptions([...annotations, { id: 'root', packVersion: 'v1', target: { type: 'group', id: 'design:root' }, comment: 'Root' }])[1]).toEqual({ value: 'group:design:root', label: 'Document overview (1)' });
 });
 
 it('uses one Comments layout with scoped filters and a document composer in All and Document', () => {
@@ -206,26 +206,35 @@ it('uses one Comments layout with scoped filters and a document composer in All 
   expect(render('comments')).toContain('Author only');
   expect(render('comments')).not.toContain('Document only');
   expect(render('comments')).toContain('textarea');
-  expect(render('all-comments')).toContain('All comments');
+  expect(render('all-comments')).toContain('All targets (2)');
   expect(render('all-comments')).toContain('Author only');
   expect(render('all-comments')).toContain('Document only');
   for (const view of ['comments', 'all-comments', 'document-comments'] as const) {
     expect(render(view)).toContain('>Comments</button>');
     expect(render(view)).toMatch(/aria-pressed="true">Comments<\/button>/);
-    expect(render(view)).toContain('<h2>Comments</h2>');
-    expect(render(view)).toMatch(/<label[^>]*for="([^"]+)"[^>]*>Comment scope<\/label><button[^>]*id="\1"/);
+    expect(render(view)).not.toContain('<h2>Comments</h2>');
+    expect(render(view)).not.toContain('comment-count');
+    expect(render(view)).toMatch(/role="combobox" aria-label="Comment scope"/);
     expect(render(view)).toContain('role="combobox"');
     expect(render(view)).not.toContain('<select');
     expect(render(view)).toContain('textarea');
     expect(render(view)).not.toContain('comments across this document');
+    expect(render(view)).toContain('This comment will be removed from this review.');
+    expect(render(view)).not.toContain('removed from this browser');
   }
   expect(render('all-comments')).toContain('Comment on document');
-  expect(render('all-comments')).toContain('2 comments');
+  expect(render('all-comments')).toContain('scope-label">All targets</span><span class="scope-count">2</span>');
   expect(render('document-comments')).toContain('Document only');
   expect(render('document-comments')).not.toContain('Author only');
-  expect(render('document-comments')).toContain('1 comment</p>');
-  expect(render('document-comments')).not.toContain('1 comments');
+  expect(render('document-comments')).toContain('scope-label">Document overview</span><span class="scope-count">1</span>');
   expect(render('comments')).toContain('Comment on Project developer');
+});
+
+it('uses the shared question icon and hides empty counts on the collapsed rail', () => {
+  const html = renderToStaticMarkup(createElement(Drawer, { open: false, setOpen: vi.fn(), view: 'details', setView: vi.fn(), selected: null, diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() }));
+  expect(html).toContain('lucide-list-todo');
+  expect(html).toContain('data-tooltip="Design questions"');
+  expect(html).not.toContain('class="badge"');
 });
 
 it('keeps legacy All comments read-only without inventing a document target', () => {

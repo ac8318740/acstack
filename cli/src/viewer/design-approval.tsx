@@ -1,10 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { DesignAnswer } from '../lib/design-review.js';
 import { REVIEW_TOKEN_HEADER } from '../lib/alignment-review-protocol.js';
 import { liveComments, pack, token, useReviewAnnotations } from './pack.js';
 
 type Status = {
   sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string;
   approval: { valid: boolean; reason?: string };
+  answers?: DesignAnswer[];
 };
 async function request(body?: unknown): Promise<Status> {
   const response = await fetch('/api/design-review', {
@@ -20,8 +22,11 @@ async function request(body?: unknown): Promise<Status> {
 type ApprovalControls = {
   approved: boolean; pending: boolean; disabled: boolean;
   reason: string; error?: string; open: () => void;
+  answers: NonNullable<Status['answers']>; canAnswer: boolean;
+  saveAnswer: (answer: DesignAnswer) => Promise<void>;
 };
 const ApprovalContext = createContext<ApprovalControls | null>(null);
+export function useDesignReview() { return useContext(ApprovalContext); }
 
 // Both controls share the same status, confirmation, and exact-input approval request.
 export function DesignApprovalProvider({ children }: { children: ReactNode }) {
@@ -61,14 +66,27 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setPending(false); }
   };
+  const saveAnswer = async (answer: DesignAnswer) => {
+    if (!status || pending || syncState?.status !== 'Saved') throw new Error('Wait until feedback is saved before answering.');
+    const { sourceRevision, reviewRevision, commentsDigest, mapInputsDigest } = status;
+    setPending(true);
+    try {
+      await flush?.();
+      setStatus(await request({ ...answer, expected: { sourceRevision, reviewRevision, commentsDigest, mapInputsDigest } }));
+      setError(undefined);
+    } catch (error) {
+      try { setStatus(await request()); } catch { /* Keep the draft if refreshing also fails. */ }
+      throw error;
+    } finally { setPending(false); }
+  };
   const approved = Boolean(!error && !pending && syncState?.status === 'Saved' && status?.approval.valid);
   const disabled = !status || pending || approved || syncState?.status !== 'Saved';
   const reason = approved ? 'This revision is approved' : error ?? status?.approval.reason ?? 'Checking revision...';
-  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, open: () => { if (!disabled) confirm.current?.showModal(); } } : null}>
+  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answers: status?.answers ?? [], canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), saveAnswer, open: () => { if (!disabled) confirm.current?.showModal(); } } : null}>
     {children}
     {enabled && <dialog ref={confirm} className="modal" aria-labelledby="design-approval-title" aria-describedby="design-approval-explanation" onCancel={event => { if (pending) event.preventDefault(); }}>
       <h2 id="design-approval-title">Approve this version?</h2>
-      <p id="design-approval-explanation">Approval covers the current design, saved comments, and map contributions. Later changes require approval again.</p>
+      <p id="design-approval-explanation">Approval covers the current design, saved comments, question answers, and map contributions. Later changes require approval again.</p>
       <p className="hint">Only posted comments are saved before approval; unposted drafts stay in this review.</p>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">

@@ -1,9 +1,13 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { ChevronRight, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
-import Markdown from 'react-markdown';
+import type { DesignQuestion } from '../lib/alignment-packs.js';
+import { ChevronRight, ListFilter, ListTodo, Maximize2, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
+import { revealHighlights } from './markdown-highlights.js';
+import { SidebarMarkdown } from './sidebar-markdown.js';
 import type { Diagram } from './alignment-graph.js';
 import { type Annotation, diagramId, pack, targetLabel } from './pack.js';
-import { DesignApproval } from './design-approval.js';
+import { DesignApproval, useDesignReview } from './design-approval.js';
+import { DesignQuestions, type AnswerDraft } from './design-questions.js';
+import { questionScopeForSelection, questionsForScope } from './question-targets.js';
 import { ElementMetadata } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
@@ -85,12 +89,23 @@ export function Details({
   diagram,
   onSelect,
   onOpenGroup,
+  highlightQuestion,
+  onQuestion,
+  onInspect,
+  expanded = false,
+  openQuestions = pack.designDocument?.questions ?? [],
 }: {
+  onInspect?: (selected: string) => void;
+  expanded?: boolean;
+  openQuestions?: DesignQuestion[];
+  highlightQuestion?: DesignQuestion;
+  onQuestion?: (id: string) => void;
   selected: string;
   diagram: Diagram;
   onSelect: (id: string) => void;
   onOpenGroup: (groupId: string) => void;
 }) {
+  const questions = highlightQuestion && !openQuestions.some(question => question.id === highlightQuestion.id) ? [...openQuestions, highlightQuestion] : openQuestions;
   let [kind, refId] = [selected.slice(0, selected.indexOf(':')), selected.slice(selected.indexOf(':') + 1)];
   const owner = kind === 'group' ? pack.graph.groups.find(group => group.id === refId)?.ownerNodeId : undefined;
   if (owner) { kind = 'item'; refId = owner; }
@@ -137,6 +152,8 @@ export function Details({
   if (!node) return null;
   const links = pack.graph.edges.filter(edge => edge.fromNodeId === node.id || edge.toNodeId === node.id);
   const sources = pack.source.references.filter(ref => node.sourceRefs.includes(ref.id));
+  const highlights = questions.flatMap(question => (question.highlights ?? []).filter(highlight => highlight.element === node.id).map(highlight => ({ ...highlight, questionId: question.id })));
+  const linkedQuestions = openQuestions.filter(question => highlights.some(highlight => highlight.questionId === question.id));
   return (
     <section className="section">
       <ElementMetadata kind={node.elementKind} channels={node.channels} />
@@ -146,15 +163,16 @@ export function Details({
       </p>
       {(node.technicalLabel || node.technicalSummary) && (
         // Collapsed by default: the business definition above is what most reviewers need.
-        <details className="technical">
+        <details className="technical" open={expanded || undefined}>
           <summary>
-            <ChevronRight size={14} strokeWidth={2.25} className="chevron" />
-            {pack.documentKind === 'design' ? 'Design detail and concerns' : 'Technical definition'}
+            <ChevronRight size={14} strokeWidth={2.25} className="chevron" aria-hidden="true" />
+            <span>{pack.documentKind === 'design' ? 'Design detail and concerns' : 'Technical definition'}</span>
+            {onInspect && <button type="button" className="icon-btn detail-popout" aria-label="Open details in modal" aria-haspopup="dialog" data-tooltip="Open details in modal" onClick={event => { event.preventDefault(); event.stopPropagation(); onInspect(selected); }}><Maximize2 size={16} aria-hidden="true" /></button>}
           </summary>
           {node.technicalLabel && <p className="technical-title">{node.technicalLabel}</p>}
           {node.technicalSummary && (
             <div className="markdown" data-annotate-type="node" data-annotate-id={node.id}>
-              <Markdown components={pack.documentKind === 'design' ? { img: () => null } : undefined}>{node.technicalSummary}</Markdown>
+              <SidebarMarkdown hideImages={pack.documentKind === 'design'} highlights={highlights} navigation={onQuestion && linkedQuestions.length ? { questions: linkedQuestions, onQuestion } : null}>{node.technicalSummary}</SidebarMarkdown>
             </div>
           )}
         </details>
@@ -183,6 +201,40 @@ export function Details({
   );
 }
 
+type DetailInspection = { selected: string; question?: DesignQuestion };
+
+function TargetDetailsDialog({ inspection, diagram, onClose, onQuestion, openQuestions }: { inspection: DetailInspection; diagram: Diagram; onClose: () => void; onQuestion: (id: string) => void; openQuestions: DesignQuestion[] }) {
+  const { question } = inspection;
+  const dialog = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [selected, setSelected] = useState(inspection.selected);
+  const [missingHighlight, setMissingHighlight] = useState(false);
+  const highlights = question?.highlights ?? [];
+  const context = [...new Set(highlights.map(highlight => highlight.element))].filter(id => selected !== `item:${id}`);
+  useEffect(() => {
+    const modal = dialog.current!;
+    modal.showModal();
+    if (!question?.highlights?.length) return;
+    setMissingHighlight(!revealHighlights(modal, question.id));
+  }, [question, selected]);
+  return (
+    <dialog ref={dialog} className="modal target-details-modal" aria-labelledby={titleId} onClose={onClose}
+      onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }}
+      onMouseUp={event => event.stopPropagation()}>
+      <header className="target-details-head">
+        <div><h2 id={titleId}>Target details</h2>{highlights.length > 0 && <p className="hint">Highlighted passages relate to this question.</p>}</div>
+        <button type="button" className="btn" aria-label="Close target details" autoFocus onClick={() => dialog.current?.close()}>Close</button>
+      </header>
+      <div className="target-details-body">
+        {missingHighlight && <p role="status">These ranges contain no rendered text. Check the question's Markdown positions.</p>}
+        <Details selected={selected} diagram={diagram} expanded openQuestions={openQuestions} highlightQuestion={question} onQuestion={onQuestion} onSelect={setSelected} onOpenGroup={id => setSelected(`group:${id}`)} />
+        {context.length > 0 && <h3>Question context</h3>}
+        {context.map(id => <Details key={id} selected={`item:${id}`} diagram={diagram} expanded openQuestions={openQuestions} highlightQuestion={question} onQuestion={onQuestion} onSelect={setSelected} onOpenGroup={id => setSelected(`group:${id}`)} />)}
+      </div>
+    </dialog>
+  );
+}
+
 export function DocumentOverview() {
   const document = pack.designDocument;
   if (!document) return null;
@@ -191,7 +243,7 @@ export function DocumentOverview() {
       <div className="section document-overview" data-annotate-type="group" data-annotate-id="design:root">
         <h2>{document.name}</h2>
         <p>{document.summary}</p>
-        {document.detail && <div className="markdown"><Markdown components={{ img: () => null }}>{document.detail}</Markdown></div>}
+        {document.detail && <div className="markdown"><SidebarMarkdown hideImages>{document.detail}</SidebarMarkdown></div>}
       </div>
       <DesignApproval />
       <p className="muted">Select a component or relationship to inspect its responsibilities and concerns.</p>
@@ -243,7 +295,7 @@ export function Comments({ annotations, onSelect, onDelete, onEdit, onShowCommen
       )}
       <dialog ref={confirm} className="modal" aria-labelledby={titleId}>
         <h2 id={titleId}>Delete this comment?</h2>
-        <p className="muted">This comment will be removed from this browser.</p>
+        <p className="muted">This comment will be removed from this review.</p>
         <div className="row end">
           <button type="button" className="btn ghost" autoFocus onClick={() => confirm.current?.close()}>Cancel</button>
           <button type="button" className="btn danger" onClick={() => { if (deleting.current) onDelete(deleting.current); confirm.current?.close(); }}>Delete comment</button>
@@ -253,7 +305,7 @@ export function Comments({ annotations, onSelect, onDelete, onEdit, onShowCommen
   );
 }
 
-export type DrawerView = 'details' | 'comments';
+export type DrawerView = 'details' | 'comments' | 'questions';
 export type CommentScope = string;
 
 export function commentScopeForSelection(selected: string | null, diagram: Diagram): CommentScope {
@@ -272,22 +324,24 @@ const canonicalTarget = (target: Annotation['target']): Annotation['target'] => 
 };
 const scopeIdFor = (target: Annotation['target']) => `${target.type === 'node' ? 'item' : target.type}:${target.id}`;
 const scopeLabel = (target: Annotation['target']) => {
-  if (target.type === 'group' && target.id === 'design:root') return 'Document';
+  if (target.type === 'group' && target.id === 'design:root') return 'Document overview';
   if (target.type === 'node') return labelOf(target.id);
   if (target.type === 'group') return pack.graph.groups.find(group => group.id === target.id)?.label ?? targetLabel(target);
   const edge = pack.graph.edges.find(edge => edge.id === target.id);
   return edge ? `${edge.label}: ${labelOf(edge.fromNodeId)} → ${labelOf(edge.toNodeId)}` : targetLabel(target);
 };
 
-export function commentScopeOptions(annotations: Annotation[]): DropdownOption[] {
+export const commentScopeOptions = (annotations: Annotation[]): DropdownOption[] => reviewScopeOptions(annotations.map(annotation => annotation.target));
+
+function reviewScopeOptions(targets: Annotation['target'][]): DropdownOption[] {
   const counts = new Map<string, { target: Annotation['target']; count: number }>();
-  for (const annotation of annotations) {
-    const target = canonicalTarget(annotation.target);
+  for (const original of targets) {
+    const target = canonicalTarget(original);
     const id = scopeIdFor(target);
     const previous = counts.get(id);
     counts.set(id, { target, count: (previous?.count ?? 0) + 1 });
   }
-  return [{ value: 'all', label: `All comments (${annotations.length})` }, ...[...counts.entries()]
+  return [{ value: 'all', label: `All targets (${targets.length})` }, ...[...counts.entries()]
     .sort(([a, first], [b, second]) => a === 'group:design:root' ? -1 : b === 'group:design:root' ? 1 : scopeLabel(first.target).localeCompare(scopeLabel(second.target)) || a.localeCompare(b))
     .map(([value, { target, count }]) => ({ value, label: `${scopeLabel(target)} (${count})` }))];
 }
@@ -314,6 +368,11 @@ export function commentContext(selected: string | null, diagram: Diagram) {
   return { target, matches, label };
 }
 
+function ReviewScope({ label, value, currentLabel, count, options, onChange }: { label: string; value: string; currentLabel: string; count: number; options: DropdownOption[]; onChange: (value: string) => void }) {
+  const choices = options.some(option => option.value === value) ? options : [options[0], { value, label: `${currentLabel} (${count})` }, ...options.slice(1)];
+  return <div className="review-scope" data-tooltip={`${label}: ${currentLabel} (${count})`}><Dropdown label={label} value={value} currentLabel={<><ListFilter size={14} aria-hidden="true" /><span className="scope-label">{currentLabel}</span><span className="scope-count">{count}</span></>} options={choices} onChange={onChange} /></div>;
+}
+
 export function Drawer({
   open,
   setOpen,
@@ -321,6 +380,8 @@ export function Drawer({
   setView,
   commentScope,
   setCommentScope,
+  questionScope,
+  setQuestionScope,
   selected,
   diagram,
   focusKey,
@@ -338,6 +399,8 @@ export function Drawer({
   setView: (view: DrawerView) => void;
   commentScope: CommentScope;
   setCommentScope: (scope: CommentScope) => void;
+  questionScope: string;
+  setQuestionScope: (scope: string) => void;
   selected: string | null;
   diagram: Diagram;
   focusKey: number;
@@ -349,6 +412,30 @@ export function Drawer({
   onComment: (target: Annotation['target'], comment: string) => void;
   onOpenGroup: (groupId: string) => void;
 }) {
+  const review = useDesignReview();
+  const authoredQuestions = pack.designDocument?.questions ?? [];
+  const openQuestions = authoredQuestions.filter(question => !review?.answers.some(answer => answer.questionId === question.id));
+  const scopedQuestions = questionsForScope(authoredQuestions, questionScope, diagram, pack.graph);
+  const questionOptions = reviewScopeOptions(authoredQuestions.map(question => question.target));
+  const questionTarget = questionScope.startsWith('selection:') ? questionScope.slice(10) : questionScope;
+  const questionContext = questionScope === 'all' ? null : commentContext(questionTarget, diagram);
+  const exactQuestionScope = questionContext && scopeIdFor(questionContext.target);
+  const activeQuestionScope = exactQuestionScope && questionScope.startsWith('selection:') && scopedQuestions.every(question => scopeIdFor(question.target) === exactQuestionScope) ? exactQuestionScope : questionScope;
+  const questionLabel = questionContext ? scopeLabel(questionContext.target) : 'All targets';
+  const needsInput = openQuestions.length;
+  const [inspection, setInspection] = useState<DetailInspection | null>(null);
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, AnswerDraft>>({});
+  const setAnswerDraft = (id: string, draft?: AnswerDraft) => setAnswerDrafts(previous => {
+    const next = { ...previous };
+    if (draft === undefined) delete next[id]; else next[id] = draft;
+    return next;
+  });
+  const [questionFocus, setQuestionFocus] = useState<{ id: string }>();
+  const openQuestion = (id: string) => {
+    const question = authoredQuestions.find(question => question.id === id);
+    if (!question) return;
+    setInspection(null); setQuestionScope(diagramId(question.target)); setQuestionFocus({ id }); setView('questions'); setOpen(true);
+  };
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [editDrafts, setEditDrafts] = useState<Record<string, string>>({});
   const setEditDraft = (id: string, text: string | undefined) => setEditDrafts(previous => {
@@ -371,13 +458,12 @@ export function Drawer({
     return () => { stop(); window.removeEventListener('resize', resize); };
   }, []);
   const visibleWidth = clampDrawerWidth(width, viewportWidth);
-  const scopeId = useId();
   const documentContext = commentContext(null, diagram);
   // Canvas clicks retain grouped-edge context; menu choices always address exactly one commented target.
   const context = commentScope === 'all' ? documentContext : commentScope.startsWith('selection:') ? commentContext(commentScope.slice(10), diagram) : commentContext(commentScope, { ...diagram, edges: [] });
   const visibleComments = commentScope === 'all' ? annotations : annotations.filter(annotation => context?.matches(annotation.target));
   const options = commentScopeOptions(annotations);
-  const currentLabel = options.find(option => option.value === commentScope)?.label ?? `${context ? scopeLabel(context.target) : 'All comments'} (${visibleComments.length})`;
+  const currentLabel = commentScope !== 'all' && context ? scopeLabel(context.target) : 'All targets';
   const openAllComments = () => { setCommentScope('all'); setView('comments'); setOpen(true); };
   if (!open) {
     return (
@@ -389,6 +475,7 @@ export function Drawer({
           <MessageSquare size={18} />
           {annotations.length > 0 && <span className="badge">{annotations.length}</span>}
         </button>
+        {pack.designDocument && <button type="button" className="icon-btn rail-count" data-tooltip="Design questions" aria-label={`Questions (${needsInput} need input)`} onClick={() => { setQuestionScope('all'); setView('questions'); setOpen(true); }}><ListTodo size={18} aria-hidden="true" />{needsInput > 0 && <span className="badge">{needsInput}</span>}</button>}
       </aside>
     );
   }
@@ -435,7 +522,8 @@ export function Drawer({
       <header className="drawer-head">
         <div className="drawer-tabs" aria-label="Panel view">
           <button type="button" aria-pressed={view === 'details'} onClick={() => setView('details')}>Details</button>
-          <button type="button" aria-pressed={view === 'comments'} onClick={() => { if (view === 'details') { setCommentScope(commentScopeForSelection(selected, diagram)); setView('comments'); } }}>Comments</button>
+          <button type="button" aria-pressed={view === 'comments'} onClick={() => { if (view !== 'comments') { setCommentScope(commentScopeForSelection(selected, diagram)); setView('comments'); } }}>Comments</button>
+          {pack.designDocument && <button type="button" aria-pressed={view === 'questions'} onClick={() => { if (view !== 'questions') { setQuestionScope(questionScopeForSelection(selected)); setView('questions'); } }}>Questions{needsInput > 0 ? ` (${needsInput})` : ''}</button>}
         </div>
         <div className="row">
           <button type="button" className="icon-btn" data-tooltip="Collapse details panel" aria-label="Collapse details panel" onClick={() => setOpen(false)}>
@@ -445,21 +533,17 @@ export function Drawer({
       </header>
       <div className="drawer-body">
         {view === 'details' ? (
-          selected && selected !== 'group:design:root' ? <Details selected={selected} diagram={diagram} onSelect={onSelect} onOpenGroup={onOpenGroup} /> :
+          selected && selected !== 'group:design:root' ? <Details selected={selected} diagram={diagram} openQuestions={openQuestions} onQuestion={openQuestion} onInspect={selected => setInspection({ selected })} onSelect={onSelect} onOpenGroup={onOpenGroup} /> :
             pack.designDocument ? <DocumentOverview /> : <p className="muted">Select a box or relationship to see its details.</p>
-        ) : (
+        ) : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
           <div className="drawer-comments">
-            <h2>Comments</h2>
-            <div className="comment-scope">
-              <label htmlFor={scopeId}>Comment scope</label>
-              <Dropdown id={scopeId} label="Comment scope" value={commentScope} currentLabel={currentLabel} options={options} onChange={setCommentScope} />
-            </div>
-            <p className="comment-count">{visibleComments.length} comment{visibleComments.length === 1 ? '' : 's'}</p>
+            <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}
             <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
           </div>
         )}
       </div>
+      {inspection && <TargetDetailsDialog inspection={inspection} diagram={diagram} openQuestions={openQuestions} onQuestion={openQuestion} onClose={() => setInspection(null)} />}
     </aside>
   );
 }

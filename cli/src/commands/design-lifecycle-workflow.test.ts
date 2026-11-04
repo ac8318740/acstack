@@ -170,6 +170,31 @@ describe('authored design lifecycle through the shipped CLI and HTTP', () => {
     expect(tuple(await server.get())).toEqual(tuple(before));
   }, 20_000);
 
+  it('persists question answers through the authenticated API and requires explicit agent reconciliation', async () => {
+    const root = fixture();
+    writeFileSync(join(root, 'design.yaml'), readFileSync(join(root, 'design.yaml'), 'utf8') + 'questions:\n  - id: retry\n    target: {type: node, id: app}\n    question: Retry a conflict?\n    proposal: Refresh the preview.\n    recommendation: Yes, preserve other edits.\n');
+    const server = await start(root);
+    const initial = await server.get();
+    denied(await server.approve(initial));
+    const answer = (expected: Tuple, text: string, headers: Record<string, string> = server.headers) => request(server.api, { method: 'POST', headers, body: JSON.stringify({ questionId: 'retry', answer: text, expected: tuple(expected) }) });
+    denied(await answer(initial, 'Yes.', { 'content-type': 'application/json' }));
+    const saved = await answer(initial, 'Yes, and retain the draft.');
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ answers: [{ questionId: 'retry', answer: 'Yes, and retain the draft.' }], reviewRevision: initial.reviewRevision });
+    denied(await answer(initial, 'Stale overwrite.'));
+    const answered = await server.get();
+    denied(await server.approve(answered));
+    await savedComments(server);
+    const beforeReceipt = await server.get();
+    rejected(reconcile(root, { ...tuple(beforeReceipt), decisions: [disposition([0, 1])] }), 'Every answer requires a disposition');
+    accepted(reconcile(root, { ...tuple(beforeReceipt), decisions: [{ ...disposition([0, 1]), answers: [0] }] }));
+    const reconciled = await server.get();
+    expect((await server.approve(reconciled)).status).toBe(200);
+    expect((await server.get()).approval.valid).toBe(true);
+    const snapshot = JSON.parse(readFileSync(reviewPath(root, reconciled), 'utf8')) as { answers: unknown[] };
+    expect(snapshot.answers).toEqual([{ questionId: 'retry', answer: 'Yes, and retain the draft.' }]);
+  });
+
   it('rejects malformed reconciliation JSON before creating canonical review state', () => {
     const root = fixture();
     const directory = join(root, '.acstack/design-reviews');

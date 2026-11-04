@@ -55,8 +55,8 @@ export function register(program: Command): void {
       if (options.markdown) writeFileSync(resolve(options.markdown), renderDesignDocMarkdown(doc, options.orientation), { flag: 'wx' });
       lifecycle.status();
       const review = lifecycle.review;
-      const handoffPrompt = `Read the review JSON at ${JSON.stringify(review.reviewPath)}. Resolve feedback against the authored design entry ${JSON.stringify(resolve(entry))} and update the authored source to address the comments. Explain unresolved decisions, run design-review status, explicitly reconcile the selected feedback and map contributions with design-review reconcile, and reopen the review with design-doc for approval of the resulting revision.`;
-      const server = createReviewServer({ handoffPrompt, html: renderAlignmentPackHtml(pack), path: ANNOTATIONS_PATH, mode: 'comments', designReview: { get: lifecycle.status, post: lifecycle.approve }, get: review.get, post: review.post });
+      const handoffPrompt = `Read the review JSON at ${JSON.stringify(review.reviewPath)}. Resolve comments and question answers against the authored design entry ${JSON.stringify(resolve(entry))} and update the authored source to address the saved feedback. Incorporate settled answers into the design detail and remove settled questions from the open questions list; do not silently carry answers to a changed revision. Explain unresolved decisions, run design-review status, and explicitly reconcile every comment, zero-based answer index, and map contribution with design-review reconcile (using decisions[].answers for answers). Then reopen the review with design-doc for approval of the resulting revision.`;
+      const server = createReviewServer({ handoffPrompt, html: renderAlignmentPackHtml(pack), path: ANNOTATIONS_PATH, mode: 'comments', designReview: { get: lifecycle.status, post: body => body && typeof body === 'object' && 'questionId' in body ? lifecycle.answer(body) : lifecycle.approve(body) }, get: review.get, post: review.post });
       console.log(`Agent feedback: ${review.reviewPath}`);
       await listenForReview(server, port, doc.name);
     }));
