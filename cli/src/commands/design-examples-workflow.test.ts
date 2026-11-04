@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -31,6 +31,7 @@ function fixture() {
   writeFileSync(join(map, 'elements/102/order.schema.json'), '{"type": "object", "required": ["id"]}');
   mkdirSync(join(root, '.open-designer/designs/checkout'), { recursive: true });
   writeFileSync(join(root, '.open-designer/designs/checkout/index.json'), JSON.stringify({ pages: [{ id: 'home', variants: [{ id: 'grid', file: 'grid.tsx' }, { id: 'list', file: 'list.tsx' }] }] }));
+  for (const file of ['grid.tsx', 'list.tsx']) writeFileSync(join(root, '.open-designer/designs/checkout', file), 'export default () => null;');
   trackProject(root);
   symlinkSync(gitBinary, join(root, 'bin', 'git'));
   // A real subprocess stands in for OpenDesigner's CLI and its documented JSON stdout.
@@ -124,4 +125,32 @@ it('approves a multi-variant element for the agent only with the variant the use
   const approved = approve('--variant', 'od:checkout/home=list');
   expect(approved.status, approved.stderr).toBe(0);
   expect((JSON.parse(approved.stdout) as Status).locked).toEqual(['102']);
-});
+}, 30_000);
+
+it('unapproves a locked element when a binding example changes, but not an illustrative one', () => {
+  const root = fixture();
+  const folder = join(root, '.acstack/maps/demo/elements/102');
+  writeFileSync(join(folder, 'note.json'), '{"id": 1}');
+  const nodeFile = join(root, '.acstack/maps/demo/102-node.md');
+  writeFileSync(nodeFile, readFileSync(nodeFile, 'utf8').replace('  - {fixture: order.json, schema: order.schema.json}', '  - {fixture: order.json, schema: order.schema.json}\n  - {fixture: note.json, illustrative: true}'));
+  const run = (...args: string[]) => spawnSync(process.execPath, [bin, ...args], { cwd: root, env: env(root), encoding: 'utf8', timeout: 10_000 });
+  const approved = run('design-review', 'approve-element', 'demo', '102', '--variant', 'od:checkout/home=list');
+  expect(approved.status, approved.stderr).toBe(0);
+  const changed = () => (JSON.parse(run('design-review', 'status', 'demo').stdout) as Status).blockers.filter(blocker => blocker.kind === 'changed');
+
+  writeFileSync(join(folder, 'note.json'), '{"id": 2}');
+  expect(run('design-doc', 'demo', '--check').status).toBe(0);
+  expect(changed()).toEqual([]);
+
+  writeFileSync(join(folder, 'order.json'), '{"id": 2}');
+  const check = run('design-doc', 'demo', '--check');
+  expect(check.status).not.toBe(0);
+  expect(check.stderr).toContain('Changed since the user approved: 102');
+  expect(changed()).toEqual([expect.objectContaining({ kind: 'changed', targetId: '102' })]);
+  writeFileSync(join(folder, 'order.json'), '{"id": 1}');
+  expect(changed()).toEqual([]);
+
+  // An od example binds its OpenDesigner page source, not the build.
+  writeFileSync(join(root, '.open-designer/designs/checkout/list.tsx'), 'export default () => "List";');
+  expect(changed()).toEqual([expect.objectContaining({ kind: 'changed', targetId: '102' })]);
+}, 60_000);

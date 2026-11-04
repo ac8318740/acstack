@@ -27412,6 +27412,7 @@ var init_tweaks = __esm({
 
 // src/lib/design-examples.ts
 import { execFile } from "node:child_process";
+import { createHash as createHash2 } from "node:crypto";
 import { existsSync as existsSync14, readFileSync as readFileSync12, realpathSync as realpathSync5, statSync as statSync4 } from "node:fs";
 import { isAbsolute as isAbsolute2, join as join16, sep } from "node:path";
 import { promisify } from "node:util";
@@ -27485,14 +27486,21 @@ function variantCapture(item, chosen, checkout) {
   }));
   return Object.keys(examples).length ? { examples } : void 0;
 }
+function odSourceDigest(checkout, owner, od) {
+  const { page } = odPage(checkout, owner, od);
+  const folder = join16(checkout, OD_DIR, "designs", od.design);
+  return [page, (page.variants ?? []).map((variant) => variant.file ? fileDigest(insideFolder(folder, variant.file, owner)) : null)];
+}
 function checkElementExamples(root, map, items, checkout) {
   const warnings = [];
   const summaries = /* @__PURE__ */ new Map();
+  const bindings = /* @__PURE__ */ new Map();
   const odInstalled = existsSync14(join16(checkout, OD_DIR));
   for (const item of items) {
     if (!item.examples?.length) continue;
     const folder = elementFolder(root, map, item.id);
     const list = [];
+    const bound = [];
     for (const entry of item.examples) {
       const path = examplePath(entry);
       if (list.some((summary) => summary.path === path)) throw new Error(`Element ${item.id}: example ${path} is listed twice`);
@@ -27500,13 +27508,16 @@ function checkElementExamples(root, map, items, checkout) {
       const base = { path, title, ...entry.illustrative && { illustrative: true } };
       if (entry.od) {
         const variants = odVariants(checkout, item.id, entry.od);
+        if (!entry.illustrative) bound.push([path, odSourceDigest(checkout, item.id, entry.od)]);
         if (!item.locked && variants.length < 2) warnings.push(`Element ${item.id}: mock ${path} has ${variants.length} variant; add another so the reviewer can compare options`);
         list.push({ kind: "od-build", ...base, variants });
         continue;
       }
       const full = insideFolder(folder, path, item.id);
+      const schema = entry.schema && insideFolder(folder, entry.schema, item.id);
+      if (!entry.illustrative) bound.push([path, fileDigest(full), schema ? fileDigest(schema) : null]);
       if (entry.fixture) {
-        validateFixture(item.id, full, entry.schema && insideFolder(folder, entry.schema, item.id));
+        validateFixture(item.id, full, schema);
         list.push({ kind: "fixture", ...base });
         continue;
       }
@@ -27519,8 +27530,9 @@ function checkElementExamples(root, map, items, checkout) {
     }
     if (item.locked && list.every((summary) => summary.illustrative)) warnings.push(`Element ${item.id} is locked but has only illustrative examples, so none is a requirement`);
     summaries.set(item.id, list);
+    if (bound.length) bindings.set(item.id, createHash2("sha256").update(JSON.stringify(bound)).digest("hex"));
   }
-  return { summaries, warnings };
+  return { summaries, bindings, warnings };
 }
 function tokenMap(html) {
   const tokens = {};
@@ -27556,7 +27568,7 @@ async function loadExampleContent(root, map, elementId, entry, checkout, log = c
 ${text2}
 ${fence}` };
 }
-var import_ajv, import__, file, name, ExampleEntrySchema, FIXTURE_LIMIT, LARGE_EXAMPLE, OD_DIR, elementFolder, examplePath, odVariants, run;
+var import_ajv, import__, file, name, ExampleEntrySchema, FIXTURE_LIMIT, LARGE_EXAMPLE, OD_DIR, elementFolder, examplePath, odVariants, fileDigest, run;
 var init_design_examples = __esm({
   "src/lib/design-examples.ts"() {
     "use strict";
@@ -27588,12 +27600,13 @@ var init_design_examples = __esm({
     elementFolder = (root, map, id) => join16(mapDir(root, map), "elements", id);
     examplePath = (entry) => entry.od ? `od:${entry.od.design}/${entry.od.page}` : entry.html ?? entry.markdown ?? entry.mermaid ?? entry.fixture;
     odVariants = (checkout, owner, od) => (odPage(checkout, owner, od).page.variants ?? []).map((variant) => variant.id);
+    fileDigest = (path) => createHash2("sha256").update(readFileSync12(path)).digest("hex");
     run = promisify(execFile);
   }
 });
 
 // src/lib/design-doc.ts
-import { createHash as createHash2 } from "node:crypto";
+import { createHash as createHash3 } from "node:crypto";
 function configBlock(node, summary) {
   const body = node.body ?? "";
   const pattern = new RegExp(`<details>\\s*<summary>${summary}</summary>\\s*\`\`\`ya?ml\\r?\\n([\\s\\S]*?)\\r?\\n\`\`\`\\s*</details>`, "g");
@@ -27862,7 +27875,7 @@ var init_design_doc = __esm({
     ELEMENT_SUMMARY = "Design element";
     ROOT_SUMMARY = "Design doc";
     QUESTION_SUMMARY = "Design question";
-    digest = (value) => createHash2("sha256").update(JSON.stringify(value)).digest("hex");
+    digest = (value) => createHash3("sha256").update(JSON.stringify(value)).digest("hex");
   }
 });
 
@@ -28307,7 +28320,11 @@ function loadMapDesign(root, map, checkout = checkoutRoot() ?? process.cwd()) {
   const nodes = readMapNodes(root, map);
   const { doc, warnings } = designFromNodes(map, nodes);
   const examples = checkElementExamples(root, map, doc.items, checkout);
-  for (const item of doc.items) item.exampleSummaries = examples.summaries.get(item.id);
+  for (const item of doc.items) {
+    item.exampleSummaries = examples.summaries.get(item.id);
+    const bound = examples.bindings.get(item.id);
+    if (bound) item.configDigest = digest([item.configDigest, bound]);
+  }
   return { nodes, doc, warnings: [...warnings, ...examples.warnings] };
 }
 function changedElements(doc, histories) {

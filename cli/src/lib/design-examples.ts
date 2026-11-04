@@ -1,4 +1,5 @@
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { isAbsolute, join, sep } from 'node:path';
 import { promisify } from 'node:util';
@@ -67,7 +68,7 @@ export function validateFixture(owner: string, fixture: string, schema?: string)
   if (!check(value)) throw new Error(`Element ${owner}: fixture ${fixture} does not match ${schema}: ${ajv.errorsText(check.errors, { separator: '; ' })}`);
 }
 
-type OdIndex = { tweaks?: Tweak[]; pages?: { id: string; tweaks?: Tweak[]; variants?: { id: string; tweaks?: Tweak[] }[] }[] };
+type OdIndex = { tweaks?: Tweak[]; pages?: { id: string; tweaks?: Tweak[]; variants?: { id: string; file?: string; tweaks?: Tweak[] }[] }[] };
 function odPage(checkout: string, owner: string, od: { design: string; page: string }) {
   const index = join(checkout, OD_DIR, 'designs', od.design, 'index.json');
   let parsed: OdIndex;
@@ -106,15 +107,28 @@ export function variantCapture(item: { id: string; examples: ExampleEntry[]; exa
   return Object.keys(examples).length ? { examples } : undefined;
 }
 
-/** Check every element's examples against the files on disk. Throws on a broken reference; warns on oddities. */
-export function checkElementExamples(root: string, map: string, items: readonly ExampleElement[], checkout: string): { summaries: Map<string, ExampleSummary[]>; warnings: string[] } {
+const fileDigest = (path: string) => createHash('sha256').update(readFileSync(path)).digest('hex');
+// What an od example defines: its page entry and the source of each variant file. Built output is not deterministic, so it stays out.
+function odSourceDigest(checkout: string, owner: string, od: { design: string; page: string }): unknown {
+  const { page } = odPage(checkout, owner, od);
+  const folder = join(checkout, OD_DIR, 'designs', od.design);
+  return [page, (page.variants ?? []).map(variant => variant.file ? fileDigest(insideFolder(folder, variant.file, owner)) : null)];
+}
+
+/**
+ * Check every element's examples against the files on disk. Throws on a broken reference; warns on oddities.
+ * `bindings` digests each element's binding examples, the ones a lock approves; illustrative ones stay out.
+ */
+export function checkElementExamples(root: string, map: string, items: readonly ExampleElement[], checkout: string): { summaries: Map<string, ExampleSummary[]>; bindings: Map<string, string>; warnings: string[] } {
   const warnings: string[] = [];
   const summaries = new Map<string, ExampleSummary[]>();
+  const bindings = new Map<string, string>();
   const odInstalled = existsSync(join(checkout, OD_DIR));
   for (const item of items) {
     if (!item.examples?.length) continue;
     const folder = elementFolder(root, map, item.id);
     const list: ExampleSummary[] = [];
+    const bound: unknown[] = [];
     for (const entry of item.examples) {
       const path = examplePath(entry);
       if (list.some(summary => summary.path === path)) throw new Error(`Element ${item.id}: example ${path} is listed twice`);
@@ -122,13 +136,16 @@ export function checkElementExamples(root: string, map: string, items: readonly 
       const base = { path, title, ...(entry.illustrative && { illustrative: true }) };
       if (entry.od) {
         const variants = odVariants(checkout, item.id, entry.od);
+        if (!entry.illustrative) bound.push([path, odSourceDigest(checkout, item.id, entry.od)]);
         if (!item.locked && variants.length < 2) warnings.push(`Element ${item.id}: mock ${path} has ${variants.length} variant; add another so the reviewer can compare options`);
         list.push({ kind: 'od-build', ...base, variants });
         continue;
       }
       const full = insideFolder(folder, path, item.id);
+      const schema = entry.schema && insideFolder(folder, entry.schema, item.id);
+      if (!entry.illustrative) bound.push([path, fileDigest(full), schema ? fileDigest(schema) : null]);
       if (entry.fixture) {
-        validateFixture(item.id, full, entry.schema && insideFolder(folder, entry.schema, item.id));
+        validateFixture(item.id, full, schema);
         list.push({ kind: 'fixture', ...base });
         continue;
       }
@@ -141,8 +158,9 @@ export function checkElementExamples(root: string, map: string, items: readonly 
     }
     if (item.locked && list.every(summary => summary.illustrative)) warnings.push(`Element ${item.id} is locked but has only illustrative examples, so none is a requirement`);
     summaries.set(item.id, list);
+    if (bound.length) bindings.set(item.id, createHash('sha256').update(JSON.stringify(bound)).digest('hex'));
   }
-  return { summaries, warnings };
+  return { summaries, bindings, warnings };
 }
 
 const run = promisify(execFile);
@@ -161,7 +179,7 @@ export async function loadExampleContent(root: string, map: string, elementId: s
   const folder = elementFolder(root, map, elementId);
   const path = examplePath(entry);
   if (entry.od) {
-    // shortcut: builds on every open; cache by the design's files once builds get slow.
+    // shortcut: builds on every open with no cache; cache by odSourceDigest once builds get slow.
     let stdout: string;
     try { ({ stdout } = await run('open-designer', ['build', entry.od.design, '--page', entry.od.page], { cwd: checkout, timeout: 120_000, maxBuffer: 1024 * 1024 })); }
     catch (error) { throw new Error(`OpenDesigner could not build ${path}: ${((error as { stderr?: string }).stderr ?? (error as Error).message).trim().slice(0, 2000)}`); }

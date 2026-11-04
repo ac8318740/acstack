@@ -13,7 +13,12 @@ export function loadMapDesign(root: string, map: string, checkout = checkoutRoot
   const nodes = readMapNodes(root, map);
   const { doc, warnings } = designFromNodes(map, nodes);
   const examples = checkElementExamples(root, map, doc.items, checkout);
-  for (const item of doc.items) item.exampleSummaries = examples.summaries.get(item.id);
+  for (const item of doc.items) {
+    item.exampleSummaries = examples.summaries.get(item.id);
+    // Binding examples are part of what a lock approves, so editing one unapproves the element.
+    const bound = examples.bindings.get(item.id);
+    if (bound) item.configDigest = digest([item.configDigest, bound]);
+  }
   return { nodes, doc, warnings: [...warnings, ...examples.warnings] };
 }
 export const reviewHistories = (root: string, id: string): Map<string, StoredDesignReview> =>

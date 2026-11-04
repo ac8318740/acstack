@@ -30,6 +30,7 @@ function openDesigner(checkout: string, variants: string[], build: string) {
   const design = join(checkout, '.open-designer/designs/checkout');
   mkdirSync(design, { recursive: true });
   writeFileSync(join(design, 'index.json'), JSON.stringify({ pages: [{ id: 'home', variants: variants.map(id => ({ id, file: `${id}.tsx` })) }] }));
+  for (const id of variants) writeFileSync(join(design, `${id}.tsx`), 'export default () => null;');
   // A real subprocess stands in for OpenDesigner's CLI, with its documented JSON stdout.
   const bin = join(checkout, 'bin');
   mkdirSync(bin);
