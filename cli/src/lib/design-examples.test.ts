@@ -132,9 +132,9 @@ describe('example content', () => {
 });
 
 it('holds approval for each multi-variant mock on a loose element', () => {
-  const item = (id: string, locked: boolean, variants: string[]) => ({ id, locked, exampleSummaries: [{ kind: 'od-build' as const, path: 'od:c/h', title: 'Checkout', variants }] });
+  const item = (id: string, locked: boolean, variants: string[]) => ({ id, name: `Element ${id}`, locked, exampleSummaries: [{ kind: 'od-build' as const, path: 'od:c/h', title: 'Checkout', variants }] });
   const doc = { items: [item('a', false, ['x', 'y']), item('b', true, ['x', 'y']), item('c', false, ['x'])] } as unknown as Parameters<typeof unchosenVariants>[0];
-  expect(unchosenVariants(doc)).toEqual([{ kind: 'variant', targetId: 'a', label: 'Choose a variant of Checkout', nodeId: 'a', example: 'od:c/h' }]);
+  expect(unchosenVariants(doc)).toEqual([{ kind: 'variant', targetId: 'a', label: 'Element a: choose a variant of Checkout', nodeId: 'a', example: 'od:c/h' }]);
 });
 
 it('checks the worked example with one of each kind', () => {

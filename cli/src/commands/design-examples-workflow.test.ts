@@ -102,8 +102,8 @@ it('lists examples in the page, serves their content behind the token, and holds
   expect((await server.example('../103-node.md')).status).toBe(404);
 
   const blocked = await server.status();
-  expect(blocked.blockers).toEqual([{ kind: 'variant', targetId: '102', label: 'Choose a variant of Checkout', nodeId: '102', example: 'od:checkout/home' }]);
-  expect(blocked.approval.reason).toBe('Choose a variant for each mock with several, by locking its element');
+  expect(blocked.blockers).toEqual([{ kind: 'variant', targetId: '102', label: 'Node 102: choose a variant of Checkout', nodeId: '102', example: 'od:checkout/home' }]);
+  expect(blocked.approval.reason).toBe('Choose a variant in each example that has several, then approve its element');
 
   // Locking chooses the variant on screen, so a lock without one is refused.
   expect((await server.lock('102')).status).toBe(409);

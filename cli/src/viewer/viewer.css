@@ -93,7 +93,7 @@ kbd { padding: 1px 5px; border: 1px solid var(--border); border-bottom-width: 2p
 /* Fixed width so the label swap to "Copied" never shifts the button. */
 .done .btn { display: inline-flex; gap: 6px; align-items: center; justify-content: center; width: 132px; }
 .canvas { position: relative; min-width: 0; background: var(--canvas); }
-.drawer { position: relative; width: min(var(--drawer-width, 360px), calc(100vw - 320px)); display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg); min-height: 0; }
+.drawer { position: relative; width: min(var(--drawer-width, 400px), calc(100vw - 320px)); display: flex; flex-direction: column; border-left: 1px solid var(--border); background: var(--bg); min-height: 0; }
 .drawer-resize { position: absolute; z-index: 16; inset: 0 auto 0 -6px; width: 12px; cursor: col-resize; touch-action: none; user-select: none; }
 .drawer-resize::after { content: ''; position: absolute; inset: 0 auto 0 5px; width: 2px; }
 .drawer-resize:hover::after, .drawer-resize:focus-visible::after { background: var(--accent); }

@@ -487,7 +487,7 @@ export function Drawer({
     else next[id] = text;
     return next;
   });
-  const [width, setWidth] = useState(360);
+  const [width, setWidth] = useState(400);
   const [viewportWidth, setViewportWidth] = useState(() => typeof window === 'undefined' ? 1360 : window.innerWidth);
   const drag = useRef<{ x: number; width: number; pointer: number; handle: HTMLDivElement } | null>(null);
   useEffect(() => {
@@ -521,7 +521,7 @@ export function Drawer({
           <MessageSquare size={18} />
           {annotations.length > 0 && <span className="badge">{annotations.length}</span>}
         </button>
-        {pack.designDocument && <button type="button" className="icon-btn rail-count" data-tooltip="Design questions" aria-label={`Questions (${needsInput} need input)`} onClick={() => { setQuestionScope('all'); setView('questions'); setOpen(true); }}><ListTodo size={18} aria-hidden="true" />{needsInput > 0 && <span className="badge">{needsInput}</span>}</button>}
+        {pack.designDocument && <button type="button" className="icon-btn rail-count" data-tooltip="Design questions" aria-label={`Questions (${needsInput} ${needsInput === 1 ? 'needs' : 'need'} input)`} onClick={() => { setQuestionScope('all'); setView('questions'); setOpen(true); }}><ListTodo size={18} aria-hidden="true" />{needsInput > 0 && <span className="badge">{needsInput}</span>}</button>}
       </aside>
     );
   }
