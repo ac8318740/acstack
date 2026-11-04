@@ -1,37 +1,31 @@
 import { Command, Option } from 'commander';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { loadDesignDoc, designDocToPack, renderDesignDocMarkdown } from '../lib/design-doc.js';
+import { designDocToPack, renderDesignDocMarkdown } from '../lib/design-doc.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { inProject } from '../lib/utils.js';
-import { openDesignLifecycle } from '../lib/design-lifecycle.js';
+import { loadMapDesign, openDesignLifecycle } from '../lib/design-lifecycle.js';
 import { createReviewServer, listenForReview, REVIEW_PORT } from '../lib/review-server.js';
-import { migrateDesignReview } from '../lib/design-migration.js';
 import { DiagramOrientationSchema, type DiagramOrientation } from '../lib/alignment-packs.js';
 import { ANNOTATIONS_PATH } from '../lib/alignment-review-protocol.js';
 
-export function generateDesignDoc(entry: string, output: string, markdown?: string, orientation: DiagramOrientation = 'top-to-bottom'): void {
-  const doc = loadDesignDoc(entry);
+export function generateDesignDoc(root: string, map: string, output: string, markdown?: string, orientation: DiagramOrientation = 'top-to-bottom'): void {
+  const { doc } = loadMapDesign(root, map);
   const html = renderAlignmentPackHtml(designDocToPack(doc, orientation));
-  // Exclusive creation protects authored inputs and existing reviewer artifacts, including symlinks.
+  // Exclusive creation protects existing files and reviewer artifacts, including symlinks.
   writeFileSync(resolve(output), html, { flag: 'wx' });
   if (markdown) writeFileSync(resolve(markdown), renderDesignDocMarkdown(doc, orientation), { flag: 'wx' });
 }
+const warn = (warnings: string[]) => { for (const warning of warnings) console.error(`warning: ${warning}`); };
 export function register(program: Command): void {
-  const lifecycle = program.command('design-review').description('Inspect and reconcile exact authored design revisions');
-  lifecycle.command('migrate <entry>').requiredOption('--legacy-dir <path>', 'Legacy pack directory')
-    .requiredOption('--mapping <json-file>', 'Explicit legacy-to-design target mapping')
-    .option('--feedback <json-file>', 'Optional exported legacy feedback')
-    .action(inProject((root, entry: string, options: { legacyDir: string; mapping: string; feedback?: string }) => {
-      console.log(JSON.stringify(migrateDesignReview(root, entry, options)));
+  const lifecycle = program.command('design-review').description('Inspect and reconcile exact design doc revisions');
+  lifecycle.command('status <map>').option('--review-file <path>', 'Canonical historical feedback snapshot')
+    .action(inProject((root, map: string, options: { reviewFile?: string }) => {
+      console.log(JSON.stringify(openDesignLifecycle(root, map, options.reviewFile).status()));
     }));
-  lifecycle.command('status <entry>').option('--review-file <path>', 'Canonical historical feedback snapshot')
-    .action(inProject((root, entry: string, options: { reviewFile?: string }) => {
-      console.log(JSON.stringify(openDesignLifecycle(root, entry, options.reviewFile).status()));
-    }));
-  lifecycle.command('reconcile <entry>').requiredOption('--input <json-file>', 'Explicit reconciliation decisions')
+  lifecycle.command('reconcile <map>').requiredOption('--input <json-file>', 'Explicit reconciliation decisions')
     .option('--review-file <path>', 'Canonical historical feedback snapshot')
-    .action(inProject((root, entry: string, options: { input: string; reviewFile?: string }) => {
+    .action(inProject((root, map: string, options: { input: string; reviewFile?: string }) => {
       if (!statSync(options.input).isFile() || statSync(options.input).size > 1_000_000) throw new Error('Invalid reconciliation input');
       let input: unknown;
       try {
@@ -39,24 +33,36 @@ export function register(program: Command): void {
       } catch (error) {
         throw new Error(`Invalid reconciliation input ${options.input}: ${(error as Error).message}`);
       }
-      console.log(JSON.stringify(openDesignLifecycle(root, entry, options.reviewFile).reconcile(input)));
+      console.log(JSON.stringify(openDesignLifecycle(root, map, options.reviewFile).reconcile(input)));
     }));
-  program.command('design-doc <entry>')
-    .description('Review an authored design with live, durable comments')
+  program.command('design-doc <map>')
+    .description("Review a map's design doc with live, durable comments")
     .addOption(new Option('--orientation <orientation>', 'Diagram flow direction').choices(DiagramOrientationSchema.options).default('top-to-bottom'))
     .option('--port <port>', 'Local review port', String(REVIEW_PORT))
     .option('--markdown <path>', 'Also generate a GitHub-readable Markdown companion')
-    .action(inProject(async (root, entry: string, options: { port: string; markdown?: string; orientation: DiagramOrientation }) => {
+    .option('--check', 'Validate the design doc and print warnings without serving it')
+    .action(inProject(async (root, map: string, options: { port: string; markdown?: string; orientation: DiagramOrientation; check?: boolean }) => {
+      if (options.check) {
+        const { doc, warnings } = loadMapDesign(root, map);
+        warn(warnings);
+        console.log(`Design doc ${doc.name}: ${doc.items.length} elements, ${doc.questions.length} open questions`);
+        return;
+      }
       const port = Number(options.port);
       if (!Number.isInteger(port) || port < 0 || port > 65535) throw new Error('Port must be an integer from 0 to 65535');
-      const lifecycle = openDesignLifecycle(root, entry);
+      const lifecycle = openDesignLifecycle(root, map);
       const doc = lifecycle.doc;
+      warn(lifecycle.warnings);
       const pack = designDocToPack(doc, options.orientation);
       if (options.markdown) writeFileSync(resolve(options.markdown), renderDesignDocMarkdown(doc, options.orientation), { flag: 'wx' });
       lifecycle.status();
       const review = lifecycle.review;
-      const handoffPrompt = `Read the review JSON at ${JSON.stringify(review.reviewPath)}. Resolve comments and question answers against the authored design entry ${JSON.stringify(resolve(entry))} and update the authored source to address the saved feedback. Incorporate settled answers into the design detail and remove settled questions from the open questions list; do not silently carry answers to a changed revision. Explain unresolved decisions, run design-review status, and explicitly reconcile every comment, zero-based answer index, and map contribution with design-review reconcile (using decisions[].answers for answers). Then reopen the review with design-doc for approval of the resulting revision.`;
-      const server = createReviewServer({ handoffPrompt, html: renderAlignmentPackHtml(pack), path: ANNOTATIONS_PATH, mode: 'comments', designReview: { get: lifecycle.status, post: body => body && typeof body === 'object' && 'questionId' in body ? lifecycle.answer(body) : lifecycle.approve(body) }, get: review.get, post: review.post });
+      const handoffPrompt = `Read the review JSON at ${JSON.stringify(review.reviewPath)}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status, explicitly reconcile every comment with design-review reconcile, then reopen the review with design-doc for approval of the resulting revision.`;
+      const server = createReviewServer({ handoffPrompt, html: renderAlignmentPackHtml(pack), path: ANNOTATIONS_PATH, mode: 'comments', designReview: { get: lifecycle.status, post: body => {
+        if (body && typeof body === 'object' && 'questionId' in body) return lifecycle.answer(body);
+        if (body && typeof body === 'object' && 'lock' in body) return lifecycle.lock(body);
+        return lifecycle.approve(body);
+      } }, get: review.get, post: review.post });
       console.log(`Agent feedback: ${review.reviewPath}`);
       await listenForReview(server, port, doc.name);
     }));

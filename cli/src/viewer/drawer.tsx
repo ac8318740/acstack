@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { DesignQuestion } from '../lib/alignment-packs.js';
+import type { MapQuestion } from '../lib/alignment-packs.js';
 import { ChevronRight, ListFilter, ListTodo, Maximize2, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
 import { revealHighlights } from './markdown-highlights.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
 import type { Diagram } from './alignment-graph.js';
 import { type Annotation, diagramId, pack, targetLabel } from './pack.js';
-import { DesignApproval, useDesignReview } from './design-approval.js';
+import { DesignApproval, ElementLock, useDesignReview } from './design-approval.js';
 import { DesignQuestions, type AnswerDraft } from './design-questions.js';
 import { questionScopeForSelection, questionsForScope } from './question-targets.js';
 import { ElementMetadata } from './element-metadata.js';
@@ -97,8 +97,8 @@ export function Details({
 }: {
   onInspect?: (selected: string) => void;
   expanded?: boolean;
-  openQuestions?: DesignQuestion[];
-  highlightQuestion?: DesignQuestion;
+  openQuestions?: MapQuestion[];
+  highlightQuestion?: MapQuestion;
   onQuestion?: (id: string) => void;
   selected: string;
   diagram: Diagram;
@@ -157,6 +157,7 @@ export function Details({
   return (
     <section className="section">
       <ElementMetadata kind={node.elementKind} channels={node.channels} />
+      <ElementLock id={node.id} locked={node.locked} />
       <h2>{node.label}</h2>
       <p data-annotate-type="node" data-annotate-id={node.id}>
         {node.summary}
@@ -201,9 +202,9 @@ export function Details({
   );
 }
 
-type DetailInspection = { selected: string; question?: DesignQuestion };
+type DetailInspection = { selected: string; question?: MapQuestion };
 
-function TargetDetailsDialog({ inspection, diagram, onClose, onQuestion, openQuestions }: { inspection: DetailInspection; diagram: Diagram; onClose: () => void; onQuestion: (id: string) => void; openQuestions: DesignQuestion[] }) {
+function TargetDetailsDialog({ inspection, diagram, onClose, onQuestion, openQuestions }: { inspection: DetailInspection; diagram: Diagram; onClose: () => void; onQuestion: (id: string) => void; openQuestions: MapQuestion[] }) {
   const { question } = inspection;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -414,7 +415,7 @@ export function Drawer({
 }) {
   const review = useDesignReview();
   const authoredQuestions = pack.designDocument?.questions ?? [];
-  const openQuestions = authoredQuestions.filter(question => !review?.answers.some(answer => answer.questionId === question.id));
+  const openQuestions = authoredQuestions.filter(question => !review?.answered.includes(question.id));
   const scopedQuestions = questionsForScope(authoredQuestions, questionScope, diagram, pack.graph);
   const questionOptions = reviewScopeOptions(authoredQuestions.map(question => question.target));
   const questionTarget = questionScope.startsWith('selection:') ? questionScope.slice(10) : questionScope;

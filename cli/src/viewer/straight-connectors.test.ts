@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AlignmentGraph, DiagramOrientation } from '../lib/alignment-packs.js';
-import { designDocToPack, loadDesignDoc } from '../lib/design-doc.js';
+import { designDocToPack } from '../lib/design-doc.js';
+import { exampleDesign } from '../example-design.js';
 import { buildDiagram, projectDiagram, type Box, type Diagram, type DiagramEdge, type MeasuredGeometry, type Point, type DiagramNode, type HeaderGeometry, type HeaderMeasurer } from './alignment-graph.js';
 
 const orientations: DiagramOrientation[] = ['top-to-bottom', 'left-to-right'];
@@ -433,7 +434,7 @@ it('avoids measured comment actions above an unrelated leaf without opening its 
   expectSafe(diagram, graph, sizes, 'left-to-right', headers);
 });
 
-const publicExample = () => designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)).graph;
+const publicExample = () => designDocToPack(exampleDesign()).graph;
 const extent = (diagram: Diagram) => {
   const corners = diagram.nodes.flatMap(node => [{ x: node.x, y: node.y }, { x: node.x + node.width, y: node.y + node.height }]);
   return (Math.max(...corners.map(point => point.x)) - Math.min(...corners.map(point => point.x)))

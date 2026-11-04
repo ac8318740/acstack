@@ -180,7 +180,7 @@ export function stripDiagrams(text: string): string {
 // The drawing
 // ---------------------------------------------------------------------------
 
-// The five kinds, as the mermaid shape that opens and closes a label. The
+// The kinds, as the mermaid shape that opens and closes a label. The
 // label is always double-quoted, so the quotes belong to the shape.
 const SHAPES: Record<NodeKind, readonly [string, string]> = {
   destination: ['{{"', '"}}'],
@@ -188,6 +188,7 @@ const SHAPES: Record<NodeKind, readonly [string, string]> = {
   decision: ['{"', '"}'],
   research: ['(["', '"])'],
   work: ['["', '"]'],
+  element: ['[/"', '"/]'],
 };
 
 // The five statuses, as fills. GitHub's own light palette, so the dark label
@@ -462,9 +463,9 @@ const LEGEND_FRONT_CLASS = 'legendFront';
 //
 // The legend never overflows those bounds. Its widest possible form is one item
 // per kind, one per status, both mode items, the frontier item and both edge
-// items – 15 items, and the two edge items draw two boxes each, so 17 boxes
-// against 18 slots. That holds while NODE_KINDS stays at five and NODE_STATUSES
-// at five; a sixth of either needs one of these two numbers raised with it.
+// items – 16 items, and the two edge items draw two boxes each, so 18 boxes
+// against 18 slots. That holds while NODE_KINDS stays at six and NODE_STATUSES
+// at five; one more of either needs one of these two numbers raised with it.
 const MAX_BOXES_PER_ROW = 6;
 const MAX_ROWS = 3;
 
@@ -484,7 +485,7 @@ interface LegendItem {
  * Every way to cut `n` items into `count` non-empty runs, as items per run.
  *
  * The search this feeds is bounded by the legend's own bounds above: at most 3
- * rows over at most 15 items, so at most C(14, 2) = 91 shapes, every one of
+ * rows over at most 16 items, so at most C(15, 2) = 105 shapes, every one of
  * them a three-element array.
  */
 function partitions(n: number, count: number): number[][] {

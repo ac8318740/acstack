@@ -1,9 +1,9 @@
-import type { AlignmentPack, DesignQuestion } from '../lib/alignment-packs.js';
+import type { AlignmentPack, MapQuestion } from '../lib/alignment-packs.js';
 import type { Diagram } from './alignment-graph.js';
 
 export const questionScopeForSelection = (selected: string | null): string => selected && selected !== 'group:design:root' ? `selection:${selected}` : 'all';
 
-export function questionsForScope(questions: DesignQuestion[], scope: string, diagram: Diagram, graph: AlignmentPack['graph']): DesignQuestion[] {
+export function questionsForScope(questions: MapQuestion[], scope: string, diagram: Diagram, graph: AlignmentPack['graph']): MapQuestion[] {
   if (scope === 'all') return questions;
   return questions.filter(question => scope.startsWith('selection:')
     ? questionLocation(question, diagram, graph) === scope.slice(10)
@@ -11,7 +11,7 @@ export function questionsForScope(questions: DesignQuestion[], scope: string, di
 }
 
 // Project hidden targets onto their visible container or merged relationship.
-export function questionLocation(question: DesignQuestion, diagram: Diagram, graph: AlignmentPack['graph']): string {
+export function questionLocation(question: MapQuestion, diagram: Diagram, graph: AlignmentPack['graph']): string {
   if (question.target.type === 'node') return diagram.nodeToVisible[question.target.id] ?? `item:${question.target.id}`;
   const visible = diagram.edges.find(edge => edge.childEdgeIds.includes(question.target.id));
   if (visible) return `edge:${visible.childEdgeIds[0]}`;

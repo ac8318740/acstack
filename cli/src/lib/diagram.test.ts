@@ -493,8 +493,9 @@ describe('shape', () => {
     ['research', (line: string) => line.includes('([')],
     [
       'work',
-      (line: string) => line.includes('[') && !line.includes('[[') && !line.includes('(['),
+      (line: string) => line.includes('[') && !line.includes('[[') && !line.includes('([') && !line.includes('[/'),
     ],
+    ['element', (line: string) => line.includes('[/') && line.includes('/]')],
   ] as const)('draws %s with its own shape', (kind, matches) => {
     const nodes = makeMap(kind, [
       { title: 'Only node', kind, label: 'Only node', mode: 'afk' },

@@ -80,7 +80,7 @@ it('filters questions by scope without discarding drafts or expansion, and scope
   const container = create('div');
   const root = createRoot(container as unknown as HTMLElement);
   const original = pack.designDocument;
-  pack.designDocument = { id: 'scope', name: 'Design', summary: 'Design summary', questions: ['first', 'second'].map(id => ({ id, target: { type: 'node', id }, question: `Question ${id}`, proposal: 'Proposed behavior', recommendation: 'Recommended behavior' })) };
+  pack.designDocument = { id: 'scope', name: 'Design', summary: 'Design summary', questions: ['first', 'second'].map(id => ({ id, target: { type: 'node', id }, question: `Question ${id}` })) };
   let props: ComponentProps<typeof Drawer> = {
     open: true, setOpen: vi.fn(), view: 'questions', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), questionScope: 'selection:item:first', setQuestionScope: vi.fn(),
     selected: 'item:first', diagram: { nodes: [], edges: [], nodeToVisible: { first: 'item:first', second: 'item:second' } }, focusKey: 0,
@@ -120,7 +120,7 @@ it.each([false, true])('scrolls, focuses, and briefly emphasizes each navigation
   vi.stubGlobal('window', { document, HTMLIFrameElement: class {} });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const original = pack.designDocument;
-  pack.designDocument = { id: 'test', name: 'Test', summary: 'Test', questions: ['first', 'second'].map(id => ({ id, question: id, target: { type: 'node', id: 'app' }, proposal: 'Proposal', recommendation: 'Recommendation' })) };
+  pack.designDocument = { id: 'test', name: 'Test', summary: 'Test', questions: ['first', 'second'].map(id => ({ id, question: id, target: { type: 'node', id: 'app' } })) };
   const container = create('div'), root = createRoot(container as unknown as HTMLElement);
   const onDraft = vi.fn();
   Object.assign(window, { matchMedia: vi.fn(() => ({ matches: reduced })) });
@@ -316,7 +316,7 @@ it('keeps question drafts through tab and drawer unmounts, saves exact-input ans
       if (typeof options.body !== 'string') throw new Error('Answer must send JSON');
       answer = (JSON.parse(options.body) as { answer: string }).answer;
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, commentsDigest: answer ? 'after' : 'before', answers: answer ? [{ questionId: 'retry', answer }] : [], approval: { valid: false } }) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, mapInputsDigest: answer ? 'map-2' : 'map-1', openQuestions: answer ? [] : ['retry'], approval: { valid: false } }) });
   });
   vi.stubGlobal('fetch', fetch);
   const container = create('div');
@@ -334,7 +334,7 @@ it('keeps question drafts through tab and drawer unmounts, saves exact-input ans
   const field = () => all(container).find(node => node.tagName === 'TEXTAREA')!;
   const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === label)!;
   const type = (text: string) => act(() => handlers(field()).onChange!({ target: { value: text } }));
-  pack.designDocument = { id: 'document', name: 'Design', summary: 'Design summary', questions: [{ id: 'retry', target: { type: 'node', id: 'first' }, question: 'Retry after a conflict?', proposal: 'Show a new preview.', recommendation: 'Yes, to avoid overwriting edits.' }] };
+  pack.designDocument = { id: 'document', name: 'Design', summary: 'Design summary', questions: [{ id: 'retry', target: { type: 'node', id: 'first' }, question: 'Retry after a conflict?' }] };
   try {
     await render();
     expect(field()).toBeUndefined();
@@ -349,16 +349,9 @@ it('keeps question drafts through tab and drawer unmounts, saves exact-input ans
     await render({ open: true });
     act(() => handlers(button('Expand all')).onClick!());
     expect(field().value).toBe('Keep my pending answer.');
-    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
-    const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
-    const body = posts[0][1].body;
-    if (typeof body !== 'string') throw new Error('Answer must send JSON');
-    expect(JSON.parse(body)).toEqual({ questionId: 'retry', answer: 'Keep my pending answer.', expected });
-    expect(field().value).toBe('Keep my pending answer.');
-    expect(button('Update answer').attributes).toHaveProperty('disabled');
     conflict = true;
     type('Never discard this conflicting draft.');
-    await act(() => Promise.resolve(handlers(button('Update answer')).onClick!()));
+    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
     expect(all(container).some(node => node.attributes.role === 'alert')).toBe(true);
     expect(field().value).toBe('Never discard this conflicting draft.');
     expect(button('View target details').attributes['aria-haspopup']).toBe('dialog');
@@ -374,6 +367,15 @@ it('keeps question drafts through tab and drawer unmounts, saves exact-input ans
     act(() => { handlers(button('Close')).onClick!(); handlers(dialog).onClose!(); });
     expect(all(container).some(node => node.attributes.class?.includes('target-details-modal'))).toBe(false);
     expect(field().value).toBe('Never discard this conflicting draft.');
+    conflict = false;
+    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
+    const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
+    const body = posts.at(-1)![1].body;
+    if (typeof body !== 'string') throw new Error('Answer must send JSON');
+    expect(JSON.parse(body)).toEqual({ questionId: 'retry', answer: 'Never discard this conflicting draft.', expected });
+    // An answer resolves the node, so the question closes rather than offering an update.
+    expect(field()).toBeUndefined();
+    expect(button('Save answer')).toBeUndefined();
     expect(button('Collapse all')).toBeDefined();
   } finally { act(() => root.unmount()); delete pack.designDocument; }
 });
@@ -434,7 +436,7 @@ it.each([false, true])('saves choice selections and Other through collapsed rows
       const body = JSON.parse(options.body) as DesignAnswer;
       saved = { questionId: body.questionId, answer: body.answer, choices: body.choices };
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, answers: saved ? [saved] : [], approval: { valid: false } }) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: saved ? [] : ['retry'], approval: { valid: false } }) });
   });
   vi.stubGlobal('fetch', fetch);
   const container = create('div');
@@ -450,7 +452,7 @@ it.each([false, true])('saves choice selections and Other through collapsed rows
   const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === label)!;
   const inputs = () => all(container).filter(node => node.tagName === 'INPUT');
   const select = (index: number) => act(() => handlers(inputs()[index]).onChange!({ target: { value: '', checked: true } }));
-  pack.designDocument = { id: 'document', name: 'Design', summary: 'Design summary', questions: [{ id: 'retry', target: { type: 'node', id: 'first' }, question: 'How should retry work?', proposal: 'Require a fresh preview.', recommendation: 'Preserve drafts.', choices: ['Yes', 'No'], multiple }] };
+  pack.designDocument = { id: 'document', name: 'Design', summary: 'Design summary', questions: [{ id: 'retry', target: { type: 'node', id: 'first' }, question: 'How should retry work?', choices: ['Yes', 'No'], multiple }] };
   try {
     await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(CountsProbe), createElement(Drawer, props)) }))));
     expect(countsSeen.length).toBeGreaterThan(1);
@@ -460,23 +462,21 @@ it.each([false, true])('saves choice selections and Other through collapsed rows
     expect(inputs().map(input => handlers(input).type)).toEqual(Array<string>(3).fill(multiple ? 'checkbox' : 'radio'));
     expect(button('Save answer').attributes).toHaveProperty('disabled');
     select(0);
-    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
-    expect(saved).toEqual({ questionId: 'retry', answer: '', choices: ['Yes'] });
-    expect(countsSeen.at(-1)?.size).toBe(0);
     select(1);
     expect(handlers(inputs()[0]).checked).toBe(multiple);
     select(2);
-    expect(button('Update answer').attributes).toHaveProperty('disabled');
     act(() => handlers(all(container).find(node => node.tagName === 'TEXTAREA')!).onChange!({ target: { value: 'Keep the draft and ask again.' } }));
     act(() => handlers(button('Collapse all')).onClick!());
     expect(inputs()).toHaveLength(0);
     act(() => handlers(button('Expand all')).onClick!());
     expect(all(container).find(node => node.tagName === 'TEXTAREA')?.value).toBe('Keep the draft and ask again.');
-    await act(() => Promise.resolve(handlers(button('Update answer')).onClick!()));
+    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
     expect(saved).toEqual({ questionId: 'retry', answer: 'Keep the draft and ask again.', choices: multiple ? ['Yes', 'No'] : [] });
+    expect(countsSeen.at(-1)?.size).toBe(0);
+    expect(inputs()).toHaveLength(0);
     const firstPost = fetch.mock.calls.find(([, options]) => options.method === 'POST')?.[1].body;
     if (typeof firstPost !== 'string') throw new Error('Missing answer request');
-    expect(JSON.parse(firstPost)).toEqual({ questionId: 'retry', answer: '', choices: ['Yes'], expected });
+    expect(JSON.parse(firstPost)).toEqual({ questionId: 'retry', answer: 'Keep the draft and ask again.', choices: multiple ? ['Yes', 'No'] : [], expected });
   } finally { act(() => root.unmount()); delete pack.designDocument; }
 });
 
@@ -529,4 +529,38 @@ it('shares one confirmation and approval result between header and document cont
   } finally {
     act(() => root.unmount());
   }
+});
+
+it('locks a loose element from its drawer against the exact tuple shown', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
+  let locked: string[] = [];
+  const fetch = vi.fn((_url: string, options: RequestInit) => {
+    if (options.method === 'POST' && typeof options.body === 'string') locked = [(JSON.parse(options.body) as { lock: string }).lock];
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: [], locked, approval: { valid: false } }) });
+  });
+  vi.stubGlobal('fetch', fetch);
+  const nodes = pack.graph.nodes;
+  pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const props: ComponentProps<typeof Drawer> = { questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'details', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: 'item:app', diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
+  const pill = () => all(container).find(node => node.attributes['data-locked'] !== undefined)!;
+  const lock = () => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === 'Lock');
+  try {
+    await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement(Drawer, props) }))));
+    expect(handlers(pill()).children).toBe('Loose');
+    await act(() => Promise.resolve(handlers(lock()!).onClick!()));
+    const body = fetch.mock.calls.find(([, options]) => options.method === 'POST')?.[1].body;
+    if (typeof body !== 'string') throw new Error('Lock must send JSON');
+    expect(JSON.parse(body)).toEqual({ lock: 'app', expected });
+    expect(handlers(pill()).children).toBe('Locked');
+    expect(lock()).toBeUndefined();
+  } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
 });

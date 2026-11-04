@@ -6,7 +6,7 @@ import { liveComments, pack, token, useReviewAnnotations } from './pack.js';
 type Status = {
   sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string;
   approval: { valid: boolean; reason?: string };
-  answers?: DesignAnswer[];
+  openQuestions?: string[]; locked?: string[];
 };
 async function request(body?: unknown): Promise<Status> {
   const response = await fetch('/api/design-review', {
@@ -22,8 +22,9 @@ async function request(body?: unknown): Promise<Status> {
 type ApprovalControls = {
   approved: boolean; pending: boolean; disabled: boolean;
   reason: string; error?: string; open: () => void;
-  answers: NonNullable<Status['answers']>; canAnswer: boolean;
+  answered: string[]; locked?: string[]; canAnswer: boolean;
   saveAnswer: (answer: DesignAnswer) => Promise<void>;
+  lock: (id: string) => Promise<void>;
 };
 const ApprovalContext = createContext<ApprovalControls | null>(null);
 export function useDesignReview() { return useContext(ApprovalContext); }
@@ -66,27 +67,31 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
     } catch (error) { setError(error instanceof Error ? error.message : String(error)); }
     finally { setPending(false); }
   };
-  const saveAnswer = async (answer: DesignAnswer) => {
+  // Answers and locks both resolve a map node through the server, against the exact tuple shown.
+  const write = async (body: object) => {
     if (!status || pending || syncState?.status !== 'Saved') throw new Error('Wait until feedback is saved before answering.');
     const { sourceRevision, reviewRevision, commentsDigest, mapInputsDigest } = status;
     setPending(true);
     try {
       await flush?.();
-      setStatus(await request({ ...answer, expected: { sourceRevision, reviewRevision, commentsDigest, mapInputsDigest } }));
+      setStatus(await request({ ...body, expected: { sourceRevision, reviewRevision, commentsDigest, mapInputsDigest } }));
       setError(undefined);
     } catch (error) {
       try { setStatus(await request()); } catch { /* Keep the draft if refreshing also fails. */ }
       throw error;
     } finally { setPending(false); }
   };
+  const saveAnswer = (answer: DesignAnswer) => write(answer);
+  const lock = (id: string) => write({ lock: id });
+  const answered = status?.openQuestions ? (pack.designDocument?.questions ?? []).map(question => question.id).filter(id => !status.openQuestions?.includes(id)) : [];
   const approved = Boolean(!error && !pending && syncState?.status === 'Saved' && status?.approval.valid);
   const disabled = !status || pending || approved || syncState?.status !== 'Saved';
   const reason = approved ? 'This revision is approved' : error ?? status?.approval.reason ?? 'Checking revision...';
-  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answers: status?.answers ?? [], canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), saveAnswer, open: () => { if (!disabled) confirm.current?.showModal(); } } : null}>
+  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, locked: status?.locked, canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), saveAnswer, lock, open: () => { if (!disabled) confirm.current?.showModal(); } } : null}>
     {children}
     {enabled && <dialog ref={confirm} className="modal" aria-labelledby="design-approval-title" aria-describedby="design-approval-explanation" onCancel={event => { if (pending) event.preventDefault(); }}>
       <h2 id="design-approval-title">Approve this version?</h2>
-      <p id="design-approval-explanation">Approval covers the current design, saved comments, question answers, and map contributions. Later changes require approval again.</p>
+      <p id="design-approval-explanation">Approval covers the current design, saved comments, and the questions on the map, and locks every loose element. Later changes require approval again.</p>
       <p className="hint">Only posted comments are saved before approval; unposted drafts stay in this review.</p>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
@@ -111,4 +116,17 @@ export function DesignApproval({ compact = false }: { compact?: boolean }) {
     {button}
     <p className="hint">Only posted comments are saved before approval; unposted drafts stay in this review.</p>
   </section>;
+}
+
+// Only the reviewer locks an element; a locked element is a requirement.
+export function ElementLock({ id, locked }: { id: string; locked?: boolean }) {
+  const review = useContext(ApprovalContext);
+  const [error, setError] = useState<string>();
+  if (locked === undefined) return null;
+  const isLocked = review?.locked ? review.locked.includes(id) : locked;
+  return <div className="element-lock">
+    <span className="type-pill" data-locked={isLocked}>{isLocked ? 'Locked' : 'Loose'}</span>
+    {review && !isLocked && <button type="button" className="btn" disabled={!review.canAnswer} onClick={() => { setError(undefined); review.lock(id).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>Lock</button>}
+    {error && <p className="error" role="alert">{error}</p>}
+  </div>;
 }

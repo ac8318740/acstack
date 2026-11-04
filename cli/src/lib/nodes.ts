@@ -17,8 +17,8 @@ export const NODE_STATUSES = ['fog', 'open', 'claimed', 'resolved', 'out-of-scop
 export const NODE_MODES = ['hitl', 'afk'] as const;
 // kind is a closed set: a diagram renderer will switch on it to pick a shape,
 // so an unknown value would have no drawing and the legend could not enumerate
-// itself. See docs/adr/0012-node-kind-is-a-closed-set-of-five.md.
-export const NODE_KINDS = ['destination', 'notes', 'decision', 'research', 'work'] as const;
+// itself. See ADR 0012, amended by the design-element ADR that added `element`.
+export const NODE_KINDS = ['destination', 'notes', 'decision', 'research', 'work', 'element'] as const;
 
 export type NodeStatus = (typeof NODE_STATUSES)[number];
 export type NodeMode = (typeof NODE_MODES)[number];
@@ -43,7 +43,7 @@ export function oneOf(values: readonly string[]): string {
   return `one of: ${values.join(', ')}`;
 }
 
-// The sentence that names the five kinds. Both backends read it, so the
+// The sentence that names the kinds. Both backends read it, so the
 // wording and the separator before it cannot drift apart.
 export const ALLOWED_KINDS_SENTENCE = oneOf(NODE_KINDS);
 
@@ -400,7 +400,7 @@ function serializeNode(node: MapNode): string {
     '---',
     `status: ${node.status}`,
     `mode: ${node.mode}`,
-    // The five kinds are plain YAML identifiers and need no quoting. A label
+    // The kinds are plain YAML identifiers and need no quoting. A label
     // is free text, and JSON quoting keeps a colon or a quote inside one from
     // corrupting the YAML.
     `kind: ${node.kind}`,
@@ -619,6 +619,7 @@ export function deriveDepths(nodes: readonly GraphNode[]): Map<string, number> {
 // claimed both still block, since neither is settled.
 // The root is never on it. The root carries no status of its own – its state
 // is derived from its subtree – so nobody works it, whatever its file stores.
+// Nor is an element: a design element is locked by the user, never worked.
 export function frontier<T extends GraphNode>(nodes: T[]): T[] {
   const depths = deriveDepths(nodes);
   const byId = indexById(nodes);
@@ -630,7 +631,7 @@ export function frontier<T extends GraphNode>(nodes: T[]): T[] {
     return isSettled(blocker.status);
   };
   return nodes
-    .filter(n => Boolean(n.answers) && n.status === 'open' && n.blockedBy.every(blockerSettled))
+    .filter(n => Boolean(n.answers) && n.kind !== 'element' && n.status === 'open' && n.blockedBy.every(blockerSettled))
     .sort((a, b) => {
       const byDepth = (depths.get(a.id) ?? 0) - (depths.get(b.id) ?? 0);
       return byDepth !== 0 ? byDepth : compareIds(a.id, b.id);

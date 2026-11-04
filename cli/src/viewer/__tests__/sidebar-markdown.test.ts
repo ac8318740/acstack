@@ -34,7 +34,7 @@ it('merges overlapping ranges, leaves URLs and Mermaid source alone, and cannot 
 });
 
 it('links shared passages through one counted picker and reserves a table gutter', () => {
-  const questions = ['first', 'second'].map(id => ({ id, target: { type: 'node' as const, id: 'app' }, question: `${id} question`, proposal: 'Proposal', recommendation: 'Recommendation' }));
+  const questions = ['first', 'second'].map(id => ({ id, target: { type: 'node' as const, id: 'app' }, question: `${id} question` }));
   const source = 'Shared text.\n\n| Name |\n| --- |\n| Value |';
   const highlights = questions.flatMap(question => [
     { element: 'app', questionId: question.id, start: { line: 1, column: 1 }, end: { line: 1, column: 7 } },

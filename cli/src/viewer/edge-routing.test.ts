@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AlignmentPackSchema, type AlignmentGraph } from '../lib/alignment-packs.js';
-import { designDocToPack, loadDesignDoc } from '../lib/design-doc.js';
+import { designDocToPack } from '../lib/design-doc.js';
+import { exampleDesign } from '../example-design.js';
 import { buildDiagram, projectDiagram, type Box, type Diagram, type DiagramEdge, type Point } from './alignment-graph.js';
 
 type Segment = { start: Point; end: Point; index: number };
@@ -140,21 +141,21 @@ describe('compound edge routing clearance', () => {
   });
 
   it.each([false, true])('separates multiple authored boundary ingress paths with reversed declaration order=%s', async reversed => {
-    const graph = designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)).graph;
-    const readSource = graph.edges.find(edge => edge.id === 'read-source')!;
+    const graph = designDocToPack(exampleDesign()).graph;
+    const readSource = graph.edges.find(edge => edge.id === '007-009')!;
     [readSource.fromNodeId, readSource.toNodeId] = [readSource.toNodeId, readSource.fromNodeId];
     if (reversed) graph.edges.reverse();
     const expanded = graph.groups.map(group => group.id);
     const diagram = await buildDiagram(graph, expanded, measuredGeometry(graph, expanded, false));
-    const routes = diagram.edges.filter(route => route.childEdgeIds.some(id => ['author-design', 'read-source'].includes(id)));
-    expect(routes.flatMap(route => route.childEdgeIds).sort()).toEqual(['author-design', 'read-source']);
+    const routes = diagram.edges.filter(route => route.childEdgeIds.some(id => ['002-004', '007-009'].includes(id)));
+    expect(routes.flatMap(route => route.childEdgeIds).sort()).toEqual(['002-004', '007-009']);
     expectSafeRoutes(diagram, graph);
     expect(parallelConflicts(diagram.edges)).toEqual([]);
   });
 
   it('keeps both reversed authored relationships readable with fractional measured labels', async () => {
-    const graph = designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)).graph;
-    for (const edge of graph.edges.filter(edge => ['read-source', 'review-session'].includes(edge.id))) {
+    const graph = designDocToPack(exampleDesign()).graph;
+    for (const edge of graph.edges.filter(edge => ['007-009', '007-008'].includes(edge.id))) {
       [edge.fromNodeId, edge.toNodeId] = [edge.toNodeId, edge.fromNodeId];
     }
     const expanded = graph.groups.map(group => group.id);
@@ -179,12 +180,12 @@ describe('compound edge routing clearance', () => {
   });
 
   it.each([false, true])('separates the authored review-session and read-source paths with tall=%s', async tall => {
-    const graph = designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)).graph;
+    const graph = designDocToPack(exampleDesign()).graph;
     const expanded = graph.groups.map(group => group.id);
     const diagram = await buildDiagram(graph, expanded, measuredGeometry(graph, expanded, tall));
-    const routes = diagram.edges.filter(route => route.childEdgeIds.some(id => ['review-session', 'read-source'].includes(id)));
-    expect(routes.flatMap(route => route.childEdgeIds).sort()).toEqual(['read-source', 'review-session']);
-    expect(routes.find(route => route.childEdgeIds.includes('review-session'))?.bidirectional).toBe(true);
+    const routes = diagram.edges.filter(route => route.childEdgeIds.some(id => ['007-008', '007-009'].includes(id)));
+    expect(routes.flatMap(route => route.childEdgeIds).sort()).toEqual(['007-008', '007-009']);
+    expect(routes.find(route => route.childEdgeIds.includes('007-008'))?.bidirectional).toBe(true);
     expectSafeRoutes(diagram, graph);
     expect(parallelConflicts(routes)).toEqual([]);
   });

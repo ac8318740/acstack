@@ -304,6 +304,7 @@ blockquote { padding-left: 10px; border-left: 2px solid var(--frame-border); col
 .type-pill[data-kind='component'] { color: #174e85; background: #e5f0fc; }
 .type-pill[data-kind='store'] { color: #205c42; background: #e4f3e9; }
 .type-pill[data-kind='external-system'] { color: #7a4313; background: #fcf0dc; }
+.element-lock { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .box-sub { font-size: var(--size-sm); color: var(--muted); }
 .box-meta { margin-top: 2px; font-size: var(--size-xs); color: var(--muted); overflow-wrap: anywhere; }
 .box .badge { top: -9px; left: -9px; }

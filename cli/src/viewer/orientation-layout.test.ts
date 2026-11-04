@@ -1,20 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import type { AlignmentGraph, DiagramOrientation } from '../lib/alignment-packs.js';
-import { designDocToPack, loadDesignDoc } from '../lib/design-doc.js';
+import { designDocToPack } from '../lib/design-doc.js';
+import { EX, exampleDesign } from '../example-design.js';
 import { buildDiagram, projectDiagram, type Box, type Diagram, type MeasuredGeometry } from './alignment-graph.js';
 
 const orientations: DiagramOrientation[] = ['top-to-bottom', 'left-to-right'];
-const authored = () => designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)).graph;
+const authored = () => designDocToPack(exampleDesign()).graph;
 const heights: Record<string, number> = {
-  'group:design:container:acstack': 106, 'group:design:container:cli': 107,
-  'item:user': 94, 'item:design-source': 94, 'item:github': 94, 'item:skills': 94,
-  'item:host': 136, 'item:review-runtime': 136, 'item:viewer': 117,
+  [`group:design:container:${EX['acstack']}`]: 106, [`group:design:container:${EX['cli']}`]: 107,
+  [`item:${EX['user']}`]: 94, [`item:${EX['design-source']}`]: 94, [`item:${EX['github']}`]: 94, [`item:${EX['skills']}`]: 94,
+  [`item:${EX['host']}`]: 136, [`item:${EX['review-runtime']}`]: 136, [`item:${EX['viewer']}`]: 117,
 };
 function measured(graph: AlignmentGraph, expanded: string[]): MeasuredGeometry {
   const projection = projectDiagram(graph, expanded);
   return {
     nodes: Object.fromEntries(projection.nodes.map(node => [node.id, { width: 300, height: node.kind === 'folded-group' ? 140 : heights[node.id] ?? 140 }])),
-    labels: Object.fromEntries(projection.edges.map(edge => [edge.id, { width: 196, height: edge.childEdgeIds.some(id => ['publish-companion', 'review-session'].includes(id)) ? 44 : 28 }])),
+    labels: Object.fromEntries(projection.edges.map(edge => [edge.id, { width: 196, height: edge.childEdgeIds.some(id => ['002-010', '007-008'].includes(id)) ? 44 : 28 }])),
   };
 }
 const overlap = (a: number, b: number, c: number, d: number) => Math.min(Math.max(a, b), Math.max(c, d)) - Math.max(Math.min(a, b), Math.min(c, d));
@@ -88,12 +89,12 @@ describe('axis-aware design placement', () => {
 
   it.each([false, true])('aligns normal public setup and skills with CLI expanded=%s', async cliExpanded => {
     const graph = authored();
-    const expanded = graph.groups.filter(g => cliExpanded || g.ownerNodeId !== 'cli').map(g => g.id);
+    const expanded = graph.groups.filter(g => cliExpanded || g.ownerNodeId !== EX.cli).map(g => g.id);
     const sizes = measured(graph, expanded);
     const diagram = await buildDiagram(graph, expanded, sizes);
-    const x = diagram.nodes.find(n => n.refId === 'host')!.x;
-    expect(diagram.nodes.find(n => n.refId === 'skills')!.x).toBeCloseTo(x, 5);
-    if (cliExpanded) expect(diagram.nodes.find(n => n.refId === 'review-runtime')!.x).toBeCloseTo(x, 5);
+    const x = diagram.nodes.find(n => n.refId === EX.host)!.x;
+    expect(diagram.nodes.find(n => n.refId === EX.skills)!.x).toBeCloseTo(x, 5);
+    if (cliExpanded) expect(diagram.nodes.find(n => n.refId === EX['review-runtime'])!.x).toBeCloseTo(x, 5);
     expectSafe(diagram, sizes, 'top-to-bottom');
   });
 
@@ -101,7 +102,7 @@ describe('axis-aware design placement', () => {
     const graph = authored();
     graph.edges.reverse();
     let previous: Diagram | undefined;
-    for (const expanded of [graph.groups.map(g => g.id), ['design:root', 'design:container:acstack'], graph.groups.map(g => g.id)]) {
+    for (const expanded of [graph.groups.map(g => g.id), ['design:root', `design:container:${EX.acstack}`], graph.groups.map(g => g.id)]) {
       const sizes = measured(graph, expanded);
       if (tall) {
         for (const size of Object.values(sizes.nodes)) size.height += 60;
