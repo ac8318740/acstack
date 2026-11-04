@@ -78,6 +78,18 @@ function project(name, yaml) {
   const first = decide({ ...read(big), ledger });
   check('decide: first whole read of a large file blocks', first.block === true);
   check('decide: the message names the size and the retry', /32 KB/.test(first.message) && /repeat this exact read/.test(first.message));
+  check('decide: token estimate is labelled rough', /rough text estimate/.test(first.message));
+  for (const ext of ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'PNG']) {
+    const image = path.join(cwd, `image.${ext}`);
+    fs.writeFileSync(image, Buffer.alloc(DEFAULT_MIN_BYTES));
+    for (const tool of ['Read', 'read']) {
+      const imageLedger = new Set();
+      const result = decide({ toolName: tool, toolInput: tool === 'Read' ? { file_path: image } : { path: image }, cwd, main: true, ledger: imageLedger });
+      check(`decide: ${tool} of .${ext} passes without consuming a retry`, result.block === false && imageLedger.size === 0);
+    }
+    check(`decide: shell cat of .${ext} remains guarded`,
+      decide({ toolName: 'Bash', toolInput: { command: `cat image.${ext}` }, cwd, main: true, ledger: new Set() }).block === true);
+  }
   check('decide: an identical repeat passes', decide({ ...read(big), ledger }).block === false);
   check('decide: a Bash cat of the same file also passes after the block',
     decide({ toolName: 'Bash', toolInput: { command: 'cat big.txt' }, cwd, main: true, ledger }).block === false);

@@ -10,7 +10,7 @@ set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 HARNESS="${SCRIPT_DIR}/read-guard-harness.mjs"
-CHECKS=70
+CHECKS=92
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
