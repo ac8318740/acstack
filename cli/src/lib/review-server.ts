@@ -43,6 +43,8 @@ export function createReviewServer(options: {
   post: (body: unknown) => unknown;
   recorded?: () => void;
   designReview?: { get: () => unknown; post: (body: unknown) => unknown };
+  // Example content for the page's modal, read-only and behind the token like every API.
+  examples?: (query: URLSearchParams) => Promise<unknown>;
 }): Server {
   const token = randomBytes(16).toString('hex');
   const metadata = `<meta name="${REVIEW_TOKEN_META}" content="${token}">${options.mode ? `<meta name="${REVIEW_MODE_META}" content="comments">` : ''}`;
@@ -69,6 +71,13 @@ export function createReviewServer(options: {
     if (req.method === 'GET' && req.url === '/api/events' && options.events) {
       if (req.headers[REVIEW_TOKEN_HEADER] !== token) return reply(403, { error: 'This page is from an older review. Reload it.' });
       options.events.attach(res);
+      return;
+    }
+    if (options.examples && req.method === 'GET' && req.url?.startsWith('/api/examples?')) {
+      if (req.headers[REVIEW_TOKEN_HEADER] !== token) return reply(403, { error: 'This page is from an older review. Reload it.' });
+      void options.examples(new URL(req.url, 'http://localhost').searchParams).then(body => reply(200, body)).catch((error: unknown) => {
+        reply(error instanceof ReviewHttpError ? error.status : 500, { error: error instanceof Error ? error.message : String(error) });
+      });
       return;
     }
     const endpoint = req.url === '/api/design-review' ? options.designReview : req.url === options.path ? options : undefined;

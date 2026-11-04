@@ -11,8 +11,7 @@ import { questionScopeForSelection, questionsForScope } from './question-targets
 import { ElementMetadata } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
-import { ExamplesTab, useExampleCaptures, type ExampleLink } from './examples-modal.js';
-import { examplesFor } from './examples.js';
+import { ExamplesTab, examplesFor, useExampleCaptures, type ExampleLink } from './examples-modal.js';
 
 const labelOf = (id: string) => pack.graph.nodes.find(item => item.id === id)?.label ?? id;
 

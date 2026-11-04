@@ -5,10 +5,21 @@ import { designDocToPack, designFromNodes, digest, type DesignDoc } from './desi
 import { designMapInputs, readMapNodes, resolveMapNode, type ApprovalBlocker } from './design-map.js';
 import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, LockCaptureSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type DesignAnswer, type StoredDesignReview } from './design-review.js';
 import { ReviewHttpError } from './review-server.js';
+import { checkElementExamples, unchosenMocks, variantCapture } from './design-examples.js';
+import { checkoutRoot } from './project.js';
 
-export function loadMapDesign(root: string, map: string) {
+// OpenDesigner keeps its designs in the checkout, beside the code they mock.
+export function loadMapDesign(root: string, map: string, checkout = checkoutRoot() ?? process.cwd()) {
   const nodes = readMapNodes(root, map);
-  return { nodes, ...designFromNodes(map, nodes) };
+  const { doc, warnings } = designFromNodes(map, nodes);
+  const examples = checkElementExamples(root, map, doc.items, checkout);
+  for (const item of doc.items) {
+    item.exampleSummaries = examples.summaries.get(item.id);
+    // Binding examples are part of what a lock approves, so editing one unapproves the element.
+    const bound = examples.bindings.get(item.id);
+    if (bound) item.configDigest = digest([item.configDigest, bound]);
+  }
+  return { nodes, doc, warnings: [...warnings, ...examples.warnings] };
 }
 export const reviewHistories = (root: string, id: string): Map<string, StoredDesignReview> =>
   existsSync(join(root, 'design-reviews', id)) ? readDesignReviewHistories(root, id) : new Map<string, StoredDesignReview>();
@@ -33,14 +44,14 @@ function answerMarkdown(answer: DesignAnswer): string {
 }
 
 // `carried` names reviews a live session opened before the design changed; their comments stay obligations, not lost.
-export function openDesignLifecycle(root: string, map: string, reviewFile?: string, carried: string[] = []) {
+export function openDesignLifecycle(root: string, map: string, reviewFile?: string, carried: string[] = [], checkout = checkoutRoot() ?? process.cwd()) {
   root = resolve(root);
-  const opened = loadMapDesign(root, map);
+  const opened = loadMapDesign(root, map, checkout);
   const rendered = opened.doc;
   changedElements(rendered, reviewHistories(root, rendered.id).values());
   const review = openDesignReview(root, designDocToPack(rendered));
   const evaluate = (saved: StoredDesignReview) => {
-    const { nodes, doc, warnings } = loadMapDesign(root, map);
+    const { nodes, doc, warnings } = loadMapDesign(root, map, checkout);
     const staleRendered = doc.sourceRevision !== rendered.sourceRevision;
     const feedbackPath = reviewFile ? resolve(reviewFile) : review.reviewPath;
     const latestReceipts = new Map(saved.lifecycle?.reconciliations.map(receipt => [resolve(root, receipt.reviewPath), receipt]));
@@ -75,8 +86,9 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       && (!scope.fresh || scope.receipt?.decisions.some(decision => decision.outcome === 'needs-human')));
     let reason: string | undefined;
     if (staleRendered) reason = 'The design changed on the map. Reopen this revision before reviewing.';
-    else if (inputs.blockers.length) reason = 'Open questions target this design';
+    else if (inputs.blockers.some(blocker => blocker.kind === 'question')) reason = 'Open questions target this design';
     else if (changed.length) reason = 'Changed elements need re-approval';
+    else if (inputs.blockers.length) reason = 'Choose a variant for each mock with several, by locking its element';
     else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback needs explicit reconciliation';
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
     return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers, openQuestions: inputs.openQuestions, locked: inputs.locked, warnings,
@@ -97,6 +109,13 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
   };
   // Retry-safe: an approval that failed midway left some nodes resolved, so a re-run records those without resolving them again.
   const lock = (saved: StoredDesignReview, items: DesignDoc['items'], captures: Record<string, z.infer<typeof LockCaptureSchema>> = {}) => {
+    // Locking chooses a variant, so check every element before the tracker resolves any of them.
+    for (const item of items) {
+      // A locked element only gains a record here; it chose its variant when it locked.
+      if (item.locked) continue;
+      const unchosen = unchosenMocks(item, captures[item.id]);
+      if (unchosen.length) throw new ReviewHttpError(409, `Element ${item.id} needs a chosen variant for ${unchosen.map(mock => `${mock.path} (${mock.variants!.join(', ')})`).join('; ')}`);
+    }
     saved.lifecycle ??= { reconciliations: [], approvals: [], locks: {} };
     for (const item of items) {
       if (!item.resolved) resolveMapNode(root, map, item.id);
@@ -127,11 +146,13 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       return publicStatus(evaluate(saved));
     }),
     // Only on the user's explicit instruction: the agent's path to lock or re-approve one element.
-    approveElement: (id: string) => review.transact(saved => {
+    // `variants` maps each multi-variant mock's path to the variant the user named; its tweaks take their defaults.
+    approveElement: (id: string, variants: Record<string, string> = {}) => review.transact(saved => {
       const item = evaluate(saved).doc.items.find(item => item.id === id);
       if (!item) throw new Error(`Unknown design element: ${id}`);
       if (item.locked && hasRecord(saved, item)) throw new Error(`Element ${id} is already approved`);
-      lock(saved, [item]);
+      const capture = variantCapture(item, variants, checkout);
+      lock(saved, [item], capture ? { [item.id]: capture } : {});
       return publicStatus(evaluate(saved));
     }),
     reconcile: (body: unknown) => review.transact(saved => {

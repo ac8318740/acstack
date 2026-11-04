@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
-import { exampleDocument, FRAME_CSP, fixtureTable, parseCsv } from '../examples.js';
+import { cacheExample, cachedExample, exampleDocument, FRAME_CSP, fixtureTable, isCurrent, withVariant } from '../examples.js';
+import { parseCsv } from '../../lib/csv.js';
 import { ReviewAnnotationSchema } from '../../lib/alignment-packs.js';
 
 const global = globalThis as { OD_BRIDGE_JS?: string };
@@ -59,4 +60,19 @@ it('stores a multi-element example anchor with variant and tweak values in the r
   expect(ReviewAnnotationSchema.parse(annotation).example).toEqual(example);
   expect(() => ReviewAnnotationSchema.parse({ ...annotation, example: { ...example, html: '<p>' } })).toThrow();
   expect(() => ReviewAnnotationSchema.parse({ ...annotation, example: { ...example, selections: Array(21).fill(example.selections[1]) } })).toThrow();
+});
+
+it('switches a single-file build to one variant through its od-variant meta', () => {
+  const build = '<meta name="od-variant" content="a"><script type="application/json" id="od-page">{}</script>';
+  expect(withVariant(build, 'b')).toBe('<meta name="od-variant" content="b"><script type="application/json" id="od-page">{}</script>');
+  expect(withVariant(build, '$&"<x')).toContain('content="$&#38;&#34;&#60;x"');
+});
+
+it('keeps showing cached content while a newer source revision refetches', () => {
+  const example = { kind: 'html' as const, path: 'a.html', title: 'A', html: '<p>Old</p>' };
+  cacheExample('n', example, '1'.repeat(64));
+  expect(isCurrent('n', { path: 'a.html', revision: '1'.repeat(64) })).toBe(true);
+  expect(isCurrent('n', { path: 'a.html', revision: '2'.repeat(64) })).toBe(false);
+  expect(isCurrent('n', { path: 'b.html' })).toBe(false);
+  expect(cachedExample('n', 'a.html')).toBe(example);
 });

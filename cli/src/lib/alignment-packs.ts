@@ -1,5 +1,14 @@
 import { z } from 'zod';
 
+// What the page lists; the content loads from the review server when the modal opens.
+export const ExampleSummarySchema = z.object({
+  kind: z.enum(['html', 'od-build', 'markdown', 'fixture']), path: z.string().min(1), title: z.string().min(1),
+  illustrative: z.boolean().optional(), variants: z.array(z.string().min(1)).optional(),
+  // A digest of the example's sources; the viewer refetches content when it changes.
+  revision: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict();
+export type ExampleSummary = z.infer<typeof ExampleSummarySchema>;
+
 const sourcePoint = z.object({ line: z.number().int().min(1).max(262145), column: z.number().int().min(1).max(262145) }).strict();
 export const DesignHighlightSchema = z.object({
   element: z.string().min(1).max(80), start: sourcePoint, end: sourcePoint,
@@ -47,6 +56,7 @@ const AlignmentNodeSchema = z
     channels: z.array(z.enum(['web', 'mobile', 'desktop', 'cli', 'agent', 'email', 'sms', 'voice'])).optional(),
     // A design element's map node is resolved: the user locked it, so it is a requirement.
     locked: z.boolean().optional(),
+    examples: z.array(ExampleSummarySchema).max(50).optional(),
     summary: z.string().min(1),
     // The full technical definition, as markdown; `summary` is the plain-language one.
     technicalSummary: z.string().min(1).optional(),

@@ -1,12 +1,14 @@
 import { Command, Option } from 'commander';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { designDocToPack, renderDesignDocMarkdown } from '../lib/design-doc.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { inProject } from '../lib/utils.js';
 import { changedElements, loadMapDesign, openDesignLifecycle, reviewHistories } from '../lib/design-lifecycle.js';
-import { createEventHub, createReviewServer, listenForReview, REVIEW_PORT } from '../lib/review-server.js';
-import { notifyDesign, watchDesign } from '../lib/design-watch.js';
+import { createEventHub, createReviewServer, listenForReview, REVIEW_PORT, ReviewHttpError } from '../lib/review-server.js';
+import { designWatchRoots, notifyDesign, watchDesign } from '../lib/design-watch.js';
+import { examplePath, loadExampleContent } from '../lib/design-examples.js';
+import { checkoutRoot } from '../lib/project.js';
 import { DiagramOrientationSchema, type DiagramOrientation } from '../lib/alignment-packs.js';
 import { ANNOTATIONS_PATH } from '../lib/alignment-review-protocol.js';
 
@@ -49,10 +51,23 @@ export function liveDesignDoc(root: string, map: string, orientation: DiagramOri
     if (body && typeof body === 'object' && 'questionId' in body) return lifecycle.answer(body);
     if (body && typeof body === 'object' && 'lock' in body) return lifecycle.lock(body);
     return lifecycle.approve(body);
-  } }, get: () => lifecycle.review.get(), post: body => lifecycle.review.post(body) });
+  } }, get: () => lifecycle.review.get(), post: body => lifecycle.review.post(body), examples: async query => {
+    // Content loads fresh on each request, so a rebuilt page's examples are current without a cache to drop.
+    const entry = lifecycle.doc.items.find(item => item.id === query.get('element'))?.examples.find(example => examplePath(example) === query.get('path'));
+    if (!entry) throw new ReviewHttpError(404, 'Unknown example');
+    return await loadExampleContent(root, map, query.get('element')!, entry, checkoutRoot() ?? process.cwd());
+  } });
   const unwatch = watchDesign(root, map, reload);
   return { server, events, reload, lifecycle: () => lifecycle, stop: () => { unwatch(); events.close(); server.close(); } };
 }
+// Editing a referenced OpenDesigner design reloads the page. Read once at start, so a newly referenced design needs a restart.
+designWatchRoots.push((root, map) => {
+  const checkout = checkoutRoot() ?? process.cwd();
+  try {
+    const designs = loadMapDesign(root, map, checkout).doc.items.flatMap(item => item.examples.flatMap(example => example.od ? [example.od.design] : []));
+    return [...new Set(designs)].map(design => join(checkout, '.open-designer', 'designs', design));
+  } catch { return []; }
+});
 const warn = (warnings: string[]) => { for (const warning of warnings) console.error(`warning: ${warning}`); };
 export function register(program: Command): void {
   const lifecycle = program.command('design-review').description('Inspect and reconcile exact design doc revisions');
@@ -62,8 +77,14 @@ export function register(program: Command): void {
     }));
   lifecycle.command('approve-element <map> <id>')
     .description("Lock or re-approve one element. Only on the user's explicit instruction")
-    .action(inProject((root, map: string, id: string) => {
-      console.log(JSON.stringify(openDesignLifecycle(root, map).approveElement(id)));
+    .option('--variant <path=id>', 'The variant the user chose for a mock with several; repeat per mock', (value: string, list: string[]) => [...list, value], [])
+    .action(inProject((root, map: string, id: string, options: { variant: string[] }) => {
+      const variants = Object.fromEntries(options.variant.map(value => {
+        const at = value.lastIndexOf('=');
+        if (at <= 0 || at === value.length - 1) throw new Error(`--variant takes <example path>=<variant id>, not ${value}`);
+        return [value.slice(0, at), value.slice(at + 1)];
+      }));
+      console.log(JSON.stringify(openDesignLifecycle(root, map).approveElement(id, variants)));
     }));
   lifecycle.command('refresh <map>')
     .description('Tell a running design-doc review to rebuild, after a write it cannot see, such as a gh edit')

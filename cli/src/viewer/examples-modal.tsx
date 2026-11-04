@@ -4,13 +4,41 @@ import { CommentForm } from './drawer.js';
 import { Dropdown } from './dropdown.js';
 import { ExampleFrame, type FrameControl } from './example-frame.js';
 import { useDesignReview } from './design-approval.js';
-import { exampleCapture, examplesFor, exampleView, fixtureTable, setExampleView, type ElementExample, type ExampleView } from './examples.js';
+import { cacheExample, cachedExample, exampleCapture, isCurrent, exampleView, fixtureTable, setExampleView, withVariant, type ElementExample, type ExampleView } from './examples.js';
+import type { ExampleSummary } from '../lib/alignment-packs.js';
+import { REVIEW_TOKEN_HEADER } from '../lib/alignment-review-protocol.js';
 import type { Selection } from './od-bridge/protocol.js';
 import { defaultFor, tweakPayload, type Tweak } from './od-bridge/tweaks.js';
-import { type Annotation, annotationId, pack } from './pack.js';
+import { type Annotation, annotationId, pack, token } from './pack.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
 
 const KIND_LABELS: Record<ElementExample['kind'], string> = { html: 'HTML mock', 'od-build': 'OpenDesigner build', markdown: 'Markdown', fixture: 'Fixture' };
+
+export const examplesFor = (nodeId: string): ExampleSummary[] => pack.graph.nodes.find(node => node.id === nodeId)?.examples ?? [];
+
+// Content loads on open, behind the review token, so large builds never sit in the page.
+async function fetchExample(nodeId: string, summary: ExampleSummary): Promise<ElementExample> {
+  if (!token) throw new Error('Examples open only in the live review that `acstack design-doc` serves.');
+  const response = await fetch(`/api/examples?element=${encodeURIComponent(nodeId)}&path=${encodeURIComponent(summary.path)}`, { headers: { [REVIEW_TOKEN_HEADER]: token } });
+  const body = await response.json() as { error?: string };
+  if (!response.ok) throw new Error(body.error ?? 'Cannot load this example');
+  const example = { ...body, path: summary.path, title: summary.title, ...(summary.illustrative && { illustrative: true }) } as ElementExample;
+  cacheExample(nodeId, example, summary.revision);
+  return example;
+}
+function useExample(nodeId: string, summary: ExampleSummary) {
+  const [state, setState] = useState<{ path: string; error?: string }>({ path: summary.path });
+  const [, loaded] = useState(0);
+  useEffect(() => {
+    // A changed source keeps showing the last content until the new one arrives, so the frame reloads in place.
+    if (isCurrent(nodeId, summary)) return;
+    let live = true;
+    setState({ path: summary.path });
+    fetchExample(nodeId, summary).then(() => { if (live) loaded(count => count + 1); }, (error: unknown) => { if (live) setState({ path: summary.path, error: error instanceof Error ? error.message : String(error) }); });
+    return () => { live = false; };
+  }, [nodeId, summary.path, summary.revision]);
+  return { example: cachedExample(nodeId, summary.path), error: state.path === summary.path ? state.error : undefined };
+}
 type Comments = { annotations: Annotation[]; setAnnotations: (annotations: Annotation[]) => void };
 
 const commentsOn = (annotations: Annotation[], nodeId: string, path: string) =>
@@ -26,7 +54,7 @@ export function useExampleCaptures() {
     if (!review) return;
     const captures = review.captures.current;
     const ids = pack.graph.nodes.map(node => node.id).filter(id => examplesFor(id).some(example => example.kind === 'od-build'));
-    for (const id of ids) captures.set(id, () => exampleCapture(id));
+    for (const id of ids) captures.set(id, () => exampleCapture(id, examplesFor(id).flatMap(summary => cachedExample(id, summary.path) ?? [])));
     return () => { for (const id of ids) captures.delete(id); };
   }, [review]);
 }
@@ -113,7 +141,7 @@ export function TweakControls({ tweaks, values, onChange }: { tweaks: Tweak[]; v
 
 export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotations, setAnnotations }: {
   nodeId: string;
-  examples: ElementExample[];
+  examples: ExampleSummary[];
   path: string;
   onPath: (path: string) => void;
   onClose: () => void;
@@ -121,16 +149,18 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
   const dialog = useRef<HTMLDialogElement>(null);
   const frame = useRef<FrameControl | null>(null);
   const titleId = useId();
-  const example = examples.find(item => item.path === path) ?? examples[0];
+  const summary = examples.find(item => item.path === path) ?? examples[0];
+  const { example: content, error } = useExample(nodeId, summary);
+  const example = content ?? summary;
   const [shown, setShown] = useState(() => ({ path: example.path, view: exampleView(nodeId, example.path) }));
   const view = shown.path === example.path ? shown.view : exampleView(nodeId, example.path);
   const updateView = (next: ExampleView) => { setExampleView(nodeId, example.path, next); setShown({ path: example.path, view: next }); };
   // Opening an example counts as having it on screen, which is what a lock captures.
   useEffect(() => { setExampleView(nodeId, example.path, exampleView(nodeId, example.path)); }, [example.path]);
-  const variant = example.kind === 'od-build' ? example.variants.find(item => item.id === view.variant) ?? example.variants[0] : undefined;
-  const html = example.kind === 'html' ? example.html : variant?.html;
-  const tweaks = example.kind === 'od-build' ? [...example.tweaks ?? [], ...variant?.tweaks ?? []] : [];
-  // shortcut: no token map, so `add` and `scale` slider tweaks emit nothing; pass the design system's tokens once node 011 carries them.
+  const variant = content?.kind === 'od-build' ? content.variants.find(item => item.id === view.variant) ?? content.variants[0] : undefined;
+  const html = content?.kind === 'html' ? content.html : content?.kind === 'od-build' && variant ? withVariant(content.html, variant.id) : undefined;
+  const tweaks = content?.kind === 'od-build' ? [...content.tweaks ?? [], ...variant?.tweaks ?? []] : [];
+  const tokens = content?.kind === 'od-build' && content.tokens ? new Map(Object.entries(content.tokens)) : null;
   const comments = commentsOn(annotations, nodeId, example.path);
   const [picker, setPicker] = useState(false);
   const [picked, setPicked] = useState<Selection[]>([]);
@@ -165,7 +195,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
         <div><h2 id={titleId}>{example.title}</h2><p className="hint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}: {example.path}</p></div>
         <div className="row">
           {examples.length > 1 && <Dropdown label="Example" value={example.path} currentLabel={example.title} options={examples.map(item => ({ value: item.path, label: item.title }))} onChange={onPath} />}
-          {example.kind === 'od-build' && example.variants.length > 1 && variant && <Dropdown label="Variant" value={variant.id} currentLabel={variant.label ?? variant.id} options={example.variants.map(item => ({ value: item.id, label: item.label ?? item.id }))} onChange={id => updateView({ ...view, variant: id })} />}
+          {content?.kind === 'od-build' && content.variants.length > 1 && variant && <Dropdown label="Variant" value={variant.id} currentLabel={variant.label ?? variant.id} options={content.variants.map(item => ({ value: item.id, label: item.label ?? item.id }))} onChange={id => updateView({ ...view, variant: id })} />}
           {html !== undefined && <button type="button" className="btn" aria-pressed={picker} onClick={() => setPicker(!picker)}><MousePointerClick size={16} aria-hidden="true" />{picker ? 'Picking elements' : 'Pick elements'}</button>}
           <button type="button" className="btn" aria-label="Close examples" autoFocus onClick={close}>Close</button>
         </div>
@@ -174,15 +204,16 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
         <div className="example-view">
           {html !== undefined ? (
             <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} path={example.path} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
-              picker={picker} marks={marks} tweaks={tweakPayload(tweaks, view.values)} control={frame} events={{
+              picker={picker} marks={marks} tweaks={tweakPayload(tweaks, view.values, tokens)} control={frame} events={{
                 onPicker: setPicker,
                 onSelection: setPicked,
                 onMarkClick: key => { const id = key.slice(0, key.lastIndexOf('#')); if (comments.some(comment => comment.id === id)) setFocused(id); },
                 onRevealed: (key, found) => setUnanchored(previous => found ? previous.filter(id => id !== key) : [...new Set([...previous, key])]),
                 onEscape: close,
               }} />
-          ) : example.kind === 'markdown' ? <div className="markdown"><SidebarMarkdown hideImages>{example.markdown}</SidebarMarkdown></div>
-            : example.kind === 'fixture' ? <FixtureView format={example.format} data={example.data} /> : null}
+          ) : content?.kind === 'markdown' ? <div className="markdown"><SidebarMarkdown hideImages>{content.markdown}</SidebarMarkdown></div>
+            : content?.kind === 'fixture' ? <FixtureView format={content.format} data={content.data} />
+              : error ? <div role="alert"><p>This example could not load.</p><pre>{error}</pre></div> : <p role="status">Loading example...</p>}
         </div>
         <aside className="example-comments" aria-label="Comments on this example">
           <TweakControls tweaks={tweaks} values={view.values} onChange={(id, value) => updateView({ ...view, values: { ...view.values, [id]: value } })} />

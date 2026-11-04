@@ -1,5 +1,5 @@
 // Vendored from OpenDesigner (github.com/ac8318740/open-designer) at commit
-// 13319188b6ce84554bf8efdae3949ffa7d8d2e9c, viewer/src/bridge/host.ts.
+// 7177a081cc091e5fd32e2ff9387eb529cebfd9d9, viewer/src/bridge/host.ts.
 // Do not edit except the import path and this lint waiver; re-vendor to update.
 /* eslint-disable @typescript-eslint/no-unnecessary-type-assertion */
 

@@ -3,11 +3,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { FrameStatus } from '../example-frame.js';
 import { describe as describeSelection, ExamplesModal, ExamplesTab, FixtureView, TweakControls } from '../examples-modal.js';
-import { exampleCapture, setExampleSource, setExampleView, type ElementExample } from '../examples.js';
-import type { Annotation } from '../pack.js';
+import { cacheExample, exampleCapture, setExampleView, type ElementExample } from '../examples.js';
+import { pack, type Annotation } from '../pack.js';
 
 vi.mock('../pack.js', () => ({
   annotationId: () => 'id',
+  token: 'secret',
   pack: { packVersion: 'v1', graph: { nodes: [], edges: [], groups: [] }, source: { references: [] } },
 }));
 
@@ -17,24 +18,28 @@ const examples: ElementExample[] = [
     kind: 'od-build', path: 'cart', title: 'Cart build',
     tweaks: [{ id: 'density', label: 'Density', type: 'select', options: ['cozy', 'compact'], discardReason: '' }],
     variants: [
-      { id: 'a', label: 'Grid', html: '<div data-od-component="Cart">Grid</div>', tweaks: [{ id: 'radius', label: 'Corner radius', type: 'slider', target: '--radius', min: 0, max: 24, unit: 'px', default: 8 }] },
-      { id: 'b', label: 'List', html: '<div>List</div>' },
+      { id: 'a', label: 'Grid', tweaks: [{ id: 'radius', label: 'Corner radius', type: 'slider', target: '--radius', min: 0, max: 24, unit: 'px', default: 8 }] },
+      { id: 'b', label: 'List' },
     ],
+    html: '<meta name="od-variant" content="a"><div data-od-component="Cart">Cart</div>',
   },
   { kind: 'markdown', path: 'flow.md', title: 'Checkout flow', markdown: '## Steps\n\n| Step | Who |\n|---|---|\n| Pay | Customer |\n\n```mermaid\nflowchart LR\n  A --> B\n```' },
   { kind: 'fixture', path: 'order.json', title: 'Order fixture', format: 'json', data: '[{"id":1,"note":"<img src=x onerror=alert(1)>"}]', illustrative: true },
 ];
 const comment: Annotation = { id: 'c1', packVersion: 'v1', target: { type: 'node', id: 'checkout' }, example: { path: 'checkout.html', selections: [{ selector: '#pay', rect: { x: 0, y: 0, width: 10, height: 10 }, component: { name: 'PayButton' }, text: '<b>Pay</b>' }, { selector: '#total', rect: { x: 0, y: 20, width: 10, height: 10 } }] }, comment: 'Make it bigger' };
 
-const modal = (path: string, annotations: Annotation[] = []) => renderToStaticMarkup(createElement(ExamplesModal, { nodeId: 'checkout', examples, path, onPath: vi.fn(), onClose: vi.fn(), annotations, setAnnotations: vi.fn() }));
+// The page lists summaries; the content arrives from the review server and is cached.
+const summaries = examples.map(({ kind, path, title, illustrative }) => ({ kind, path, title, ...(illustrative && { illustrative }) }));
+(pack.graph.nodes as unknown[]).push({ id: 'checkout', examples: summaries });
+for (const example of examples) cacheExample('checkout', example);
+
+const modal = (path: string, annotations: Annotation[] = []) => renderToStaticMarkup(createElement(ExamplesModal, { nodeId: 'checkout', examples: summaries, path, onPath: vi.fn(), onClose: vi.fn(), annotations, setAnnotations: vi.fn() }));
 
 it('lists an element\'s examples with their kind in the Examples tab', () => {
-  setExampleSource(id => id === 'checkout' ? examples : []);
   const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', annotations: [comment], setAnnotations: vi.fn() }));
   for (const text of ['Checkout mock', 'HTML mock, 1 comment', 'OpenDesigner build', 'Markdown', 'Fixture, illustrative']) expect(html).toContain(text);
   expect(html).toContain('aria-haspopup="dialog"');
   expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'other', annotations: [], setAnnotations: vi.fn() }))).toContain('This element has no examples.');
-  setExampleSource(() => []);
 });
 
 it('renders inline HTML in an opaque-origin frame with labelled controls', () => {
@@ -100,28 +105,31 @@ it('renders frame-supplied error text and selections as text only', () => {
 });
 
 it('opens straight to a linked example and variant', () => {
-  setExampleSource(id => id === 'checkout' ? examples : []);
   const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'checkout', path: 'cart', variant: 'b' }, annotations: [], setAnnotations: vi.fn() }));
   expect(html).toContain('<dialog');
   expect(html).toContain('title="Cart build, List"');
   // A link for another element or a missing example opens nothing.
   expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'other', path: 'cart' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
   expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'checkout', path: 'gone' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
-  setExampleSource(() => []);
 });
 
 it('captures the viewed variant, its tweak values, and all its states for a lock', () => {
-  setExampleSource(() => [{
-    kind: 'od-build', path: 'cart', title: 'Cart',
+  const loaded: ElementExample[] = [{
+    kind: 'od-build', path: 'cart', title: 'Cart', html: '',
     tweaks: [{ id: 'density', label: 'Density', type: 'select', options: ['cozy', 'compact'], discardReason: '' }],
     variants: [
-      { id: 'a', html: '' },
-      { id: 'b', html: '', tweaks: [{ id: 'phase', label: 'State', type: 'state', options: ['loading', { label: 'Empty', value: 'empty' }] }, { id: 'radius', label: 'Radius', type: 'slider', default: 8 }] },
+      { id: 'a' },
+      { id: 'b', tweaks: [{ id: 'phase', label: 'State', type: 'state', options: ['loading', { label: 'Empty', value: 'empty' }] }, { id: 'radius', label: 'Radius', type: 'slider', default: 8 }] },
     ],
-  }, { kind: 'html', path: 'x.html', title: 'X', html: '' }]);
-  expect(exampleCapture('lock-node')).toBeUndefined();
+  }, { kind: 'html', path: 'x.html', title: 'X', html: '' }];
+  expect(exampleCapture('lock-node', loaded)).toBeUndefined();
   setExampleView('lock-node', 'cart', { variant: 'b', values: { radius: '12' } });
   setExampleView('lock-node', 'x.html', { values: {} });
-  expect(exampleCapture('lock-node')).toEqual({ examples: { cart: { variant: 'b', tweaks: { density: 'cozy', radius: '12' }, states: { phase: ['loading', 'empty'] } } } });
-  setExampleSource(() => []);
+  expect(exampleCapture('lock-node', loaded)).toEqual({ examples: { cart: { variant: 'b', tweaks: { density: 'cozy', radius: '12' }, states: { phase: ['loading', 'empty'] } } } });
+});
+
+it('shows a loading state until the example content arrives', () => {
+  const html = renderToStaticMarkup(createElement(ExamplesModal, { nodeId: 'uncached', examples: [{ kind: 'html', path: 'a.html', title: 'A' }], path: 'a.html', onPath: vi.fn(), onClose: vi.fn(), annotations: [], setAnnotations: vi.fn() }));
+  expect(html).toContain('Loading example...');
+  expect(html).not.toContain('<iframe');
 });

@@ -18,5 +18,16 @@ kind: component
 parent: '006'
 channels:
 - web
+examples:
+- title: Examples modal
+  html: examples-modal.html
+  illustrative: true
+- title: Reviewing an example
+  markdown: review-flow.md
+- title: How a comment anchors
+  mermaid: comment-anchor.mmd
+- title: Saved comments
+  fixture: comments.json
+  schema: comments.schema.json
 ```
 </details>
