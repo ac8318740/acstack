@@ -178,3 +178,19 @@ describe('describing a design change for carried comments', () => {
     expect(describeChange(before, build(fixture().map(n => n.id === '002' ? { ...n, status: 'resolved' as const } : n)).doc)).toBe('before the design overview changed');
   });
 });
+
+describe('describing what changed since approval', () => {
+  it('names text, connection, and example changes in the reviewer words', async () => {
+    const { elementChanges } = await import('./design-lifecycle.js');
+    const before = { name: 'App', summary: 'Runs commands', kind: 'component', channels: ['cli'], connections: [{ to: '003', direction: 'one-way', label: 'Reads' }], examples: { 'orders.json': 'a'.repeat(64) } };
+    const after = { ...before, summary: 'Runs every command', channels: ['cli', 'web'], connections: [{ to: '003', direction: 'bidirectional', label: 'Reads' }, { to: '004', direction: 'one-way', label: 'Writes' }], examples: { 'orders.json': 'b'.repeat(64) } };
+    expect(elementChanges(before, after)).toEqual([
+      { label: 'Summary changed', before: 'Runs commands', after: 'Runs every command' },
+      { label: 'Interfaces changed', before: 'cli', after: 'cli, web' },
+      { label: "Connection 'Reads' changed direction" },
+      { label: "Connection 'Writes' added" },
+      { label: 'Example orders.json changed' },
+    ]);
+    expect(elementChanges(before, before)).toEqual([]);
+  });
+});

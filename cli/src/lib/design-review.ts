@@ -14,6 +14,12 @@ export type DesignReviewSnapshot = z.infer<typeof DesignReviewSnapshotSchema>;
 
 // What the page showed when an element locked, such as a mock's chosen variant and tweaks. The page owns its shape.
 export const LockCaptureSchema = z.record(z.unknown());
+export const ApprovedElementSchema = z.object({
+  name: z.string(), summary: z.string(), detail: z.string().optional(), kind: z.string(), parent: z.string().optional(), channels: z.array(z.string()),
+  connections: z.array(z.object({ to: z.string(), direction: z.string(), label: z.string() }).strict()),
+  examples: z.record(z.string()),
+}).strict();
+export type ApprovedElement = z.infer<typeof ApprovedElementSchema>;
 const RevisionTupleSchema = z.object({
   sourceRevision: z.string().regex(/^[a-f0-9]{64}$/), reviewRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
   commentsDigest: z.string().regex(/^[a-f0-9]{64}$/), mapInputsDigest: z.string().regex(/^[a-f0-9]{64}$/),
@@ -28,7 +34,8 @@ const EvidenceSchema = z.object({
   reconciliations: z.array(ReconciliationSchema.extend({ reviewPath: z.string(), feedbackPackVersion: z.string(), scopeCommentsDigest: z.string().regex(/^[a-f0-9]{64}$/), recordedAt: z.string() }).strict()).default([]),
   approvals: z.array(RevisionTupleSchema.extend({ recordedAt: z.string() }).strict()).default([]),
   // Element id to the config digest the user locked, so a later config edit can be flagged, and what the page showed then.
-  locks: z.record(z.object({ config: z.string().regex(/^[a-f0-9]{64}$/), capture: LockCaptureSchema.optional() }).strict()).default({}),
+  // `approved` keeps the element as it was approved, so a later edit can say what changed.
+  locks: z.record(z.object({ config: z.string().regex(/^[a-f0-9]{64}$/), capture: LockCaptureSchema.optional(), approved: ApprovedElementSchema.optional(), approvedAt: z.string().optional() }).strict()).default({}),
 }).strict();
 export const DesignAnswerSchema = z.object({
   questionId: z.string().min(1).max(80), answer: z.string().trim().max(16000),

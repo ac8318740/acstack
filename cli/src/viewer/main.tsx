@@ -72,6 +72,9 @@ function App() {
   const requestedKey = `${[...expanded].sort().join('|')}:${zoom}`;
   const previousLayout = useRef<{ key: string; diagram: DiagramModel } | null>(null);
   const acceptedLayout = useRef<DiagramModel | undefined>(undefined);
+  const acceptedExpanded = useRef<string[] | undefined>(undefined);
+  // Shown when an expansion cannot be drawn; the view returns to the last one that could.
+  const [layoutNotice, setLayoutNotice] = useState<string | null>(null);
   const viewportAnchor = useRef<ViewportAnchor | null>(null);
   const changeExpanded = (ids: string[], anchorId?: string) => {
     generation.current += 1;
@@ -79,6 +82,7 @@ function App() {
     const node = diagram.nodes.find(node => node.id === anchorId);
     previousLayout.current = { key, diagram };
     viewportAnchor.current = node ? { key, before: diagram, node: { id: node.id, x: node.x, y: node.y } } : null;
+    setLayoutNotice(null);
     setExpanded(ids);
   };
   const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded, packRevision]);
@@ -155,6 +159,7 @@ function App() {
       if (measurementTree.current !== measurer) return;
       previousLayout.current = null;
       acceptedLayout.current = next;
+      acceptedExpanded.current = expanded;
       setDiagram(next);
       setLayoutKey(requestedKey);
       setLayoutZoom(zoom);
@@ -162,7 +167,15 @@ function App() {
       setLayoutError(null);
     }).catch((error: unknown) => {
       if (measurementTree.current !== measurer) return;
-      if (request === generation.current) setLayoutError(error instanceof Error ? error.message : String(error));
+      if (request !== generation.current) return;
+      const message = error instanceof Error ? error.message : String(error);
+      const last = acceptedExpanded.current;
+      // An expansion the layout cannot draw falls back to the last drawn view, so the canvas never breaks.
+      if (last && [...last].sort().join('|') !== [...expanded].sort().join('|')) {
+        previousLayout.current = null;
+        setLayoutNotice(message);
+        setExpanded(last);
+      } else setLayoutError(message);
     });
     return () => { generation.current += 1; };
   }, [expanded, measurement, requestedKey, zoom, commentCounts, questionCounts, packRevision]);
@@ -248,12 +261,9 @@ function App() {
           </span>
         )}
         <div className="row review-controls">
-          <span className="version" tabIndex={0} data-tooltip={`Pack version: ${pack.packVersion}. Comments apply to this version.`}>
-            {pack.packVersion.slice(-8)}
-          </span>
           {liveComments ? (
             <div className="actions">
-              <span className="hint" role="status">{syncState?.status ?? 'Saving'}</span>
+              <span className="hint" role="status" tabIndex={0} data-tooltip={`Comments apply to version ${pack.packVersion.slice(-8)} of this design.`}>{syncState?.status ?? 'Saving'}</span>
               {syncState?.status === 'Not synced' && <button type="button" className="btn" onClick={retry}>Retry</button>}
               <DesignApproval compact />
               {handoffPrompt && flush && <ReviewHandoff prompt={handoffPrompt} flush={flush} />}
@@ -283,7 +293,11 @@ function App() {
       </header>
       <main className="canvas">
         <MeasureDiagram ref={measurementTree} diagram={projection} zoom={zoom} commentCounts={commentCounts} onMeasured={onMeasured} />
-        {layoutError && <div className="layout-error" role="alert">{layoutError} The previous valid diagram remains visible.</div>}
+        {layoutError && <div className="layout-error" role="alert" data-tooltip={layoutError}>This version cannot be drawn without overlapping arrows, so the previous layout stays.</div>}
+        {layoutNotice && <div className="layout-notice" role="status" data-tooltip={layoutNotice}>
+          <span>Those groups cannot all be open at once without overlapping arrows, so the previous view stays. Open fewer groups together.</span>
+          <button type="button" className="btn" onClick={() => setLayoutNotice(null)}>Dismiss</button>
+        </div>}
         {liveError && <div className="layout-error" role="alert">The map has a problem, so this page stopped updating: {liveError}</div>}
         <ReactFlowProvider>
           <Diagram

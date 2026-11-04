@@ -2,8 +2,8 @@ import { existsSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { designDocToPack, designFromNodes, digest, type DesignDoc } from './design-doc.js';
-import { designMapInputs, readMapNodes, resolveMapNode, type ApprovalBlocker } from './design-map.js';
-import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, LockCaptureSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type DesignAnswer, type StoredDesignReview } from './design-review.js';
+import { designMapInputs, readMapNodes, resolveMapNode, type ApprovalBlocker, type ElementChange } from './design-map.js';
+import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, LockCaptureSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type ApprovedElement, type DesignAnswer, type StoredDesignReview } from './design-review.js';
 import { ReviewHttpError } from './review-server.js';
 import { checkElementExamples, unchosenMocks, variantCapture } from './design-examples.js';
 import { checkoutRoot } from './project.js';
@@ -32,10 +32,49 @@ export function changedElements(doc: DesignDoc, histories: Iterable<StoredDesign
   const records = [...histories].flatMap(snapshot => Object.entries(snapshot.lifecycle?.locks ?? {}));
   const changed: string[] = [];
   for (const item of doc.items) {
-    const approved = records.filter(([id]) => id === item.id).map(([, value]) => value.config);
-    if (item.resolved && approved.length && !approved.includes(item.configDigest)) { item.locked = false; changed.push(item.id); }
+    const mine = records.filter(([id]) => id === item.id).map(([, value]) => value);
+    if (!item.resolved || !mine.length || mine.some(record => record.config === item.configDigest)) continue;
+    item.locked = false;
+    changed.push(item.id);
+    // Compare with the latest approval that kept a copy of the element; older records only know a digest.
+    const latest = mine.filter(record => record.approved).sort((a, b) => (b.approvedAt ?? '').localeCompare(a.approvedAt ?? ''))[0]?.approved;
+    item.changes = latest ? elementChanges(latest, approvedElement(item)) : [];
+    if (!item.changes.length) item.changes = [{ label: 'Its configuration changed' }];
   }
   return changed;
+}
+type Item = DesignDoc['items'][number];
+/** The element as approval keeps it: what a reviewer reads, not the digest. */
+export function approvedElement(item: Item): ApprovedElement {
+  return {
+    name: item.name, summary: item.summary, ...(item.detailText && { detail: item.detailText }), kind: item.kind, ...(item.parent && { parent: item.parent }), channels: item.channels,
+    connections: item.relationships.map(edge => ({ to: edge.to, direction: edge.direction, label: edge.label })),
+    examples: Object.fromEntries((item.exampleSummaries ?? []).filter(example => !example.illustrative && example.revision).map(example => [example.path, example.revision!])),
+  };
+}
+/** What changed between an approved element and its current form, in the reviewer's words. */
+export function elementChanges(before: ApprovedElement, after: ApprovedElement): ElementChange[] {
+  const changes: ElementChange[] = [];
+  const text = (label: string, a?: string, b?: string) => { if (a !== b) changes.push({ label, ...(a && { before: a }), ...(b && { after: b }) }); };
+  text('Name changed', before.name, after.name);
+  text('Summary changed', before.summary, after.summary);
+  if (before.detail !== after.detail) changes.push({ label: 'Detail changed' });
+  text('Type changed', before.kind, after.kind);
+  if (before.parent !== after.parent) changes.push({ label: 'Containment changed' });
+  text('Interfaces changed', before.channels.join(', ') || 'none', after.channels.join(', ') || 'none');
+  const key = (edge: ApprovedElement['connections'][number]) => `${edge.to} ${edge.label}`;
+  for (const edge of after.connections) {
+    const old = before.connections.find(item => key(item) === key(edge));
+    if (!old) changes.push({ label: `Connection '${edge.label}' added` });
+    else if (old.direction !== edge.direction) changes.push({ label: `Connection '${edge.label}' changed direction` });
+  }
+  for (const edge of before.connections) if (!after.connections.some(item => key(item) === key(edge))) changes.push({ label: `Connection '${edge.label}' removed` });
+  for (const [path, revision] of Object.entries(after.examples)) {
+    if (!(path in before.examples)) changes.push({ label: `Example ${path} added` });
+    else if (before.examples[path] !== revision) changes.push({ label: `Example ${path} changed` });
+  }
+  for (const path of Object.keys(before.examples)) if (!(path in after.examples)) changes.push({ label: `Example ${path} removed` });
+  return changes;
 }
 const hasRecord = (saved: StoredDesignReview, item: DesignDoc['items'][number]) => saved.lifecycle?.locks[item.id]?.config === item.configDigest;
 function answerMarkdown(answer: DesignAnswer): string {
@@ -82,7 +121,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     const changed = changedElements(doc, histories.values());
     const inputs = designMapInputs(nodes, doc);
     const blockers = [...inputs.blockers, ...doc.items.filter(item => changed.includes(item.id))
-      .map((item): ApprovalBlocker => ({ kind: 'changed', targetId: item.id, label: item.name, nodeId: item.id }))];
+      .map((item): ApprovalBlocker => ({ kind: 'changed', targetId: item.id, label: item.name, nodeId: item.id, ...(item.changes && { changes: item.changes }) }))];
     const earlier = carriedReviews(saved).flatMap(entry => {
       const snapshot = histories.get(entry.path);
       return snapshot?.annotations.length ? [{ reviewPath: entry.path, packVersion: snapshot.packVersion, label: entry.label, annotations: snapshot.annotations }] : [];
@@ -145,7 +184,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     saved.lifecycle ??= { reconciliations: [], approvals: [], locks: {} };
     for (const item of items) {
       if (!item.resolved) resolveMapNode(root, map, item.id);
-      saved.lifecycle.locks[item.id] = { config: item.configDigest, ...(captures[item.id] && { capture: captures[item.id] }) };
+      saved.lifecycle.locks[item.id] = { config: item.configDigest, ...(captures[item.id] && { capture: captures[item.id] }), approved: approvedElement(item), approvedAt: new Date().toISOString() };
     }
   };
   return {

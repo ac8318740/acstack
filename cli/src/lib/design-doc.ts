@@ -44,6 +44,8 @@ type Element = {
   channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; source?: string; resolved: boolean; locked: boolean; configDigest: string;
   // `exampleSummaries` is filled once the files are checked, by loadMapDesign.
   examples: ExampleEntry[]; exampleSummaries?: ExampleSummary[];
+  // Set by changedElements when the element no longer matches its approval.
+  changes?: import('./design-map.js').ElementChange[];
 };
 type Concern = { id: string; name: string; elements: string[]; requirement: string; response: string };
 export type DesignDoc = {

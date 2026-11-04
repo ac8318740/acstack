@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type MutableRefObject, type ReactNode } from 'react';
 import type { DesignAnswer } from '../lib/design-review.js';
-import type { ApprovalBlocker } from '../lib/design-map.js';
+import type { ApprovalBlocker, ElementChange } from '../lib/design-map.js';
+import { ChevronRight } from 'lucide-react';
 import type { ReviewAnnotation } from '../lib/alignment-packs.js';
 import { REVIEW_TOKEN_HEADER } from '../lib/alignment-review-protocol.js';
 import { liveComments, pack, token, usePackRevision, useReviewAnnotations } from './pack.js';
@@ -29,7 +30,7 @@ async function request(body?: unknown): Promise<Status> {
 type ApprovalControls = {
   approved: boolean; pending: boolean; disabled: boolean;
   reason: string; error?: string; open: () => void;
-  answered: string[]; answerText: (id: string) => string | undefined; answerable: string[]; locked?: string[]; changed: string[]; earlier: EarlierReview[]; canAnswer: boolean;
+  answered: string[]; answerText: (id: string) => string | undefined; answerable: string[]; locked?: string[]; changed: string[]; changes: (id: string) => ElementChange[]; earlier: EarlierReview[]; canAnswer: boolean;
   saveAnswer: (answer: DesignAnswer) => Promise<void>;
   lock: (id: string) => Promise<void>;
   navigate: MutableRefObject<((blocker: ApprovalBlocker) => void) | undefined>;
@@ -124,30 +125,33 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
   const approved = Boolean(!error && !pending && syncState?.status === 'Saved' && status?.approval.valid);
   const disabled = !status || pending || approved || syncState?.status !== 'Saved';
   const reason = approved ? 'This revision is approved' : error ?? status?.approval.reason ?? 'Checking revision...';
-  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, answerText, earlier: status?.earlier ?? [], locked: status?.locked, changed: (status?.blockers ?? []).filter(blocker => blocker.kind === 'changed').map(blocker => blocker.targetId), canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), answerable: status?.openQuestions ?? [], saveAnswer, lock, navigate, captures, open: () => { if (disabled) return; if (status?.blockers?.length) blockerDialog.current?.showModal(); else confirm.current?.showModal(); } } : null}>
+  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, answerText, changes: (id: string) => (status?.blockers ?? []).flatMap(blocker => blocker.kind === 'changed' && blocker.targetId === id ? blocker.changes ?? [] : []), earlier: status?.earlier ?? [], locked: status?.locked, changed: (status?.blockers ?? []).filter(blocker => blocker.kind === 'changed').map(blocker => blocker.targetId), canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), answerable: status?.openQuestions ?? [], saveAnswer, lock, navigate, captures, open: () => { if (disabled) return; if (status?.blockers?.length) blockerDialog.current?.showModal(); else confirm.current?.showModal(); } } : null}>
     {children}
     {enabled && <dialog ref={confirm} className="modal" aria-labelledby="design-approval-title" aria-describedby="design-approval-explanation" onCancel={event => { if (pending) event.preventDefault(); }}>
       <h2 id="design-approval-title">Approve this version?</h2>
       <p id="design-approval-explanation">Approval covers every element, the saved comments, and the answered questions. Later changes need approval again.</p>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
-        <button type="button" className="btn ghost" autoFocus disabled={pending} onClick={() => confirm.current?.close()}>Cancel</button>
+        <button type="button" className="btn" autoFocus disabled={pending} onClick={() => confirm.current?.close()}>Cancel</button>
         <button type="button" className="btn primary" disabled={disabled} onClick={() => void approve()}>{pending ? 'Checking revision...' : 'Approve this version'}</button>
       </div>
     </dialog>}
-    {enabled && <dialog ref={blockerDialog} className="modal" aria-labelledby="design-blockers-title" aria-describedby="design-blockers-explanation">
-      <h2 id="design-blockers-title">Settle these before approving</h2>
-      <p id="design-blockers-explanation" className="muted">Choose one to open it.</p>
+    {enabled && <dialog ref={blockerDialog} className="modal" aria-labelledby="design-blockers-title">
+      <h2 id="design-blockers-title">{`${(status?.blockers ?? []).length === 1 ? '1 item' : `${(status?.blockers ?? []).length} items`} to settle before approving`}</h2>
       <ul className="blocker-list">
         {(status?.blockers ?? []).map(blocker => <li key={`${blocker.kind}:${blocker.nodeId}`}>
           <button type="button" className="blocker-link" onClick={() => { blockerDialog.current?.close(); navigate.current?.(blocker); }}>
-            <span className="blocker-label">{blocker.label}</span>
-            <span className="blocker-meta">{BLOCKER_KINDS[blocker.kind]}{blocker.targetId === blocker.nodeId ? '' : ` · ${pack.graph.nodes.find(node => node.id === blocker.targetId)?.label ?? blocker.targetId}`}</span>
+            <span className="blocker-text">
+              <span className="blocker-label">{blocker.label}</span>
+              <span className="blocker-meta">{BLOCKER_KINDS[blocker.kind]}{blocker.targetId === blocker.nodeId ? '' : ` · ${pack.graph.nodes.find(node => node.id === blocker.targetId)?.label ?? blocker.targetId}`}</span>
+              {blocker.kind === 'changed' && blocker.changes?.length ? <span className="blocker-meta">{`${blocker.changes[0].label}${blocker.changes.length > 1 ? `, and ${blocker.changes.length - 1} more` : ''}`}</span> : null}
+            </span>
+            <ChevronRight size={16} aria-hidden="true" />
           </button>
           {blocker.kind === 'changed' && <> <button type="button" className="btn" disabled={pending} onClick={() => { void lock(blocker.targetId).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>Re-approve</button></>}
         </li>)}
       </ul>
-      <div className="row end"><button type="button" className="btn ghost" autoFocus onClick={() => blockerDialog.current?.close()}>Close</button></div>
+      <div className="row end"><button type="button" className="btn" autoFocus onClick={() => blockerDialog.current?.close()}>Close</button></div>
     </dialog>}
   </ApprovalContext.Provider>;
 }
@@ -172,9 +176,16 @@ export function ElementLock({ id }: { id: string; locked?: boolean }) {
   const review = useContext(ApprovalContext);
   const [error, setError] = useState<string>();
   if (!review?.changed.includes(id)) return null;
-  return <div className="element-lock">
-    <span className="type-pill" data-changed>Changed since approval</span>
-    <button type="button" className="btn" disabled={!review.canAnswer} onClick={() => { setError(undefined); review.lock(id).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>Re-approve</button>
+  const changes = review.changes(id);
+  return <section className="element-changes" aria-label="Changed since approval">
+    <div className="element-lock">
+      <span className="type-pill" data-changed>Changed since approval</span>
+      <button type="button" className="btn" disabled={!review.canAnswer} onClick={() => { setError(undefined); review.lock(id).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>Re-approve</button>
+    </div>
+    {changes.length > 0 && <ul className="change-list">{changes.map(change => <li key={change.label}>
+      <span className="change-label">{change.label}</span>
+      {(change.before !== undefined || change.after !== undefined) && <span className="change-diff"><del>{change.before ?? 'none'}</del><ins>{change.after ?? 'none'}</ins></span>}
+    </li>)}</ul>}
     {error && <p className="error" role="alert">{error}</p>}
-  </div>;
+  </section>;
 }

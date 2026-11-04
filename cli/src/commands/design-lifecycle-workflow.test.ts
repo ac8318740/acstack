@@ -285,14 +285,15 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     denied(await server.lock(after, '102'));
     const failed = cli(root, ['design-doc', 'demo', '--check']);
     rejected(failed, 'changed element');
-    expect(failed.stderr).toContain('Changed since the user approved: 103');
+    expect(failed.stderr).toContain('Changed since the user approved: 103 (interfaces changed)');
     // The digest decides; the tracker node stays resolved.
     expect(fileNode(root, '103')).toMatch(/^status: resolved$/m);
     await stop(server.child);
     const reopened = await start(root);
     const changed = await reopened.get();
     expect(changed.locked).toEqual([]);
-    expect(changed.blockers).toEqual([{ kind: 'changed', targetId: '103', label: 'Node 103', nodeId: '103' }]);
+    // The blocker says what changed, compared with the element as it was approved.
+    expect(changed.blockers).toEqual([{ kind: 'changed', targetId: '103', label: 'Node 103', nodeId: '103', changes: [{ label: 'Interfaces changed', before: 'none', after: 'web' }] }]);
     expect(changed.approval.reason).toBe('Changed elements need re-approval');
     denied(await reopened.approve(changed));
     expect((await reopened.lock(changed, '103')).ok).toBe(true);

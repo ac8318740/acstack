@@ -7,11 +7,13 @@ import { nodesFromIssues } from './github-issues.js';
 import { loadNodes, mapDir, updateNode, type GraphNode } from './nodes.js';
 import { getProjectKey } from './project-config.js';
 
+/** One reviewer-facing difference since approval; `before` and `after` are set for short text fields. */
+export type ElementChange = { label: string; before?: string; after?: string };
 /**
  * One thing holding approval, as the viewer lists it. `targetId` is the element
  * the reviewer opens to settle it; `nodeId` is the map node to settle.
  */
-export type ApprovalBlocker = { kind: 'question' | 'changed'; targetId: string; label: string; nodeId: string }
+export type ApprovalBlocker = { kind: 'question' | 'changed'; targetId: string; label: string; nodeId: string; changes?: ElementChange[] }
   // A loose element whose mock has several variants: locking it chooses the one on screen.
   | { kind: 'variant'; targetId: string; label: string; nodeId: string; example: string };
 
