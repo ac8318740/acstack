@@ -1,7 +1,7 @@
 import { createElement, act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { Drawer } from '../drawer.js';
+import { Drawer, exampleScopeForSelection } from '../drawer.js';
 import { DesignApproval, DesignApprovalProvider, ElementLock, useBlockerNavigation, useLockCapture } from '../design-approval.js';
 import { pack, useReviewAnnotations } from '../pack.js';
 import { DesignQuestions, useQuestionCounts } from '../design-questions.js';
@@ -109,6 +109,43 @@ it('filters questions by scope without discarding drafts or expansion, and scope
     expect(props.setQuestionScope).toHaveBeenLastCalledWith('selection:item:second');
     expect(props.setView).toHaveBeenLastCalledWith('questions');
   } finally { act(() => root.unmount()); if (original) pack.designDocument = original; else delete pack.designDocument; }
+});
+
+it('moves every selection-scoped filter to the container that a collapse folds the selection into', () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const container = create('div');
+  const root = createRoot(container as unknown as HTMLElement);
+  const { nodes, groups } = pack.graph;
+  pack.graph.nodes = [{ id: 'shell', groupId: 'design:root', label: 'Shell', summary: '', sourceRefs: [] }, { id: 'app', groupId: 'shell-box', label: 'Application', summary: '', sourceRefs: [] }];
+  pack.graph.groups = [{ id: 'shell-box', label: 'Shell', ownerNodeId: 'shell', parentGroupId: 'design:root' }] as typeof pack.graph.groups;
+  const open = { nodes: [], edges: [], nodeToVisible: { shell: 'group:shell-box', app: 'item:app' } };
+  const folded = { nodes: [{ id: 'group:shell-box', kind: 'folded-group', refId: 'shell-box', ownerNodeId: 'shell', label: 'Shell', x: 0, y: 0, width: 300, height: 120 }], edges: [], nodeToVisible: { shell: 'group:shell-box', app: 'group:shell-box' } } as unknown as ComponentProps<typeof Drawer>['diagram'];
+  let props: ComponentProps<typeof Drawer> = {
+    open: true, setOpen: vi.fn(), view: 'comments', setView: vi.fn(), commentScope: 'item:app', setCommentScope: vi.fn(), questionScope: 'selection:item:app', setQuestionScope: vi.fn(),
+    selected: 'item:app', diagram: open, focusKey: 0, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn(),
+  };
+  const render = (next: Partial<ComponentProps<typeof Drawer>> = {}) => { props = { ...props, ...next }; act(() => root.render(createElement(Drawer, props))); };
+  try {
+    render();
+    render({ selected: 'group:shell-box', diagram: folded });
+    expect(props.setCommentScope).toHaveBeenLastCalledWith('selection:group:shell-box');
+    expect(props.setQuestionScope).toHaveBeenLastCalledWith('selection:group:shell-box');
+    // The container's filter shows what it hides, as its card's count does.
+    expect(exampleScopeForSelection('group:shell-box', folded)).toBe('selection:group:shell-box');
+    render({ commentScope: 'selection:group:shell-box', annotations: [{ id: 'c1', packVersion: 'v', target: { type: 'node', id: 'app' }, comment: 'Name the app' }] });
+    expect(all(container).some(node => node.nodeValue === 'Name the app' || node.textContent === 'Name the app')).toBe(true);
+    // A filter the reviewer picked stays put.
+    render({ commentScope: 'all', questionScope: 'all', selected: 'item:app', diagram: open, annotations: [] });
+    expect(props.setCommentScope).toHaveBeenCalledTimes(1);
+    expect(props.setQuestionScope).toHaveBeenCalledTimes(1);
+  } finally { act(() => root.unmount()); pack.graph.nodes = nodes; pack.graph.groups = groups; }
 });
 
 it.each([false, true])('scrolls, focuses, and briefly emphasizes each navigation request without changing drafts (reduced motion=%s)', reduced => {

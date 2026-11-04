@@ -3,7 +3,7 @@ import type { MapQuestion, ReviewAnnotation } from '../lib/alignment-packs.js';
 import { Check, ChevronRight, ListFilter, ListTodo, Maximize2, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
 import { revealHighlights } from './markdown-highlights.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
-import type { Diagram } from './alignment-graph.js';
+import { reconcileSelection, type Diagram } from './alignment-graph.js';
 import { type Annotation, diagramId, pack, targetLabel } from './pack.js';
 import { DesignApproval, ElementLock, useDesignReview } from './design-approval.js';
 import { DesignQuestions, type AnswerDraft } from './design-questions.js';
@@ -322,8 +322,19 @@ export function Comments({ annotations, earlier = [], onSelect, onDelete, onEdit
 export type DrawerView = 'details' | 'comments' | 'questions' | 'examples';
 export type CommentScope = string;
 
+// A collapsed container stands for everything it hides, as its card's counts do.
+const folded = (selected: string | null, diagram: Diagram) => diagram.nodes.some(node => node.id === selected && node.kind === 'folded-group');
+const shownAt = (selected: string, diagram: Diagram) => (id: string) => reconcileSelection(id, diagram, pack.graph) === selected;
+export const exampleScopeForSelection = (selected: string | null, diagram: Diagram): string => {
+  if (!selected || selected === 'group:design:root') return 'all';
+  if (folded(selected, diagram)) return `selection:${selected}`;
+  const node = selected.startsWith('item:') ? selected.slice(5) : selected.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId : undefined;
+  return node ? `item:${node}` : 'all';
+};
+
 export function commentScopeForSelection(selected: string | null, diagram: Diagram): CommentScope {
   if (!selected) return pack.designDocument ? 'group:design:root' : 'all';
+  if (folded(selected, diagram)) return `selection:${selected}`;
   if (selected.startsWith('edge:')) {
     const edge = diagram.edges.find(edge => edge.id === selected || edge.childEdgeIds.includes(selected.slice(5)));
     return edge && edge.childEdgeIds.length > 1 ? `selection:${selected}` : selected;
@@ -507,7 +518,11 @@ export function Drawer({
   const visibleWidth = clampDrawerWidth(width, viewportWidth);
   const documentContext = commentContext(null, diagram);
   // Canvas clicks retain grouped-edge context; menu choices always address exactly one commented target.
-  const context = commentScope === 'all' ? documentContext : commentScope.startsWith('selection:') ? commentContext(commentScope.slice(10), diagram) : commentContext(commentScope, { ...diagram, edges: [] });
+  const selectionContext = (scope: string) => {
+    const context = commentContext(scope, diagram);
+    return context && folded(scope, diagram) ? { ...context, matches: (target: Annotation['target']) => shownAt(scope, diagram)(diagramId(target)) } : context;
+  };
+  const context = commentScope === 'all' ? documentContext : commentScope.startsWith('selection:') ? selectionContext(commentScope.slice(10)) : commentContext(commentScope, { ...diagram, edges: [] });
   const visibleComments = commentScope === 'all' ? annotations : annotations.filter(annotation => context?.matches(annotation.target));
   const earlierComments = (review?.earlier ?? []).flatMap(entry => entry.annotations.map(annotation => ({ ...annotation, label: entry.label })))
     .filter(annotation => commentScope === 'all' || context?.matches(annotation.target));
@@ -516,13 +531,24 @@ export function Drawer({
   const exampleNode = selected?.startsWith('item:') ? selected.slice(5) : selected?.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId ?? null : null;
   // Examples filter like Comments and Questions: the selected element, or every example with nothing selected.
   const exampleNodes = pack.graph.nodes.filter(node => node.examples?.length).map(node => node.id);
-  const exampleScopeFor = (node: string | null) => node ? `item:${node}` : 'all';
-  const [exampleScope, setExampleScope] = useState(() => exampleScopeFor(exampleNode));
-  useEffect(() => { setExampleScope(exampleScopeFor(exampleNode)); }, [exampleNode]);
-  const scopedExamples = exampleScope === 'all' ? exampleNodes : [exampleScope.slice(5)];
+  const [exampleScope, setExampleScope] = useState(() => exampleScopeForSelection(selected, diagram));
+  // One rule for every tab: a filter still on the selection's own scope follows the selection, also when a
+  // layout change moves it to a container. A filter the reviewer picked stays.
+  const followed = useRef<{ comment: string; question: string; example: string } | undefined>(undefined);
+  useEffect(() => {
+    const next = { comment: commentScopeForSelection(selected, diagram), question: questionScopeForSelection(selected), example: exampleScopeForSelection(selected, diagram) };
+    const before = followed.current;
+    followed.current = next;
+    if (!before) return;
+    if (commentScope === before.comment) setCommentScope(next.comment);
+    if (questionScope === before.question) setQuestionScope(next.question);
+    if (exampleScope === before.example) setExampleScope(next.example);
+  }, [selected, diagram]);
+  const scopedExamples = exampleScope === 'all' ? exampleNodes : exampleScope.startsWith('selection:') ? exampleNodes.filter(id => shownAt(exampleScope.slice(10), diagram)(`item:${id}`)) : [exampleScope.slice(5)];
   const exampleCount = scopedExamples.reduce((sum, id) => sum + examplesFor(id).length, 0);
   const exampleOptions = reviewScopeOptions(exampleNodes.flatMap(id => examplesFor(id).map((): Annotation['target'] => ({ type: 'node', id }))));
-  const exampleLabel = exampleScope === 'all' ? 'All targets' : scopeLabel({ type: 'node', id: exampleScope.slice(5) });
+  const exampleContext = exampleScope.startsWith('selection:') ? commentContext(exampleScope.slice(10), diagram) : null;
+  const exampleLabel = exampleScope === 'all' ? 'All targets' : exampleContext ? scopeLabel(exampleContext.target) : scopeLabel({ type: 'node', id: exampleScope.slice(5) });
   const openAllComments = () => { setCommentScope('all'); setView('comments'); setOpen(true); };
   if (!open) {
     return (
@@ -586,7 +612,7 @@ export function Drawer({
             {needsInput > 0 && <span className="tab-count" aria-label={`${needsInput} open`}>{needsInput}</span>}
             {needsInput === 0 && answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
           </button>}
-          {pack.designDocument && <button type="button" aria-pressed={view === 'examples'} onClick={() => { if (view !== 'examples') { setExampleScope(exampleScopeFor(exampleNode)); setView('examples'); } }}>Examples{exampleNode && examplesFor(exampleNode).length > 0 && <span className="tab-count" aria-label={`${examplesFor(exampleNode).length} example${examplesFor(exampleNode).length === 1 ? '' : 's'}`}>{examplesFor(exampleNode).length}</span>}</button>}
+          {pack.designDocument && <button type="button" aria-pressed={view === 'examples'} onClick={() => { if (view !== 'examples') { setExampleScope(exampleScopeForSelection(selected, diagram)); setView('examples'); } }}>Examples{exampleNode && examplesFor(exampleNode).length > 0 && <span className="tab-count" aria-label={`${examplesFor(exampleNode).length} example${examplesFor(exampleNode).length === 1 ? '' : 's'}`}>{examplesFor(exampleNode).length}</span>}</button>}
         </div>
         <div className="row">
           <button type="button" className="icon-btn" data-tooltip="Collapse details panel" aria-label="Collapse details panel" onClick={() => setOpen(false)}>
