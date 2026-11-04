@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
 import { FrameStatus } from '../example-frame.js';
 import { describe as describeSelection, ExamplesModal, ExamplesTab, FixtureView, TweakControls } from '../examples-modal.js';
-import { setExampleSource, type ElementExample } from '../examples.js';
+import { exampleCapture, setExampleSource, setExampleView, type ElementExample } from '../examples.js';
 import type { Annotation } from '../pack.js';
 
 vi.mock('../pack.js', () => ({
@@ -97,4 +97,31 @@ it('renders frame-supplied error text and selections as text only', () => {
   expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
   expect(renderToStaticMarkup(createElement(FrameStatus, { status: { state: 'closed' } }))).toContain('navigated away and was stopped');
   expect(describeSelection({ selector: '#a', text: '', component: { name: 'Card' } })).toBe('Card: #a');
+});
+
+it('opens straight to a linked example and variant', () => {
+  setExampleSource(id => id === 'checkout' ? examples : []);
+  const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'checkout', path: 'cart', variant: 'b' }, annotations: [], setAnnotations: vi.fn() }));
+  expect(html).toContain('<dialog');
+  expect(html).toContain('title="Cart build, List"');
+  // A link for another element or a missing example opens nothing.
+  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'other', path: 'cart' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
+  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeId: 'checkout', link: { nodeId: 'checkout', path: 'gone' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
+  setExampleSource(() => []);
+});
+
+it('captures the viewed variant, its tweak values, and all its states for a lock', () => {
+  setExampleSource(() => [{
+    kind: 'od-build', path: 'cart', title: 'Cart',
+    tweaks: [{ id: 'density', label: 'Density', type: 'select', options: ['cozy', 'compact'], discardReason: '' }],
+    variants: [
+      { id: 'a', html: '' },
+      { id: 'b', html: '', tweaks: [{ id: 'phase', label: 'State', type: 'state', options: ['loading', { label: 'Empty', value: 'empty' }] }, { id: 'radius', label: 'Radius', type: 'slider', default: 8 }] },
+    ],
+  }, { kind: 'html', path: 'x.html', title: 'X', html: '' }]);
+  expect(exampleCapture('lock-node')).toBeUndefined();
+  setExampleView('lock-node', 'cart', { variant: 'b', values: { radius: '12' } });
+  setExampleView('lock-node', 'x.html', { values: {} });
+  expect(exampleCapture('lock-node')).toEqual({ examples: { cart: { variant: 'b', tweaks: { density: 'cozy', radius: '12' }, states: { phase: ['loading', 'empty'] } } } });
+  setExampleSource(() => []);
 });

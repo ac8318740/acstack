@@ -3,7 +3,8 @@ import { MousePointerClick, X } from 'lucide-react';
 import { CommentForm } from './drawer.js';
 import { Dropdown } from './dropdown.js';
 import { ExampleFrame, type FrameControl } from './example-frame.js';
-import { examplesFor, fixtureTable, type ElementExample } from './examples.js';
+import { useDesignReview } from './design-approval.js';
+import { exampleCapture, examplesFor, exampleView, fixtureTable, setExampleView, type ElementExample, type ExampleView } from './examples.js';
 import type { Selection } from './od-bridge/protocol.js';
 import { defaultFor, tweakPayload, type Tweak } from './od-bridge/tweaks.js';
 import { type Annotation, annotationId, pack } from './pack.js';
@@ -15,9 +16,30 @@ type Comments = { annotations: Annotation[]; setAnnotations: (annotations: Annot
 const commentsOn = (annotations: Annotation[], nodeId: string, path: string) =>
   annotations.filter(annotation => annotation.target.type === 'node' && annotation.target.id === nodeId && annotation.example?.path === path);
 
-export function ExamplesTab({ nodeId, annotations, setAnnotations }: { nodeId: string } & Comments) {
+// Opens one example, optionally on one variant, from a link such as an approval blocker.
+export type ExampleLink = { nodeId: string; path: string; variant?: string };
+
+// Registers every element's example capture once, so Lock and approval record it whichever drawer tab is showing.
+export function useExampleCaptures() {
+  const review = useDesignReview();
+  useEffect(() => {
+    if (!review) return;
+    const captures = review.captures.current;
+    const ids = pack.graph.nodes.map(node => node.id).filter(id => examplesFor(id).some(example => example.kind === 'od-build'));
+    for (const id of ids) captures.set(id, () => exampleCapture(id));
+    return () => { for (const id of ids) captures.delete(id); };
+  }, [review]);
+}
+
+export function ExamplesTab({ nodeId, link, annotations, setAnnotations }: { nodeId: string; link?: ExampleLink } & Comments) {
   const examples = examplesFor(nodeId);
-  const [open, setOpen] = useState<string | null>(null);
+  const follow = (target?: ExampleLink) => {
+    if (!target || target.nodeId !== nodeId || !examples.some(example => example.path === target.path)) return null;
+    if (target.variant) setExampleView(nodeId, target.path, { ...exampleView(nodeId, target.path), variant: target.variant });
+    return target.path;
+  };
+  const [open, setOpen] = useState<string | null>(() => follow(link));
+  useEffect(() => { const path = follow(link); if (path) setOpen(path); }, [link]);
   if (!examples.length) return <p className="muted">This element has no examples.</p>;
   return (
     <section className="section">
@@ -100,12 +122,15 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
   const frame = useRef<FrameControl | null>(null);
   const titleId = useId();
   const example = examples.find(item => item.path === path) ?? examples[0];
-  const [variantId, setVariantId] = useState<string>();
-  const variant = example.kind === 'od-build' ? example.variants.find(item => item.id === variantId) ?? example.variants[0] : undefined;
+  const [shown, setShown] = useState(() => ({ path: example.path, view: exampleView(nodeId, example.path) }));
+  const view = shown.path === example.path ? shown.view : exampleView(nodeId, example.path);
+  const updateView = (next: ExampleView) => { setExampleView(nodeId, example.path, next); setShown({ path: example.path, view: next }); };
+  // Opening an example counts as having it on screen, which is what a lock captures.
+  useEffect(() => { setExampleView(nodeId, example.path, exampleView(nodeId, example.path)); }, [example.path]);
+  const variant = example.kind === 'od-build' ? example.variants.find(item => item.id === view.variant) ?? example.variants[0] : undefined;
   const html = example.kind === 'html' ? example.html : variant?.html;
   const tweaks = example.kind === 'od-build' ? [...example.tweaks ?? [], ...variant?.tweaks ?? []] : [];
   // shortcut: no token map, so `add` and `scale` slider tweaks emit nothing; pass the design system's tokens once node 011 carries them.
-  const [values, setValues] = useState<Record<string, string>>({});
   const comments = commentsOn(annotations, nodeId, example.path);
   const [picker, setPicker] = useState(false);
   const [picked, setPicked] = useState<Selection[]>([]);
@@ -113,7 +138,6 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
   const [focused, setFocused] = useState<string>();
   useEffect(() => { dialog.current?.showModal(); }, []);
   useEffect(() => { setPicker(false); setPicked([]); setFocused(undefined); }, [example.path, variant?.id]);
-  useEffect(() => { setVariantId(undefined); setValues({}); }, [example.path]);
   // Marks only for comments made on the variant on screen; a comment's number is its place in the list.
   const onScreen = (anchor?: Anchor) => anchor?.variant === variant?.id;
   const marks = comments.flatMap((comment, index) => onScreen(comment.example) ? (comment.example?.selections ?? []).map((selection, at) => ({ key: `${comment.id}#${at}`, label: index + 1, selector: selection.selector })) : []);
@@ -121,7 +145,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
     const anchor: Anchor = { path: example.path };
     if (variant) anchor.variant = variant.id;
     if (picked.length) anchor.selections = picked.map(anchorSelection);
-    if (tweaks.length) anchor.tweaks = Object.fromEntries(tweaks.map(tweak => [tweak.id, values[tweak.id] ?? defaultFor(tweak)]));
+    if (tweaks.length) anchor.tweaks = Object.fromEntries(tweaks.map(tweak => [tweak.id, view.values[tweak.id] ?? defaultFor(tweak)]));
     setAnnotations([...annotations, { id: annotationId(), packVersion: pack.packVersion, target: { type: 'node', id: nodeId }, example: anchor, comment, time: new Date().toISOString() }]);
     frame.current?.clearSelections();
     setPicked([]);
@@ -141,7 +165,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
         <div><h2 id={titleId}>{example.title}</h2><p className="hint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}: {example.path}</p></div>
         <div className="row">
           {examples.length > 1 && <Dropdown label="Example" value={example.path} currentLabel={example.title} options={examples.map(item => ({ value: item.path, label: item.title }))} onChange={onPath} />}
-          {example.kind === 'od-build' && example.variants.length > 1 && variant && <Dropdown label="Variant" value={variant.id} currentLabel={variant.label ?? variant.id} options={example.variants.map(item => ({ value: item.id, label: item.label ?? item.id }))} onChange={setVariantId} />}
+          {example.kind === 'od-build' && example.variants.length > 1 && variant && <Dropdown label="Variant" value={variant.id} currentLabel={variant.label ?? variant.id} options={example.variants.map(item => ({ value: item.id, label: item.label ?? item.id }))} onChange={id => updateView({ ...view, variant: id })} />}
           {html !== undefined && <button type="button" className="btn" aria-pressed={picker} onClick={() => setPicker(!picker)}><MousePointerClick size={16} aria-hidden="true" />{picker ? 'Picking elements' : 'Pick elements'}</button>}
           <button type="button" className="btn" aria-label="Close examples" autoFocus onClick={close}>Close</button>
         </div>
@@ -150,7 +174,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
         <div className="example-view">
           {html !== undefined ? (
             <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
-              picker={picker} marks={marks} tweaks={tweakPayload(tweaks, values)} control={frame} events={{
+              picker={picker} marks={marks} tweaks={tweakPayload(tweaks, view.values)} control={frame} events={{
                 onPicker: setPicker,
                 onSelection: setPicked,
                 onMarkClick: key => { const id = key.slice(0, key.lastIndexOf('#')); if (comments.some(comment => comment.id === id)) setFocused(id); },
@@ -161,7 +185,7 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
             : example.kind === 'fixture' ? <FixtureView format={example.format} data={example.data} /> : null}
         </div>
         <aside className="example-comments" aria-label="Comments on this example">
-          <TweakControls tweaks={tweaks} values={values} onChange={(id, value) => setValues(previous => ({ ...previous, [id]: value }))} />
+          <TweakControls tweaks={tweaks} values={view.values} onChange={(id, value) => updateView({ ...view, values: { ...view.values, [id]: value } })} />
           {html !== undefined && (picked.length ? (
             <ul className="example-picks" aria-label="Selected elements">
               {picked.map(item => <li key={item.id}><span>{item.id}. {describe(item)}</span><button type="button" className="icon-btn" aria-label={`Remove selection ${item.id}`} onClick={() => unpick(item.id)}><X size={14} aria-hidden="true" /></button></li>)}

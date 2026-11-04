@@ -1,4 +1,4 @@
-import type { Tweak } from './od-bridge/tweaks.js';
+import { defaultFor, type Tweak } from './od-bridge/tweaks.js';
 
 declare const OD_BRIDGE_JS: string;
 
@@ -23,12 +23,36 @@ let source: (nodeId: string) => ElementExample[] = () => [];
 export const examplesFor = (nodeId: string) => source(nodeId);
 export const setExampleSource = (next: (nodeId: string) => ElementExample[]) => { source = next; };
 
+// What the reviewer last had on screen per example. It outlives the modal, because Lock sits in the Details tab.
+export type ExampleView = { variant?: string; values: Record<string, string> };
+const views = new Map<string, ExampleView>();
+export const exampleView = (nodeId: string, path: string): ExampleView => views.get(`${nodeId}\n${path}`) ?? { values: {} };
+export const setExampleView = (nodeId: string, path: string, view: ExampleView) => { views.set(`${nodeId}\n${path}`, view); };
+
+// A lock records each viewed OpenDesigner example's variant, its tweak values, and every state that variant offers.
+export function exampleCapture(nodeId: string): { examples: Record<string, { variant: string; tweaks: Record<string, string>; states: Record<string, string[]> }> } | undefined {
+  const captured = examplesFor(nodeId).flatMap(example => {
+    const view = views.get(`${nodeId}\n${example.path}`);
+    if (example.kind !== 'od-build' || !view) return [];
+    const variant = example.variants.find(item => item.id === view.variant) ?? example.variants[0];
+    if (!variant) return [];
+    const tweaks = [...example.tweaks ?? [], ...variant.tweaks ?? []];
+    return [[example.path, {
+      variant: variant.id,
+      tweaks: Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, view.values[tweak.id] ?? defaultFor(tweak)])),
+      states: Object.fromEntries(tweaks.flatMap(tweak => tweak.type === 'state' ? [[tweak.id, (tweak.options ?? []).map(option => typeof option === 'string' ? option : option.value)]] : [])),
+    }] as const];
+  });
+  return captured.length ? { examples: Object.fromEntries(captured) } : undefined;
+}
+
 // Bridge spec, Frame CSP. HTTPS only, so frame scripts cannot reach any local server.
 export const FRAME_CSP = "default-src 'none'; script-src 'unsafe-inline' https:; style-src 'unsafe-inline' https:; font-src https: data:; img-src https: data: blob:; connect-src https:; form-action 'none'; base-uri 'none'";
 
 // Prepending, not searching for <head>, keeps the policy first even when the author's markup hides a <head> in a comment or script.
 // The parser then folds the author's doctype, <html>, and <head> into this head.
 export function exampleDocument(html: string): string {
+  // Decided with the user: OpenDesigner's single-file build inlines its own marked bridge; ACStack injects only into unmarked inline HTML.
   // OpenDesigner builds already carry the bridge, and two copies would both answer the host.
   // Skipping it only costs interaction: the sandbox and CSP, not the bridge, keep the frame contained.
   const bridge = typeof OD_BRIDGE_JS === 'undefined' || html.includes('data-od-bridge') ? '' : `<script data-od-bridge>${OD_BRIDGE_JS.replace(/<\/script/gi, '<\\/script')}</script>`;

@@ -11,7 +11,7 @@ import { questionScopeForSelection, questionsForScope } from './question-targets
 import { ElementMetadata } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
-import { ExamplesTab } from './examples-modal.js';
+import { ExamplesTab, useExampleCaptures, type ExampleLink } from './examples-modal.js';
 import { examplesFor } from './examples.js';
 
 const labelOf = (id: string) => pack.graph.nodes.find(item => item.id === id)?.label ?? id;
@@ -395,6 +395,7 @@ export function Drawer({
   onSelect,
   onComment,
   onOpenGroup,
+  exampleLink,
   questionRequest,
 }: {
   open: boolean;
@@ -415,10 +416,13 @@ export function Drawer({
   onSelect: (id: string | null) => void;
   onComment: (target: Annotation['target'], comment: string) => void;
   onOpenGroup: (groupId: string) => void;
+  // Opens the Examples modal on one example and variant; the caller also selects the element and shows the Examples view.
+  exampleLink?: ExampleLink;
   /** A request from outside the drawer, such as an approval blocker, to open and focus one question. */
   questionRequest?: { id: string };
 }) {
   const review = useDesignReview();
+  useExampleCaptures();
   const authoredQuestions = pack.designDocument?.questions ?? [];
   const openQuestions = authoredQuestions.filter(question => !review?.answered.includes(question.id));
   const scopedQuestions = questionsForScope(authoredQuestions, questionScope, diagram, pack.graph);
@@ -544,7 +548,7 @@ export function Drawer({
         {view === 'details' ? (
           selected && selected !== 'group:design:root' ? <Details selected={selected} diagram={diagram} openQuestions={openQuestions} onQuestion={openQuestion} onInspect={selected => setInspection({ selected })} onSelect={onSelect} onOpenGroup={onOpenGroup} /> :
             pack.designDocument ? <DocumentOverview /> : <p className="muted">Select a box or relationship to see its details.</p>
-        ) : view === 'examples' ? (exampleNode ? <ExamplesTab key={exampleNode} nodeId={exampleNode} annotations={annotations} setAnnotations={setAnnotations} /> : <p className="muted">Select an element to see its examples.</p>) : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
+        ) : view === 'examples' ? (exampleNode ? <ExamplesTab key={exampleNode} nodeId={exampleNode} link={exampleLink} annotations={annotations} setAnnotations={setAnnotations} /> : <p className="muted">Select an element to see its examples.</p>) : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}
