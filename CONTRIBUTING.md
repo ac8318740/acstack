@@ -338,7 +338,8 @@ node scripts/gen-pi-agents.mjs
     - To run one file: `cd cli && npm test -- src/lib/diagram.test.ts`
     - If a test needs isolation, use `--pool=vmThreads`
 - Run `bash tests/run-all.sh` for the hook suites
-    - `tests/test-terminal-workspace.sh` takes a few minutes; allow at least five
+    - Run `bash tests/test-terminal-workspace.sh` for terminal workspace and docs checks; allow at least five minutes
+    - Run `bash tests/test-terminal-workspace-pi.sh` for the pi component alone
 
 ## 6. Releasing
 
