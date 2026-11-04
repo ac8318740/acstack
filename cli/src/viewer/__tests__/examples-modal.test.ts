@@ -153,3 +153,8 @@ it('names the example, variant, and picked elements for a comment listed outside
   expect(html).toContain('Cart build · List');
   expect(html).toContain('Pay button: Pay');
 });
+
+it('labels a picked table row by its first cell', () => {
+  expect(describeSelection({ selector: 'tr', text: 'Gift wrap\nWRP-STD\t1\t£0.00\t£0.00', component: { name: 'ReceiptLine' } })).toBe('Receipt line: Gift wrap');
+  expect(describeSelection({ selector: 'tr', text: 'Gift wrap\t1\t£0.00', component: { name: 'ReceiptLine' } })).toBe('Receipt line: Gift wrap');
+});

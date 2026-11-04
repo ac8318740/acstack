@@ -108,7 +108,8 @@ type AnchorSelection = NonNullable<Anchor['selections']>[number];
 // Labels read as plain words: "PayButton" becomes "Pay button", and a container's run of text
 // gives way to its first line, which is its heading or label. The raw name stays in a tooltip.
 export const componentLabel = (name: string) => name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[-_]+/g, ' ').replace(/ ([A-Z])(?=[a-z])/g, (_, letter: string) => ` ${letter.toLowerCase()}`).trim();
-const brief = (text: string) => { const line = text.split('\n').map(part => part.trim()).find(Boolean) ?? ''; return line.length > 40 ? `${line.slice(0, 39).trimEnd()}…` : line; };
+// A table row's innerText separates cells with tabs, so its first cell (the item name) leads the label.
+const brief = (text: string) => { const line = text.split(/[\n\t]/).map(part => part.trim()).find(Boolean) ?? ''; return line.length > 40 ? `${line.slice(0, 39).trimEnd()}…` : line; };
 export const describe = (selection: { selector: string; text?: string; component?: { name: string } }) => {
   const text = brief(selection.text ?? '');
   if (selection.component) return text ? `${componentLabel(selection.component.name)}: ${text}` : componentLabel(selection.component.name);
@@ -284,7 +285,8 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
             {variants.map(item => <button key={item.id} type="button" aria-pressed={item.id === variant.id} onClick={() => updateView({ ...view, variant: item.id })}>{item.id === chosen && <Check size={14} aria-label="Chosen" />}{item.label ?? item.id}</button>)}
           </div>
         )}
-        {review && variants.length > 1 && variant && (chosen === variant.id
+        {/* Illustrative mocks are not requirements, so there is nothing to choose. */}
+        {review && !example.illustrative && variants.length > 1 && variant && (chosen === variant.id
           ? <span className="example-chosen" role="status"><Check size={14} aria-hidden="true" />Chosen</span>
           : <button type="button" className="btn" disabled={review.pending} onClick={choose}>Choose this variant</button>)}
         {choosing && <span className="error" role="alert">{choosing}</span>}
