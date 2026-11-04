@@ -142,7 +142,7 @@ REST call for the blockers, per issue, on every round.
 
 - **Frontier**: from `list`, keep open issues without `fog` or `claimed`
   labels. Drop any whose header `blocked-by` names an open issue, and drop
-  the issue labelled `root-node`.
+  the issue labelled `root-node` and every issue labelled `kind:element`.
   Order by provenance depth (follow header `answers` up to the root), issue
   number as the final tiebreak.
 

@@ -80,7 +80,7 @@ Before deciding whether the map must persist:
 - Invoke `/acstack:design-doc` for shared behavior, component boundaries, or data-flow decisions
 - Apply that condition to conversation-only work as well as persisted maps
 - Skip design documents when those decisions are absent, including pure copyediting
-- When a design is required, require current design approval before implementation; changed source or contribution inputs reopen review
+- When a design is required, require current design approval before implementation; changed element nodes or questions targeting them reopen review
 
 The machinery appears only when it must persist. After the opening grill:
 
@@ -123,7 +123,8 @@ the list, marked `skip: <reason>`.
    returns the root.
 
 3. **Route by `mode` – the only field the machine routes on** (`kind` picks
-   the node's diagram shape, never its route):
+   the node's diagram shape, never its route; the one exception is `element`,
+   which never reaches the frontier because only the user locks it):
     - `hitl` nodes: run grilling rounds over them. A round is the whole hitl
      frontier.
     - `afk` nodes: claim and run without the user. Choose direct work or useful delegation
@@ -155,7 +156,7 @@ the list, marked `skip: <reason>`.
       per `frontend.md`
     - Regenerate the diagram on the resolved node's parent (see Regenerating
       diagrams)
-    - Reopen design review when source, saved comments, or contribution inputs change
+    - Reopen design review when element nodes, saved comments, or questions targeting them change
     - Recompute the frontier
 
     The regeneration comes after the new nodes exist. A surfaced node hangs

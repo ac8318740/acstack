@@ -24,7 +24,7 @@ To enumerate a project's maps: `ls "$(~/.claude/acstack/bin/acstack project-data
 | list      | `acstack node list --map <name> [--status <s>] [--json]` |
 
 `create` rejects a node that omits `--kind` or `--label`. `--kind` takes one of
-`destination`, `notes`, `decision`, `research`, or `work`. `--label` takes the
+`destination`, `notes`, `decision`, `research`, `work`, or `element`. `--label` takes the
 node's short name for a diagram, at most four words and thirty characters.
 
 `--summary` is optional: one plain sentence, on one line, for a business
@@ -55,7 +55,8 @@ session:
   Provenance depth is how many `answers` links separate a node from the root.
 
     The frontier never returns the root, the one node whose frontmatter has no
-    `answers`. The root is never work.
+    `answers`. The root is never work. Nor does it return an `element` node,
+    since only the user locks a design element.
 
 - `acstack node walk --map <name> [--full] [--json] [--visuals]` – the
   packaging walk: the root first, then each node that hangs off it, depth
