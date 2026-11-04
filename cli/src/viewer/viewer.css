@@ -373,7 +373,7 @@ blockquote { padding-left: 10px; border-left: 2px solid var(--frame-border); col
 }
 /* Examples: near full-screen stage with a slim comment rail. */
 .examples-modal { width: calc(100vw - 4vw); height: calc(100dvh - 6dvh); max-width: none; max-height: none; padding: 0; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); color: var(--text); box-shadow: var(--shadow); overflow: hidden; }
-.examples-modal::backdrop { background: oklch(25% 0.05 262 / 0.35); }
+.examples-modal::backdrop { background: oklch(25% 0.05 262 / 0.5); }
 .examples-modal[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
 .examples-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px 10px 20px; border-bottom: 1px solid var(--border); }
 .examples-head h2 { margin: 0; font-size: var(--size-md); font-weight: 600; }
