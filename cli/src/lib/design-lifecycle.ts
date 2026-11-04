@@ -116,14 +116,15 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     else if (inputs.blockers.length) reason = 'Choose a variant for each mock with several, by locking its element';
     else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback needs explicit reconciliation';
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
-    return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers, openQuestions: inputs.openQuestions, locked: inputs.locked, warnings,
+    const answers = Object.fromEntries(doc.questions.flatMap(question => question.answer === undefined ? [] : [[question.id, question.answer]]));
+    return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers, openQuestions: inputs.openQuestions, answers, locked: inputs.locked, warnings,
       approval: { valid: !reason && approved, ...(!reason && approved ? {} : { reason: reason ?? 'This revision is not approved' }) },
       feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), earlier, blocker: reason };
   };
   const publicStatus = (result: ReturnType<typeof evaluate>) => ({
     sourceRevision: result.sourceRevision, reviewRevision: result.reviewRevision, commentsDigest: result.commentsDigest, mapInputsDigest: result.mapInputsDigest,
     map: result.map, reviewPath: result.reviewPath, blockers: result.blockers, openQuestions: result.openQuestions, locked: result.locked,
-    warnings: result.warnings, feedbackPaths: result.feedbackPaths, earlier: result.earlier, approval: result.approval,
+    warnings: result.warnings, feedbackPaths: result.feedbackPaths, earlier: result.earlier, answers: result.answers, approval: result.approval,
   });
   // Every write from the page checks the exact tuple it was shown, so a stale page cannot settle the map.
   const current = (saved: StoredDesignReview, expected: unknown) => {
@@ -156,10 +157,11 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       const state = current(saved, incoming.expected);
       const question = rendered.questions.find(question => question.id === incoming.questionId);
       if (!question) throw new ReviewHttpError(400, 'Unknown design question');
-      if (!state.openQuestions.includes(question.id)) throw new ReviewHttpError(409, 'This question is already settled on the map');
+      const changing = question.id in state.answers;
+      if (!changing && !state.openQuestions.includes(question.id)) throw new ReviewHttpError(409, 'This question is no longer open on the map');
       const answer = { questionId: incoming.questionId, answer: incoming.answer, ...(incoming.choices && { choices: incoming.choices }) };
       validateDesignAnswer(question, answer);
-      resolveMapNode(root, map, question.id, answerMarkdown(answer));
+      resolveMapNode(root, map, question.id, answerMarkdown(answer), changing ? new Date().toISOString().slice(0, 10) : undefined);
       return publicStatus(evaluate(saved));
     }),
     lock: (body: unknown) => review.transact(saved => {
@@ -167,7 +169,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
       const state = current(saved, incoming.expected);
       const item = state.doc.items.find(item => item.id === incoming.lock);
       if (!item) throw new ReviewHttpError(400, 'Unknown design element');
-      if (item.locked) throw new ReviewHttpError(409, 'This element is already locked');
+      if (item.locked) throw new ReviewHttpError(409, 'This element is already approved');
       lock(saved, [item], incoming.capture && { [item.id]: incoming.capture });
       return publicStatus(evaluate(saved));
     }),

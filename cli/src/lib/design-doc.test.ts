@@ -65,14 +65,16 @@ describe('design docs built from map nodes', () => {
       node('010', { kind: 'decision', answers: '002', title: 'Retry a conflict?', body: `Recommend yes.\n\n${block('Design question', 'choices: [Yes, No]\nhighlights: [App detail]')}` }),
       node('011', { kind: 'research', mode: 'afk', answers: '002' }),
       node('012', { kind: 'decision', status: 'fog', answers: '002' }),
-      node('013', { kind: 'decision', status: 'resolved', answers: '002' }),
+      node('013', { kind: 'decision', status: 'resolved', answers: '002', title: 'Keep drafts?', body: 'Asked once.\n\n## Answer\n\nYes\n\n## Answer (changed 2026-11-04)\n\nOnly unsent ones' }),
       node('014', { kind: 'decision', answers: '001' }),
     ];
     const { doc } = build(nodes);
     expect(doc.questions).toEqual([{ id: '010', target: { type: 'node', id: '002' }, question: 'Retry a conflict?', detail: 'Recommend yes.', choices: ['Yes', 'No'],
-      highlights: [{ element: '002', start: { line: 1, column: 1 }, end: { line: 1, column: 11 } }] }]);
+      highlights: [{ element: '002', start: { line: 1, column: 1 }, end: { line: 1, column: 11 } }] },
+    // Answered questions stay listed, with the latest of their dated answers and without the answers in their prose.
+    { id: '013', target: { type: 'node', id: '002' }, question: 'Keep drafts?', detail: 'Asked once.', answer: 'Only unsent ones' }]);
     expect(targetingNodes(nodes).map(n => n.id)).toEqual(['010', '011', '012']);
-    expect(designDocToPack(doc).designDocument?.questions).toHaveLength(1);
+    expect(designDocToPack(doc).designDocument?.questions).toHaveLength(2);
   });
   it.each([
     ['no design elements', (nodes: GraphNode[]) => nodes.filter(n => n.kind !== 'element'), /no design elements/],

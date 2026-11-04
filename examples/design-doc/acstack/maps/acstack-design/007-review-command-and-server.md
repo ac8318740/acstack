@@ -3,7 +3,7 @@ status: open
 mode: hitl
 kind: element
 label: "Review command and server"
-summary: "Reads and validates the map, serves the browser review interface, saves comments, writes answers and locks to the map, and exports Markdown."
+summary: "Reads and validates the map, serves the browser review interface, saves comments, writes answers and approval to the map, and exports Markdown."
 answers: "001"
 blocked-by: []
 ---

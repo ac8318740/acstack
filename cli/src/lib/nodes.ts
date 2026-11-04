@@ -85,6 +85,7 @@ export interface GraphNode {
   pinned: boolean;
   body?: string;
   file?: string;
+  url?: string; // the issue's address, on the github backend
 }
 
 export interface MapNode {

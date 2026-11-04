@@ -13,7 +13,7 @@ blocked-by: []
 
 ACStack draws a design doc from a map, saves review comments, writes the reviewer's answers back to the map, and records human approval of the exact reviewed inputs.
 
-This example keeps the existing architecture: Agent skills guide the agent; the Review command and server read the map and save review evidence. The Browser review interface shows the design and collects comments, answers, locks, and approval. Review the responsibilities, containment, and labeled arrows before implementation.
+This example keeps the existing architecture: Agent skills guide the agent; the Review command and server read the map and save review evidence. The Browser review interface shows the design and collects comments, answers, and approval. Review the responsibilities, containment, and labeled arrows before implementation.
 
 ### Author, review, reconcile, and approve
 
@@ -24,7 +24,7 @@ This example keeps the existing architecture: Agent skills guide the agent; the 
 5. The developer answers questions beside their elements; each answer writes `## Answer` and resolves the question node
 6. The developer saves comments, chooses Send to agent, and pastes the copied prompt into the agent session
 7. The agent revises element nodes, picks up answer follow-ups at its next frontier recompute, and reconciles each comment
-8. The developer locks settled elements, or approves the revision, which locks every loose element
+8. The developer approves the revision, which approves every element
 9. The agent requires `approval.valid: true` from `acstack design-review status <map>` before implementation
 10. At map closeout, archive verifies implemented functional requirements in living specs, architecture decision records (ADRs), and agreed glossary terms before disposing of temporary nodes
 
@@ -34,7 +34,7 @@ This example keeps the existing architecture: Agent skills guide the agent; the 
 - Each comment needs one explicit disposition: `applied`, `retained`, or `needs-human`, with a rationale
 - Any open node targeting an element, or a `needs-human` disposition, prevents approval
 - Changed element nodes, saved feedback, or targeting nodes reopen the gate; presentation regeneration alone preserves approval
-- Only the developer locks an element; an agent never does
+- Only the developer approves; an agent approves an element only on the developer's explicit instruction
 
 ### Containment and arrows keep their existing meaning
 
@@ -43,7 +43,7 @@ The ACStack plugin contains Agent skills, Agent session setup, and the CLI packa
 - Each component is one entity, shown collapsed or expanded
 - Nesting means containment; arrows connect responsible entities, never ancestors to descendants
 - Read one-way arrows as actor, action, and target: the server reads the map, and the developer optionally publishes Markdown
-- The bidirectional review-session arrow covers the prepared graph, posted comments, answers, and locks
+- The bidirectional review-session arrow covers the prepared graph, posted comments, and answers
 - Concerns describe shared requirements without changing containment
 
 ### Optional repository context

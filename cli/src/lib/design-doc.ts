@@ -41,7 +41,7 @@ export const QUESTION_SUMMARY = 'Design question';
 type Relationship = { id: string; from: string; to: string; direction: 'one-way' | 'bidirectional'; label: string };
 type Element = {
   id: string; name: string; summary: string; kind: z.infer<typeof DesignKindSchema>; parent?: string;
-  channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; resolved: boolean; locked: boolean; configDigest: string;
+  channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; source?: string; resolved: boolean; locked: boolean; configDigest: string;
   // `exampleSummaries` is filled once the files are checked, by loadMapDesign.
   examples: ExampleEntry[]; exampleSummaries?: ExampleSummary[];
 };
@@ -120,7 +120,7 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
         if (to === node.id) throw new Error(`Node ${node.id}: connects to itself`);
         return { id: `${node.id}-${to}`, from: node.id, to, direction: edge.direction, label: edge.label };
       }),
-      detailText: rest || undefined, resolved: node.status === 'resolved', locked: node.status === 'resolved', configDigest: digest(config), examples: value.examples,
+      detailText: rest || undefined, source: node.url ?? (node.file && `maps/${map}/${node.file}`), resolved: node.status === 'resolved', locked: node.status === 'resolved', configDigest: digest(config), examples: value.examples,
     };
   });
   const byElement = new Map(items.map(item => [item.id, item]));
@@ -159,8 +159,14 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
   for (const node of targetingNodes(nodes)) {
     const target = byElement.get(node.answers as string) as Element;
     if (target.locked) warnings.push(`Node ${node.id} is open on locked element ${target.id}`);
-    if (node.mode !== 'hitl' || node.status === 'fog') continue;
-    const { config, rest } = configBlock(node, QUESTION_SUMMARY);
+  }
+  // Answered questions stay on the page beside open ones, with their latest answer.
+  const asked = nodes.filter(node => node.kind !== 'element' && node.mode === 'hitl' && node.answers && byElement.has(node.answers)
+    && (node.status === 'open' || node.status === 'claimed' || node.status === 'resolved'));
+  for (const node of asked) {
+    const target = byElement.get(node.answers as string) as Element;
+    const { config, rest: prose } = configBlock(node, QUESTION_SUMMARY);
+    const { rest, answer } = splitAnswers(prose);
     const value = parsed(node, QUESTION_SUMMARY, QuestionConfigSchema, config);
     const highlights = value.highlights?.map(passage => {
       const source = target.detailText ?? '';
@@ -171,12 +177,27 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
     });
     questions.push({
       id: node.id, target: { type: 'node', id: target.id }, question: node.title, ...(rest && { detail: rest }),
+      ...(node.status === 'resolved' && { answer: answer ?? '' }),
       ...(value.choices && { choices: value.choices }), ...(value.multiple !== undefined && { multiple: value.multiple }), ...(highlights && { highlights }),
     });
   }
   // Lock state and questions live in the map inputs digest, so locking or answering never makes the open page stale.
-  const content = { id: map, name: root.title, summary: root.summary ?? root.title, detailText: rootBlock.rest || undefined, concerns, items: items.map(item => ({ ...item, resolved: undefined, locked: undefined })) };
+  const content = { id: map, name: root.title, summary: root.summary ?? root.title, detailText: rootBlock.rest || undefined, concerns, items: items.map(item => ({ ...item, source: undefined, resolved: undefined, locked: undefined })) };
   return { doc: { ...content, items, questions, sourceRevision: digest(content) }, warnings };
+}
+
+const ANSWER_HEADING = /^## Answer(?: \(changed \d{4}-\d{2}-\d{2}\))?[ \t]*$/m;
+/**
+ * A question body without its `## Answer` sections, and the latest answer.
+ * A changed answer appends a dated section rather than rewriting history.
+ */
+export function splitAnswers(body: string): { rest: string; answer?: string } {
+  const at = body.search(ANSWER_HEADING);
+  if (at === -1) return { rest: body };
+  const sections = body.slice(at).split(new RegExp(ANSWER_HEADING.source, 'm')).slice(1);
+  // Each answer runs to the next level-two heading.
+  const latest = sections.at(-1)?.split(/^## /m)[0].trim();
+  return { rest: body.slice(0, at).trim(), answer: latest };
 }
 
 // Schema prose is plain text; only node bodies contain authored Markdown.
@@ -194,7 +215,7 @@ export function designDocToPack(doc: DesignDoc, orientation: DiagramOrientation 
   return AlignmentPackSchema.parse({
     documentKind: 'design', packVersion: `${doc.id}@${version}`,
     designDocument: { id: doc.id, name: doc.name, summary: doc.summary, detail: doc.detailText, questions: doc.questions },
-    source: { map: { id: doc.name, version }, references: doc.items.map(item => ({ id: item.id, kind: 'design-element', title: item.name, uri: `node:${item.id}` })) },
+    source: { map: { id: doc.name, version }, references: doc.items.map(item => ({ id: item.id, kind: 'design-element', title: item.name, uri: item.source ?? `Map node ${item.id}` })) },
     graph: {
       groups: [{ id: 'design:root', label: doc.name, summary: doc.summary, sourceRefs: [] }, ...doc.items.filter(item => containers.has(item.id)).map(item => ({ id: `design:container:${item.id}`, parentGroupId: item.parent ? `design:container:${item.parent}` : 'design:root', label: item.name, ownerNodeId: item.id, summary: item.summary, sourceRefs: [item.id] }))],
       nodes: doc.items.map(item => ({
@@ -222,5 +243,5 @@ export function renderDesignDocMarkdown(doc: DesignDoc, orientation: DiagramOrie
   };
   walk();
   for (const edge of doc.items.flatMap(item => item.relationships)) lines.push(`    element_${edge.from} ${edge.direction === 'bidirectional' ? '<-->' : '-->'}|"${label(edge.label)}"| element_${edge.to}`);
-  return `# ${markdownText(doc.name)}\n\n${markdownText(doc.summary)}\n\n<!-- Generated from the map's element nodes; regenerate with design-doc --markdown -->\n\n\`\`\`mermaid\n${lines.join('\n')}\n\`\`\`\n\n${doc.detailText ?? ''}\n\n${doc.questions.length ? `## Questions\n\n${doc.questions.map(q => `### ${markdownText(q.question)}\n\n- Node: \`${q.id}\`\n- Target: \`${q.target.id}\`${q.choices ? `\n- Answer format: ${q.multiple ? 'Select all that apply' : 'Choose one'}\n${q.choices.map(choice => `    - ${markdownText(choice)}`).join('\n')}\n    - Other (write in)` : '\n- Answer format: Free text'}`).join('\n\n')}\n\n` : ''}${doc.items.map(item => `## ${markdownText(item.name)}\n\n*${markdownText(item.summary)}*\n\n- Node: \`${item.id}\`\n- Kind: ${item.kind}\n- State: ${item.locked ? 'locked' : 'loose'}\n- Channels: ${item.channels.join(', ') || 'none'}\n\n${itemDetail(doc, item)}`).join('\n\n')}`.trimEnd() + '\n';
+  return `# ${markdownText(doc.name)}\n\n${markdownText(doc.summary)}\n\n<!-- Generated from the map's element nodes; regenerate with design-doc --markdown -->\n\n\`\`\`mermaid\n${lines.join('\n')}\n\`\`\`\n\n${doc.detailText ?? ''}\n\n${doc.questions.length ? `## Questions\n\n${doc.questions.map(q => `### ${markdownText(q.question)}\n\n- Node: \`${q.id}\`\n- Target: \`${q.target.id}\`${q.answer !== undefined ? `\n- Answer: ${markdownText(q.answer) || 'given'}` : ''}${q.choices ? `\n- Answer format: ${q.multiple ? 'Select all that apply' : 'Choose one'}\n${q.choices.map(choice => `    - ${markdownText(choice)}`).join('\n')}\n    - Other (write in)` : '\n- Answer format: Free text'}`).join('\n\n')}\n\n` : ''}${doc.items.map(item => `## ${markdownText(item.name)}\n\n*${markdownText(item.summary)}*\n\n- Node: \`${item.id}\`\n- Kind: ${item.kind}\n- State: ${item.locked ? 'approved' : 'awaiting approval'}\n- Channels: ${item.channels.join(', ') || 'none'}\n\n${itemDetail(doc, item)}`).join('\n\n')}`.trimEnd() + '\n';
 }

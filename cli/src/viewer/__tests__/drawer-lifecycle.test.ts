@@ -532,7 +532,7 @@ it('shares one confirmation and approval result between header and document cont
   }
 });
 
-it('locks a loose element from its drawer against the exact tuple shown', async () => {
+it('shows no per-element state or lock control until an element changes after approval', async () => {
   const document = new Host('#document');
   document.nodeType = 9;
   document.ownerDocument = document;
@@ -552,21 +552,18 @@ it('locks a loose element from its drawer against the exact tuple shown', async 
   pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
   const container = create('div'), root = createRoot(container as unknown as HTMLElement);
   const props: ComponentProps<typeof Drawer> = { questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'details', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: 'item:app', diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
-  const pill = () => all(container).find(node => node.attributes['data-locked'] !== undefined)!;
-  const lock = () => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === 'Lock');
+  const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
   try {
     await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement(Drawer, props) }))));
-    expect(handlers(pill()).children).toBe('Loose');
-    await act(() => Promise.resolve(handlers(lock()!).onClick!()));
-    const body = fetch.mock.calls.find(([, options]) => options.method === 'POST')?.[1].body;
-    if (typeof body !== 'string') throw new Error('Lock must send JSON');
-    expect(JSON.parse(body)).toEqual({ lock: 'app', expected });
-    expect(handlers(pill()).children).toBe('Locked');
-    expect(lock()).toBeUndefined();
+    // Approving the design approves every element, so a single element offers no Lock, Loose, or Locked state.
+    expect(all(container).some(node => node.attributes.class === 'element-lock')).toBe(false);
+    expect(text()).not.toMatch(/\bLock(ed)?\b|\bLoose\b/);
+    expect(fetch.mock.calls.some(([, options]) => options.method === 'POST')).toBe(false);
+    expect(locked).toEqual([]);
   } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
 });
 
-it('lists approval blockers in a modal that links to each one, and sends lock captures', async () => {
+it('lists approval blockers in a modal that links to each one, and sends captures with re-approval and approval', async () => {
   const document = new Host('#document');
   document.nodeType = 9;
   document.ownerDocument = document;
@@ -577,7 +574,7 @@ it('lists approval blockers in a modal that links to each one, and sends lock ca
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
   const blocker = { kind: 'question', targetId: 'app', label: 'Retry after a conflict?', nodeId: '104' };
-  let blockers = [blocker];
+  let blockers = [blocker, { kind: 'changed', targetId: 'app', label: 'Application', nodeId: 'app' }];
   const posts: unknown[] = [];
   const fetch = vi.fn((_url: string, options: RequestInit) => {
     if (options.method === 'POST' && typeof options.body === 'string') posts.push(JSON.parse(options.body));
@@ -597,10 +594,10 @@ it('lists approval blockers in a modal that links to each one, and sends lock ca
     await render();
     act(() => handlers(button('Approve this version')!).onClick!());
     expect(dialog().attributes.open).toBe('');
-    act(() => handlers(button('Retry after a conflict?')!).onClick!());
+    act(() => handlers(all(container).find(node => node.attributes.class === 'blocker-link')!).onClick!());
     expect(navigated).toEqual([blocker]);
     expect(dialog().attributes).not.toHaveProperty('open');
-    await act(() => Promise.resolve(handlers(button('Lock')!).onClick!()));
+    await act(() => Promise.resolve(handlers(button('Re-approve')!).onClick!()));
     expect(posts.at(-1)).toEqual({ lock: 'app', capture: { variant: 'compact' }, expected });
     blockers = [];
     await render();
@@ -629,16 +626,16 @@ it('offers one-click re-approval for an element changed since approval', async (
   pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
   const container = create('div'), root = createRoot(container as unknown as HTMLElement);
   const buttons = (label: string) => all(container).filter(node => node.tagName === 'BUTTON' && handlers(node).children === label);
-  const pill = () => all(container).find(node => node.attributes['data-locked'] !== undefined)!;
+  const pill = () => all(container).find(node => node.attributes['data-changed'] !== undefined);
   try {
     await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(DesignApproval), createElement(ElementLock, { id: 'app', locked: false })) }))));
-    expect(handlers(pill()).children).toBe('Changed since approval');
+    expect(handlers(pill()!).children).toBe('Changed since approval');
     act(() => handlers(buttons('Approve this version')[0]).onClick!());
     // One Re-approve in the blocker modal and one in the element's drawer.
     expect(buttons('Re-approve')).toHaveLength(2);
     await act(() => Promise.resolve(handlers(buttons('Re-approve')[0]).onClick!()));
     expect(posts).toEqual([{ lock: 'app', expected }]);
-    expect(handlers(pill()).children).toBe('Locked');
+    expect(pill()).toBeUndefined();
     expect(buttons('Re-approve')).toHaveLength(0);
   } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
 });
@@ -699,4 +696,51 @@ it('lists comments from an earlier version, tagged with the change, beside the c
     // Earlier comments are read-only: only the current comment can be edited or deleted.
     expect(all(container).filter(node => node.attributes['aria-label'] === 'Delete comment')).toHaveLength(1);
   } finally { act(() => root.unmount()); }
+});
+
+it('keeps answered questions under Answered with the answer, counts both in the tab, and changes an answer', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const expected = { sourceRevision: 's', reviewRevision: 0, commentsDigest: 'c', mapInputsDigest: 'm' };
+  let answers: Record<string, string> = { done: '- Refresh' };
+  const posts: Array<Record<string, unknown>> = [];
+  vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
+    if (options.method === 'POST' && typeof options.body === 'string') { const body = JSON.parse(options.body) as { choices: string[] }; posts.push(body); answers = { done: body.choices.map(choice => `- ${choice}`).join('\n') }; }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: ['open'], answers, blockers: [], approval: { valid: false } }) });
+  }));
+  const original = pack.designDocument;
+  pack.designDocument = { id: 'q', name: 'Design', summary: 'Design summary', questions: [
+    { id: 'open', target: { type: 'node', id: 'app' }, question: 'Name the command?' },
+    { id: 'done', target: { type: 'node', id: 'app' }, question: 'Retry on conflict?', choices: ['Refresh', 'Wait'], answer: '- Refresh' },
+  ] };
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const props: ComponentProps<typeof Drawer> = { questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'questions', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: null, diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
+  const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
+  const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && (handlers(node).children === label || node.attributes['aria-label'] === label));
+  try {
+    await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement(Drawer, props) }))));
+    expect(text()).toContain('Answered');
+    expect(text()).not.toContain('No questions');
+    expect(text()).not.toContain('resolves the question on the map');
+    expect(all(container).some(node => node.attributes['aria-label'] === '1 open')).toBe(true);
+    expect(all(container).some(node => node.attributes['aria-label'] === '1 answered')).toBe(true);
+    act(() => handlers(button('Retry on conflict?')!).onClick!());
+    expect(text()).toContain('Your answer');
+    expect(text()).toContain('Refresh');
+    act(() => handlers(button('Change answer')!).onClick!());
+    // The form opens on the saved answer.
+    const radios = all(container).filter(node => node.tagName === 'INPUT');
+    expect(radios.map(radio => handlers(radio).checked)).toEqual([true, false, false]);
+    act(() => handlers(radios[1]).onChange!({ target: { value: '', checked: true } }));
+    await act(() => Promise.resolve(handlers(button('Save new answer')!).onClick!()));
+    expect(posts.at(-1)).toEqual({ questionId: 'done', answer: '', choices: ['Wait'], expected });
+    expect(button('Change answer')).toBeDefined();
+    expect(text()).toContain('Wait');
+  } finally { act(() => root.unmount()); pack.designDocument = original; }
 });

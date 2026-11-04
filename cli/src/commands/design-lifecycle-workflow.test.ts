@@ -13,7 +13,7 @@ const bin = fileURLToPath(new URL('../../bin/acstack.js', import.meta.url));
 const roots: string[] = [];
 const children: ChildProcess[] = [];
 type Tuple = { sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string };
-type Status = Tuple & { reviewPath: string; openQuestions: string[]; locked: string[]; warnings: string[]; blockers: Array<{ kind: string; targetId: string; label: string; nodeId: string }>; approval: { valid: boolean; reason?: string } };
+type Status = Tuple & { reviewPath: string; openQuestions: string[]; answers: Record<string, string>; locked: string[]; warnings: string[]; blockers: Array<{ kind: string; targetId: string; label: string; nodeId: string }>; approval: { valid: boolean; reason?: string } };
 type Snapshot = { packVersion: string; revision: number; annotations: Record<string, unknown>[] };
 type Node = { id: string; kind: string; status: string; mode?: string; answers?: string; body?: string };
 type Tracker = 'files' | 'github';
@@ -207,7 +207,23 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
         ['issue', 'view', '104', '--json', 'body'], ['issue', 'edit', '104', '--body-file', '-'], ['issue', 'close', '104', '--reason', 'completed'],
       ]);
     }
-    denied(await server.answer(after, { questionId: '104', answer: 'Again', choices: [] }));
+    // The answered question stays on the page, and changing it appends a dated answer rather than rewriting history.
+    expect(after.answers).toEqual({ '104': '- Yes\n- Other: Only on conflict' });
+    denied(await server.answer(after, { questionId: '104', answer: '', choices: ['Maybe'] }));
+    expect((await server.answer(after, { questionId: '104', answer: '', choices: ['No'] })).ok).toBe(true);
+    const changed = await server.get();
+    expect(changed.answers['104']).toBe('- No');
+    expect(changed.openQuestions).toEqual([]);
+    const today = new Date().toISOString().slice(0, 10);
+    if (tracker === 'files') {
+      expect(fileNode(root, '104')).toContain(`## Answer\n\n- Yes\n- Other: Only on conflict\n\n## Answer (changed ${today})\n\n- No`);
+      expect(fileNode(root, '104')).toMatch(/^status: resolved$/m);
+    } else {
+      const issue = (JSON.parse(readFileSync(join(root, 'issues.json'), 'utf8')) as Array<{ number: number; body: string }>).find(item => item.number === 104)!;
+      expect(issue.body).toContain(`## Answer (changed ${today})\n\n- No`);
+      // An answered issue is already closed; changing the answer only edits its body.
+      expect(ghCalls(root).filter(args => args[1] === 'close' && args[2] === '104')).toHaveLength(1);
+    }
     expect((await server.approve(after)).ok).toBe(true);
     const approved = await server.get();
     expect(approved.approval.valid).toBe(true);

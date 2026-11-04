@@ -39,8 +39,9 @@ export function readMapNodes(root: string, map: string): GraphNode[] {
  * Resolve a node through its tracker, appending `## Answer` when one is given.
  * On GitHub a retry after a failed close skips the edit, since the answer is already in the body.
  */
-export function resolveMapNode(root: string, map: string, id: string, answer?: string): void {
-  const section = answer === undefined ? undefined : `## Answer\n\n${answer}`;
+export function resolveMapNode(root: string, map: string, id: string, answer?: string, changed?: string): void {
+  // A changed answer appends a dated section, so the node keeps every answer the reviewer gave.
+  const section = answer === undefined ? undefined : `## Answer${changed ? ` (changed ${changed})` : ''}\n\n${answer}`;
   if (!onGithub(root)) {
     updateNode(root, map, id, { status: 'resolved', ...(section && { appendBody: section }) });
     return;
@@ -49,7 +50,7 @@ export function resolveMapNode(root: string, map: string, id: string, answer?: s
     const { body } = JSON.parse(gh(['issue', 'view', id, '--json', 'body'])) as { body: string };
     if (!body.includes(section)) gh(['issue', 'edit', id, '--body-file', '-'], `${body.trimEnd()}\n\n${section}\n`);
   }
-  gh(['issue', 'close', id, '--reason', 'completed']);
+  if (!changed) gh(['issue', 'close', id, '--reason', 'completed']);
 }
 
 /** What approval covers from the map beyond the design's own text: every node targeting an element. Lock state is not an input; approval itself locks. */

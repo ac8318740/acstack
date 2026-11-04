@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { MapQuestion, ReviewAnnotation } from '../lib/alignment-packs.js';
-import { ChevronRight, ListFilter, ListTodo, Maximize2, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
+import { Check, ChevronRight, ListFilter, ListTodo, Maximize2, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
 import { revealHighlights } from './markdown-highlights.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
 import type { Diagram } from './alignment-graph.js';
@@ -434,7 +434,7 @@ export function Drawer({
   const review = useDesignReview();
   useExampleCaptures();
   const authoredQuestions = pack.designDocument?.questions ?? [];
-  const openQuestions = authoredQuestions.filter(question => !review?.answered.includes(question.id));
+  const openQuestions = authoredQuestions.filter(question => !(review ? review.answered.includes(question.id) : question.answer !== undefined));
   const scopedQuestions = questionsForScope(authoredQuestions, questionScope, diagram, pack.graph);
   const questionOptions = reviewScopeOptions(authoredQuestions.map(question => question.target));
   const questionTarget = questionScope.startsWith('selection:') ? questionScope.slice(10) : questionScope;
@@ -443,6 +443,7 @@ export function Drawer({
   const activeQuestionScope = exactQuestionScope && questionScope.startsWith('selection:') && scopedQuestions.every(question => scopeIdFor(question.target) === exactQuestionScope) ? exactQuestionScope : questionScope;
   const questionLabel = questionContext ? scopeLabel(questionContext.target) : 'All targets';
   const needsInput = openQuestions.length;
+  const answeredCount = authoredQuestions.length - needsInput;
   const [inspection, setInspection] = useState<DetailInspection | null>(null);
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, AnswerDraft>>({});
   const setAnswerDraft = (id: string, draft?: AnswerDraft) => setAnswerDrafts(previous => {
@@ -547,7 +548,10 @@ export function Drawer({
         <div className="drawer-tabs" aria-label="Panel view">
           <button type="button" aria-pressed={view === 'details'} onClick={() => setView('details')}>Details</button>
           <button type="button" aria-pressed={view === 'comments'} onClick={() => { if (view !== 'comments') { setCommentScope(commentScopeForSelection(selected, diagram)); setView('comments'); } }}>Comments</button>
-          {pack.designDocument && <button type="button" aria-pressed={view === 'questions'} onClick={() => { if (view !== 'questions') { setQuestionScope(questionScopeForSelection(selected)); setView('questions'); } }}>Questions{needsInput > 0 ? ` (${needsInput})` : ''}</button>}
+          {pack.designDocument && <button type="button" aria-pressed={view === 'questions'} onClick={() => { if (view !== 'questions') { setQuestionScope(questionScopeForSelection(selected)); setView('questions'); } }}>Questions
+            {needsInput > 0 && <span className="tab-count" aria-label={`${needsInput} open`}>{needsInput}</span>}
+            {answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
+          </button>}
           {exampleNode && examplesFor(exampleNode).length > 0 && <button type="button" aria-pressed={view === 'examples'} onClick={() => setView('examples')}>Examples</button>}
         </div>
         <div className="row">

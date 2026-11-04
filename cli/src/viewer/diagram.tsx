@@ -267,7 +267,9 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     for (let ancestor = parent; ancestor; ancestor = ancestor.parentId ? byId.get(ancestor.parentId) : undefined) depth++;
     // ReactFlow puts children above their parents; keep every frame below routes at z-index 0.
     const zIndex = node.kind === 'group' ? depth - diagram.nodes.length : 1;
-    return { id: node.id, type: node.kind, parentId: node.parentId, position: { x: node.x - (parent?.x ?? 0), y: node.y - (parent?.y ?? 0) }, initialWidth: node.width, initialHeight: node.height, style: { width: node.width, height: node.height }, selectable: true, draggable: false, selected: node.id === selected, zIndex, data: { ...node, ...actions, orientation, zoom: contentZoom, dimmed: Boolean(selected) && !linked.has(node.id), comments, questions: questionCounts.get(node.id) ?? 0 } };
+    return { id: node.id, type: node.kind, parentId: node.parentId, position: { x: node.x - (parent?.x ?? 0), y: node.y - (parent?.y ?? 0) }, initialWidth: node.width, initialHeight: node.height,
+      // Every render passes new node objects; without `measured`, ReactFlow drops each node's handle bounds and hides its edges until that node happens to resize.
+      measured: { width: node.width, height: node.height }, style: { width: node.width, height: node.height }, selectable: true, draggable: false, selected: node.id === selected, zIndex, data: { ...node, ...actions, orientation, zoom: contentZoom, dimmed: Boolean(selected) && !linked.has(node.id), comments, questions: questionCounts.get(node.id) ?? 0 } };
   });
   const edges: Edge<RouteData>[] = diagram.edges.map(edge => {
     const state = !selected ? 'idle' : edge === selectedEdge || edge.source === selected || edge.target === selected ? 'active' : 'dimmed';

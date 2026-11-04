@@ -20,6 +20,8 @@ export const MapQuestionSchema = z.object({
   id: z.string().min(1),
   target: z.object({ type: z.enum(['node', 'edge']), id: z.string().min(1).max(80) }).strict(),
   question: z.string().trim().min(1).max(16000), detail: z.string().optional(),
+  // Set once the reviewer answered: the latest answer, as Markdown.
+  answer: z.string().max(16000).optional(),
   choices: z.array(z.string().trim().min(1).max(500)).min(2).max(12).optional(),
   multiple: z.boolean().optional(),
   highlights: z.array(DesignHighlightSchema).min(1).max(20).optional(),

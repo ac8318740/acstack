@@ -8,7 +8,7 @@ import { liveComments, pack, token, usePackRevision, useReviewAnnotations } from
 type Status = {
   sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string;
   approval: { valid: boolean; reason?: string };
-  openQuestions?: string[]; locked?: string[]; blockers?: ApprovalBlocker[]; earlier?: EarlierReview[];
+  openQuestions?: string[]; answers?: Record<string, string>; locked?: string[]; blockers?: ApprovalBlocker[]; earlier?: EarlierReview[];
 };
 /** Comments saved on an earlier revision, tagged with the change that ended it. */
 export type EarlierReview = { reviewPath: string; packVersion: string; label: string; annotations: ReviewAnnotation[] };
@@ -29,7 +29,7 @@ async function request(body?: unknown): Promise<Status> {
 type ApprovalControls = {
   approved: boolean; pending: boolean; disabled: boolean;
   reason: string; error?: string; open: () => void;
-  answered: string[]; answerable: string[]; locked?: string[]; changed: string[]; earlier: EarlierReview[]; canAnswer: boolean;
+  answered: string[]; answerText: (id: string) => string | undefined; answerable: string[]; locked?: string[]; changed: string[]; earlier: EarlierReview[]; canAnswer: boolean;
   saveAnswer: (answer: DesignAnswer) => Promise<void>;
   lock: (id: string) => Promise<void>;
   navigate: MutableRefObject<((blocker: ApprovalBlocker) => void) | undefined>;
@@ -66,6 +66,10 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
   const captures = useRef(new Map<string, () => LockCapture | undefined>());
   const captured = (ids: string[]) => Object.fromEntries(ids.flatMap(id => { const value = captures.current.get(id)?.(); return value ? [[id, value]] : []; }));
   const showBlockers = () => { confirm.current?.close(); blockerDialog.current?.showModal(); };
+  // Settling the last blocker from the modal moves straight on to the approval confirmation.
+  useEffect(() => {
+    if (blockerDialog.current?.open && status && !status.blockers?.length) { blockerDialog.current.close(); confirm.current?.showModal(); }
+  }, [status]);
   const packRevision = usePackRevision();
   useEffect(() => {
     if (!enabled || pending) return;
@@ -114,16 +118,17 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
   };
   const saveAnswer = (answer: DesignAnswer) => write(answer);
   const lock = (id: string) => { const capture = captures.current.get(id)?.(); return write({ lock: id, ...(capture && { capture }) }); };
-  const answered = status?.openQuestions ? (pack.designDocument?.questions ?? []).map(question => question.id).filter(id => !status.openQuestions?.includes(id)) : [];
+  // Until status arrives, the page's own data says which questions were answered.
+  const answered = (pack.designDocument?.questions ?? []).filter(question => status?.openQuestions ? !status.openQuestions.includes(question.id) : question.answer !== undefined).map(question => question.id);
+  const answerText = (id: string) => status?.answers?.[id];
   const approved = Boolean(!error && !pending && syncState?.status === 'Saved' && status?.approval.valid);
   const disabled = !status || pending || approved || syncState?.status !== 'Saved';
   const reason = approved ? 'This revision is approved' : error ?? status?.approval.reason ?? 'Checking revision...';
-  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, earlier: status?.earlier ?? [], locked: status?.locked, changed: (status?.blockers ?? []).filter(blocker => blocker.kind === 'changed').map(blocker => blocker.targetId), canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), answerable: status?.openQuestions ?? [], saveAnswer, lock, navigate, captures, open: () => { if (disabled) return; if (status?.blockers?.length) blockerDialog.current?.showModal(); else confirm.current?.showModal(); } } : null}>
+  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, answerText, earlier: status?.earlier ?? [], locked: status?.locked, changed: (status?.blockers ?? []).filter(blocker => blocker.kind === 'changed').map(blocker => blocker.targetId), canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), answerable: status?.openQuestions ?? [], saveAnswer, lock, navigate, captures, open: () => { if (disabled) return; if (status?.blockers?.length) blockerDialog.current?.showModal(); else confirm.current?.showModal(); } } : null}>
     {children}
     {enabled && <dialog ref={confirm} className="modal" aria-labelledby="design-approval-title" aria-describedby="design-approval-explanation" onCancel={event => { if (pending) event.preventDefault(); }}>
       <h2 id="design-approval-title">Approve this version?</h2>
-      <p id="design-approval-explanation">Approval covers the current design, saved comments, and the questions on the map, and locks every loose element. Later changes require approval again.</p>
-      <p className="hint">Only posted comments are saved before approval; unposted drafts stay in this review.</p>
+      <p id="design-approval-explanation">Approval covers every element, the saved comments, and the answered questions. Later changes need approval again.</p>
       {error && <p className="error" role="alert">{error}</p>}
       <div className="row end">
         <button type="button" className="btn ghost" autoFocus disabled={pending} onClick={() => confirm.current?.close()}>Cancel</button>
@@ -132,11 +137,13 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
     </dialog>}
     {enabled && <dialog ref={blockerDialog} className="modal" aria-labelledby="design-blockers-title" aria-describedby="design-blockers-explanation">
       <h2 id="design-blockers-title">Settle these before approving</h2>
-      <p id="design-blockers-explanation">{status?.approval.reason ?? 'This revision has blockers.'} Choose one to open it.</p>
+      <p id="design-blockers-explanation" className="muted">Choose one to open it.</p>
       <ul className="blocker-list">
         {(status?.blockers ?? []).map(blocker => <li key={`${blocker.kind}:${blocker.nodeId}`}>
-          <button type="button" className="link" onClick={() => { blockerDialog.current?.close(); navigate.current?.(blocker); }}>{blocker.label}</button>
-          <span className="muted"> {BLOCKER_KINDS[blocker.kind]} · {pack.graph.nodes.find(node => node.id === blocker.targetId)?.label ?? blocker.targetId}</span>
+          <button type="button" className="blocker-link" onClick={() => { blockerDialog.current?.close(); navigate.current?.(blocker); }}>
+            <span className="blocker-label">{blocker.label}</span>
+            <span className="blocker-meta">{BLOCKER_KINDS[blocker.kind]}{blocker.targetId === blocker.nodeId ? '' : ` · ${pack.graph.nodes.find(node => node.id === blocker.targetId)?.label ?? blocker.targetId}`}</span>
+          </button>
           {blocker.kind === 'changed' && <> <button type="button" className="btn" disabled={pending} onClick={() => { void lock(blocker.targetId).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>Re-approve</button></>}
         </li>)}
       </ul>
@@ -157,20 +164,17 @@ export function DesignApproval({ compact = false }: { compact?: boolean }) {
     <p className="muted" role="status">{approval.reason}</p>
     {approval.error && <p className="error" role="alert">{approval.error}</p>}
     {button}
-    <p className="hint">Only posted comments are saved before approval; unposted drafts stay in this review.</p>
   </section>;
 }
 
-// Only the reviewer locks an element; a locked element is a requirement.
-export function ElementLock({ id, locked }: { id: string; locked?: boolean }) {
+// An element shows a state only after an agent changes it post-approval; one click approves it again.
+export function ElementLock({ id }: { id: string; locked?: boolean }) {
   const review = useContext(ApprovalContext);
   const [error, setError] = useState<string>();
-  if (locked === undefined) return null;
-  const isLocked = review?.locked ? review.locked.includes(id) : locked;
-  const changed = review?.changed.includes(id) ?? false;
+  if (!review?.changed.includes(id)) return null;
   return <div className="element-lock">
-    <span className="type-pill" data-locked={isLocked}>{isLocked ? 'Locked' : changed ? 'Changed since approval' : 'Loose'}</span>
-    {review && !isLocked && <button type="button" className="btn" disabled={!review.canAnswer} onClick={() => { setError(undefined); review.lock(id).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>{changed ? 'Re-approve' : 'Lock'}</button>}
+    <span className="type-pill" data-changed>Changed since approval</span>
+    <button type="button" className="btn" disabled={!review.canAnswer} onClick={() => { setError(undefined); review.lock(id).catch((error: unknown) => setError(error instanceof Error ? error.message : String(error))); }}>Re-approve</button>
     {error && <p className="error" role="alert">{error}</p>}
   </div>;
 }

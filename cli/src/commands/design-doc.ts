@@ -115,7 +115,8 @@ export function register(program: Command): void {
         warn(warnings);
         const changed = changedElements(doc, reviewHistories(root, doc.id).values());
         if (changed.length) throw new Error(`Changed since the user approved: ${changed.join(', ')}. Report the change; re-approve only on the user's instruction (design-review approve-element).`);
-        console.log(`Design doc ${doc.name}: ${doc.items.length} elements, ${doc.questions.length} open questions`);
+        const open = doc.questions.filter(question => question.answer === undefined).length;
+        console.log(`Design doc ${doc.name}: ${doc.items.length} elements, ${open} open ${open === 1 ? 'question' : 'questions'}`);
         return;
       }
       const port = Number(options.port);
