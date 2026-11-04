@@ -60,6 +60,13 @@ const StoredReviewSchema = DesignReviewSnapshotSchema.extend({
 }).strict();
 export type StoredDesignReview = z.infer<typeof StoredReviewSchema>;
 
+// A review file that fails validation is never rewritten; each read and write names it until someone fixes it.
+function reviewFileError(path: string, error: unknown): ReviewHttpError {
+  const issue = error instanceof z.ZodError ? error.issues[0] : undefined;
+  const problem = issue ? `${issue.path.join('.')}: ${issue.message}` : error instanceof Error ? error.message : String(error);
+  return Object.assign(new ReviewHttpError(409, `Cannot read review file ${path}: ${problem}. Fix or remove the file; the review stays read-only until then.`), { cause: error });
+}
+
 export function readDesignReviewHistory(root: string, identity: string, path: string): StoredDesignReview {
   const canonical = resolve(path);
   const base = join(root, 'design-reviews', identity);
@@ -72,9 +79,7 @@ export function readDesignReviewHistory(root: string, identity: string, path: st
   let snapshot: StoredDesignReview;
   try {
     snapshot = StoredReviewSchema.parse(JSON.parse(readFileSync(canonical, 'utf8')) as unknown);
-  } catch (error) {
-    throw new Error(`Cannot read design review history ${canonical}: ${error instanceof Error ? error.message : String(error)}`, { cause: error });
-  }
+  } catch (error) { throw reviewFileError(canonical, error); }
   if (snapshot.packVersion !== `${identity}@${basename(dirname(canonical))}` || snapshot.annotations.some(annotation => annotation.packVersion !== snapshot.packVersion)) throw new Error('Review history identity mismatch');
   return snapshot;
 }
@@ -149,17 +154,22 @@ export function openDesignReview(root: string, pack: AlignmentPack): {
       const saved = StoredReviewSchema.parse(JSON.parse(readFileSync(canonical, 'utf8')) as unknown);
       validate(saved);
       return saved;
-    } catch (error) { throw new Error(`Cannot read canonical design review: ${error instanceof Error ? error.message : String(error)}`); }
+    } catch (error) { throw reviewFileError(canonical, error); }
   };
   let snapshot: StoredDesignReview = { packVersion: pack.packVersion, revision: 0, annotations: [] };
   acquire();
   try {
-    if (lstatSync(canonical, { throwIfNoEntry: false })) snapshot = readSnapshot();
-    const before = lstatSync(canonical, { throwIfNoEntry: false }) ? JSON.stringify(snapshot) : undefined;
-    validate(snapshot);
-    const serialized = JSON.stringify(StoredReviewSchema.parse(snapshot));
-    if (Buffer.byteLength(serialized) > 1_000_000) throw new Error('Review too large');
-    if (serialized !== before) atomicWrite(canonical, serialized);
+    const exists = Boolean(lstatSync(canonical, { throwIfNoEntry: false }));
+    // An unreadable file still opens, read-only: every later read and write re-reads it and reports the problem.
+    let readable = true;
+    if (exists) try { snapshot = readSnapshot(); } catch { readable = false; }
+    if (readable) {
+      const before = exists ? JSON.stringify(snapshot) : undefined;
+      validate(snapshot);
+      const serialized = JSON.stringify(StoredReviewSchema.parse(snapshot));
+      if (Buffer.byteLength(serialized) > 1_000_000) throw new Error('Review too large');
+      if (serialized !== before) atomicWrite(canonical, serialized);
+    }
   } finally { release(); }
   return {
     reviewPath: canonical,

@@ -6,7 +6,7 @@ import {
 import { ChevronDown, ListTodo, MessageSquarePlus, Minus, Plus } from 'lucide-react';
 import { useQuestionCounts } from './design-questions.js';
 import { ElementMetadata } from './element-metadata.js';
-import { CARD_WIDTH, commentsOn, LABEL_WIDTH, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
+import { CARD_WIDTH, commentsOn, LABEL_WIDTH, revealViewport, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
 import type { DiagramOrientation } from '../lib/alignment-packs.js';
 import { pack } from './pack.js';
 
@@ -225,7 +225,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
   selected: string | null; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; onQuestions?: (id: string | null) => void; commentCounts: Map<string, number>; layoutKey?: string; contentZoom?: Zoom; orientation?: DiagramOrientation;
 }) {
   const questionCounts = useQuestionCounts(diagram);
-  const { fitView, zoomIn, zoomOut, getViewport, setViewport, setCenter } = useReactFlow();
+  const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
   const revealed = useRef<{ id: string } | undefined>(undefined);
   const revealedIn = useRef<DiagramModel | undefined>(undefined);
   const fitted = useRef(false);
@@ -238,15 +238,21 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     if (!node) return;
     revealed.current = reveal;
     revealedIn.current = diagram;
-    void setCenter(node.x + node.width / 2, node.y + node.height / 2, { zoom: getViewport().zoom, duration: reducedMotion() ? 0 : 200 });
-  }, [reveal, diagram, setCenter, getViewport]);
+    const { top, bottom, x } = fitPadding();
+    const area = { x, y: top, width: (canvas.current?.clientWidth ?? 0) - 2 * x, height: (canvas.current?.clientHeight ?? 0) - top - bottom };
+    const view = revealViewport(node, diagram.nodes, area);
+    if (view === 'fit') fit(true, true);
+    else void setViewport(view, { duration: reducedMotion() ? 0 : 200 });
+  }, [reveal, diagram, setViewport]);
+  // The view keeps clear of the toolbar above and the zoom controls below.
+  const fitPadding = () => ({ top: (canvas.current?.querySelector<HTMLElement>('.toolbar')?.offsetHeight ?? 0) + 30, bottom: 80, x: 30 });
   // Refitting on resize stops once the reviewer pans or zooms; Fit diagram hands control back.
   const userMoved = useRef(false);
   const fit = (animate = true, keepFocus = false) => {
     if (!keepFocus) pending.current = null;
     userMoved.current = false;
-    const toolbar = canvas.current?.querySelector<HTMLElement>('.toolbar');
-    void fitView({ padding: { top: `${(toolbar?.offsetHeight ?? 0) + 30}px`, bottom: '80px', x: '30px' }, minZoom: 0.15, maxZoom: 1.25, duration: animate && !reducedMotion() ? 200 : 0 });
+    const { top, bottom, x } = fitPadding();
+    void fitView({ padding: { top: `${top}px`, bottom: `${bottom}px`, x: `${x}px` }, minZoom: 0.15, maxZoom: 1.25, duration: animate && !reducedMotion() ? 200 : 0 });
   };
   // The canvas narrows when the drawer opens and with the window, so the fitted view follows it.
   useEffect(() => {

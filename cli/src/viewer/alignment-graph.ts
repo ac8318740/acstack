@@ -848,3 +848,14 @@ export function commentsOn(node: DiagramNode, counts: Map<string, number> | unde
   if (node.kind !== 'folded-group') return counts?.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0;
   return [...counts ?? []].reduce((sum, [id, count]) => sum + (reconcileSelection(id, diagram, graph) === node.id ? count : 0), 0);
 }
+
+/**
+ * Where to look after revealing a blocker's element: the whole diagram when it reads at 0.75 or more,
+ * otherwise the element centred at full size. `area` is the canvas part clear of the toolbar and bottom controls.
+ */
+export function revealViewport(target: Box, nodes: Box[], area: Box): 'fit' | { x: number; y: number; zoom: number } {
+  const left = Math.min(...nodes.map(node => node.x)), top = Math.min(...nodes.map(node => node.y));
+  const width = Math.max(...nodes.map(node => node.x + node.width)) - left, height = Math.max(...nodes.map(node => node.y + node.height)) - top;
+  if (Math.min(area.width / width, area.height / height) >= 0.75) return 'fit';
+  return { x: area.x + area.width / 2 - (target.x + target.width / 2), y: area.y + area.height / 2 - (target.y + target.height / 2), zoom: 1 };
+}

@@ -380,6 +380,31 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     expect((await resumed.approve(await resumed.get())).ok).toBe(true);
   }, 30_000);
 
+  it('serves a corrupt review file read-only, naming the file and its first problem, and never rewrites it', async () => {
+    const root = fixture();
+    const first = await start(root);
+    const comments = await savedComments(first);
+    const { reviewPath } = await first.get() as Status & { reviewPath: string };
+    await stop(first.child);
+    const corrupt = JSON.parse(readFileSync(reviewPath, 'utf8')) as Snapshot;
+    corrupt.annotations = [{ ...comments[0], packVersion: undefined }];
+    const text = JSON.stringify(corrupt);
+    writeFileSync(reviewPath, text);
+    const problem = `Cannot read review file ${reviewPath}: annotations.0.packVersion: Required`;
+    const server = await start(root);
+    for (const path of [server.api, new URL('/api/annotations', server.api)]) {
+      const response = await request(path, { headers: server.headers });
+      expect(response.status).toBe(409);
+      expect((await response.json() as { error: string }).error).toContain(problem);
+    }
+    denied(await server.save({ ...corrupt, annotations: [] }));
+    denied(await server.approve({ sourceRevision: '0'.repeat(64), reviewRevision: 1, commentsDigest: '0'.repeat(64), mapInputsDigest: '0'.repeat(64) } as Tuple));
+    expect(readFileSync(reviewPath, 'utf8')).toBe(text);
+    const result = cli(root, ['design-review', 'status', 'demo']);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain(problem);
+    expect(result.stderr).not.toMatch(/^\s+at /m);
+  }, 30_000);
   it('authenticates lifecycle requests and keeps saved feedback intact', async () => {
     const root = fixture();
     const server = await start(root);

@@ -293,7 +293,6 @@ function App() {
           ) : (
             <span className="hint">{pack.documentKind === 'design' ? 'Comments stay in this browser. Approval is not recorded.' : 'Read-only legacy copy. Use design-review migrate with an authored entry and explicit mapping, then open design-doc.'}</span>
           )}
-          {liveComments && syncState?.error && <span className="error" role="alert">{syncState.error}</span>}
         </div>
       </header>
       <main className="canvas">
@@ -303,6 +302,7 @@ function App() {
           <span>Those groups cannot all be open at once without overlapping arrows, so the previous view stays. Open fewer groups together.</span>
           <button type="button" className="btn" onClick={() => setLayoutNotice(null)}>Dismiss</button>
         </div>}
+        {liveComments && syncState?.error && <div className="layout-error" role="alert">{syncState.error}</div>}
         {liveError && <div className="layout-error" role="alert">The map has a problem, so this page stopped updating: {liveError}</div>}
         <ReactFlowProvider>
           <Diagram

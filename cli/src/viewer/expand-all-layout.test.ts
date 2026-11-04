@@ -64,3 +64,13 @@ describe('comment counts on a collapsed container', () => {
     expect(commentsOn(github, counts, diagram, graph)).toBe(4);
   });
 });
+
+describe('the view after revealing a blocker element', () => {
+  it('fits a diagram that reads at 0.75, else centres the element at full size in the clear area', async () => {
+    const { revealViewport } = await import('./alignment-graph.js');
+    const target = { x: 100, y: 900, width: 300, height: 100 };
+    const nodes = [{ x: 0, y: 0, width: 600, height: 1200 }, target];
+    expect(revealViewport(target, nodes, { x: 30, y: 110, width: 1000, height: 900 })).toBe('fit');
+    expect(revealViewport(target, nodes, { x: 30, y: 110, width: 900, height: 600 })).toEqual({ x: 30 + 450 - 250, y: 110 + 300 - 950, zoom: 1 });
+  });
+});

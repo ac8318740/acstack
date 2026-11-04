@@ -103,7 +103,8 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
   root = resolve(root);
   const opened = loadMapDesign(root, map, checkout);
   const rendered = opened.doc;
-  changedElements(rendered, reviewHistories(root, rendered.id).values());
+  // An unreadable review file leaves change notes off; status reports the file instead.
+  try { changedElements(rendered, reviewHistories(root, rendered.id).values()); } catch (error) { if (!(error instanceof ReviewHttpError)) throw error; }
   const review = openDesignReview(root, designDocToPack(rendered));
   const toRelative = (path: string) => relative(root, path).split(sep).join('/');
   const carry = (entries: CarriedReview[]) => review.transact(saved => {

@@ -26,11 +26,14 @@ export function generateDesignDoc(root: string, map: string, output: string, mar
  */
 export function liveDesignDoc(root: string, map: string, orientation: DiagramOrientation = 'top-to-bottom') {
   let lifecycle = openDesignLifecycle(root, map);
-  lifecycle.status();
+  // A corrupt review file still serves the page, read-only; the page and status name the file.
+  try { lifecycle.status(); } catch (error) { if (!(error instanceof ReviewHttpError)) throw error; console.error(`warning: ${error.message}`); }
   const build = () => designDocToPack(lifecycle.doc, orientation);
   let html = renderAlignmentPackHtml(build());
   const events = createEventHub();
-  const prompt = () => `Read the review JSON at ${[lifecycle.review.reviewPath, ...lifecycle.carried().map(entry => entry.path)].map(path => JSON.stringify(path)).join(', ')}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status, explicitly reconcile every comment with design-review reconcile (using --review-file for an earlier review), then reopen the review with design-doc for approval of the resulting revision.`;
+  // A corrupt review file names no carried reviews; the page reports the file itself.
+  const carried = () => { try { return lifecycle.carried(); } catch (error) { if (error instanceof ReviewHttpError) return []; throw error; } };
+  const prompt = () => `Read the review JSON at ${[lifecycle.review.reviewPath, ...carried().map(entry => entry.path)].map(path => JSON.stringify(path)).join(', ')}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status, explicitly reconcile every comment with design-review reconcile (using --review-file for an earlier review), then reopen the review with design-doc for approval of the resulting revision.`;
   const reload = () => {
     try {
       const previous = lifecycle;

@@ -87,7 +87,7 @@ export function createReviewServer(options: {
     if (req.headers[REVIEW_TOKEN_HEADER] !== token) return reply(403, { error: 'This page is from an older review. Reload it.' });
     if (req.method === 'GET') {
       void Promise.resolve().then(() => endpoint.get?.()).then(body => reply(200, body)).catch((error: unknown) => {
-        reply(error instanceof ReviewHttpError ? error.status : 500, { error: 'Cannot read review feedback' });
+        reply(error instanceof ReviewHttpError ? error.status : 500, { error: error instanceof ReviewHttpError ? error.message : 'Cannot read review feedback' });
       });
       return;
     }
