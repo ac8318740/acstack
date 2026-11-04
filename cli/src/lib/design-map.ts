@@ -10,7 +10,7 @@ import { getProjectKey } from './project-config.js';
  * One thing holding approval, as the viewer lists it. `targetId` is the element
  * the reviewer opens to settle it; `nodeId` is the map node to settle.
  */
-export type ApprovalBlocker = { kind: 'question'; targetId: string; label: string; nodeId: string };
+export type ApprovalBlocker = { kind: 'question' | 'changed'; targetId: string; label: string; nodeId: string };
 
 const gh = (args: string[], input?: string): string => execFileSync('gh', args, { encoding: 'utf8', input, maxBuffer: 16 * 1024 * 1024 });
 const onGithub = (root: string): boolean => {

@@ -38,7 +38,7 @@ export const QUESTION_SUMMARY = 'Design question';
 type Relationship = { id: string; from: string; to: string; direction: 'one-way' | 'bidirectional'; label: string };
 type Element = {
   id: string; name: string; summary: string; kind: z.infer<typeof DesignKindSchema>; parent?: string;
-  channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; locked: boolean; configDigest: string;
+  channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; resolved: boolean; locked: boolean; configDigest: string;
 };
 type Concern = { id: string; name: string; elements: string[]; requirement: string; response: string };
 export type DesignDoc = {
@@ -115,7 +115,7 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
         if (to === node.id) throw new Error(`Node ${node.id}: connects to itself`);
         return { id: `${node.id}-${to}`, from: node.id, to, direction: edge.direction, label: edge.label };
       }),
-      detailText: rest || undefined, locked: node.status === 'resolved', configDigest: digest(config),
+      detailText: rest || undefined, resolved: node.status === 'resolved', locked: node.status === 'resolved', configDigest: digest(config),
     };
   });
   const byElement = new Map(items.map(item => [item.id, item]));
@@ -170,7 +170,7 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
     });
   }
   // Lock state and questions live in the map inputs digest, so locking or answering never makes the open page stale.
-  const content = { id: map, name: root.title, summary: root.summary ?? root.title, detailText: rootBlock.rest || undefined, concerns, items: items.map(item => ({ ...item, locked: undefined })) };
+  const content = { id: map, name: root.title, summary: root.summary ?? root.title, detailText: rootBlock.rest || undefined, concerns, items: items.map(item => ({ ...item, resolved: undefined, locked: undefined })) };
   return { doc: { ...content, items, questions, sourceRevision: digest(content) }, warnings };
 }
 
