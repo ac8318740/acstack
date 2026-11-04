@@ -6,7 +6,7 @@ description: Author a structured design document and review it through a live lo
 # Author and review a design document
 
 Author one design source for interactive browser review and a GitHub-readable Markdown companion with Mermaid.
-The React Flow browser view supports drill-down and comments saved on the agent's device.
+The React Flow browser view supports drill-down, contextual questions, and feedback saved on the agent's device.
 
 ```mermaid
 flowchart LR
@@ -55,6 +55,9 @@ flowchart LR
     - Do not draw an arrow between an ancestor and its descendant; nesting already expresses containment
     - Show interactions between the responsible components rather than between a container and its contents
 - Use optional `detail` to reference supporting Markdown
+    - Overview and element details support Markdown, GFM tables, fenced Mermaid diagrams, and nested `<details><summary>...</summary>...</details>` sections
+    - Leave blank lines around Markdown inside HTML disclosure sections
+    - Mermaid renders offline in an isolated frame; scripts and unsafe HTML in prose are stripped. Diagram source appears only when rendering fails
     - Repository paths and other source metadata are optional context in that Markdown, not prerequisites for a design
 - Use optional `channels` for zero or more software interfaces
     - Allowed values: `web`, `mobile`, `desktop`, `cli`, `agent`, `email`, `sms`, and `voice`
@@ -70,6 +73,17 @@ flowchart LR
     - Keep that action convention consistent throughout the document
     - Use separate arrows when opposite actions need different labels
     - Use `bidirectional` only when the same label accurately describes both directions, not merely because a workflow includes feedback
+- Put questions for the reviewer in the entry's optional `questions` array, not in reviewer comments
+    - Include a unique stable `id`, `target: {type: node | edge, id: <element-or-relationship-id>}`, `question`, `proposal`, and `recommendation`
+    - State the proposed behavior and the reason for your recommendation; do not ask for judgment without showing what the reviewer would accept
+    - Target one existing element or relationship; keep edge questions in the entry rather than duplicating them in endpoint files
+    - Choose the answer format per question: omit `choices` for free text, supply `choices: [<label>, ...]` for single choice, or add `multiple: true` for multi-select
+    - Use choices for concrete alternatives; use text when the reviewer must explain a decision. Supply 2–12 unique labels of at most 500 characters; do not include `Other`, which the viewer adds with a write-in field
+    - The Questions tab starts with collapsed rows and offers Expand all / Collapse all; top-right question indicators identify unanswered targets
+    - Questions and Comments share a compact scope picker: All targets covers the whole design, target selection filters the list, and Document overview identifies overview-only comments. Question indicators include questions on folded or merged targets; passage links open the exact question's scope. Drafts survive scope changes
+    - View target details and the pop-out action beside Design detail and concerns open the same inspector modal. Detail sections start expanded there; closing preserves the original disclosure, draft, selection, and drawer position
+    - Optionally add up to 20 `highlights`, each with `element`, `start: {line, column}`, and `end: {line, column}`. Positions address that element's declared Markdown detail, use 1-based UTF-16 columns, and exclude the end position. The modal expands sections and scrolls to the first highlighted passage; see the worked example
+    - Unanswered passages in Details and the modal have a reserved question gutter. Hover or focus to reveal View question; touch controls stay visible. Shared passages offer a counted question picker. Navigation opens and focuses the matching question without losing drafts; agents configure only source ranges, not icon positions
 - Keep kind, concern, and channel separate: what an entity is, what requirement spans entities, and how interactions occur
 - Put cross-element requirements in the entry's optional `concerns` array
     - Include `id`, `name`, `elements`, `requirement`, and `response`
@@ -77,47 +91,7 @@ flowchart LR
     - Explain both the requirement and the design response in meaningful prose
     - The viewer shows these explanations in each affected element's drawer
 
-```yaml
-id: checkout-design
-name: Checkout design
-summary: The checkout CLI reads orders from a local store.
-elements: [checkout.yaml, orders.yaml]
-concerns:
-  - id: local-data
-    name: Local data
-    elements: [checkout, orders]
-    requirement: Orders must stay on the developer's machine.
-    response: The CLI reads local files without a network service.
-```
-
-```yaml
-# checkout.yaml
-id: checkout
-name: Checkout CLI
-summary: Inspects locally stored orders.
-kind: component
-channels: [cli]
-relationships:
-  - id: read-orders
-    from: checkout
-    to: orders
-    direction: one-way
-    label: Reads
-```
-
-```yaml
-# orders.yaml
-id: orders
-name: Order files
-summary: Persist the orders inspected by the checkout CLI.
-kind: store
-relationships:
-  - id: read-orders
-    from: checkout
-    to: orders
-    direction: one-way
-    label: Reads
-```
+See [source-example.md](source-example.md) for an entry with an edge question, a concern, and two matching endpoint files.
 
 ## Validate and start review
 
@@ -137,7 +111,7 @@ relationships:
 - Generate the companion from the same YAML and supporting Markdown; revise the source instead of hand-editing its Mermaid
 - Fix validation errors before asking the user to review
 - Keep each source file within 256 KiB and the document within 4 MiB
-- Keep the document within 200 elements, 100 concerns, and 200 relationships per element
+- Keep the document within 200 elements, 100 concerns, 100 questions, and 200 relationships per element
 - Referenced paths cannot escape the entry directory, including through symlinks
 
 ## Review the design and saved feedback
@@ -153,6 +127,9 @@ relationships:
     - Compare width, height, and text readability; a smaller area alone can hide a taller diagram
 - Read every relationship aloud as source → verb → target
 - Inspect containment and crosscutting relationships before reviewing implementation detail
+- Open Questions, or select a target's question indicator, then expand a row to read its proposal, recommendation, and target detail link
+- Save each answer explicitly; switching tabs or collapsing the drawer preserves drafts, but Send to agent does not post answer drafts
+- Answers are separate from reviewer comments and stay attached to the reviewed design version
 - Answer the opening review questions and discuss the stated trade-offs
 - Review the generated Markdown companion on GitHub when useful
 - GitHub publication remains separate from the live comment connection
@@ -168,11 +145,13 @@ relationships:
 - Edit the authored files following feedback, then restart the review for the changed design
 - Keep earlier feedback with its original design version rather than silently moving comments to changed text
 - Comments do not approve a design or authorize implementation
-- Approval records the exact authored source, ordered saved comments, and current map contributions
+- Unanswered questions block approval; saving answers is not approval and still requires agent reconciliation
+- Approval records the exact authored source, ordered saved comments and answers, and current map contributions
 
-## Reconcile and approve a map-linked design
+## Reconcile feedback and approve
 
-- Invoke this workflow from map for shared behavior, component boundaries, or data-flow decisions
+Reconcile saved feedback for any design. Optionally bind a map for shared behavior, component boundaries, or data-flow decisions:
+
 - Store `Design entry: <path>` in the map root body
     - Write the path relative to the project folder, such as `designs/<id>/design.yaml`, or relative to the repository for a design kept in the repository
     - ACStack resolves it against the project folder first, then the current checkout
@@ -198,11 +177,14 @@ relationships:
 - Resolve blocking decision nodes or mark them out of scope
 - Surface contradictory proposals as decision nodes rather than choosing one silently
 - Write reconciliation input with the four status fields: `sourceRevision`, `reviewRevision`, `commentsDigest`, and `mapInputsDigest`
-- Add a `decisions` array with `comments`, `contributions`, `outcome`, and nonempty `rationale` in each decision
-- Reference each selected comment index and current contribution key exactly once
+- Add a `decisions` array with `comments`, `contributions`, `outcome`, and nonempty `rationale` in each decision; add `answers` when the selected review has saved question answers
+- Reference each selected comment index, answer index, and current contribution key exactly once; comment and answer indexes are zero-based in the selected review's arrays
+- Incorporate settled answers into the authored design and remove their questions from the open list
+- Reconcile the historical question answers explicitly after changing source; do not copy them onto a new question revision
+- A question left in a new source revision requires a fresh answer; previous snapshots retain the original question and answer
 - Choose `applied`, `retained`, or `needs-human`; `needs-human` keeps approval blocked
 - Run `~/.claude/acstack/bin/acstack design-review reconcile <entry> --input <json-file>` with the same optional `--review-file`
-- Empty feedback and contribution sets need no invented reconciliation
+- Empty comment, answer, and contribution sets need no invented reconciliation
 - Reopen `~/.claude/acstack/bin/acstack design-doc <entry>` after authored source changes
 - Choose Approve this revision in the document details after reconciliation
 - Keep unposted drafts intact; approval saves only posted comment edits

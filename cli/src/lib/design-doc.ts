@@ -3,7 +3,8 @@ import { dirname, isAbsolute, relative, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import { AlignmentPackSchema, type AlignmentPack, type DiagramOrientation } from './alignment-packs.js';
+import { highlightOffsets } from './design-highlight.js';
+import { AlignmentPackSchema, DesignQuestionSchema, type AlignmentPack, type DiagramOrientation } from './alignment-packs.js';
 
 const text = z.string().trim().min(1).max(16000);
 const identity = z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/);
@@ -21,6 +22,7 @@ const ElementSchema = z.object({
 const EntrySchema = z.object({
   id: identity, name: text, summary: text,
   elements: z.array(text).min(1).max(200), detail: text.optional(),
+  questions: z.array(DesignQuestionSchema).max(100).optional(),
   planning: z.object({ tracker: z.enum(['files', 'github']), map: text }).strict().optional(),
   concerns: z.array(z.object({
     id: identity, name: text, elements: z.array(identity).min(2).max(200), requirement: text, response: text,
@@ -123,6 +125,18 @@ export function loadDesignDoc(entryPath: string): DesignDoc {
     if (new Set(concern.elements).size !== concern.elements.length) throw new Error(`${path}: concern ${concern.id} repeats an element`);
     for (const id of concern.elements) if (!byId.has(id)) throw new Error(`${path}: concern ${concern.id} unknown element ${id}`);
   }
+  const questionIds = new Set<string>();
+  for (const question of entry.questions ?? []) {
+    if (ids.has(question.id) || relationshipIds.has(question.id) || concernIds.has(question.id) || questionIds.has(question.id)) throw new Error(`${path}: duplicate identity ${question.id}`);
+    questionIds.add(question.id);
+    if (!(question.target.type === 'node' ? byId.has(question.target.id) : relationshipIds.has(question.target.id))) throw new Error(`${path}: question ${question.id} unknown ${question.target.type} ${question.target.id}`);
+    for (const highlight of question.highlights ?? []) {
+      const element = byId.get(highlight.element);
+      if (!element?.detailText) throw new Error(`${path}: question ${question.id} highlight ${highlight.element} requires an element with a Markdown detail file`);
+      try { highlightOffsets(element.detailText, highlight); }
+      catch (error) { throw new Error(`${path}: question ${question.id} highlight ${highlight.element}: ${error instanceof Error ? error.message : String(error)}`); }
+    }
+  }
   return doc;
 }
 // Schema prose is plain text; only explicit supporting detail files contain authored Markdown.
@@ -145,7 +159,7 @@ export function designDocToPack(doc: DesignDoc, orientation: DiagramOrientation 
   const version = createHash('sha256').update(JSON.stringify(content)).digest('hex').slice(0, 16);
   return AlignmentPackSchema.parse({
     documentKind: 'design', packVersion: `${doc.id}@${version}`,
-    designDocument: { id: doc.id, name: doc.name, summary: doc.summary, detail: doc.detailText },
+    designDocument: { id: doc.id, name: doc.name, summary: doc.summary, detail: doc.detailText, questions: doc.questions },
     source: { map: { id: doc.name, version }, references: doc.items.map(item => ({ id: item.id, kind: 'design-element', title: item.name, uri: item.file })) },
     graph: {
       groups: [{ id: 'design:root', label: doc.name, summary: doc.summary, sourceRefs: [] }, ...doc.items.filter(item => containers.has(item.id)).map(item => ({ id: `design:container:${item.id}`, parentGroupId: item.parent ? `design:container:${item.parent}` : 'design:root', label: item.name, ownerNodeId: item.id, summary: item.summary, sourceRefs: [item.id] }))],
@@ -174,5 +188,5 @@ export function renderDesignDocMarkdown(doc: DesignDoc, orientation: DiagramOrie
   walk();
   const edges = [...new Map(doc.items.flatMap(item => item.relationships).map(edge => [edge.id, edge])).values()];
   for (const edge of edges) lines.push(`    element_${edge.from} ${edge.direction === 'bidirectional' ? '<-->' : '-->'}|"${label(edge.label)}"| element_${edge.to}`);
-  return `# ${markdownText(doc.name)}\n\n${markdownText(doc.summary)}\n\n<!-- Generated from the entry YAML and its element files; regenerate with design-doc --markdown -->\n\n\`\`\`mermaid\n${lines.join('\n')}\n\`\`\`\n\n${doc.detailText ?? ''}\n\n${doc.items.map(item => `## ${markdownText(item.name)}\n\n*${markdownText(item.summary)}*\n\n- Identity: \`${item.id}\`\n- Kind: ${item.kind}\n- Channels: ${item.channels.join(', ') || 'none'}\n- Source: [${markdownText(item.file)}](${markdownPath(item.file)})\n\n${itemDetail(doc, item)}`).join('\n\n')}`.trimEnd() + '\n';
+  return `# ${markdownText(doc.name)}\n\n${markdownText(doc.summary)}\n\n<!-- Generated from the entry YAML and its element files; regenerate with design-doc --markdown -->\n\n\`\`\`mermaid\n${lines.join('\n')}\n\`\`\`\n\n${doc.detailText ?? ''}\n\n${doc.questions?.length ? `## Questions\n\n${doc.questions.map(q => `### ${markdownText(q.question)}\n\n- Target: ${q.target.type} \`${q.target.id}\`\n- Proposal: ${markdownText(q.proposal)}\n- Recommendation: ${markdownText(q.recommendation)}${q.choices ? `\n- Answer format: ${q.multiple ? 'Select all that apply' : 'Choose one'}\n${q.choices.map(choice => `    - ${markdownText(choice)}`).join('\n')}\n    - Other (write in)` : '\n- Answer format: Free text'}`).join('\n\n')}\n\n` : ''}${doc.items.map(item => `## ${markdownText(item.name)}\n\n*${markdownText(item.summary)}*\n\n- Identity: \`${item.id}\`\n- Kind: ${item.kind}\n- Channels: ${item.channels.join(', ') || 'none'}\n- Source: [${markdownText(item.file)}](${markdownPath(item.file)})\n\n${itemDetail(doc, item)}`).join('\n\n')}`.trimEnd() + '\n';
 }

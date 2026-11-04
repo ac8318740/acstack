@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 
@@ -19,7 +19,7 @@ export function Dropdown({ id, label, value, currentLabel, options, onChange }: 
   id?: string;
   label: string;
   value: string;
-  currentLabel?: string;
+  currentLabel?: ReactNode;
   options: DropdownOption[];
   onChange: (value: string) => void;
 }) {
@@ -85,6 +85,6 @@ export function Dropdown({ id, label, value, currentLabel, options, onChange }: 
       {options.map((option, index) => <div key={option.value} id={`${listId}-${index}`} role="option" aria-selected={option.value === value} data-index={index} data-active={index === active} className="dropdown-option" onPointerMove={() => setActive(index)} onClick={() => choose(index)}>
         <span>{option.label}</span>{option.value === value && <Check size={16} aria-hidden="true" />}
       </div>)}
-    </div>, document.body)}
+    </div>, trigger.current?.closest('dialog') ?? document.body)}
   </>;
 }

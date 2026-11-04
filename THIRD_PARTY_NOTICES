@@ -13,7 +13,7 @@ Copyright (c) 2026 Matt Pocock
 https://github.com/mattpocock/skills
 License: MIT (https://opensource.org/licenses/MIT)
 
-The spechub CLI inlines the following libraries into every alignment pack it
+The ACStack CLI inlines the following libraries into every alignment pack it
 generates (cli/src/lib/alignment-viewer.generated.ts). They are unmodified.
 
 React and React DOM
@@ -39,4 +39,25 @@ License: ISC (https://opensource.org/licenses/ISC)
 react-markdown
 Copyright (c) Espen Hovlandsdal
 https://github.com/remarkjs/react-markdown
+License: MIT (https://opensource.org/licenses/MIT)
+
+Mermaid
+Copyright (c) 2014 - 2022 Knut Sveidqvist
+https://github.com/mermaid-js/mermaid
+License: MIT (https://opensource.org/licenses/MIT)
+
+micromark-util-decode-string
+Copyright (c) Titus Wormer <tituswormer@gmail.com>
+https://github.com/micromark/micromark
+License: MIT (https://opensource.org/licenses/MIT)
+
+remark-gfm
+Copyright (c) Titus Wormer <tituswormer@gmail.com>
+https://github.com/remarkjs/remark-gfm
+License: MIT (https://opensource.org/licenses/MIT)
+
+rehype-raw and rehype-sanitize
+Copyright (c) 2016 Titus Wormer <tituswormer@gmail.com>
+https://github.com/rehypejs/rehype-raw
+https://github.com/rehypejs/rehype-sanitize
 License: MIT (https://opensource.org/licenses/MIT)

@@ -12,6 +12,7 @@ vi.mock('react', async original => ({
     return [hooks.slots[index], (value: unknown) => { hooks.slots[index] = typeof value === 'function' ? (value as (previous: unknown) => unknown)(hooks.slots[index]) : value; }];
   },
   useRef: (current: unknown) => ({ current }),
+  useContext: () => null,
   useId: () => 'comment-field',
   useMemo: (compute: () => unknown) => compute(),
   useCallback: (callback: unknown) => callback,
@@ -23,7 +24,7 @@ vi.mock('../diagram.js', () => ({ Diagram: () => null, MeasureDiagram: () => nul
 vi.mock('../alignment-graph.js', () => ({ initialExpandedGroups: () => [], projectDiagram: () => ({}), reconcileSelection: (id: string) => id, buildDiagram: vi.fn() }));
 vi.mock('../posted-comments.js', () => ({ usePostedComments: () => ({ content: null, show: vi.fn() }) }));
 // The harness invokes real handlers and rerenders state without a DOM dependency.
-type Props = { children?: ReactNode; 'aria-label'?: string; onClick?: () => void; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; view: string; setView: (view: string) => void; commentScope: string; setCommentScope: (scope: string) => void; options: { value: string; label: string }[]; onChange: (value: string) => void; annotations?: Annotation[]; onDelete?: (id: string) => void; selected: string | null; focusKey: number; draftKey: string; label: string; onSave?: (text: string) => void; setOpen: (open: boolean) => void };
+type Props = { children?: ReactNode; 'aria-label'?: string; onClick?: () => void; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; onQuestions: (id: string | null) => void; questionScope: string; setQuestionScope: (scope: string) => void; view: string; setView: (view: string) => void; commentScope: string; setCommentScope: (scope: string) => void; options: { value: string; label: string }[]; onChange: (value: string) => void; annotations?: Annotation[]; onDelete?: (id: string) => void; selected: string | null; focusKey: number; draftKey: string; label: string; onSave?: (text: string) => void; setOpen: (open: boolean) => void };
 function elements(node: ReactNode): ReactElement<Props>[] {
   if (!isValidElement<Props>(node)) return [];
   return [node, ...Children.toArray(node.props.children).flatMap(elements)];
@@ -59,11 +60,20 @@ it('wires graph Comment, fresh and same-item selection, and detail navigation th
   expect(drawer().props).toMatchObject({ selected: null, view: 'details' });
   graph().props.onAnnotate('edge:next');
   expect(drawer().props).toMatchObject({ view: 'comments', commentScope: 'edge:next', focusKey: 2 });
+  graph().props.onQuestions('item:author');
+  expect(drawer().props).toMatchObject({ selected: 'item:author', view: 'questions', questionScope: 'selection:item:author' });
+  drawer().props.setQuestionScope('all');
+  graph().props.onSelect('item:other');
+  expect(drawer().props).toMatchObject({ view: 'questions', questionScope: 'selection:item:other' });
+  graph().props.onSelect(null);
+  expect(drawer().props).toMatchObject({ selected: null, view: 'questions', questionScope: 'all' });
+  graph().props.onQuestions('edge:next');
+  expect(drawer().props).toMatchObject({ selected: 'edge:next', view: 'questions', questionScope: 'selection:edge:next' });
 });
 
 it('opens All from the rail, preserves active scope, and scopes the Details tab to selection', async () => {
   const { Drawer, CommentForm } = await import('../drawer.js');
-  const props = { open: false, setOpen: vi.fn(), view: 'details' as const, setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: null, diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 8, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
+  const props = { questionScope: 'all', setQuestionScope: vi.fn(), open: false, setOpen: vi.fn(), view: 'details' as const, setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: null, diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 8, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
   const rail = elements(rerender(() => Drawer(props)));
   rail.find(node => node.props['aria-label']?.startsWith('All comments'))!.props.onClick!();
   expect(props.setView).toHaveBeenCalledExactlyOnceWith('comments');
@@ -94,7 +104,6 @@ it('opens All from the rail, preserves active scope, and scopes the Details tab 
 
 it('filters and composes to an unselected target, then removes and adds options with actual comments', async () => {
   const { Drawer, CommentForm, Comments } = await import('../drawer.js');
-  const { Dropdown } = await import('../dropdown.js');
   let annotations: Annotation[] = [
     { id: 'node-note', packVersion: 'v1', target: { type: 'node', id: 'other' }, comment: 'Other feedback' },
     { id: 'edge-note', packVersion: 'v1', target: { type: 'edge', id: 'next' }, comment: 'Edge feedback' },
@@ -102,13 +111,13 @@ it('filters and composes to an unselected target, then removes and adds options 
   let commentScope = 'item:author';
   const onSelect = vi.fn();
   const onComment = vi.fn((target: Annotation['target'], comment: string) => { annotations = [...annotations, { id: `new-${annotations.length}`, packVersion: 'v1', target, comment }]; });
-  const pane = () => elements(rerender(() => Drawer({ open: true, setOpen: vi.fn(), view: 'comments', setView: vi.fn(), commentScope, setCommentScope: scope => { commentScope = scope; }, selected: 'item:author', diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 8, annotations, setAnnotations: next => { annotations = next; }, onEdit: vi.fn(), onSelect, onComment, onOpenGroup: vi.fn() })));
-  const options = () => pane().find(node => node.type === Dropdown)!.props.options;
+  const pane = () => elements(rerender(() => Drawer({ questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'comments', setView: vi.fn(), commentScope, setCommentScope: scope => { commentScope = scope; }, selected: 'item:author', diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 8, annotations, setAnnotations: next => { annotations = next; }, onEdit: vi.fn(), onSelect, onComment, onOpenGroup: vi.fn() })));
+  const options = () => pane().find(node => node.props.label === 'Comment scope')!.props.options;
   expect(options().map(option => option.value)).toEqual(['all', 'edge:next', 'item:other']);
   expect(pane().find(node => node.type === CommentForm)!.props.label).toBe('Comment on author');
   pane().find(node => node.type === CommentForm)!.props.onSave!('First author comment');
   expect(options().map(option => option.value)).toContain('item:author');
-  pane().find(node => node.type === Dropdown)!.props.onChange('item:other');
+  pane().find(node => node.props.label === 'Comment scope')!.props.onChange('item:other');
   expect(onSelect).not.toHaveBeenCalled();
   expect(pane().find(node => node.type === Comments)!.props.annotations?.map(note => note.id)).toEqual(['node-note']);
   pane().find(node => node.type === CommentForm)!.props.onSave!('New other comment');
@@ -117,7 +126,7 @@ it('filters and composes to an unselected target, then removes and adds options 
   expect(options().map(option => option.value)).not.toContain('item:other');
   expect(annotations.map(note => note.id)).toEqual(['edge-note', 'new-2']);
   expect(pane().find(node => node.type === CommentForm)!.props.label).toBe('Comment on other');
-  pane().find(node => node.type === Dropdown)!.props.onChange('edge:next');
+  pane().find(node => node.props.label === 'Comment scope')!.props.onChange('edge:next');
   pane().find(node => node.type === CommentForm)!.props.onSave!('More edge feedback');
   expect(onComment).toHaveBeenLastCalledWith({ type: 'edge', id: 'next' }, 'More edge feedback');
 });
@@ -126,7 +135,7 @@ it('keeps grouped canvas edges scoped together but a dropdown edge exact', async
   const { Drawer, Comments, commentScopeForSelection } = await import('../drawer.js');
   const annotations: Annotation[] = ['first', 'second', 'unrelated'].map(id => ({ id, packVersion: 'v1', target: { type: 'edge', id }, comment: id }));
   const diagram = { nodes: [], nodeToVisible: {}, edges: [{ id: 'merged', source: 'item:a', target: 'item:b', label: '2 links', childEdgeIds: ['first', 'second'], points: [], path: '' }] };
-  const comments = (commentScope: string) => elements(rerender(() => Drawer({ open: true, setOpen: vi.fn(), view: 'comments', setView: vi.fn(), commentScope, setCommentScope: vi.fn(), selected: 'edge:first', diagram, focusKey: 0, annotations, setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() }))).find(node => node.type === Comments)!.props.annotations;
+  const comments = (commentScope: string) => elements(rerender(() => Drawer({ questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'comments', setView: vi.fn(), commentScope, setCommentScope: vi.fn(), selected: 'edge:first', diagram, focusKey: 0, annotations, setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() }))).find(node => node.type === Comments)!.props.annotations;
   expect(comments(commentScopeForSelection('edge:first', diagram))?.map(note => note.id)).toEqual(['first', 'second']);
   expect(comments('edge:first')?.map(note => note.id)).toEqual(['first']);
 });

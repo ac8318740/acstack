@@ -7,6 +7,12 @@
 import { build } from 'esbuild';
 import { writeFileSync } from 'node:fs';
 
+const mermaid = await build({
+  entryPoints: ['src/viewer/mermaid-frame.ts'], bundle: true, minify: true,
+  format: 'iife', target: 'es2020', write: false, legalComments: 'none',
+  define: { 'process.env.NODE_ENV': '"production"' },
+});
+
 const result = await build({
   entryPoints: ['src/viewer/main.tsx'],
   bundle: true,
@@ -17,7 +23,7 @@ const result = await build({
   outdir: 'viewer-out',
   write: false,
   legalComments: 'none',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  define: { 'process.env.NODE_ENV': '"production"', MERMAID_FRAME_JS: JSON.stringify(mermaid.outputFiles[0].text) },
 });
 
 const output = ext => result.outputFiles.find(file => file.path.endsWith(ext)).text;

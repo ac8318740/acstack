@@ -3,7 +3,8 @@ import {
   Background, BaseEdge, type Edge, EdgeLabelRenderer, type EdgeProps,
   Handle, MarkerType, type Node, type NodeProps, Panel, Position, ReactFlow, useInternalNode, useReactFlow,
 } from '@xyflow/react';
-import { ChevronDown, MessageSquarePlus, Minus, Plus } from 'lucide-react';
+import { ChevronDown, ListTodo, MessageSquarePlus, Minus, Plus } from 'lucide-react';
+import { useQuestionCounts } from './design-questions.js';
 import { ElementMetadata } from './element-metadata.js';
 import { CARD_WIDTH, LABEL_WIDTH, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
 import type { DiagramOrientation } from '../lib/alignment-packs.js';
@@ -11,13 +12,13 @@ import { pack } from './pack.js';
 
 export type Zoom = 'business' | 'technical';
 export type ViewportAnchor = { key: string; before: DiagramModel; node: Pick<DiagramNode, 'id' | 'x' | 'y'> };
-type Actions = { onToggle: (groupId: string) => void; onSelect: (id: string) => void; onAnnotate: (id: string) => void };
-type BoxData = DiagramNode & Actions & { zoom: Zoom; dimmed: boolean; comments: number; orientation?: DiagramOrientation };
-type RouteData = DiagramEdge & Actions & { state: 'idle' | 'active' | 'dimmed'; selectId: string; comments: number; selected: boolean };
+type Actions = { onToggle: (groupId: string) => void; onSelect: (id: string) => void; onAnnotate: (id: string) => void; onQuestions: (id: string) => void };
+type BoxData = DiagramNode & Actions & { zoom: Zoom; dimmed: boolean; comments: number; questions: number; orientation?: DiagramOrientation };
+type RouteData = DiagramEdge & Actions & { state: 'idle' | 'active' | 'dimmed'; selectId: string; comments: number; questions: number; selected: boolean };
 const ACCENT = 'oklch(42% 0.14 262)';
 const EDGE = 'oklch(55% 0.035 262)';
 const itemsText = (count = 0) => `${count} item${count === 1 ? '' : 's'}`;
-const noActions: Actions = { onToggle: () => {}, onSelect: () => {}, onAnnotate: () => {} };
+const noActions: Actions = { onToggle: () => {}, onSelect: () => {}, onAnnotate: () => {}, onQuestions: () => {} };
 
 function sourceFile(nodeId: string): string | undefined {
   const refs = pack.graph.nodes.find(node => node.id === nodeId)?.sourceRefs ?? [];
@@ -29,6 +30,10 @@ function AnnotateButton({ onClick, label }: { onClick: () => void; label: string
   </div>;
 }
 
+function QuestionBadge({ count, onClick }: { count: number; onClick: () => void }) {
+  return count > 0 ? <button type="button" className="question-badge nodrag nopan" aria-label={`${count} design question${count === 1 ? '' : 's'} need input`} data-tooltip={`${count} question${count === 1 ? '' : 's'} need input`} onClick={event => { event.stopPropagation(); onClick(); }}><ListTodo size={14} aria-hidden="true" /><span>{count}</span></button> : null;
+}
+
 // Both the live canvas and the inert measuring tree use this exact content and constrained width.
 function BoxContent({ data }: { data: BoxData }) {
   const framed = data.kind === 'group';
@@ -36,7 +41,7 @@ function BoxContent({ data }: { data: BoxData }) {
   const ref = data.ownerNodeId ?? data.refId;
   const technical = data.zoom === 'technical';
   const meta = technical ? [ref, sourceFile(ref)].filter(Boolean).join(' · ') : undefined;
-  return <div className={framed ? 'group-content' : 'card-content'}>
+  return <div className={`${framed ? 'group-content' : 'card-content'}${data.questions ? ' has-questions' : ''}`}>
     <div className="box-text nodrag nopan" data-annotate-type={data.ownerNodeId || !framed && !folded ? 'node' : 'group'} data-annotate-id={ref}>
       <div className="box-heading">
         {framed ? <button type="button" className="header-select" onClick={() => data.onSelect(data.id)}>{data.label}</button>
@@ -46,6 +51,7 @@ function BoxContent({ data }: { data: BoxData }) {
       <div className="box-sub">{data.summary}</div>
       {meta && <div className="box-meta">{meta}</div>}
     </div>
+    <QuestionBadge count={data.questions} onClick={() => data.onQuestions(data.id)} />
     <AnnotateButton label={`Comment on ${data.label}`} onClick={() => data.onAnnotate(data.id)} />
     {(folded || framed || data.comments > 0) && <div className="card-controls">
       {(folded || framed) && <button type="button" className="link nodrag nopan" data-group-toggle={data.refId} aria-expanded={framed} onClick={event => { event.stopPropagation(); data.onToggle(data.refId); }}>
@@ -64,17 +70,19 @@ function ItemBox({ data, selected }: NodeProps<Node<BoxData>>) {
 function GroupFrame({ data, selected }: NodeProps<Node<BoxData>>) {
   return <div className={`frame${selected ? ' selected' : ''}`}><Handle type="target" position={data.orientation === 'left-to-right' ? Position.Left : Position.Top} /><BoxContent data={data} /><Handle type="source" position={data.orientation === 'left-to-right' ? Position.Right : Position.Bottom} /></div>;
 }
-function LabelContent({ edge, actions = noActions, comments = 0 }: { edge: DiagramEdge; actions?: Actions; comments?: number }) {
+function LabelContent({ edge, actions = noActions, comments = 0, questions = 0 }: { edge: DiagramEdge; actions?: Actions; comments?: number; questions?: number }) {
   const selectId = `edge:${edge.childEdgeIds[0]}`;
-  return <div className="label-content" tabIndex={0} role="group" aria-label={`Relationship: ${edge.label}`} style={{ width: LABEL_WIDTH }}>
+  return <div className={`label-content${questions ? ' has-questions' : ''}`} tabIndex={0} role="group" aria-label={`Relationship: ${edge.label}`} style={{ width: LABEL_WIDTH }}>
     <div className="edge-text nodrag nopan" onClick={() => !window.getSelection()?.toString() && actions.onSelect(selectId)} data-annotate-type="edge" data-annotate-id={edge.childEdgeIds[0]}>{edge.label}</div>
     <AnnotateButton label={`Comment on ${edge.label}`} onClick={() => actions.onAnnotate(selectId)} />
+    <QuestionBadge count={questions} onClick={() => actions.onQuestions(selectId)} />
     {comments > 0 && <span className="count-pill">{comments}</span>}
   </div>;
 }
 export type MeasureDiagramHandle = { measureHeaders: HeaderMeasurer };
 
 export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }: { diagram: DiagramModel; zoom: Zoom; onMeasured: (geometry: MeasuredGeometry) => void; commentCounts?: Map<string, number>; ref?: Ref<MeasureDiagramHandle> }) {
+  const questionCounts = useQuestionCounts(diagram);
   const tree = useRef<HTMLDivElement>(null);
   useImperativeHandle(ref, () => ({
     measureHeaders: nodes => {
@@ -99,7 +107,7 @@ export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }
             if (origin.height <= 0 || Math.abs(origin.width - node.width) >= 0.5) continue;
             const local = (rect: DOMRect) => ({ x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height });
             if (node.kind !== 'group') {
-              const hardObstacles = [...element.querySelectorAll('.annotation-actions button')].map(control => local(control.getBoundingClientRect()));
+              const hardObstacles = [...element.querySelectorAll('.annotation-actions button, .question-badge')].map(control => local(control.getBoundingClientRect()));
               if (hardObstacles.length && hardObstacles.every(box => Object.values(box).every(Number.isFinite) && box.width > 0 && box.height > 0)) headers[node.id] = { width: node.width, hardObstacles, subtitleLines: [] };
               continue;
             }
@@ -119,7 +127,7 @@ export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }
             const hardObstacles = [
               ...titles,
               ...textRects('.box-meta, .box-kind'),
-              ...[...element.querySelectorAll('.type-pill, .channel-pill, .card-controls button, .count-pill, .annotation-actions button')].map(control => local(control.getBoundingClientRect())),
+              ...[...element.querySelectorAll('.type-pill, .channel-pill, .card-controls button, .count-pill, .annotation-actions button, .question-badge')].map(control => local(control.getBoundingClientRect())),
             ];
             const subtitleLines = textRects('.box-sub');
             if (!titles.length || [...hardObstacles, ...subtitleLines].some(box => !Object.values(box).every(Number.isFinite) || box.width <= 0 || box.height <= 0)) continue;
@@ -137,7 +145,7 @@ export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }
       }
       return headers;
     },
-  }), [diagram, zoom, commentCounts]);
+  }), [diagram, zoom, commentCounts, questionCounts]);
   useLayoutEffect(() => {
     let current = true;
     void document.fonts.ready.then(() => {
@@ -150,10 +158,10 @@ export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }
       onMeasured(geometry);
     });
     return () => { current = false; };
-  }, [diagram, zoom, onMeasured, commentCounts]);
+  }, [diagram, zoom, onMeasured, commentCounts, questionCounts]);
   return <div ref={tree} className="measurement" aria-hidden="true" inert>
-    {diagram.nodes.map(node => <div key={node.id} data-measure="node" data-key={node.id} className={node.kind === 'group' ? 'measure-header' : 'box'} style={{ width: CARD_WIDTH }}><BoxContent data={{ ...node, ...noActions, zoom, dimmed: false, comments: commentCounts?.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0 }} /></div>)}
-    {diagram.edges.map(edge => <div key={edge.id} data-measure="label" data-key={edge.id} className="edge-label" style={{ width: LABEL_WIDTH }}><LabelContent edge={edge} comments={edge.childEdgeIds.reduce((sum, id) => sum + (commentCounts?.get(`edge:${id}`) ?? 0), 0)} /></div>)}
+    {diagram.nodes.map(node => <div key={node.id} data-measure="node" data-key={node.id} className={node.kind === 'group' ? 'measure-header' : 'box'} style={{ width: CARD_WIDTH }}><BoxContent data={{ ...node, ...noActions, zoom, dimmed: false, questions: questionCounts.get(node.id) ?? 0, comments: commentCounts?.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0 }} /></div>)}
+    {diagram.edges.map(edge => <div key={edge.id} data-measure="label" data-key={edge.id} className="edge-label" style={{ width: LABEL_WIDTH }}><LabelContent edge={edge} questions={questionCounts.get(`edge:${edge.childEdgeIds[0]}`) ?? 0} comments={edge.childEdgeIds.reduce((sum, id) => sum + (commentCounts?.get(`edge:${id}`) ?? 0), 0)} /></div>)}
   </div>;
 }
 function RoutedEdge({ id, data, markerEnd, markerStart }: EdgeProps<Edge<RouteData>>) {
@@ -162,7 +170,7 @@ function RoutedEdge({ id, data, markerEnd, markerStart }: EdgeProps<Edge<RouteDa
   return <>
     <BaseEdge id={id} path={data.path} className={data.state} interactionWidth={16} />
     <path d={data.points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ')} fill="none" stroke="none" strokeWidth={data.state === 'active' ? 2 : 1.5} opacity={data.state === 'dimmed' ? 0.2 : 1} markerStart={markerStart} markerEnd={markerEnd} pointerEvents="none" />
-    {box && <EdgeLabelRenderer><div className={`edge-label ${data.state}`} data-selected={data.selected} data-tooltip={data.summary} style={{ transform: `translate(${box.x}px, ${box.y}px)`, width: box.width, height: box.height }}><LabelContent edge={data} actions={data} comments={data.comments} /></div></EdgeLabelRenderer>}
+    {box && <EdgeLabelRenderer><div className={`edge-label ${data.state}`} data-selected={data.selected} data-tooltip={data.summary} style={{ transform: `translate(${box.x}px, ${box.y}px)`, width: box.width, height: box.height }}><LabelContent edge={data} actions={data} comments={data.comments} questions={data.questions} /></div></EdgeLabelRenderer>}
   </>;
 }
 const nodeTypes = { item: ItemBox, 'folded-group': ItemBox, group: GroupFrame };
@@ -209,10 +217,11 @@ function RestoreToggleFocus({ diagram, layoutKey, requestedKey, expanded, pendin
   return null;
 }
 
-export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selected, onSelect, onAnnotate, commentCounts, layoutKey = '', anchor, contentZoom = zoom, orientation = 'top-to-bottom' }: {
+export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selected, onSelect, onAnnotate, onQuestions = () => {}, commentCounts, layoutKey = '', anchor, contentZoom = zoom, orientation = 'top-to-bottom' }: {
   diagram: DiagramModel; expanded: string[]; setExpanded: (ids: string[], anchorId?: string) => void; zoom: Zoom; setZoom: (zoom: Zoom) => void; anchor?: ViewportAnchor | null;
-  selected: string | null; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; commentCounts: Map<string, number>; layoutKey?: string; contentZoom?: Zoom; orientation?: DiagramOrientation;
+  selected: string | null; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; onQuestions?: (id: string | null) => void; commentCounts: Map<string, number>; layoutKey?: string; contentZoom?: Zoom; orientation?: DiagramOrientation;
 }) {
+  const questionCounts = useQuestionCounts(diagram);
   const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
   const fitted = useRef(false);
   const appliedAnchor = useRef<ViewportAnchor | null>(null);
@@ -249,7 +258,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
   const selectedEdge = selected?.startsWith('edge:') ? diagram.edges.find(edge => edge.childEdgeIds.includes(selected.slice(5))) : undefined;
   const linked = new Set<string>(selectedEdge ? [selectedEdge.source, selectedEdge.target] : selected ? [selected] : []);
   for (const edge of diagram.edges) { if (edge.source === selected) linked.add(edge.target); if (edge.target === selected) linked.add(edge.source); }
-  const actions: Actions = { onToggle: toggle, onSelect, onAnnotate };
+  const actions: Actions = { onToggle: toggle, onSelect, onAnnotate, onQuestions };
   const byId = new Map(diagram.nodes.map(node => [node.id, node]));
   const nodes: Node<BoxData>[] = diagram.nodes.map(node => {
     const parent = node.parentId ? byId.get(node.parentId) : undefined;
@@ -258,13 +267,13 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     for (let ancestor = parent; ancestor; ancestor = ancestor.parentId ? byId.get(ancestor.parentId) : undefined) depth++;
     // ReactFlow puts children above their parents; keep every frame below routes at z-index 0.
     const zIndex = node.kind === 'group' ? depth - diagram.nodes.length : 1;
-    return { id: node.id, type: node.kind, parentId: node.parentId, position: { x: node.x - (parent?.x ?? 0), y: node.y - (parent?.y ?? 0) }, initialWidth: node.width, initialHeight: node.height, style: { width: node.width, height: node.height }, selectable: true, draggable: false, selected: node.id === selected, zIndex, data: { ...node, ...actions, orientation, zoom: contentZoom, dimmed: Boolean(selected) && !linked.has(node.id), comments } };
+    return { id: node.id, type: node.kind, parentId: node.parentId, position: { x: node.x - (parent?.x ?? 0), y: node.y - (parent?.y ?? 0) }, initialWidth: node.width, initialHeight: node.height, style: { width: node.width, height: node.height }, selectable: true, draggable: false, selected: node.id === selected, zIndex, data: { ...node, ...actions, orientation, zoom: contentZoom, dimmed: Boolean(selected) && !linked.has(node.id), comments, questions: questionCounts.get(node.id) ?? 0 } };
   });
   const edges: Edge<RouteData>[] = diagram.edges.map(edge => {
     const state = !selected ? 'idle' : edge === selectedEdge || edge.source === selected || edge.target === selected ? 'active' : 'dimmed';
     const comments = edge.childEdgeIds.reduce((sum, id) => sum + (commentCounts.get(`edge:${id}`) ?? 0), 0);
     const name = (id: string) => byId.get(id)?.label ?? id;
-    return { id: edge.id, source: edge.source, target: edge.target, type: 'routed', ariaLabel: `${name(edge.source)} ${edge.label} ${name(edge.target)} (${edge.bidirectional ? 'both directions' : 'source to target'})`, data: { ...edge, ...actions, state, selectId: `edge:${edge.childEdgeIds[0]}`, comments, selected: edge === selectedEdge }, markerStart: edge.bidirectional ? { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE } : undefined, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE }, zIndex: state === 'active' ? 2 : 0 };
+    return { id: edge.id, source: edge.source, target: edge.target, type: 'routed', ariaLabel: `${name(edge.source)} ${edge.label} ${name(edge.target)} (${edge.bidirectional ? 'both directions' : 'source to target'})`, data: { ...edge, ...actions, state, selectId: `edge:${edge.childEdgeIds[0]}`, comments, questions: questionCounts.get(`edge:${edge.childEdgeIds[0]}`) ?? 0, selected: edge === selectedEdge }, markerStart: edge.bidirectional ? { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE } : undefined, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE }, zIndex: state === 'active' ? 2 : 0 };
   });
   return <div ref={canvas} className="diagram-canvas"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="light" zIndexMode="manual" elevateNodesOnSelect={false} nodesConnectable={false} minZoom={0.15} maxZoom={2} panOnScroll={true} zoomOnScroll={false} zoomOnPinch={true} panOnDrag={true}
     onNodeClick={(_, node) => onSelect(node.id)} onEdgeClick={(_, edge) => edge.data && onSelect(edge.data.selectId)}
@@ -284,6 +293,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
         : <div className="segmented" role="radiogroup" aria-label="Detail level">{(['business', 'technical'] as const).map(value => <label key={value}><input type="radio" name="detail-level" checked={zoom === value} onChange={() => setZoom(value)} />{value === 'business' ? 'Business' : 'Technical'}</label>)}</div>}
       <div className="segmented"><button type="button" onClick={() => { pending.current = null; setExpanded(pack.graph.groups.map(group => group.id)); }}>Expand all</button><button type="button" onClick={() => { pending.current = null; setExpanded(pack.documentKind === 'design' ? ['design:root'] : []); }}>Collapse all</button></div>
     </Panel>
+    {pack.designDocument?.questions?.length ? <Panel position="bottom-right" className="question-legend"><button type="button" className="btn" onClick={() => onQuestions(null)}><ListTodo size={14} aria-hidden="true" /> Design questions</button></Panel> : null}
     <Panel position="bottom-left" className="zoom-controls"><div role="group" aria-label="Diagram viewport"><button type="button" className="icon-btn" aria-label="Zoom out" data-tooltip="Zoom out" onClick={() => void zoomOut()}><Minus size={18} /></button><button type="button" className="icon-btn" aria-label="Zoom in" data-tooltip="Zoom in" onClick={() => void zoomIn()}><Plus size={18} /></button><button type="button" className="btn" onClick={fit} data-tooltip="Fit the complete diagram (F)">Fit diagram</button></div></Panel>
   </ReactFlow></div>;
 }

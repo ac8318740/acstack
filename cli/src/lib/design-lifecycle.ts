@@ -2,7 +2,7 @@ import { relative, resolve, sep } from 'node:path';
 import { z } from 'zod';
 import { loadDesignDoc, designDocToPack } from './design-doc.js';
 import { designMapInputs, digest } from './design-map.js';
-import { openDesignReview, readDesignReviewHistories, ReconciliationSchema, RevisionTupleSchema, type StoredDesignReview } from './design-review.js';
+import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type StoredDesignReview } from './design-review.js';
 import { ReviewHttpError } from './review-server.js';
 
 export function openDesignLifecycle(root: string, entry: string, reviewFile?: string) {
@@ -21,6 +21,7 @@ export function openDesignLifecycle(root: string, entry: string, reviewFile?: st
     histories.set(review.reviewPath, saved);
     const obligations = new Set<string>();
     for (const [path, snapshot] of histories) {
+      if (snapshot.answers?.length) obligations.add(path);
       const receipts = new Map(snapshot.lifecycle?.reconciliations.map(receipt => [historyPath(root, receipt.reviewPath), receipt]));
       for (const [selected, receipt] of receipts) {
         // Empty current-only receipts settle contributions, not perpetual historical feedback.
@@ -34,42 +35,63 @@ export function openDesignLifecycle(root: string, entry: string, reviewFile?: st
       const receipt = latestReceipts.get(path);
       const fresh = receipt !== undefined && receipt.sourceRevision === doc.sourceRevision
         && receipt.mapInputsDigest === inputs.mapInputsDigest && receipt.reviewRevision === snapshot.revision
-        && receipt.scopeCommentsDigest === digest(snapshot.annotations);
+        && receipt.scopeCommentsDigest === digest(feedbackContent(snapshot));
       return { path, snapshot, receipt, fresh };
     });
     const feedback = scopes.find(scope => scope.path === feedbackPath)!.snapshot;
     const commentsDigest = (prefix: string) => digest(scopes.map(({ path, snapshot }) => ({ path: prefix + relative(root, path).split(sep).join('/'), packVersion: snapshot.packVersion,
-      revision: snapshot.revision, annotations: snapshot.annotations })));
+      revision: snapshot.revision, annotations: snapshot.annotations,
+      ...(snapshot.answers?.length ? { questions: snapshot.questions, answers: snapshot.answers } : {}) })));
     const tuple = { sourceRevision: doc.sourceRevision, reviewRevision: feedback.revision, mapInputsDigest: inputs.mapInputsDigest, commentsDigest: commentsDigest('') };
     const legacyTuple = { ...tuple, commentsDigest: commentsDigest(LEGACY_PREFIX) };
-    const unsettled = scopes.find(scope => (obligations.has(scope.path) || scope.receipt || scope.snapshot.annotations.length)
+    const unsettled = scopes.find(scope => (obligations.has(scope.path) || scope.receipt || scope.snapshot.annotations.length || scope.snapshot.answers?.length)
       && (!scope.fresh || scope.receipt?.decisions.some(decision => decision.outcome === 'needs-human')));
     let reason: string | undefined;
     if (staleRendered) reason = 'Authored source changed. Reopen this revision before reviewing.';
     else if (inputs.blockingQuestions.length) reason = 'Unresolved design decisions';
+    else if (saved.questions?.some(question => !saved.answers?.some(answer => answer.questionId === question.id))) reason = 'Unanswered design questions';
     else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback and contributions need explicit reconciliation';
     else if (inputs.contributions.length && !scopes.some(scope => scope.fresh)) reason = 'Feedback and contributions need explicit reconciliation';
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple) || sameTuple(item, legacyTuple)) ?? false;
-    return { ...tuple, planning: doc.planning ?? null, reviewPath: review.reviewPath, contributions: inputs.contributions, blockingQuestions: inputs.blockingQuestions,
+    return { ...tuple, questions: saved.questions ?? [], answers: saved.answers ?? [], planning: doc.planning ?? null, reviewPath: review.reviewPath, contributions: inputs.contributions, blockingQuestions: inputs.blockingQuestions,
       approval: { valid: !reason && approved, ...(!reason && approved ? {} : { reason: reason ?? 'This revision is not approved' }) },
       feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), blocker: reason };
   };
   const publicStatus = (result: ReturnType<typeof evaluate>) => {
     return { sourceRevision: result.sourceRevision, reviewRevision: result.reviewRevision, commentsDigest: result.commentsDigest,
       mapInputsDigest: result.mapInputsDigest, planning: result.planning, reviewPath: result.reviewPath, contributions: result.contributions,
-      blockingQuestions: result.blockingQuestions, feedbackPaths: result.feedbackPaths, approval: result.approval };
+      blockingQuestions: result.blockingQuestions, questions: result.questions, answers: result.answers, feedbackPaths: result.feedbackPaths, approval: result.approval };
   };
   return {
     review, doc: rendered,
     status: () => review.transact(saved => publicStatus(evaluate(saved))),
+    answer: (body: unknown) => review.transact(saved => {
+      const incoming = DesignAnswerSchema.extend({ expected: RevisionTupleSchema }).strict().parse(body);
+      const state = evaluate(saved);
+      if (state.sourceRevision !== rendered.sourceRevision) throw new ReviewHttpError(409, 'Authored source changed. Reopen this revision before answering.');
+      if (!sameTuple(incoming.expected, state)) throw new ReviewHttpError(409, 'Stale answer tuple');
+      const question = saved.questions?.find(question => question.id === incoming.questionId);
+      if (!question) throw new ReviewHttpError(400, 'Unknown design question');
+      const answer = { questionId: incoming.questionId, answer: incoming.answer, ...(incoming.choices && { choices: incoming.choices }) };
+      validateDesignAnswer(question, answer);
+      saved.answers ??= [];
+      const index = saved.answers.findIndex(item => item.questionId === incoming.questionId);
+      if (index === -1) saved.answers.push(answer); else saved.answers[index] = answer;
+      return publicStatus(evaluate(saved));
+    }),
     reconcile: (body: unknown) => review.transact(saved => {
       const incoming = ReconciliationSchema.parse(body);
       const state = evaluate(saved);
       if (!sameTuple(incoming, state)) throw new ReviewHttpError(409, 'Stale reconciliation tuple');
       const comments = new Set<number>();
       const contributions = new Set<string>();
+      const answers = new Set<number>();
       for (const decision of incoming.decisions) {
-        if (!decision.comments.length && !decision.contributions.length) throw new Error('Disposition needs a reference');
+        if (!decision.comments.length && !decision.contributions.length && !decision.answers?.length) throw new Error('Disposition needs a reference');
+        for (const index of decision.answers ?? []) {
+          if (index >= (state.feedback.answers?.length ?? 0) || answers.has(index)) throw new Error('Unknown or duplicate answer reference');
+          answers.add(index);
+        }
         for (const index of decision.comments) {
           if (index >= state.feedback.annotations.length || comments.has(index)) throw new Error('Unknown or duplicate comment reference');
           comments.add(index);
@@ -79,10 +101,10 @@ export function openDesignLifecycle(root: string, entry: string, reviewFile?: st
           contributions.add(key);
         }
       }
-      if (comments.size !== state.feedback.annotations.length || contributions.size !== state.contributions.length) throw new Error('Every comment and contribution needs a disposition');
+      if (comments.size !== state.feedback.annotations.length || contributions.size !== state.contributions.length || answers.size !== (state.feedback.answers?.length ?? 0)) throw new Error('Every comment, answer, and contribution needs a disposition');
       saved.lifecycle ??= { reconciliations: [], approvals: [] };
       saved.lifecycle.reconciliations.push({ ...incoming, reviewPath: relative(root, state.feedbackPath).split(sep).join('/'), feedbackPackVersion: state.feedback.packVersion,
-        scopeCommentsDigest: digest(state.feedback.annotations), recordedAt: new Date().toISOString() });
+        scopeCommentsDigest: digest(feedbackContent(state.feedback)), recordedAt: new Date().toISOString() });
       return publicStatus(evaluate(saved));
     }),
     approve: (body: unknown) => review.transact(saved => {
@@ -95,6 +117,10 @@ export function openDesignLifecycle(root: string, entry: string, reviewFile?: st
       return publicStatus(evaluate(saved));
     }),
   };
+}
+function feedbackContent(snapshot: StoredDesignReview) {
+  // Preserve receipt digests for reviews written before questions existed.
+  return snapshot.answers?.length ? { annotations: snapshot.annotations, questions: snapshot.questions, answers: snapshot.answers } : snapshot.annotations;
 }
 // Before project data left the repository, review paths were relative to the repo root, under .acstack/.
 const LEGACY_PREFIX = '.acstack/';
