@@ -1,10 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import { MousePointerClick } from 'lucide-react';
+import { MousePointerClick, X } from 'lucide-react';
 import { CommentForm } from './drawer.js';
 import { Dropdown } from './dropdown.js';
-import { ExampleFrame } from './example-frame.js';
+import { ExampleFrame, type FrameControl } from './example-frame.js';
 import { examplesFor, fixtureTable, type ElementExample } from './examples.js';
 import type { Selection } from './od-bridge/protocol.js';
+import { defaultFor, tweakPayload, type Tweak } from './od-bridge/tweaks.js';
 import { type Annotation, annotationId, pack } from './pack.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
 
@@ -51,8 +52,42 @@ export function FixtureView({ format, data }: { format: 'json' | 'csv'; data: st
 }
 
 // Frame-supplied fields are untrusted: they appear as plain text only.
-export const describe = (selection: Selection) => [selection.component?.name, selection.text || selection.selector].filter(Boolean).join(': ');
-const anchorLabel = (example: NonNullable<Annotation['example']>) => example.selector ? [example.component, example.text ?? example.selector].filter(Boolean).join(': ') : 'Whole example';
+type Anchor = NonNullable<Annotation['example']>;
+type AnchorSelection = NonNullable<Anchor['selections']>[number];
+export const describe = (selection: { selector: string; text?: string; component?: { name: string } }) => [selection.component?.name, selection.text || selection.selector].filter(Boolean).join(': ');
+const anchorLabel = (anchor: Anchor) => anchor.selections?.length ? anchor.selections.map(describe).join('; ') : 'Whole example';
+const anchorSelection = ({ selector, text, rect, component }: Selection): AnchorSelection => ({
+  selector, rect, ...(text ? { text } : {}),
+  ...(component ? { component: { name: component.name, ...(component.source ? { source: component.source } : {}), ...(component.props ? { props: component.props } : {}), ...(component.fixture ? { fixture: component.fixture } : {}) } } : {}),
+});
+
+// ACStack draws OpenDesigner's tweak controls; the frame only applies the payload the host computes.
+export function TweakControls({ tweaks, values, onChange }: { tweaks: Tweak[]; values: Record<string, string>; onChange: (id: string, value: string) => void }) {
+  const fieldId = useId();
+  if (!tweaks.length) return null;
+  return (
+    <fieldset className="example-tweaks">
+      <legend>Tweaks</legend>
+      {tweaks.map(tweak => {
+        const id = `${fieldId}-${tweak.id}`;
+        const value = values[tweak.id] ?? defaultFor(tweak);
+        if (tweak.type === 'select' || tweak.type === 'state') {
+          const options = (tweak.options ?? []).map(option => typeof option === 'string' ? { value: option, label: option } : option);
+          return <div key={tweak.id} className="tweak-row"><span className="comment-label">{tweak.label}</span><Dropdown label={tweak.label} value={value} options={options} onChange={next => onChange(tweak.id, next)} /></div>;
+        }
+        if (tweak.type === 'toggle') return <label key={tweak.id} className="tweak-row"><input type="checkbox" checked={value === '1' || value === (tweak.on ?? '1')} onChange={event => onChange(tweak.id, event.target.checked ? '1' : '0')} />{tweak.label}</label>;
+        return (
+          <div key={tweak.id} className="tweak-row">
+            <label className="comment-label" htmlFor={id}>{tweak.label}{tweak.type === 'slider' ? ` (${value}${tweak.unit ?? ''})` : ''}</label>
+            {tweak.type === 'slider' ? <input id={id} type="range" min={tweak.min ?? 0} max={tweak.max ?? 100} step={tweak.step ?? 1} value={value} onChange={event => onChange(tweak.id, event.target.value)} />
+              : tweak.type === 'color' ? <input id={id} type="color" value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'} onChange={event => onChange(tweak.id, event.target.value)} />
+                : <input id={id} type="text" value={value} onChange={event => onChange(tweak.id, event.target.value)} />}
+          </div>
+        );
+      })}
+    </fieldset>
+  );
+}
 
 export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotations, setAnnotations }: {
   nodeId: string;
@@ -62,24 +97,40 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
   onClose: () => void;
 } & Comments) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const frame = useRef<FrameControl | null>(null);
   const titleId = useId();
   const example = examples.find(item => item.path === path) ?? examples[0];
-  const framed = example.kind === 'html' || example.kind === 'od-build' ? example : null;
+  const [variantId, setVariantId] = useState<string>();
+  const variant = example.kind === 'od-build' ? example.variants.find(item => item.id === variantId) ?? example.variants[0] : undefined;
+  const html = example.kind === 'html' ? example.html : variant?.html;
+  const tweaks = example.kind === 'od-build' ? [...example.tweaks ?? [], ...variant?.tweaks ?? []] : [];
+  // shortcut: no token map, so `add` and `scale` slider tweaks emit nothing; pass the design system's tokens once node 011 carries them.
+  const [values, setValues] = useState<Record<string, string>>({});
   const comments = commentsOn(annotations, nodeId, example.path);
   const [picker, setPicker] = useState(false);
-  const [picked, setPicked] = useState<Selection | null>(null);
-  const [reveal, setReveal] = useState<{ key: string; request: number }>();
+  const [picked, setPicked] = useState<Selection[]>([]);
   const [unanchored, setUnanchored] = useState<string[]>([]);
   const [focused, setFocused] = useState<string>();
   useEffect(() => { dialog.current?.showModal(); }, []);
-  useEffect(() => { setPicker(false); setPicked(null); setFocused(undefined); }, [example.path]);
-  const marks = comments.flatMap((comment, index) => comment.example?.selector ? [{ key: comment.id, label: index + 1, selector: comment.example.selector }] : []);
+  useEffect(() => { setPicker(false); setPicked([]); setFocused(undefined); }, [example.path, variant?.id]);
+  useEffect(() => { setVariantId(undefined); setValues({}); }, [example.path]);
+  // Marks only for comments made on the variant on screen; a comment's number is its place in the list.
+  const onScreen = (anchor?: Anchor) => anchor?.variant === variant?.id;
+  const marks = comments.flatMap((comment, index) => onScreen(comment.example) ? (comment.example?.selections ?? []).map((selection, at) => ({ key: `${comment.id}#${at}`, label: index + 1, selector: selection.selector })) : []);
   const post = (comment: string) => {
-    const anchor: Annotation['example'] = { path: example.path };
-    if (picked) Object.assign(anchor, { selector: picked.selector, component: picked.component?.name || undefined, fixture: picked.component?.fixture || undefined, text: picked.text || undefined });
+    const anchor: Anchor = { path: example.path };
+    if (variant) anchor.variant = variant.id;
+    if (picked.length) anchor.selections = picked.map(anchorSelection);
+    if (tweaks.length) anchor.tweaks = Object.fromEntries(tweaks.map(tweak => [tweak.id, values[tweak.id] ?? defaultFor(tweak)]));
     setAnnotations([...annotations, { id: annotationId(), packVersion: pack.packVersion, target: { type: 'node', id: nodeId }, example: anchor, comment, time: new Date().toISOString() }]);
-    setPicked(null);
+    frame.current?.clearSelections();
+    setPicked([]);
     setPicker(false);
+  };
+  const unpick = (id: number) => {
+    frame.current?.removeSelection(id);
+    // The frame renumbers the rest from 1 without echoing a selection.
+    setPicked(previous => previous.filter(item => item.id !== id).map((item, index) => ({ ...item, id: index + 1 })));
   };
   const close = () => dialog.current?.close();
   return (
@@ -90,37 +141,48 @@ export function ExamplesModal({ nodeId, examples, path, onPath, onClose, annotat
         <div><h2 id={titleId}>{example.title}</h2><p className="hint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}: {example.path}</p></div>
         <div className="row">
           {examples.length > 1 && <Dropdown label="Example" value={example.path} currentLabel={example.title} options={examples.map(item => ({ value: item.path, label: item.title }))} onChange={onPath} />}
-          {framed && <button type="button" className="btn" aria-pressed={picker} onClick={() => setPicker(!picker)}><MousePointerClick size={16} aria-hidden="true" />{picker ? 'Picking element' : 'Pick element'}</button>}
+          {example.kind === 'od-build' && example.variants.length > 1 && variant && <Dropdown label="Variant" value={variant.id} currentLabel={variant.label ?? variant.id} options={example.variants.map(item => ({ value: item.id, label: item.label ?? item.id }))} onChange={setVariantId} />}
+          {html !== undefined && <button type="button" className="btn" aria-pressed={picker} onClick={() => setPicker(!picker)}><MousePointerClick size={16} aria-hidden="true" />{picker ? 'Picking elements' : 'Pick elements'}</button>}
           <button type="button" className="btn" aria-label="Close examples" autoFocus onClick={close}>Close</button>
         </div>
       </header>
       <div className="examples-body">
         <div className="example-view">
-          {framed ? (
-            <ExampleFrame key={framed.path} example={framed} picker={picker} marks={marks} reveal={reveal} hasSelection={Boolean(picked)} events={{
-              onPicker: setPicker,
-              onSelection: setPicked,
-              onMarkClick: key => { if (comments.some(comment => comment.id === key)) setFocused(key); },
-              onRevealed: (key, found) => setUnanchored(previous => found ? previous.filter(id => id !== key) : [...new Set([...previous, key])]),
-              onNavigate: page => { const target = examples.find(item => item !== example && (item.path === page || item.path.replace(/\.[^./]+$/, '') === page)); if (target) onPath(target.path); },
-              onEscape: close,
-            }} />
+          {html !== undefined ? (
+            <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
+              picker={picker} marks={marks} tweaks={tweakPayload(tweaks, values)} control={frame} events={{
+                onPicker: setPicker,
+                onSelection: setPicked,
+                onMarkClick: key => { const id = key.slice(0, key.lastIndexOf('#')); if (comments.some(comment => comment.id === id)) setFocused(id); },
+                onRevealed: (key, found) => setUnanchored(previous => found ? previous.filter(id => id !== key) : [...new Set([...previous, key])]),
+                onEscape: close,
+              }} />
           ) : example.kind === 'markdown' ? <div className="markdown"><SidebarMarkdown hideImages>{example.markdown}</SidebarMarkdown></div>
             : example.kind === 'fixture' ? <FixtureView format={example.format} data={example.data} /> : null}
         </div>
         <aside className="example-comments" aria-label="Comments on this example">
-          {framed && <p className="hint" role="status">{picked ? `Selected: ${describe(picked)}` : picker ? 'Click an element in the example to anchor your comment.' : 'Comments anchor to the whole example unless you pick an element.'}</p>}
-          <CommentForm key={example.path} label={picked ? 'Comment on the selected element' : 'Comment on this example'} onSave={post} onCancel={picked ? () => setPicked(null) : undefined} />
+          <TweakControls tweaks={tweaks} values={values} onChange={(id, value) => setValues(previous => ({ ...previous, [id]: value }))} />
+          {html !== undefined && (picked.length ? (
+            <ul className="example-picks" aria-label="Selected elements">
+              {picked.map(item => <li key={item.id}><span>{item.id}. {describe(item)}</span><button type="button" className="icon-btn" aria-label={`Remove selection ${item.id}`} onClick={() => unpick(item.id)}><X size={14} aria-hidden="true" /></button></li>)}
+            </ul>
+          ) : <p className="hint" role="status">{picker ? 'Click elements in the example to anchor your comment.' : 'Comments anchor to the whole example unless you pick elements.'}</p>)}
+          <CommentForm key={example.path} label={picked.length ? `Comment on ${picked.length} selected element${picked.length === 1 ? '' : 's'}` : 'Comment on this example'} onSave={post} />
           {comments.length > 0 && <ol className="comments">
-            {comments.map((comment, index) => (
-              <li key={comment.id} className={focused === comment.id ? 'focused' : undefined}>
-                {framed && comment.example?.selector
-                  ? <button type="button" className="link strong" ref={element => { if (focused === comment.id) element?.focus(); }} onClick={() => setReveal({ key: comment.id, request: (reveal?.request ?? 0) + 1 })}>{index + 1}. {anchorLabel(comment.example)}</button>
-                  : <strong>{index + 1}. {comment.example && anchorLabel(comment.example)}</strong>}
-                {unanchored.includes(comment.id) && <p role="status">Unanchored: this element is no longer in the example.</p>}
-                <p>{comment.comment}</p>
-              </li>
-            ))}
+            {comments.map((comment, index) => {
+              const anchor = comment.example!;
+              const key = `${comment.id}#0`;
+              return (
+                <li key={comment.id} className={focused === comment.id ? 'focused' : undefined}>
+                  {onScreen(anchor) && anchor.selections?.length
+                    ? <button type="button" className="link strong" ref={element => { if (focused === comment.id) element?.focus(); }} onClick={() => frame.current?.reveal(key)}>{index + 1}. {anchorLabel(anchor)}</button>
+                    : <strong>{index + 1}. {anchorLabel(anchor)}</strong>}
+                  {anchor.variant && !onScreen(anchor) && <p className="hint">On variant {anchor.variant}</p>}
+                  {unanchored.includes(key) && <p role="status">Unanchored: this element is no longer in the example.</p>}
+                  <p>{comment.comment}</p>
+                </li>
+              );
+            })}
           </ol>}
         </aside>
       </div>

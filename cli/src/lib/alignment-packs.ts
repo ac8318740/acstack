@@ -131,10 +131,16 @@ export const ReviewAnnotationSchema = z
     target: z.object({ type: z.enum(['node', 'group', 'edge', 'aggregateEdge']), id: z.string().min(1) }).strict(),
     selectedText: z.string().min(1).optional(),
     sourceRef: z.string().min(1).optional(),
-    // A comment on an element's example anchors here; the bridge spec's comment targets. No selector means the whole example.
+    // A comment on an element's example anchors here (bridge spec, comment targets). No selections means the whole example.
     example: z.object({
-      path: z.string().min(1), selector: z.string().min(1).max(1024).optional(), component: z.string().min(1).max(200).optional(),
-      fixture: z.string().min(1).max(1024).optional(), text: z.string().min(1).max(200).optional(),
+      path: z.string().min(1),
+      variant: z.string().min(1).max(1024).optional(),
+      selections: z.array(z.object({
+        selector: z.string().min(1).max(1024), text: z.string().max(200).optional(),
+        rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict(),
+        component: z.object({ name: z.string().min(1).max(200), source: z.string().max(1024).optional(), props: z.record(z.unknown()).optional(), fixture: z.string().max(1024).optional() }).strict().optional(),
+      }).strict()).max(20).optional(),
+      tweaks: z.record(z.string().max(1024)).optional(),
     }).strict().optional(),
     comment: z.string().min(1),
     author: z.string().min(1).optional(),

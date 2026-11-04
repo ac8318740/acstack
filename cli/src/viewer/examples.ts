@@ -1,4 +1,9 @@
+import type { Tweak } from './od-bridge/tweaks.js';
+
 declare const OD_BRIDGE_JS: string;
+
+// One OpenDesigner variant: a self-contained HTML build plus its own tweaks, in OpenDesigner's index.json shape.
+export type ExampleVariant = { id: string; label?: string; html: string; tweaks?: Tweak[] };
 
 // One example attached to a design element. `path` is relative to the element folder and is the example's identity.
 export type ElementExample = {
@@ -6,8 +11,9 @@ export type ElementExample = {
   title: string;
   illustrative?: boolean;
 } & (
-  // An OpenDesigner build is one self-contained HTML file, shown exactly like inline HTML.
-  | { kind: 'html' | 'od-build'; html: string }
+  | { kind: 'html'; html: string }
+  // One example is one page. `tweaks` holds the design- and page-level tweaks; each variant adds its own.
+  | { kind: 'od-build'; variants: ExampleVariant[]; tweaks?: Tweak[] }
   | { kind: 'markdown'; markdown: string }
   | { kind: 'fixture'; format: 'json' | 'csv'; data: string }
 );

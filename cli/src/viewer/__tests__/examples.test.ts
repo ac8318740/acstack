@@ -1,5 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { exampleDocument, FRAME_CSP, fixtureTable, parseCsv } from '../examples.js';
+import { ReviewAnnotationSchema } from '../../lib/alignment-packs.js';
 
 const global = globalThis as { OD_BRIDGE_JS?: string };
 afterEach(() => { delete global.OD_BRIDGE_JS; });
@@ -47,4 +48,15 @@ it('turns JSON fixtures into text cells', () => {
 it('parses quoted CSV fields', () => {
   expect(parseCsv('name,note\r\n"Smith, J","said ""hi""\nthen left"\nLee,\n')).toEqual([['name', 'note'], ['Smith, J', 'said "hi"\nthen left'], ['Lee', '']]);
   expect(fixtureTable('csv', 'a,b\n1,2')).toEqual({ columns: ['a', 'b'], rows: [['1', '2']] });
+});
+
+it('stores a multi-element example anchor with variant and tweak values in the review', () => {
+  const example = { path: 'cart', variant: 'a', tweaks: { radius: '8' }, selections: [
+    { selector: '#pay', text: 'Pay', rect: { x: 0, y: 0, width: 10, height: 10 }, component: { name: 'PayButton', props: { size: 'lg' }, fixture: 'fixtures/order.json' } },
+    { selector: '#total', rect: { x: 0, y: 20, width: 10, height: 10 } },
+  ] };
+  const annotation = { packVersion: 'v1', target: { type: 'node', id: 'checkout' }, example, comment: 'Align these' } as const;
+  expect(ReviewAnnotationSchema.parse(annotation).example).toEqual(example);
+  expect(() => ReviewAnnotationSchema.parse({ ...annotation, example: { ...example, html: '<p>' } })).toThrow();
+  expect(() => ReviewAnnotationSchema.parse({ ...annotation, example: { ...example, selections: Array(21).fill(example.selections[1]) } })).toThrow();
 });
