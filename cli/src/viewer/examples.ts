@@ -33,11 +33,23 @@ export function withVariant(html: string, variant: string): string {
   return html.replace(/<meta name="od-variant" content="[^"]*">/, () => `<meta name="od-variant" content="${id}">`);
 }
 
-// What the reviewer last had on screen per example. It outlives the modal, because Lock sits in the Details tab.
-export type ExampleView = { variant?: string; values: Record<string, string> };
+// What the reviewer last had on screen per example: the variant, and tweak values per variant ('' when there are none).
+// It lasts the browser session, so a reload keeps the tweaks; it never goes into the review.
+export type ExampleView = { variant?: string; values: Record<string, Record<string, string>> };
 const views = new Map<string, ExampleView>();
-export const exampleView = (nodeId: string, path: string): ExampleView => views.get(`${nodeId}\n${path}`) ?? { values: {} };
-export const setExampleView = (nodeId: string, path: string, view: ExampleView) => { views.set(`${nodeId}\n${path}`, view); };
+const storageKey = (nodeId: string, path: string) => `acstack-example-view:${nodeId}\n${path}`;
+function storedView(nodeId: string, path: string): ExampleView | undefined {
+  try {
+    const value = JSON.parse(sessionStorage.getItem(storageKey(nodeId, path)) ?? 'null') as ExampleView | null;
+    return value && typeof value === 'object' && typeof value.values === 'object' ? value : undefined;
+  } catch { return undefined; }
+}
+export const exampleView = (nodeId: string, path: string): ExampleView => views.get(`${nodeId}\n${path}`) ?? storedView(nodeId, path) ?? { values: {} };
+export const setExampleView = (nodeId: string, path: string, view: ExampleView) => {
+  views.set(`${nodeId}\n${path}`, view);
+  try { sessionStorage.setItem(storageKey(nodeId, path), JSON.stringify(view)); } catch { /* Without storage the view lasts until reload. */ }
+};
+export const valuesOf = (view: ExampleView, variant?: string): Record<string, string> => view.values[variant ?? ''] ?? {};
 
 // A lock records each viewed OpenDesigner example's variant, its tweak values, and every state that variant offers.
 export function exampleCapture(nodeId: string, examples: ElementExample[]): { examples: Record<string, { variant: string; tweaks: Record<string, string>; states: Record<string, string[]> }> } | undefined {
@@ -49,7 +61,7 @@ export function exampleCapture(nodeId: string, examples: ElementExample[]): { ex
     const tweaks = [...example.tweaks ?? [], ...variant.tweaks ?? []];
     return [[example.path, {
       variant: variant.id,
-      tweaks: Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, view.values[tweak.id] ?? defaultFor(tweak)])),
+      tweaks: Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, valuesOf(view, variant.id)[tweak.id] ?? defaultFor(tweak)])),
       states: Object.fromEntries(tweaks.flatMap(tweak => tweak.type === 'state' ? [[tweak.id, (tweak.options ?? []).map(option => typeof option === 'string' ? option : option.value)]] : [])),
     }] as const];
   });

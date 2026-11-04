@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
@@ -81,6 +81,7 @@ async function start(root: string) {
   const tuple = ({ sourceRevision, reviewRevision, commentsDigest, mapInputsDigest }: Tuple) => ({ sourceRevision, reviewRevision, commentsDigest, mapInputsDigest });
   return {
     html, url, headers, status, output: () => output,
+    post: async (body: Record<string, unknown>) => request(api, { method: 'POST', headers, body: JSON.stringify({ ...body, expected: tuple(await status()) }) }),
     lock: async (id: string, capture?: unknown) => request(api, { method: 'POST', headers, body: JSON.stringify({ lock: id, ...(capture !== undefined && { capture }), expected: tuple(await status()) }) }),
     example: (path: string, token_ = token) => request(new URL(`/api/examples?element=102&path=${encodeURIComponent(path)}`, url), { headers: { 'x-review-token': token_ } }),
   };
@@ -103,7 +104,7 @@ it('lists examples in the page, serves their content behind the token, and holds
 
   const blocked = await server.status();
   expect(blocked.blockers).toEqual([{ kind: 'variant', targetId: '102', label: 'Choose a variant of Checkout', nodeId: '102', example: 'od:checkout/home' }]);
-  expect(blocked.approval.reason).toBe('Choose a variant for each mock with several, by locking its element');
+  expect(blocked.approval.reason).toBe('Choose a variant for each mock with several');
 
   // Locking chooses the variant on screen, so a lock without one is refused.
   expect((await server.lock('102')).status).toBe(409);
@@ -166,3 +167,27 @@ it('unapproves a locked element when a binding example changes, but not an illus
   writeFileSync(join(root, '.open-designer/designs/checkout/list.tsx'), 'export default () => "List";');
   expect(changed()).toEqual([expect.objectContaining({ kind: 'changed', targetId: '102' })]);
 }, 60_000);
+
+it('settles a variant blocker by choosing in the viewer, and approval locks the chosen variant with its tweaks', async () => {
+  const root = fixture();
+  const server = await start(root);
+  expect((await server.status()).blockers).toHaveLength(1);
+  const choose = (variant: string, element = '102') => server.post({ chooseVariant: { element, example: 'od:checkout/home', variant, tweaks: { radius: '20' } } });
+  expect((await choose('gone')).status).toBe(400);
+  expect((await choose('list', '103')).status).toBe(400);
+  expect((await choose('list')).status).toBe(200);
+  const chosen = await server.status() as Status & { choices: Record<string, Record<string, { variant: string }>> };
+  expect(chosen.blockers).toEqual([]);
+  expect(chosen.choices['102']['od:checkout/home'].variant).toBe('list');
+  expect((await server.post({ decision: 'approved' })).status).toBe(200);
+  const review = JSON.parse(readFileSync(join(root, '.acstack/design-reviews', 'demo', readdirSync(join(root, '.acstack/design-reviews/demo')).find(name => /^[a-f0-9]{16}$/.test(name))!, 'review.json'), 'utf8')) as { lifecycle: { locks: Record<string, { capture?: unknown }> } };
+  expect(review.lifecycle.locks['102'].capture).toEqual({ examples: { 'od:checkout/home': { variant: 'list', tweaks: { radius: '20' }, states: {} } } });
+}, 30_000);
+
+it('never asks for a variant on an illustrative mock', async () => {
+  const root = fixture();
+  const nodeFile = join(root, '.acstack/maps/demo/102-node.md');
+  writeFileSync(nodeFile, readFileSync(nodeFile, 'utf8').replace('{title: Checkout, od: {design: checkout, page: home}}', '{title: Checkout, od: {design: checkout, page: home}, illustrative: true}'));
+  const server = await start(root);
+  expect((await server.status()).blockers).toEqual([]);
+}, 30_000);

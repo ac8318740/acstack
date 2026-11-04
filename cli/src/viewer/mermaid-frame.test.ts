@@ -9,7 +9,7 @@ it.each([false, true])('shows source only when rendering fails (failure=%s)', as
   const createElement = (tag: string) => ({ tag, textContent: '', append: vi.fn(), addEventListener: vi.fn() });
   const postMessage = vi.fn();
   vi.stubGlobal('parent', { postMessage });
-  vi.stubGlobal('document', { getElementById: (id: string) => id === 'source' ? { textContent: JSON.stringify(source) } : output, createElement, documentElement: { scrollHeight: 321 } });
+  vi.stubGlobal('document', { getElementById: (id: string) => id === 'source' ? { textContent: JSON.stringify(source) } : output, createElement, body: { getBoundingClientRect: () => ({ height: 305 }) } });
   render.mockImplementation(() => failed ? Promise.reject(new Error('Invalid diagram')) : Promise.resolve({ svg: '<svg>diagram</svg>' }));
   await import('./mermaid-frame.js');
   await vi.dynamicImportSettled();

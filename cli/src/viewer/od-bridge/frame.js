@@ -1,7 +1,7 @@
 // Vendored from OpenDesigner (github.com/ac8318740/open-designer) at commit
 // deb10a1db2cbb4fa50ac5ad57abae7f91caf1725, viewer/dist/od-bridge.js
 // (built from viewer/src/bridge/frame.ts). Do not edit; re-vendor to update.
-// Locally patched: picker outlines and badges sit outside the picked element (sent to OpenDesigner PR #12).
+// Locally patched: picker outlines and badges sit outside the element, flip inward at the page edge, and use a row's leading gutter (sent to OpenDesigner PR #12).
 // OpenDesigner bridge, protocol version 1. Built from src/bridge/frame.ts.
 (() => {
   (() => {
@@ -35,6 +35,8 @@
     const SELECTED_ATTR = "data-od-selected";
     const BADGE_CLASS = "od-picker-badge";
     const MARK_CLASS = "od-mark-badge";
+    const HOST_CLASS = "od-badge-host";
+    const GUTTER_CLASS = "od-badge-gutter";
     const MARK_ATTR = "data-od-mark";
     const FLASH_ATTR = "data-od-flash";
     const STYLE_KEYS = [
@@ -68,6 +70,7 @@
     let pickerOn = false;
     let keys = /* @__PURE__ */ new Set();
     let picked = [];
+    const pickBadges = /* @__PURE__ */ new WeakMap();
     let marks = [];
     let tweakAttrs = [];
     let queuedError = null;
@@ -279,11 +282,13 @@
       [${SELECTED_ATTR}] { outline: 2px solid #f59e0b !important; outline-offset: 2px; position: relative; }
       [${MARK_ATTR}] { position: relative; }
       [${FLASH_ATTR}] { outline: 3px solid #3b82f6 !important; outline-offset: 2px; }
-      .${BADGE_CLASS}, .${MARK_CLASS} { position: absolute; top: -3px; left: -3px; transform: translate(-100%, -100%); min-width: 22px; height: 22px;
+      .${HOST_CLASS} { position: relative; }
+      .${BADGE_CLASS}, .${MARK_CLASS} { position: absolute; top: -3px; left: -3px; transform: translate(var(--od-bx, -100%), var(--od-by, -100%)); min-width: 22px; height: 22px;
         padding: 0 4px; box-sizing: border-box; border-radius: 11px; background: #f59e0b; color: #1f1300;
         font: 600 12px/22px ui-sans-serif, system-ui, sans-serif; text-align: center;
         z-index: 2147483647; pointer-events: none; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25); }
-      .${MARK_CLASS} { background: #3b82f6; color: #fff; left: auto; right: -3px; transform: translate(100%, -100%); pointer-events: auto; cursor: pointer; }
+      .${MARK_CLASS} { --od-bx: 100%; background: #3b82f6; color: #fff; left: auto; right: -3px; pointer-events: auto; cursor: pointer; }
+      .${BADGE_CLASS}.${GUTTER_CLASS}, .${MARK_CLASS}.${GUTTER_CLASS} { --od-bx: -100%; --od-by: -50%; top: 50%; left: -6px; right: auto; }
     `;
       (document.head ?? document.documentElement).appendChild(style);
       hover = document.createElement("div");
@@ -364,7 +369,19 @@
       const badge = document.createElement("span");
       badge.className = BADGE_CLASS;
       badge.textContent = String(id);
-      el.appendChild(badge);
+      attachBadge(el, badge);
+      pickBadges.set(el, badge);
+    }
+    function attachBadge(el, badge) {
+      const cell = el instanceof HTMLTableRowElement ? el.cells[0] : void 0;
+      if (cell) {
+        cell.classList.add(HOST_CLASS);
+        badge.classList.add(GUTTER_CLASS);
+      }
+      (cell ?? el).appendChild(badge);
+      const r = badge.getBoundingClientRect();
+      if (r.left + window.scrollX < 0 || r.right + window.scrollX > document.documentElement.clientWidth) badge.style.setProperty("--od-bx", "0%");
+      if (r.top + window.scrollY < 0) badge.style.setProperty("--od-by", "0%");
     }
     function removeAt(index) {
       const [gone] = picked.splice(index, 1);
@@ -372,13 +389,14 @@
       picked.forEach((p, i) => {
         p.id = p.snap.id = i + 1;
         p.el.setAttribute(SELECTED_ATTR, String(p.id));
-        const badge = p.el.querySelector(`:scope > .${BADGE_CLASS}`);
+        const badge = pickBadges.get(p.el);
         if (badge) badge.textContent = String(p.id);
       });
     }
     function unmark(el) {
       el.removeAttribute(SELECTED_ATTR);
-      el.querySelector(`:scope > .${BADGE_CLASS}`)?.remove();
+      pickBadges.get(el)?.remove();
+      pickBadges.delete(el);
     }
     function clearSelections() {
       for (const p of picked) unmark(p.el);
@@ -480,7 +498,7 @@
           e.stopPropagation();
           post("mark-click", { key: m.key });
         });
-        el.appendChild(badge);
+        attachBadge(el, badge);
       }
     }
     document.addEventListener(

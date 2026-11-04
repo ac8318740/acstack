@@ -50,6 +50,7 @@ export function liveDesignDoc(root: string, map: string, orientation: DiagramOri
   const server = createReviewServer({ handoffPrompt: prompt, html: () => html, events, path: ANNOTATIONS_PATH, mode: 'comments', designReview: { get: () => lifecycle.status(), post: body => {
     if (body && typeof body === 'object' && 'questionId' in body) return lifecycle.answer(body);
     if (body && typeof body === 'object' && 'lock' in body) return lifecycle.lock(body);
+    if (body && typeof body === 'object' && 'chooseVariant' in body) return lifecycle.chooseVariant(body);
     return lifecycle.approve(body);
   } }, get: () => lifecycle.review.get(), post: body => lifecycle.review.post(body), examples: async query => {
     // Content loads fresh on each request, so a rebuilt page's examples are current without a cache to drop.

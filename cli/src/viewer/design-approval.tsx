@@ -10,6 +10,8 @@ type Status = {
   sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string;
   approval: { valid: boolean; reason?: string };
   openQuestions?: string[]; answers?: Record<string, string>; locked?: string[]; blockers?: ApprovalBlocker[]; earlier?: EarlierReview[];
+  // Element id to example path to the variant the user chose.
+  choices?: Record<string, Record<string, { variant: string }>>;
 };
 /** Comments saved on an earlier revision, tagged with the change that ended it. */
 export type EarlierReview = { reviewPath: string; packVersion: string; label: string; annotations: ReviewAnnotation[] };
@@ -33,6 +35,8 @@ type ApprovalControls = {
   answered: string[]; answerText: (id: string) => string | undefined; answerable: string[]; locked?: string[]; changed: string[]; changes: (id: string) => ElementChange[]; earlier: EarlierReview[]; canAnswer: boolean;
   saveAnswer: (answer: DesignAnswer) => Promise<void>;
   lock: (id: string) => Promise<void>;
+  chosenVariant: (element: string, example: string) => string | undefined;
+  chooseVariant: (element: string, example: string, variant: string, tweaks: Record<string, string>) => Promise<void>;
   navigate: MutableRefObject<((blocker: ApprovalBlocker) => void) | undefined>;
   captures: MutableRefObject<Map<string, () => LockCapture | undefined>>;
 };
@@ -119,13 +123,15 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
   };
   const saveAnswer = (answer: DesignAnswer) => write(answer);
   const lock = (id: string) => { const capture = captures.current.get(id)?.(); return write({ lock: id, ...(capture && { capture }) }); };
+  const chooseVariant = (element: string, example: string, variant: string, tweaks: Record<string, string>) => write({ chooseVariant: { element, example, variant, tweaks } });
+  const chosenVariant = (element: string, example: string) => status?.choices?.[element]?.[example]?.variant;
   // Until status arrives, the page's own data says which questions were answered.
   const answered = (pack.designDocument?.questions ?? []).filter(question => status?.openQuestions ? !status.openQuestions.includes(question.id) : question.answer !== undefined).map(question => question.id);
   const answerText = (id: string) => status?.answers?.[id];
   const approved = Boolean(!error && !pending && syncState?.status === 'Saved' && status?.approval.valid);
   const disabled = !status || pending || approved || syncState?.status !== 'Saved';
   const reason = approved ? 'This revision is approved' : error ?? status?.approval.reason ?? 'Checking revision...';
-  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, answerText, changes: (id: string) => (status?.blockers ?? []).flatMap(blocker => blocker.kind === 'changed' && blocker.targetId === id ? blocker.changes ?? [] : []), earlier: status?.earlier ?? [], locked: status?.locked, changed: (status?.blockers ?? []).filter(blocker => blocker.kind === 'changed').map(blocker => blocker.targetId), canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), answerable: status?.openQuestions ?? [], saveAnswer, lock, navigate, captures, open: () => { if (disabled) return; if (status?.blockers?.length) blockerDialog.current?.showModal(); else confirm.current?.showModal(); } } : null}>
+  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, answerText, changes: (id: string) => (status?.blockers ?? []).flatMap(blocker => blocker.kind === 'changed' && blocker.targetId === id ? blocker.changes ?? [] : []), earlier: status?.earlier ?? [], locked: status?.locked, changed: (status?.blockers ?? []).filter(blocker => blocker.kind === 'changed').map(blocker => blocker.targetId), canAnswer: Boolean(status && !pending && syncState?.status === 'Saved'), answerable: status?.openQuestions ?? [], saveAnswer, lock, chooseVariant, chosenVariant, navigate, captures, open: () => { if (disabled) return; if (status?.blockers?.length) blockerDialog.current?.showModal(); else confirm.current?.showModal(); } } : null}>
     {children}
     {enabled && <dialog ref={confirm} className="modal" aria-labelledby="design-approval-title" aria-describedby="design-approval-explanation" onCancel={event => { if (pending) event.preventDefault(); }}>
       <h2 id="design-approval-title">Approve this version?</h2>

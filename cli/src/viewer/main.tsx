@@ -240,15 +240,19 @@ function App() {
   const [reveal, setReveal] = useState<{ id: string }>();
   const [exampleLink, setExampleLink] = useState<ExampleLink>();
   const review = useDesignReview();
-  useBlockerNavigation(blocker => {
-    // Open the containers the element sits in, so its card, drawer, and Examples view are the element's own.
-    const { groups, selection } = revealElement(pack.graph, blocker.targetId);
+  // Open the containers the element sits in, so its card, drawer, and Examples view are the element's own.
+  const showElement = (id: string) => {
+    const { groups, selection } = revealElement(pack.graph, id);
     if (groups.some(id => !expanded.includes(id))) changeExpanded([...new Set([...expanded, ...groups])]);
     setSelected(selection);
     setReveal({ id: selection });
     setDrawerOpen(true);
-    if (blocker.kind === 'variant') { setExampleLink({ nodeId: blocker.targetId, path: blocker.example }); setDrawerView('examples'); }
-    else if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });
+  };
+  const openExample = (link: ExampleLink) => { showElement(link.nodeId); setExampleLink(link); setDrawerView('examples'); };
+  useBlockerNavigation(blocker => {
+    if (blocker.kind === 'variant') { openExample({ nodeId: blocker.targetId, path: blocker.example }); return; }
+    showElement(blocker.targetId);
+    if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });
     else setDrawerView('details');
   });
 
@@ -340,6 +344,7 @@ function App() {
         setOpen={setDrawerOpen}
         view={drawerView}
         exampleLink={exampleLink}
+        onOpenExample={openExample}
         setView={setDrawerView}
         commentScope={commentScope}
         setCommentScope={setCommentScope}

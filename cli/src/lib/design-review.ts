@@ -30,12 +30,17 @@ export const ReconciliationSchema = RevisionTupleSchema.extend({
     outcome: z.enum(['applied', 'retained', 'needs-human']), rationale: z.string().trim().min(1).max(16000),
   }).strict()),
 }).strict();
+export const VariantChoiceSchema = z.object({
+  variant: z.string().min(1).max(1024), tweaks: z.record(z.string().max(1024)).default({}), states: z.record(z.array(z.string().max(1024))).default({}), chosenAt: z.string(),
+}).strict();
 const EvidenceSchema = z.object({
   reconciliations: z.array(ReconciliationSchema.extend({ reviewPath: z.string(), feedbackPackVersion: z.string(), scopeCommentsDigest: z.string().regex(/^[a-f0-9]{64}$/), recordedAt: z.string() }).strict()).default([]),
   approvals: z.array(RevisionTupleSchema.extend({ recordedAt: z.string() }).strict()).default([]),
   // Element id to the config digest the user locked, so a later config edit can be flagged, and what the page showed then.
   // `approved` keeps the element as it was approved, so a later edit can say what changed.
   locks: z.record(z.object({ config: z.string().regex(/^[a-f0-9]{64}$/), capture: LockCaptureSchema.optional(), approved: ApprovedElementSchema.optional(), approvedAt: z.string().optional() }).strict()).default({}),
+  // Element id to example path to the variant the user chose for a mock with several, and its tweak values then.
+  choices: z.record(z.record(VariantChoiceSchema)).default({}),
 }).strict();
 export const DesignAnswerSchema = z.object({
   questionId: z.string().min(1).max(80), answer: z.string().trim().max(16000),
