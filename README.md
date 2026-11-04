@@ -1,6 +1,6 @@
 # ACStack
 
-ACStack is an agentic coding stack. It makes coding agents plan before they code, write tests before implementation, and keep docs matching the code.
+ACStack is an agentic coding stack. It helps coding agents clarify requirements, test meaningful behavior, and keep docs matching the code.
 
 - **ACStack aims to solve two common failure modes coding agents introduce**
     - The agent starts building before the requirements are clear
@@ -9,9 +9,11 @@ ACStack is an agentic coding stack. It makes coding agents plan before they code
     - Claude Code installs it as a plugin
     - pi installs it as an npm package
 - **ACStack introduces structure around how your agent works**
-    - Every change goes through a test-writer, an implementer, and a checker
+    - Verification fits the change under a shared policy in `orchestrator/AGENTS.md`
     - Every commit updates your specs from the diff
-- **Downside: this structure may make your agent take longer on small tweaks than necessary**
+- Straightforward work can stay with one agent, including investigation, tests, implementation, and verification
+    - One verification owner gathers final completion evidence, reusing valid results instead of repeating checks at every handoff
+    - Review depth follows affected risks; adjacent cleanup is advisory unless the user approves it
 
 ```mermaid
 flowchart TD
@@ -53,27 +55,31 @@ Install the plugin:
 /plugin install acstack@ac-agentic-coding
 ```
 
-Then, in your project:
+Then, in your Git repository, use `/acstack:implement`, `/acstack:quick-fix`, or `/acstack:pre-commit-review` directly. Without project configuration, ACStack follows repository instructions and discovers tooling from manifests, tests, and CI.
 
-```
-/acstack:setup
-```
-
-- `/acstack:setup` detects the project type, then writes `acstack/project.yaml` with workflow settings
-- The SessionStart hook loads the orchestrator instructions whenever it detects an ACStack project
+- Optional: `/acstack:setup` detects the project type and writes `project.yaml` for saved workflow settings and storage-backed features such as maps and living specs
+    - Existing configuration keeps its gates; invalid configuration or project-data conflicts require repair, not an unconfigured fallback
+- All ACStack-owned project records live in one project folder per repository, shared by all of its worktrees
+    - `~/.claude/acstack/bin/acstack project-data path` prints it; by default it is `~/.acstack/projects/<key>/`, outside the repository
+    - Run `acstack project-data mode tracked` to keep the records in the repository's `.acstack/` and commit them instead
+    - See [Where project data lives](docs/config-reference.md#where-project-data-lives) for paths, modes, and commands
+- Update installed ACStack tools before migrating an older project
+    - Stop old agents and reviews, run `~/.claude/acstack/bin/acstack project-data migrate`, then restart with updated tools
+    - Migration aborts on collisions without overwrites or Git index changes; tracked old paths become pending deletions
+- The SessionStart hook loads the orchestrator instructions in Git repositories, even without project setup
 - Your CLAUDE.md stays clean for project-specific content
 - Upgrading from a version before 0.8.0 means deleting one stale `@import` line (see [docs/migrate-0.8.md](docs/migrate-0.8.md))
 
 ### 1.2. Install on pi
 
-*The same project installs as a [pi](https://pi.dev) package. Subagents come from the `pi-subagents` package.*
+*The same project installs as a [pi](https://pi.dev) package with `@tintinweb/pi-subagents` or `pi-subagents` for delegation.*
 
 ```
-pi install npm:pi-subagents
+pi install npm:@tintinweb/pi-subagents
 pi install npm:acstack
 ```
 
-Then, in your project, run `/acstack:setup`.
+Then use the general workflows in your Git repository immediately. Run `/acstack:setup` only when you want saved project settings or storage-backed features, as described above.
 
 - Every skill runs under the same name as on Claude Code, e.g. `/acstack:map`
     - `/acstack map` does the same
@@ -83,7 +89,7 @@ Then, in your project, run `/acstack:setup`.
     - The extension lists the skills in the system prompt instead, so the model still reads one when the task matches
 - `pi/extension.ts` does what the Claude Code hooks do
     - It links the CLI at `~/.claude/acstack/bin/acstack`
-    - It adds the orchestrator instructions to the system prompt in an ACStack project
+    - It adds the orchestrator instructions in Git repositories, even without project setup
     - It lists ACStack's skills in the system prompt in every session
     - It re-injects a handoff after a compaction
     - It nudges with a continuity-versus-freshness checkpoint as the context fills
@@ -91,16 +97,20 @@ Then, in your project, run `/acstack:setup`.
         - Freshness uses `/acstack:handoff` when a fresh window or independent read helps more
         - With no thresholds set, the first nudge comes at 200k tokens or half the window, whichever is lower
         - The urgent nudge comes at 500k tokens or 80% of the window, whichever is lower
-- `pi-subagents` finds the four agents through the `pi.subagents` field in `package.json`
-    - The agents use your `pi-subagents` default model
-    - ACStack warns at session start when `pi-subagents` is missing
-- Allow delegation in `~/.pi/agent/AGENTS.md` – `pi-subagents` only delegates when your request or your instructions allow it:
+- ACStack includes the question-status bridge automatically
+    - With `@juicesharp/rpiv-ask-user-question` and Herdr's Pi integration installed, Herdr shows blocked while Pi waits for an answer
+    - Existing setup-installed bridges can stay installed without counting the same wait twice
+- Both subagent packages find the four agents through the `pi.subagents` field in `package.json`
+    - `@tintinweb/pi-subagents` exposes `Agent`; `pi-subagents` exposes `subagent`
+    - The agents use your subagent package's default model
+    - ACStack warns at session start when pi lists neither tool
+- Allow delegation in `~/.pi/agent/AGENTS.md`:
 
     ```
     When an ACStack skill or the ACStack orchestrator says to launch a subagent, you may delegate to it.
     ```
 
-    - Set `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json` to offer the `subagent` tool from the first turn (restart pi after)
+    - For `pi-subagents`, set `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json` to offer `subagent` from the first turn (restart pi after)
 - pi gets the ACStack writing style from the extension by default
     - Run `/acstack-writing-style default` to use the bundled style again
     - Run `/acstack-writing-style off` to disable style injection
@@ -128,7 +138,7 @@ The three commands:
     - Each question comes with the agent's recommended answer
     - You provide feedback on the agent's recommended answer instead of prompting from scratch
     - Some requests only need one question
-    - The agent writes that decision down as a short note under `docs/adr/`
+    - The agent writes that decision down as a short note under `<project folder>/decisions/`
     - A big feature may need dozens of questions
     - The agent stores those questions as a **map**
     - You work through the map across several sessions
@@ -156,7 +166,7 @@ Each node also records six things.
 - **Who answers it**: you, or the agent working alone
 - **What kind it is**: a destination, a standing note, a decision, research, or work
 - **A short name**, which labels the node in a diagram
-- **Where it lives**: a GitHub issue by default, or a markdown file under `acstack/maps/` with no GitHub remote
+- **Where it lives**: a GitHub issue by default, or a markdown file under `<project folder>/maps/` with no GitHub remote
 
 Almost every node explains itself with a diagram.
 
@@ -180,9 +190,9 @@ For the full picture of each step and how they connect, read [docs/workflows.md]
 
 *The project states what to run. The machine states what it can do.*
 
-- `acstack/project.yaml` holds every project-scoped setting
+- `project.yaml` in the project folder holds every project-scoped setting
     - [docs/config-reference.md](docs/config-reference.md) gives each key, its values, its default and what changes
-- `~/.config/acstack/config.json` holds the nine `host.*` axes
+- `~/.acstack/config.json` holds the nine `host.*` axes
     - `/acstack:host` writes eight of them once per machine, and `/acstack:setup` writes the ninth
     - [docs/dev-setups.md](docs/dev-setups.md) gives every axis, what reads it, and how to describe a fresh machine
 - `/acstack:setup` copies the commands and directories from one of three language profiles
@@ -203,7 +213,7 @@ ACStack ships a Node.js CLI: `acstack config`, `acstack list`, `acstack node ...
         - The first line of every issue body carries all of that node's edges
         - One call therefore reads the whole map
         - A sub-issue and an issue dependency mirror those edges, so GitHub's own interface draws the map
-    - Markdown files are the fallback, one per node under `acstack/maps/<name>/`
+    - Markdown files are the fallback, one per node under `<project folder>/maps/<name>/`
 - The CLI builds everything else on those four operations
     - `acstack node frontier` lists what is ready to start now, closest to the original goal first
     - `acstack node walk` packs the whole map into one brief for a fresh session, in the order the decisions happened
@@ -247,8 +257,8 @@ For work with open decisions, chart it with `/acstack:map` first.
 
 | Skill | Description |
 |-------|-------------|
-| `/acstack:commit` | Commit, and update the specs under `acstack/specs/` from the diff first |
-| `/acstack:archive` | Close a finished map, after checking the decisions reached your specs and notes, then delete the nodes |
+| `/acstack:commit` | Commit, and update the specs under `<project folder>/specs/` from the diff first |
+| `/acstack:archive` | Verify implemented specs and current design approval, retain review evidence, then dispose of temporary map nodes |
 | `/acstack:sync` | Update the specs from code changes, outside a commit |
 | `/acstack:handoff` | Hand work to a visible agent, a new one in its own pane or one already running, with acknowledgement |
 | `/acstack:compact-and-continue` | Anchor the session's load-bearing state to survive compaction, then continue in place |
@@ -271,24 +281,24 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 | `/acstack:bridge` | Set up and operate the Playwriter cross-device browser bridge |
 | `/acstack:visual-docs` | Write docs that lead with a diagram and derive structure from it (Minto pyramid) |
 | `/acstack:new-worktree` | Create a git worktree off the remote base branch and continue the task inside it |
-| `/acstack:teardown-worktree` | Retire finished worktrees and delete their merged local and remote branches |
+| `/acstack:teardown-worktree` | Retire finished worktrees, delete their merged local and remote branches, and clean build outputs in worktrees that stay |
 | `/acstack:terminal-workspace` | Set up a keyboard-only terminal for driving agents on a dev machine |
 
 ## 6. Every agent
 
-*Four agents run in order. The one rule that matters: the test-writer never sees the implementation.*
+*Use agents when independent interpretation, review, or parallel scopes improve confidence.*
 
 | Agent | Role |
-|-------|------|
-| `test-writer` | Writes tests from requirements only, before the code under strict TDD and after it under relaxed |
-| `task-executor` | TDD phase 2, making tests pass, and it cannot modify tests |
-| `task-checker` | TDD phase 3, verifying everything: mock skepticism, test baseline, regressions, TDD isolation audit |
-| `frontend-verifier` | TDD phase 4, real browser verification via agent-browser CLI, when `project.yaml` configures a frontend |
+| --- | --- |
+| `test-writer` | Optional independent tests from requirements and interfaces |
+| `task-executor` | Implements source and tests unless tests have a separate owner |
+| `task-checker` | Bounded independent review; owns completion checks only when assigned |
+| `frontend-verifier` | Configured real-browser verification on final frontend code |
 
-- The agent session you talk to coordinates
-    - It hands every piece of research and code to these agents
-- A fail from the task-checker sends the work back to the task-executor with the reason
-- The frontend-verifier runs under three conditions: a configured frontend, changed frontend files, and verification switched on
+- `orchestrator/AGENTS.md` owns the shared Implementation discipline
+- Require independent review for security boundaries, money, irreversible data changes, or unresolved correctness or impact uncertainty
+- Separate test ownership stays separate when chosen
+- Configured frontend gates still apply without a delegated checker
 
 ## 7. Output style
 
@@ -338,28 +348,20 @@ The style also ships a per-turn reminder:
 
 ## 9. Design principles
 
-*Five rules explain why every default is what it is.*
+*Meaningful evidence matters more than a fixed agent sequence.*
 
-- **Strict TDD holds because of the order the agents run in** – relaxed TDD holds only because the instructions say so
-    - Either way the task-executor cannot edit a test file
-    - Under strict TDD the test-writer runs first
-    - There is no implementation for it to copy
-    - Under relaxed TDD it runs second
-    - Only its instructions stop it reading the code it is testing
-    - The two are not equally safe
-    - That is why strict is the default
-- **Your docs never drift from the code** – `/acstack:commit` reads the diff and updates the specs under `acstack/specs/` in the same commit
-    - Any agent that spots a spec contradicting the code fixes the spec there and then
-    - A spec describes what the code does today
-    - It never describes what someone plans to build
-- **Build no more process than the job needs** – a to-do graph appears only when one conversation cannot hold the questions
-    - A typo fix gets no machinery
-    - A month-long feature gets a map
-    - You type the same command either way
-    - ACStack works out which it is
-- **Planning gets more effort than coding** – three agents read the relevant code before anyone writes a line
-    - Mock audits, regression suites and integration checks follow the implementation
-- **Strict defaults, easy to relax** – run `acstack config set` to change how strict the TDD is, how much the agent does itself, or how it asks you questions
+- Prefer practical tests-first work to expose mistakes before implementation
+- Require tests for meaningful changed behavior when existing coverage cannot catch mistakes
+- Reuse adequate coverage for refactors and skip new tests for nonbehavioral edits
+- Explain impractical testing and disclose missing regression protection
+- Keep docs current through commit-time spec sync
+- Build no more planning structure than the unanswered questions need
+- Preserve explicit requests for stronger process
+- The deprecated `workflow.tdd.strict` and `workflow.tdd.orchestrator_strict` booleans no longer control sequencing or delegation, including explicit `true`
+    - Neither key has an effective default
+    - ACStack removes the former strict guarantee
+    - ACStack does not automatically rewrite existing configuration
+    - New setup does not offer or generate these keys
 
 ## 10. Licence and credits
 

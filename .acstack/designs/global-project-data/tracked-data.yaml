@@ -1,0 +1,15 @@
+id: tracked-data
+name: Committed .acstack/ in the main checkout
+kind: store
+summary: Holds a tracked-mode project's records in the repository so teammates receive them with a clone.
+relationships:
+- id: folders-tracked
+  from: project-folders
+  to: tracked-data
+  direction: one-way
+  label: Links to
+- id: cmd-tracked
+  from: project-data-cmd
+  to: tracked-data
+  direction: one-way
+  label: Moves records into and out of

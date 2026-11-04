@@ -1,6 +1,6 @@
 {
   "name": "acstack",
-  "version": "0.49.1",
+  "version": "0.55.0",
   "private": false,
   "description": "Agentic coding stack with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
   "license": "MIT",
@@ -27,6 +27,7 @@
     "cli/package.json",
     "cli/README.md",
     "docs/",
+    "examples/design-doc/",
     "hooks/",
     "orchestrator/",
     "output-styles/",
@@ -38,7 +39,8 @@
   ],
   "pi": {
     "extensions": [
-      "./pi/extension.ts"
+      "./pi/extension.ts",
+      "./assets/terminal-workspace/pi/acstack-question-blocked.ts"
     ],
     "subagents": {
       "agents": [

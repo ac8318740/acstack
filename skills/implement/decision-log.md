@@ -9,7 +9,7 @@ row.
 Write one row per decision point, never one per action:
 
 - **A fork chosen** – two ways to build something, and you picked one
-- **A unit verified** – a node's checker passed, or a build verification went green
+- **A unit verified** – a node's verification passed, or a build verification went green
 - **A revert** – you undid work, and the row names what triggered it
 - **A blocker** – something stopped the node, and the row names it
 
@@ -18,24 +18,20 @@ gets no row.
 
 ## Where the log lives
 
-The log is one file per map, in the main checkout:
-`<main checkout>/acstack/.decisions/<name>.tsv`. The `<name>` is the map name
-you pass to `--map`.
-
-Write it in the main checkout, never in a worktree. Removing a worktree
-deletes its gitignored files, so a log there vanishes before `archive` reads
-it. Find the main checkout from any worktree:
+The log is one file per map, in the project folder:
+`<project folder>/decision-logs/<name>.tsv`. The project folder is the path
+`~/.claude/acstack/bin/acstack project-data path` prints. Every worktree of the
+repository shares it, so a log survives when its worktree is removed and
+`archive` can still read it. The `<name>` is the map name you pass to `--map`.
 
 ```bash
-main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+log="$(~/.claude/acstack/bin/acstack project-data path)/decision-logs/<name>.tsv"
 ```
 
-Nobody commits the log. When you first create the `acstack/.decisions/`
-directory, write `.gitignore` inside it, containing a single line:
-
-```text
-*
-```
+- If `project-data path` fails because legacy project records exist, stop and pass its message on
+    - Tell the user to update installed tools, stop old agents and review servers, and run `acstack project-data migrate` before restarting
+    - Never move records automatically or create a partial project folder to work around legacy data
+- Create `decision-logs/` in the project folder if it is missing
 
 ## What a row holds
 
@@ -59,4 +55,4 @@ Never edit or delete a row. A wrong call gets a new row that supersedes it,
 and its `why` names the row it replaces.
 
 `/acstack:archive` reads the log before it closes the map. It hands lasting
-decisions to `record-context`, then deletes the log file.
+decisions to `record-context` and retains the original log independently of `workflow.maps.persist`.

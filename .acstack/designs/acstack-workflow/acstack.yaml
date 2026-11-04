@@ -1,0 +1,4 @@
+id: acstack
+name: ACStack plugin
+summary: Ships agent skills, session setup, and a bundled CLI.
+kind: component

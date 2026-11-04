@@ -7,7 +7,7 @@ description: Test placement rules and framework conventions. Invoke before writi
 
 ## Decision Tree: Where Does My Test Go?
 
-Read `acstack/project.yaml` for `directories.source`, `directories.tests`, and `frontend` config.
+Read `<project folder>/project.yaml` when present for `directories.source`, `directories.tests`, and `frontend`. The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. Without config, follow repository instructions and existing tests for placement and runner commands; use the examples below only where they fit that project. Follow Project configuration in `orchestrator/AGENTS.md` for invalid config or resolution errors, not a silent fallback.
 
 ```
 Backend code?             → <tests-dir>/<mirror-source-path>/test_<module>.py
@@ -24,15 +24,15 @@ Mirror the source directory structure. Example: `src/auth/sessions.py` → `test
 - Cross-cutting integration tests → `<tests-dir>/integration/`
 - Shared fixtures → `<tests-dir>/conftest.py` (Python) or shared setup files
 - Use markers for slow/integration tests (configured in `test_markers.exclude`)
-- Run with the `commands.test` command from project.yaml
-- Baseline: `.test-baseline` – count must never drop
+- Use the project's test runner for focused checks; the verification owner gathers full completion evidence under `orchestrator/AGENTS.md`
+- When test collection is configured, compare `<project folder>/.test-baseline` if present; investigate removed coverage and honor project baseline requirements
 
 ## Layer 2: Frontend Unit Tests
 
 Colocated with source. Example: `src/hooks/useAuth.ts` → `src/hooks/__tests__/useAuth.test.ts`.
 
 - Components: `.test.tsx`, pure functions: `.test.ts`
-- Run with `frontend.commands.test` from project.yaml
+- Run with configured `frontend.commands.test`, or the discovered repository test command
 
 ## Layer 3: E2E Tests (Browser)
 

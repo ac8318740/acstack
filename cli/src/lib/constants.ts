@@ -1,7 +1,11 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
 
-export const ACSTACK_DIR = 'acstack';
+export const ACSTACK_DIR = '.acstack';
+export const LEGACY_ACSTACK_DIR = 'acstack';
+export const DECISIONS_DIR = 'decisions';
+export const DECISION_LOGS_DIR = 'decision-logs';
+export const VERIFICATION_DIR = 'verification';
 export const CHANGES_DIR = 'changes';
 export const MAPS_DIR = 'maps';
 export const SPECS_DIR = 'specs';
@@ -10,18 +14,20 @@ export const PROJECT_FILE = 'project.yaml';
 export const DOMAIN_MAP_FILE = 'domain-map.yaml';
 
 /**
- * One file under a project's `acstack/`, either as an absolute path or - with
- * no `root` to give - as the relative path a message names it by.
+ * One file in a project folder, either as an absolute path or - with no
+ * `root` (the project folder) to give - as the name a message calls it by.
  *
- * Functions rather than constants like `GLOBAL_CONFIG_FILE`, because the root
- * is only known once a project has been found. Written here anyway, beside
- * the names they join, so the several readers and writers of each file cannot
- * end up naming it in several ways.
+ * Functions rather than constants like `GLOBAL_CONFIG_FILE`, because the
+ * folder is only known once a project has been found. Written here anyway,
+ * beside the names they join, so the several readers and writers of each
+ * file cannot end up naming it in several ways.
  */
-function acstackFile(name: string, root?: string): string {
-  const relative = join(ACSTACK_DIR, name);
-  return root === undefined ? relative : join(root, relative);
+export function acstackFile(name: string, root?: string): string {
+  return join(root ?? PROJECT_FOLDER_LABEL, name);
 }
+
+/** How messages name the project folder before one is found; `acstack project-data path` prints it. */
+export const PROJECT_FOLDER_LABEL = '<project folder>';
 
 /** The project.yaml `acstack config` reads and writes. */
 export function projectFile(root?: string): string {
@@ -41,13 +47,13 @@ export function domainMapFile(root?: string): string {
 export const PROFILES_DIR = 'profiles';
 
 /**
- * Files a project carries outside acstack/, written by the setup skill and
+ * Files a project carries in its project folder, relative to it, written by the setup skill and
  * read back by `acstack config check`. Named here rather than at the point of
  * use so the skill that writes one and the check that looks for it can never
  * drift on to different filenames.
  */
 export const AGENT_BROWSER_JSON_FILE = 'agent-browser.json';
-export const VERIFICATION_KNOWLEDGE_FILE = 'VERIFICATION-KNOWLEDGE.md';
+export const VERIFICATION_KNOWLEDGE_FILE = join(VERIFICATION_DIR, 'VERIFICATION-KNOWLEDGE.md');
 
 /** The agent-browser CLI, as it is named on PATH and installed from npm. */
 export const AGENT_BROWSER_BIN = 'agent-browser';
@@ -88,13 +94,14 @@ export const ACSTACK_OUTPUT_STYLE = 'acstack:ac-writing-style';
  */
 export const VOCABULARY_PATH = join('skills', 'writing', 'vocabulary.md');
 
-export const GLOBAL_CONFIG_DIR = join(
-  process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'),
-  'acstack'
-);
-export const GLOBAL_CONFIG_FILE = join(GLOBAL_CONFIG_DIR, 'config.json');
-
-export const GLOBAL_DATA_DIR = join(
-  process.env.XDG_DATA_HOME ?? join(homedir(), '.local', 'share'),
-  'acstack'
-);
+/**
+ * The one root for machine-wide settings and every project's records.
+ * `ACSTACK_HOME` moves it; an empty value leaves HOME deciding.
+ */
+export const ACSTACK_HOME = process.env.ACSTACK_HOME || join(homedir(), '.acstack');
+export const GLOBAL_CONFIG_FILE = join(ACSTACK_HOME, 'config.json');
+export const GLOBAL_CACHE_DIR = join(ACSTACK_HOME, 'cache');
+/** One entry per repository, named by its project key. */
+export const PROJECTS_DIR = join(ACSTACK_HOME, 'projects');
+/** Records a global-mode project folder's shared git folder, so a moved repo can be relinked. */
+export const PROJECT_JSON_FILE = 'project.json';

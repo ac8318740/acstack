@@ -69,7 +69,7 @@ for the opener. One can be up while the other is down.
 
 The opener has no key in this config, so do not invent one. `acstack-open` takes
 that route only when two things hold. A token file sits at
-`~/.config/acstack/opener.token`. The service answers on
+`~/.acstack/opener.token`. The service answers on
 `http://127.0.0.1:19989` with that token.
 
 Setting `ACSTACK_OPEN_OPENER=off` in the environment skips the route.

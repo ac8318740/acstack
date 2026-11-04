@@ -1,3 +1,12 @@
+# >>> acstack project-data >>>
+!/.acstack/
+/.acstack/**
+# <<< acstack project-data <<<
+
+# This repository opts into tracking its ACStack project data.
+!/.acstack/
+!/.acstack/**
+
 # The CLI test run writes a vitest cache here, and `pi install` runs npm install at the root.
 node_modules/
 

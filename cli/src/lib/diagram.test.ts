@@ -11,7 +11,7 @@ let root: string;
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'acstack-diagram-'));
-  mkdirSync(join(root, 'acstack'));
+  mkdirSync(join(root, '.acstack'));
 });
 
 afterEach(() => {

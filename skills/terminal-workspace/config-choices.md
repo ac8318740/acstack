@@ -54,7 +54,7 @@ Then ask about these settings, in this order:
     - Tell such a user to delete their own file to hand the dot to this component
 - **`pi.enabled`**: off by default. Turn it on for a user who runs pi, the coding agent, or wants ACStack inside it
     - `apply` installs pi with npm when it is missing, then installs ACStack into it, pinned to this plugin's version
-    - `apply` always installs `pi-subagents` too, because ACStack on pi cannot launch a subagent without it
+    - `apply` always installs `ac-teams` too, for agent delegation, shared tasks, and messaging
     - `apply` adds one line to pi's context file in `~/.pi/agent` (`AGENTS.md` by default) that lets pi delegate when an ACStack skill says to
     - `pi.compact_tools` and `pi.agentic_retro` add pi-compact-tools and agentic-retro's pi extension, both on by default
         - agentic-retro's extension needs the agentic-retro plugin first, and `apply` says so when it is missing

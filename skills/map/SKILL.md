@@ -23,7 +23,13 @@ frontier, claim, resolve and walk.
 Two backends ship in this skill's directory: `trackers/github.md` for repos
 with GitHub auth, and `trackers/files.md` as the fallback.
 
-`workflow.maps.tracker` in `acstack/project.yaml` (`github` or `files`) records
+ACStack keeps project data in the project folder, the path
+`~/.claude/acstack/bin/acstack project-data path` prints. If `project.yaml` is
+absent, chart in conversation without tracker writes. Before persisting a map,
+ask the user to establish its project settings through `/acstack:setup`;
+do not create configuration implicitly. Invalid configuration or resolution
+errors require repair under Project configuration in `orchestrator/AGENTS.md`.
+`workflow.maps.tracker` in `<project folder>/project.yaml` (`github` or `files`) records
 the project's choice. If the key names a backend, read the matching doc and use
 its operations. If the key is absent, pick at materialisation time – the moment
 you first write the map's nodes down.
@@ -32,8 +38,8 @@ Recommend `github` when the repo qualifies, `files` otherwise. Confirm the
 choice with the user. Then write the key, so later sessions need not re-decide.
 ## Which mode
 
-One command runs two modes, and what already exists picks between them. Check
-the configured tracker for existing maps – `ls acstack/maps/` on the files
+One command runs two modes, and what already exists picks between them. When
+a tracker is configured, check it for existing maps – `ls "$(~/.claude/acstack/bin/acstack project-data path)/maps/"` on the files
 backend, `gh label list --search "map:" --json name` on GitHub.
 
 If `$ARGUMENTS` names a map, or exactly one exists, work its frontier – the
@@ -51,7 +57,7 @@ still one map.
 
 2. **Load the frontend branch on a frontend destination.** `frontend.md`
    beside this skill holds five more rules. Read it when the destination
-   touches `frontend.directory`, the path in `acstack/project.yaml` where the
+   touches `frontend.directory`, the path in `<project folder>/project.yaml` where the
    frontend lives. Every other map skips it.
 
 3. **Open with a breadth-first grill.** Work the conversation frontier in
@@ -64,10 +70,17 @@ still one map.
    sharp. The test is whether you can *state* the question precisely, not
    whether you can answer it.
 
-5. **Classify fog.** Read `alignment.md`. Blocking fog changes the alignment
-   artifact. Deferred fog does not.
+5. **Classify fog.** Read `alignment.md`. Blocking fog changes the design.
+   Deferred fog does not.
 
 ### Progressive materialisation
+
+Before deciding whether the map must persist:
+
+- Invoke `/acstack:design-doc` for shared behavior, component boundaries, or data-flow decisions
+- Apply that condition to conversation-only work as well as persisted maps
+- Skip design documents when those decisions are absent, including pure copyediting
+- When a design is required, require current design approval before implementation; changed source or contribution inputs reopen review
 
 The machinery appears only when it must persist. After the opening grill:
 
@@ -81,70 +94,7 @@ The test is mechanical. Will the fog outlive this session?
 
 ### Materialising
 
-Pick the tracker (see Tracker above), then create the nodes with its `create`
-operation. First the root:
-
-```bash
-# files backend – github.md has the equivalent
-~/.claude/acstack/bin/acstack node create --map <name> --title "<destination>" \
-  --kind destination --label "<at most four words>" --summary "<one sentence>" \
-  --body "<the destination, as settled>"
-```
-
-- The root is the destination. Pass no `--status` flag, so it opens.
-
-    The root's state follows its subtree. It stays open while any node below
-    it is open, fog or claimed. `archive` resolves it when the map clears.
-    Nothing else writes the root's status, and the frontier never returns it.
-
-- The root counts as pinned without the flag, and on GitHub it carries the
-  `root-node` label. The walk returns pinned nodes in full at the start of
-  every session, so every session orients to the root.
-
-- On GitHub, every node body opens with a header line that encodes its edges.
-  `trackers/github.md` holds the format. The files backend writes none.
-
-- Every node carries a required `kind` and `label`, its short diagram name.
-  Work nodes and the destination add a one-sentence business `--summary`.
-  `trackers/files.md` holds the kinds, the caps, and the CLI's contract.
-
-- Every node body carries a diagram, two at most. A childless `notes` node is
-  the one exception.
-
-    `visuals.md` holds which visual each kind gets, where it sits in the body,
-    and the rules a hand-drawn one follows. Read it before the first body.
-
-- Standing preferences for the effort become one resolved node. Style rules
-  and constraints the grill surfaced go there. Create it with
-  `--answers <root id> --kind notes --label "<at most four words>" --pinned`.
-
-- Every other surfaced question becomes a node. Give it `open` or `fog` per
-  the fog test.
-
-    Pass `--answers <id>` to name the node whose resolution surfaced it. That
-    link is the node's provenance, the trail back to the root. Pass
-    `--blocked-by` only where you genuinely cannot settle one node before
-    another.
-
-- `mode` defaults to `hitl` – human in the loop, meaning a person answers it.
-
-    A node earns `afk` – away from keyboard, meaning an agent settles it alone
-    – only by containing no decision. Research earns it, and so does work
-    whose questions are all settled. Get this wrong and an agent quietly
-    decides something that was the human's.
-
-- Write every title and body per the `writing` skill.
-- Nodes describe behaviour, not file paths. A node can sit on the frontier for
-  weeks while the codebase moves – you resolve the paths at claim time.
-
-- Draw every parent's diagram once every node exists, per Regenerating
-  diagrams below. A parent draws its subtree, so nothing can draw one earlier.
-  The root is a parent too, and it draws the whole map.
-
-- Apply `alignment.md` after diagrams are current. Build the artifact, run the
-  review gate, and start implementation only after approval.
-- On the files backend, suggest adding `acstack/maps/` to `.gitignore`
-  (`trackers/files.md` gives the reason).
+Read [materialising.md](materialising.md) and follow its full procedure before creating map nodes.
 
 ## Working the frontier
 
@@ -176,13 +126,11 @@ the list, marked `skip: <reason>`.
    the node's diagram shape, never its route):
     - `hitl` nodes: run grilling rounds over them. A round is the whole hitl
      frontier.
-    - `afk` nodes: claim and run without the user. Unlimited, and in parallel
-     when independent. Research goes to read-only codebase-search subagents:
-     `Explore` on Claude Code and `scout` on pi.
+    - `afk` nodes: claim and run without the user. Choose direct work or useful delegation
+     under the shared Implementation discipline in `orchestrator/AGENTS.md`.
 
      Implementation work follows `/acstack:implement`'s procedure – it owns
-     the claim-execute-resolve flow, the explorer dispatch, and the TDD
-     pipeline. Do not restate that flow here. Invoke it.
+     the claim-execute-resolve flow and adaptive verification. Do not restate that flow here. Invoke it.
 
 4. **Claim, then resolve** – `afk` nodes only. A `hitl` resolution happens
    inside the grilling round, with no claim step. Both are compositions over
@@ -196,19 +144,18 @@ the list, marked `skip: <reason>`.
    <what was decided or done, and why>"
    ```
 
-   The pipeline's state lives inside the claim, not on the node – there is no
-   phase field to maintain. If the work stalls or fails, release the claim
+   Work stays inside the claim, with no per-phase bookkeeping. If the work stalls or fails, release the claim
    (`--status open`) and the node is plainly open again.
 
 5. **After every resolution**, in order:
     - Invoke `record-context`
     - Create nodes for anything the resolution surfaced
-    - Classify new fog by whether it changes the alignment artifact
+    - Classify new fog by whether it changes the design
     - Create the critique node when the resolved node changed the frontend,
       per `frontend.md`
     - Regenerate the diagram on the resolved node's parent (see Regenerating
       diagrams)
-    - Rebuild or rerun the alignment review when the artifact changes
+    - Reopen design review when source, saved comments, or contribution inputs change
     - Recompute the frontier
 
     The regeneration comes after the new nodes exist. A surfaced node hangs

@@ -1,0 +1,6 @@
+id: cli
+name: ACStack CLI
+kind: component
+channels:
+- cli
+summary: The bundled acstack command; owns every rule about where project data and settings live.

@@ -14,9 +14,8 @@ Treat the argument as the focus for the receiving agent.
 
 # Hand the work over
 
-A handoff moves the current work to an agent a human can see – a named session
-in a visible pane, or a session already running. To keep the work in THIS
-session across a context compaction instead, use `compact-and-continue`.
+A handoff moves work to a visible agent. To continue in this session after
+compaction, use `compact-and-continue`.
 
 ## Only the lead session runs this
 
@@ -54,7 +53,7 @@ its answer looks wrong. It says why a child must stop, and what it checks.
 ## First: is this yours to invoke?
 
 If the user asked for a handoff, proceed. If you invoke it on your own
-initiative, first read `workflow.handoff.self_invoke` from `acstack/project.yaml`.
+initiative, first read `workflow.handoff.self_invoke` from `project.yaml` in the folder `~/.claude/acstack/bin/acstack project-data path` prints.
 
 If it is `false`, stop. Tell the user a handoff looks warranted and why. Ask
 permission.
@@ -102,14 +101,15 @@ it should run the command.
 | Map state and reading order | `~/.claude/acstack/bin/acstack node walk --map <name>` (reading order of the map)  |
 | What can be worked next     | `~/.claude/acstack/bin/acstack node frontier --map <name>` (what is workable now)  |
 | Files in flight             | `git status --short` and `git diff`                                                |
-| Test baseline, last result  | `.test-baseline`, then run the suite                                               |
-| What the code does          | the living specs in `acstack/specs/`                                               |
+| Test baseline, last result  | `<project folder>/.test-baseline` and referenced check logs; reuse valid evidence under the shared policy |
+| What the code does          | the living specs in `<project folder>/specs/`                                               |
 
 On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
 map skill's `trackers/github.md`.
 
 The same applies to specs, architecture decision records, issues and commits.
-Reference them by path or URL.
+Reference records and check logs by path or URL; retain the tested revision, environment, command, and result.
+A handoff alone does not require a suite rerun. Anchor evidence held only in conversation.
 
 **You do not search the codebase for this.** Build the handoff from what is already
 in context. If you are about to search source files, stop – the conversation holds it.
@@ -157,7 +157,7 @@ Its first line repeats the acknowledgement requirement verbatim, with
 Acknowledge before any other tool call. Run ~/.claude/acstack/bin/acstack handoff ack accept --file <this-file> "<one-line reason>", or ack decline --file <this-file> "<one-line reason>". The command writes <this-file>.ack, which the sender watches.
 ```
 
-This temp file is not `acstack/HANDOFF.md`, the `compact-and-continue` anchor.
+This temp file is not `<project folder>/HANDOFF.md`, the `compact-and-continue` anchor.
 Never put this line into that anchor, which has to start with `---` frontmatter.
 
 Head the rest with the same skeleton the `compact-and-continue` anchor uses. The

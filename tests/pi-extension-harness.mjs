@@ -7,6 +7,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { EventEmitter } from 'node:events';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const work = process.env.ACSTACK_TEST_WORK;
@@ -18,7 +19,7 @@ function check(name, cond, detail = '') {
 }
 
 /** Load the extension against a fresh stub, and return its registrations. */
-function load({ tools = ['subagent'] } = {}) {
+function load({ tools = ['subagent'], extensions = [ext], events } = {}) {
   const handlers = {};
   const commands = {};
   const sent = [];
@@ -30,7 +31,12 @@ function load({ tools = ['subagent'] } = {}) {
     sendMessage: (message, options) => { sent.push({ message, options }); },
     sendUserMessage: (content, options) => { userSent.push({ content, options }); },
   };
-  ext.default(pi);
+  for (const extension of extensions) {
+    extension.default({ ...pi, ...(events ? { events: {
+      on(name, handler) { events.on(name, handler); return () => events.off(name, handler); },
+      emit: (name, payload) => events.emit(name, payload),
+    } } : {}) });
+  }
   return { handlers, commands, sent, userSent };
 }
 
@@ -53,10 +59,16 @@ async function fire(reg, event, payload, ctx) {
   return result;
 }
 
+// A Git repository; with `acstack`, a committed .acstack/ makes dir/.acstack its project folder.
 function newProject(name, { acstack = true } = {}) {
   const dir = path.join(work, name);
-  fs.mkdirSync(path.join(dir, 'acstack'), { recursive: true });
-  if (acstack) fs.writeFileSync(path.join(dir, 'acstack', 'project.yaml'), 'profile: generic\n');
+  fs.mkdirSync(dir, { recursive: true });
+  execFileSync('git', ['init', '-q'], { cwd: dir });
+  if (acstack) {
+    fs.mkdirSync(path.join(dir, '.acstack'));
+    fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'), 'profile: generic\n');
+    execFileSync('git', ['add', '.acstack/project.yaml'], { cwd: dir });
+  }
   return dir;
 }
 
@@ -72,12 +84,113 @@ const wrapper = path.join(root, 'cli', 'bin', 'acstack.js');
 const agentLink = path.join(home, '.claude', 'acstack', 'bin', 'acstack');
 const humanLink = path.join(home, '.local', 'bin', 'acstack');
 
+// --- package manifest: question blocking without workspace setup -------------
+
+{
+  const manifest = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+  const packaged = await Promise.all(manifest.pi.extensions.map(file => import(path.join(root, file))));
+  const legacy = await import(path.join(root, 'tests/fixtures/pi-question-blocked-legacy.ts'));
+  for (const [name, extensions] of [
+    ['package only', packaged],
+    ['legacy first', [legacy, ...packaged]],
+    ['package first', [...packaged, legacy]],
+    ['two packages', [...packaged, ...packaged]],
+    ['legacy and two packages', [legacy, ...packaged, ...packaged]],
+  ]) {
+    const events = new EventEmitter();
+    const reg = load({ extensions, events });
+    const ctx = makeCtx(newProject(`question-${name}`));
+    await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+    const counts = [];
+    let count = 0;
+    events.on('herdr:blocked', ({ active }) => { counts.push(count += active ? 1 : -1); });
+    const settle = () => new Promise(resolve => setImmediate(resolve));
+    // An unrelated wait must survive completion of two overlapping questions.
+    events.emit('herdr:blocked', { active: true });
+    for (const toolCallId of ['one', 'two']) {
+      events.emit('rpiv:ask-user:blocked', { active: true, toolCallId });
+      await settle();
+    }
+    for (const toolCallId of ['one', 'two']) {
+      events.emit('rpiv:ask-user:blocked', { active: false, toolCallId });
+      await settle();
+    }
+    events.emit('herdr:blocked', { active: false });
+    // Anonymous native sources remain independent, even if they describe the same wait.
+    for (const active of [true, false]) {
+      events.emit('rpiv:ask-user:blocked', { active, toolCallId: 'native' });
+      events.emit('herdr:blocked', { active });
+      await settle();
+    }
+    check(`question blocking ${name}: overlapping and balanced native sources`,
+      JSON.stringify(counts) === JSON.stringify([1, 2, 3, 2, 1, 0, 1, 2, 1, 0]), JSON.stringify(counts));
+
+    counts.length = 0;
+    for (const toolCallId of ['one', 'two', 'three']) {
+      events.emit('rpiv:ask-user:blocked', { active: true, toolCallId });
+    }
+    await settle();
+    for (const toolCallId of ['one', 'two', 'three']) {
+      events.emit('rpiv:ask-user:blocked', { active: false, toolCallId });
+      await settle();
+    }
+    check(`question blocking ${name}: synchronous starts and separate completions`,
+      JSON.stringify(counts) === JSON.stringify([1, 2, 3, 2, 1, 0]), JSON.stringify(counts));
+
+    counts.length = 0;
+    count = 0;
+    events.emit('rpiv:ask-user:blocked', { active: true, toolCallId: 'one' });
+    await Promise.resolve();
+    for (const toolCallId of ['two', 'three']) {
+      events.emit('rpiv:ask-user:blocked', { active: true, toolCallId });
+    }
+    await settle();
+    for (const toolCallId of ['one', 'two', 'three']) {
+      events.emit('rpiv:ask-user:blocked', { active: false, toolCallId });
+      await settle();
+    }
+    check(`question blocking ${name}: starts across microtask boundaries`,
+      JSON.stringify(counts) === JSON.stringify([1, 2, 3, 2, 1, 0]), JSON.stringify(counts));
+
+    counts.length = 0;
+    count = 0;
+    for (const active of [true, false, true, false]) {
+      events.emit('rpiv:ask-user:blocked', { active });
+    }
+    await settle();
+    check(`question blocking ${name}: mixed synchronous transitions`,
+      JSON.stringify(counts) === JSON.stringify([1, 0, 1, 0]), JSON.stringify(counts));
+
+    counts.length = 0;
+    count = 0;
+    events.emit('rpiv:ask-user:blocked', { active: true, toolCallId: 'question' });
+    events.emit('herdr:blocked', { active: true });
+    await settle();
+    events.emit('rpiv:ask-user:blocked', { active: false, toolCallId: 'question' });
+    await settle();
+    events.emit('herdr:blocked', { active: false });
+    check(`question blocking ${name}: unrelated native wait starts alongside question`,
+      JSON.stringify(counts) === JSON.stringify([1, 2, 1, 0]), JSON.stringify(counts));
+
+    await fire(reg, 'session_start', { reason: 'switch' }, ctx);
+    counts.length = 0;
+    for (const active of [true, false]) {
+      events.emit('rpiv:ask-user:blocked', { active, toolCallId: 'after-switch' });
+      await settle();
+    }
+    check(`question blocking ${name}: repeated startup keeps one relay`,
+      JSON.stringify(counts) === JSON.stringify([1, 0]), JSON.stringify(counts));
+  }
+}
+
 // --- session_start: CLI symlinks ---------------------------------------------
 
 {
   const reg = load();
   const ctx = makeCtx(newProject('links'));
   await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  check('startup leaves the repository untouched',
+    fs.readdirSync(ctx.cwd).sort().join() === '.acstack,.git' && !ctx.notes.some(n => n.level === 'error'));
   check('creates the agent CLI symlink', fs.readlinkSync(agentLink) === wrapper);
   check('creates the human CLI symlink', fs.readlinkSync(humanLink) === wrapper);
 
@@ -95,25 +208,51 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   fs.rmSync(humanLink);
 }
 
-// --- session_start: pi-subagents and the setup reminder ----------------------
+// --- session_start: delegation tools and the setup reminder ------------------
 
 {
   const reg = load({ tools: ['read', 'bash'] });
   const ctx = makeCtx(newProject('no-subagents'));
   await fire(reg, 'session_start', { reason: 'startup' }, ctx);
   await fire(reg, 'session_start', { reason: 'new' }, ctx);
-  const warnings = ctx.notes.filter((n) => n.msg.includes('pi-subagents is not loaded'));
-  check('warns once when pi-subagents is missing', warnings.length === 1, `${warnings.length} warnings`);
+  const warnings = ctx.notes.filter((n) => n.msg.includes('no supported subagent tool is loaded'));
+  check('warns once and recommends ac-teams when delegation is missing',
+    warnings.length === 1 && warnings[0].msg.includes('Install `npm:ac-teams`')
+      && !warnings[0].msg.includes('pi-subagents'), `${warnings.length} warnings`);
 
   const reg2 = load();
   const ctx2 = makeCtx(newProject('with-subagents'));
   await fire(reg2, 'session_start', { reason: 'startup' }, ctx2);
-  check('stays quiet when pi-subagents is loaded', !ctx2.notes.some((n) => n.msg.includes('pi-subagents')));
+  check('stays quiet when subagent is loaded', !ctx2.notes.some((n) => n.level === 'warning'));
+
+  const agentReg = load({ tools: ['read', 'bash', 'Agent'] });
+  const agentCtx = makeCtx(newProject('with-agent-tool'));
+  await fire(agentReg, 'session_start', { reason: 'startup' }, agentCtx);
+  check('stays quiet when @tintinweb/pi-subagents supplies Agent',
+    !agentCtx.notes.some((n) => n.level === 'warning'));
+
+  const teamReg = load({ tools: ['read', 'bash', 'team_agent'] });
+  const teamCtx = makeCtx(newProject('with-team-agent'));
+  await fire(teamReg, 'session_start', { reason: 'startup' }, teamCtx);
+  check('stays quiet when ac-teams supplies team_agent',
+    !teamCtx.notes.some((n) => n.level === 'warning'));
+
+  const taskReg = load({ tools: ['read', 'bash', 'team_task', 'team_message'] });
+  const taskCtx = makeCtx(newProject('team-without-launcher'));
+  await fire(taskReg, 'session_start', { reason: 'startup' }, taskCtx);
+  check('team task and message tools alone do not suppress the missing-agent warning',
+    taskCtx.notes.some((n) => n.level === 'warning' && n.msg.includes('no supported subagent tool is loaded')));
+
+  const workflowReg = load({ tools: ['read', 'bash', 'SubagentWorkflow'] });
+  const workflowCtx = makeCtx(newProject('workflow-only'));
+  await fire(workflowReg, 'session_start', { reason: 'startup' }, workflowCtx);
+  check('a workflow tool alone does not suppress the missing-agent warning',
+    workflowCtx.notes.some((n) => n.level === 'warning' && n.msg.includes('acstack:')));
   check('no setup reminder inside an acstack project', !ctx2.notes.some((n) => n.msg.includes('no project config')));
 
   const ctx3 = makeCtx(newProject('plain', { acstack: false }));
   await fire(reg2, 'session_start', { reason: 'startup' }, ctx3);
-  check('setup reminder outside an acstack project', ctx3.notes.some((n) => n.msg.includes('no project config found')));
+  check('fresh Git startup does not require setup', !ctx3.notes.some((n) => /Run \/acstack:setup to set up\./.test(n.msg)));
 
   const ctx4 = makeCtx(newProject('plain-new', { acstack: false }));
   await fire(reg2, 'session_start', { reason: 'new' }, ctx4);
@@ -128,12 +267,16 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 
   const event = promptEvent();
   await fire(reg, 'before_agent_start', event, makeCtx(newProject('orch')));
+  const injected = event.systemPromptOptions.sections['acstack-orchestrator'] ?? '';
   check('injects orchestrator/AGENTS.md in an acstack project',
-    event.systemPromptOptions.sections['acstack-orchestrator'] === orchestrator);
+    orchestrator.includes('## Implementation discipline') && injected.includes('## Implementation discipline'));
+  check('the lead session gets the lead role and continuity skills, not the delegated role',
+    injected.includes('/acstack:compact-and-continue') && !injected.includes('You are a delegated session') && !injected.includes('<!-- acstack:'));
 
   const plain = promptEvent();
   await fire(reg, 'before_agent_start', plain, makeCtx(newProject('orch-plain', { acstack: false })));
-  check('no orchestrator outside an acstack project', !('acstack-orchestrator' in plain.systemPromptOptions.sections));
+  check('fresh Git gets shared instructions without project setup',
+    plain.systemPromptOptions.sections['acstack-orchestrator']?.includes('## Implementation discipline'));
   check('section names are valid pi section names',
     Object.keys(event.systemPromptOptions.sections).every((n) => /^[a-z][a-z0-9_-]*$/.test(n)));
 }
@@ -160,6 +303,43 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   check('still registers /acstack:setup', reg.commands['acstack:setup'] !== undefined);
 }
 
+// --- general workflows without project setup ------------------------------------
+
+for (const delegated of [false, true]) {
+  if (delegated) process.env.AC_TEAMS_MEMBER = 'unconfigured-child';
+  const reg = load();
+  delete process.env.AC_TEAMS_MEMBER;
+  const dir = newProject(`general-${delegated}`, { acstack: false });
+  const ctx = makeCtx(dir);
+  await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  const event = promptEvent();
+  await fire(reg, 'before_agent_start', event, ctx);
+  const sections = event.systemPromptOptions.sections;
+  const instructions = sections['acstack-orchestrator'] ?? '';
+  check(`no config ${delegated ? 'delegated' : 'lead'}: instructions and skills load`,
+    instructions.includes('## Implementation discipline') && sections['acstack-skills']?.includes('<name>implement</name>'));
+  check(`no config ${delegated ? 'delegated' : 'lead'}: session role is preserved`,
+    instructions.includes('You are a delegated session') === delegated && instructions.length > 0);
+  await reg.commands['acstack:implement'].handler('inspect the fixture', ctx);
+  check(`no config ${delegated ? 'delegated' : 'lead'}: general skill command works without creating data`,
+    reg.userSent[0]?.content.startsWith('<skill name="implement"') && fs.readdirSync(dir).join() === '.git');
+}
+
+{
+  const dir = path.join(work, 'outside-git-skills');
+  fs.mkdirSync(dir);
+  const reg = load();
+  const ctx = makeCtx(dir);
+  await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  const event = promptEvent();
+  await fire(reg, 'before_agent_start', event, ctx);
+  await reg.commands['acstack:code-review'].handler('', ctx);
+  check('outside Git retains general skills and commands without a fake project folder',
+    event.systemPromptOptions.sections['acstack-skills']?.includes('<name>code-review</name>')
+      && !event.systemPromptOptions.sections['acstack-orchestrator']
+      && reg.userSent[0]?.content.startsWith('<skill name="code-review"') && fs.readdirSync(dir).length === 0);
+}
+
 // --- writing style --------------------------------------------------------------
 
 {
@@ -172,13 +352,20 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   const style = on.systemPromptOptions.sections['acstack-writing-style'] ?? '';
   check('adds the default style to the system prompt without its frontmatter',
     style.startsWith('# ac writing style') && style.includes('## Before you send'));
-  check('the reminder rides along as a hidden message for user turns',
-    onResult?.message?.customType === 'acstack-writing-style-reminder' && onResult.message.display === false);
+  const shared = style.split('<!-- acstack:communication:start -->\n')[1]?.split('<!-- acstack:communication:end -->')[0];
+  check('the complete canonical block rides along as a hidden message for user turns',
+    onResult?.message?.customType === 'acstack-writing-style-reminder' && onResult.message.display === false
+      && shared?.trim() && onResult.message.content === `ac-writing-style reminder\n\n${shared}`);
 
   const custom = customEvent();
   const customResult = await fire(reg, 'before_agent_start', custom, ctx);
   check('custom-triggered turns get the style without the reminder',
     custom.systemPromptOptions.sections['acstack-writing-style'] === style && customResult === undefined);
+
+  check('an unterminated shared block produces no reminder',
+    ext.extractWritingReminder('<!-- acstack:communication:start -->\nPartial guidance\n') === undefined);
+  check('an empty shared block produces no reminder',
+    ext.extractWritingReminder('<!-- acstack:communication:start -->\n\n<!-- acstack:communication:end -->') === undefined);
 
   // The reminder must match what the Claude hook emits from the same file.
   const hookHome = path.join(work, 'hook-home');
@@ -275,7 +462,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir, { sessionId: 'press-1' }));
   check('a compaction restarts the ladder', (await settle(250000))?.continue === true);
 
-  fs.writeFileSync(path.join(dir, 'acstack', 'project.yaml'),
+  fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'),
     'workflow:\n  handoff:\n    context_thresholds:\n      - "10%"\n    nudge_step: 0\n');
   const pct = await fire(reg, 'agent_before_settle', { outcome: 'completed' },
     makeCtx(dir, { tokens: 120000, contextWindow: 1000000, sessionId: 'press-3' }));
@@ -303,7 +490,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   // through the extension must produce the same nudge.
   const reg = load();
   const dir = newProject('pressure-parity');
-  fs.writeFileSync(path.join(dir, 'acstack', 'project.yaml'),
+  fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'),
     'workflow:\n  handoff:\n    context_window: 400000\n    nudge_severe: 300000\n' +
     '    context_thresholds:\n      - "50%"\n      - "75%"\n');
   const hookState = path.join(work, 'hook-pressure');
@@ -340,11 +527,11 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 {
   const reg = load();
   const dir = newProject('handoff');
-  const active = path.join(dir, 'acstack', 'HANDOFF.md');
+  const active = path.join(dir, '.acstack', 'HANDOFF.md');
   fs.writeFileSync(active, '---\nacstack_handoff: 1\nmap: my map\ncreated: 2026-10-11T04:00:00Z\n---\n\n## Next action\nShip it\n');
 
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir));
-  const archived = path.join(dir, 'acstack', 'handoffs', 'my-map', '2026-10-11T04-00-00Z.md');
+  const archived = path.join(dir, '.acstack', 'handoffs', 'my-map', '2026-10-11T04-00-00Z.md');
   check('moves the handoff into the archive', !fs.existsSync(active) && fs.existsSync(archived));
   const msg = reg.sent[0];
   check('injects the handoff on the next turn',
@@ -352,7 +539,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
 
   // The message must match what the Claude hook injects from the same file.
   const parity = newProject('handoff-parity');
-  const parityFile = path.join(parity, 'acstack', 'HANDOFF.md');
+  const parityFile = path.join(parity, '.acstack', 'HANDOFF.md');
   const anchor = '---\nacstack_handoff: 1\nmap: parity\ncreated: 2026-10-11T05:00:00Z\n---\n\n## Next action\nShip it\n';
   fs.writeFileSync(parityFile, anchor);
   const hookOut = execFileSync('bash', [path.join(root, 'hooks', 'session-start-handoff.sh')], {
@@ -360,7 +547,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   }).toString();
   const hookContext = JSON.parse(hookOut).hookSpecificOutput.additionalContext;
   fs.writeFileSync(parityFile, anchor);
-  check('the handoff message matches hooks/session-start-handoff.sh', ext.consumeHandoff(parity) === hookContext);
+  check('the handoff message matches hooks/session-start-handoff.sh', ext.consumeHandoff(path.join(parity, '.acstack')) === hookContext);
 
   fs.writeFileSync(active, '# my own notes\n');
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir));
@@ -390,18 +577,78 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
     reg.userSent.length === 2 && ctx.notes.some((n) => n.msg.includes('no skill named "nope"')));
 }
 
-// --- subagent children ----------------------------------------------------------
+// --- delegated sessions ---------------------------------------------------------
+
+for (const [variable, value] of [['PI_SUBAGENT_CHILD', '1'], ['PI_SUBAGENTS_HERDR_BRIDGE', '1'], ['AC_TEAMS_MEMBER', 'scout-1']]) {
+  process.env[variable] = value;
+  const reg = load({ tools: [] });
+  const ctx = makeCtx(newProject(`delegated-${variable}`));
+  fs.rmSync(agentLink, { force: true });
+  await fire(reg, 'session_start', { reason: 'startup' }, ctx);
+  const event = promptEvent();
+  await fire(reg, 'before_agent_start', event, ctx);
+  delete process.env[variable];
+  const sections = event.systemPromptOptions.sections;
+  const orchestrator = sections['acstack-orchestrator'] ?? '';
+  check(`${variable}: a delegated session keeps the shared discipline, skills, and writing style`,
+    orchestrator.includes('## Implementation discipline') && orchestrator.includes('### Delegate investigation')
+      && Boolean(sections['acstack-skills']) && Boolean(sections['acstack-writing-style']));
+  check(`${variable}: a delegated session gets the delegated role, not the lead role`,
+    orchestrator.includes('You are a delegated session') && !orchestrator.includes('/acstack:compact-and-continue') && !orchestrator.includes('<!-- acstack:'));
+  check(`${variable}: a delegated session gets no context nudges or handoff reload`,
+    !reg.handlers.agent_before_settle && !reg.handlers.session_compact);
+  check(`${variable}: a delegated session leaves CLI symlinks and launcher warnings to the lead`,
+    !fs.existsSync(agentLink) && !ctx.notes.some((n) => n.msg.includes('no supported subagent tool')));
+}
 
 {
-  process.env.PI_SUBAGENT_CHILD = '1';
-  const reg = load();
-  delete process.env.PI_SUBAGENT_CHILD;
-  check('registers nothing inside a pi-subagents child',
-    Object.keys(reg.handlers).length === 0 && Object.keys(reg.commands).length === 0);
+  const settings = path.join(home, '.pi', 'agent', 'acstack.json');
+  const saved = fs.existsSync(settings) ? fs.readFileSync(settings, 'utf-8') : undefined;
+  const bundled = fs.readFileSync(path.join(root, 'output-styles', 'ac-writing-style.md'), 'utf-8');
+  fs.mkdirSync(path.dirname(settings), { recursive: true });
+  fs.writeFileSync(settings, JSON.stringify({ writingStyle: { mode: 'custom', path: path.join(work, 'unreadable-style.md') } }));
+  for (const delegated of [true, false]) {
+    if (delegated) process.env.AC_TEAMS_MEMBER = 'scout-2';
+    const reg = load();
+    const ctx = makeCtx(newProject(`style-fallback-${delegated}`));
+    const event = promptEvent();
+    await fire(reg, 'before_agent_start', event, ctx);
+    delete process.env.AC_TEAMS_MEMBER;
+    const injected = event.systemPromptOptions.sections['acstack-writing-style'];
+    const warned = ctx.notes.some((n) => n.msg.includes('could not read writing style'));
+    if (delegated) check('an unreadable custom style falls back to the bundled style in a delegated session',
+      warned && Boolean(injected) && bundled.includes(injected.trim().split('\n')[0]));
+    else check('an unreadable custom style still injects nothing in the lead session', warned && injected === undefined);
+  }
+  if (saved === undefined) fs.rmSync(settings); else fs.writeFileSync(settings, saved);
+}
 
-  process.env.PI_SUBAGENTS_HERDR_BRIDGE = '1';
-  const placed = load();
-  delete process.env.PI_SUBAGENTS_HERDR_BRIDGE;
-  check('registers nothing inside a herdr-placed pi-subagents child',
-    Object.keys(placed.handlers).length === 0 && Object.keys(placed.commands).length === 0);
+// The large-read guard's Pi handler
+{
+  const cwd = newProject('read-guard');
+  const big = path.join(cwd, 'big.txt');
+  fs.writeFileSync(big, 'x'.repeat(40000));
+  const ctxFor = ({ file = '/s/main.jsonl', header = {}, sessionId = 'rg-main' } = {}) => ({
+    ...makeCtx(cwd),
+    sessionManager: { getSessionId: () => sessionId, getSessionFile: () => file, getHeader: () => header },
+  });
+  const call = (input, toolName = 'read') => ({ type: 'tool_call', toolName, toolCallId: 't', input });
+  const reg = load();
+  const first = await fire(reg, 'tool_call', call({ path: big }), ctxFor());
+  check('read guard: a main session\'s first whole read of a large file is blocked',
+    first?.block === true && /repeat this exact read/.test(first.reason));
+  check('read guard: the identical retry passes', (await fire(reg, 'tool_call', call({ path: big }), ctxFor())) === undefined);
+  check('read guard: a bash cat in a new session is blocked',
+    (await fire(reg, 'tool_call', call({ command: 'cat big.txt' }, 'bash'), ctxFor({ sessionId: 'rg-other' })))?.block === true);
+  check('read guard: a session with a parentSession header is not guarded',
+    (await fire(reg, 'tool_call', call({ path: big }), ctxFor({ sessionId: 'rg-child', header: { parentSession: '/s/parent.jsonl' } }))) === undefined);
+  check('read guard: a session with no file is not guarded',
+    (await fire(reg, 'tool_call', call({ path: big }), ctxFor({ sessionId: 'rg-memory', file: null }))) === undefined);
+  for (const [variable, value] of [['PI_SUBAGENT_CHILD', '1'], ['ACSTACK_AGENT_ROLE', 'member']]) {
+    process.env[variable] = value;
+    const child = load();
+    delete process.env[variable];
+    check(`read guard: ${variable}=${value} at load turns the guard off`,
+      (await fire(child, 'tool_call', call({ path: big }), ctxFor({ sessionId: `rg-${variable}` }))) === undefined);
+  }
 }

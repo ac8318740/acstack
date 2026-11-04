@@ -29,7 +29,7 @@ BRIDGE="${ACSTACK_BRIDGE_URL:-http://127.0.0.1:19988}"
 OPENER="${ACSTACK_OPENER_URL:-http://127.0.0.1:19989}"
 # The opener refuses anything without this, so its absence is the same as the
 # opener being down - which is exactly how the route probe treats it.
-OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/acstack/opener.token"
+OPENER_TOKEN="${ACSTACK_HOME:-$HOME/.acstack}/opener.token"
 SERVE=0; ONLY=0; PREVIEW=0; HTML=0; BROWSER=0; NUMBERED=0; TOGGLE=0
 usage() { echo "usage: acstack-md [--preview] [--numbered] [--toggle-line-numbers] [--diagram N] [--serve|--html|--browser] FILE.md" >&2; exit 1; }
 # The preview pane and the key that flips it are two processes that never meet,
@@ -155,6 +155,8 @@ case "$(command -v acstack-open >/dev/null 2>&1 && acstack-open --why 2>/dev/nul
     if [ -z "$tok" ]; then
       echo "acstack-md: no opener token at $OPENER_TOKEN." >&2
       echo "  run register-tasks.ps1 on the laptop to install one." >&2
+      [ -e "$HOME/.config/acstack/opener.token" ] \
+        && echo "  or move the old one: ~/.claude/acstack/bin/acstack project-data migrate" >&2
       exit 1
     fi
     hex() { od -An -v -tx1 | tr -d ' \n'; }
@@ -163,7 +165,7 @@ case "$(command -v acstack-open >/dev/null 2>&1 && acstack-open --why 2>/dev/nul
     # Vendored mermaid, uploaded once so diagrams draw without reaching a
     # CDN. Best effort throughout: the opener redirects to the CDN when it
     # has no copy, so a failure here costs nothing but an outbound fetch.
-    vendored="$HOME/.local/share/acstack/mermaid.min.js"
+    vendored="${ACSTACK_HOME:-$HOME/.acstack}/cache/mermaid.min.js"
     # tr, because whitespace inside JSON carries no meaning and a match that
     # depends on its absence is a match waiting to break. Same reasoning as
     # acstack-open's /json/list check.
@@ -222,11 +224,19 @@ case "$(command -v acstack-open >/dev/null 2>&1 && acstack-open --why 2>/dev/nul
     # The last expression is the page title, so the browser answers with
     # what it is now holding. That answer is what success means here - a
     # command that exited 0 is not a page that arrived.
+    project_root="$PWD"
+    while [ "$project_root" != / ] && [ ! -d "$project_root/.acstack" ]; do
+      project_root=$(dirname "$project_root")
+    done
+    [ "$project_root" != / ] || project_root=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+    browser_config="$project_root/.acstack/agent-browser.json"
+    browser_args=()
+    [ ! -f "$browser_config" ] || browser_args=(--config "$browser_config")
     name=$(basename "$FILE")
-    timeout 20 agent-browser --cdp "$BRIDGE" tab new >/dev/null 2>&1
+    timeout 20 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" tab new >/dev/null 2>&1
     landed=$(printf 'const b64="%s";const doc=new TextDecoder().decode(Uint8Array.from(atob(b64),c=>c.charCodeAt(0)));document.open();document.write(doc);document.close();document.title;\n' \
                "$payload" \
-               | timeout 60 agent-browser --cdp "$BRIDGE" eval --stdin 2>/dev/null)
+               | timeout 60 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" eval --stdin 2>/dev/null)
     # Writing into the tab is only half of it. A tab created over CDP is
     # created in the background, so it has to be brought forward or the page
     # is real, correct, and never seen - which is exactly how this first went
@@ -236,10 +246,10 @@ case "$(command -v acstack-open >/dev/null 2>&1 && acstack-open --why 2>/dev/nul
     # The arrow marks the active tab, which is the one just written into.
     # Taking the first line instead would raise whatever sits at index 0 -
     # somebody else's tab, and the page still unseen.
-    idx=$(timeout 20 agent-browser --cdp "$BRIDGE" tab list 2>/dev/null \
+    idx=$(timeout 20 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" tab list 2>/dev/null \
             | grep -m1 -- "$(printf '\342\206\222')" \
             | sed -n 's/.*\[\([0-9][0-9]*\)\].*/\1/p')
-    [ -n "$idx" ] && timeout 20 agent-browser --cdp "$BRIDGE" tab "$idx" >/dev/null 2>&1
+    [ -n "$idx" ] && timeout 20 agent-browser "${browser_args[@]}" --cdp "$BRIDGE" tab "$idx" >/dev/null 2>&1
     case "$landed" in
       *"$name"*)
         printf '%s is on screen in the browser on your machine\n' "$name" >&2

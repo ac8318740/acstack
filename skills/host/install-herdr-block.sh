@@ -348,7 +348,7 @@ if [ -f "$CONFIG" ]; then
         err "$CONFIG holds a block between these markers that this script did not write."
         err "Besides $BLOCK_TABLE that block defines: $FOREIGN_TABLES"
         err "terminal-workspace setup.sh writes that block, and it carries the keymap and the popup key bindings. Replacing it with the four lines this script writes would delete all of it."
-        err "setup.sh writes $BLOCK_TABLE itself, from herdr.worktrees_directory in ~/.config/acstack/terminal-workspace.yaml."
+        err "setup.sh writes $BLOCK_TABLE itself, from herdr.worktrees_directory in ~/.acstack/terminal-workspace.yaml."
         refuse "set the directory there and run terminal-workspace setup.sh apply instead. Nothing has been changed."
       fi
     else

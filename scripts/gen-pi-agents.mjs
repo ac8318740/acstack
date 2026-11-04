@@ -50,6 +50,7 @@
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readCommunicationStandard } from '../hooks/lib/communication-standard.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const srcDir = join(root, 'agents');
@@ -61,6 +62,7 @@ const tools = 'read, grep, find, ls, bash, edit, write';
 // frontend-verifier runs, and the frontend-verifier's prompt points at bridge.
 const SKILLS = {
   'test-writer': ['test-conventions'],
+  'task-executor': ['test-conventions'],
   'frontend-verifier': ['browser-verify', 'bridge'],
 };
 
@@ -92,6 +94,8 @@ function parseFrontmatter(text, file) {
   return { fields, body: match[2].trim() };
 }
 
+const standard = readCommunicationStandard(root);
+
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
@@ -121,6 +125,8 @@ for (const file of readdirSync(srcDir).filter((f) => f.endsWith('.md')).sort()) 
     '---',
     '',
     body,
+    '',
+    standard,
     '',
   ].join('\n');
 

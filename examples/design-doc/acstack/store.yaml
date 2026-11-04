@@ -1,0 +1,11 @@
+id: design-source
+name: Authored design files
+summary: Holds the local YAML and supporting Markdown that the review server reads.
+kind: store
+detail: publication.md
+relationships:
+  - id: read-source
+    from: review-runtime
+    to: design-source
+    direction: one-way
+    label: Reads design source

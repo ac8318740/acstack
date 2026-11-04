@@ -245,11 +245,15 @@ project_root="$(git rev-parse --show-toplevel 2>/dev/null || true)"
 # A top-level `frontend:` key in the project config is what turns on frontend
 # verification, so we look for it at column zero only - `frontend:` nested under
 # some other key means something else entirely.
+# The config lives in the repository's project folder, which the CLI reports.
 has_frontend="false"
-if [ -n "$project_root" ] && [ -f "${project_root}/acstack/project.yaml" ]; then
-  if grep -q '^frontend:' "${project_root}/acstack/project.yaml" 2>/dev/null; then
-    has_frontend="true"
-  fi
+acstack_cli="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/cli/bin/acstack.js"
+project_folder=""
+if [ -n "$project_root" ] && command -v node >/dev/null 2>&1; then
+  project_folder="$(node "$acstack_cli" project-data path 2>/dev/null || true)"
+fi
+if [ -n "$project_folder" ] && grep -q '^frontend:' "${project_folder}/project.yaml" 2>/dev/null; then
+  has_frontend="true"
 fi
 
 # --- output ----------------------------------------------------------------

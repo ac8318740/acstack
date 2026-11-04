@@ -1,0 +1,13 @@
+id: non-main-agent
+name: Non-main agent
+summary: >-
+  A session another agent created: a Claude Code or Codex subagent, a Pi
+  subagent from either pi-subagents package, or an ac-teams member. Reads
+  freely; the guard never blocks it.
+kind: actor
+relationships:
+  - id: carries-signal
+    from: non-main-agent
+    to: launcher-signals
+    direction: one-way
+    label: Is marked by

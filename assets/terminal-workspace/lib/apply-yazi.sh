@@ -288,11 +288,36 @@ def drop_claimed(t):
     return "\n".join(out)
 
 
+def inspect_available(t):
+    # Preserve custom bindings, including sequences beginning with i.
+    if "i" in CLAIMED or tomllib is None:
+        return False
+    try:
+        data = tomllib.loads(t)
+    except ValueError:
+        return False
+    for section in ("mgr", "manager"):
+        for name in ("prepend_keymap", "keymap", "append_keymap"):
+            for binding in data.get(section, {}).get(name, []):
+                on = binding.get("on", [])
+                if on == "i" or isinstance(on, list) and on[:1] == ["i"]:
+                    return False
+    return True
+
+
 parts = []
 if not claimed(text):
     # A binding conceded below is one this script never writes, so the user's
     # own must survive. Only strip when the bindings are actually going in.
+    inspect = inspect_available(text)
     text = drop_claimed(text)
+    if inspect:
+        parts.append(
+            "[[mgr.prepend_keymap]]\n"
+            'on = "i"\n'
+            """run = 'shell --block -- case %h in *.[mM][dD]|*.[mM][aA][rR][kK][dD][oO][wW][nN]) frogmouth -- %h ;; esac'\n"""
+            'desc = "Inspect Markdown in Frogmouth"'
+        )
     # %h is the hovered file. $0 and $@ are not: yazi runs the template through
     # a shell, where $0 names the shell itself and $@ is empty - both measured,
     # and both would open the browser on nothing at all.

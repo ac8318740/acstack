@@ -26,7 +26,7 @@ function invalid<T>(input: Record<string, unknown>): T {
 
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'acstack-nodes-'));
-  mkdirSync(join(root, 'acstack'));
+  mkdirSync(join(root, '.acstack'));
 });
 
 afterEach(() => {

@@ -11,9 +11,8 @@ herdr	herdr	herdr	-	-
 gh-dash	gh_dash	ghext	dlvhdr/gh-dash	-
 harlequin	harlequin	pypi	harlequin	-
 pi	pi	npm	@earendil-works/pi-coding-agent	-
-pi-subagents	pi	npm	pi-subagents	-
+ac-teams	pi	npm	ac-teams	-
 billion-context	pi	npm	billion-context	-
-@juicesharp/rpiv-todo	pi	npm	@juicesharp/rpiv-todo	-
 pi-plugin-manager	pi	npm	pi-plugin-manager	-
 @juicesharp/rpiv-ask-user-question	pi	npm	@juicesharp/rpiv-ask-user-question	-
 pi-web-access	pi	npm	pi-web-access	-
@@ -204,8 +203,12 @@ upgrade_one() {  # upgrade_one <name>
     find_pi
   fi
   case "$1" in
-    herdr)     herdr update >/dev/null 2>&1 \
-                 && say "herdr updated" || say "herdr update failed" ;;
+    herdr)     if herdr update >/dev/null 2>&1; then
+                 say "herdr updated"
+                 patch_herdr_pi_status
+               else
+                 say "herdr update failed"
+               fi ;;
     gh-dash)   gh extension upgrade dlvhdr/gh-dash >/dev/null 2>&1 \
                  && say "gh-dash upgraded" || say "gh-dash upgrade failed" ;;
     harlequin) uv tool upgrade harlequin >/dev/null 2>&1 \

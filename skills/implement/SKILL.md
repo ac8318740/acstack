@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Execute implementation work via the TDD pipeline (test-writer -> task-executor -> task-checker). A map is a stored graph of question and work nodes. Claims afk nodes – away from keyboard, meaning nodes an agent settles alone – from the map frontier, the nodes ready to be worked now, when a map exists; runs the same discipline directly on the request when none does. A unit of work carries its own size – one node is a quick change, forty is a long effort, and nothing declares which. Invoke whenever the way is clear and something needs building, changing or extending, however small. Use quick-fix instead when something is broken and needs a root cause found, and map instead when decisions still need settling before anyone can build.
+description: Implement clear requests with adaptive testing and verification under the shared Implementation discipline in orchestrator/AGENTS.md. A map is a stored graph of question and work nodes. Claims afk nodes – away from keyboard, meaning nodes an agent settles alone – from the map frontier, the nodes ready to be worked now, when a map exists; runs the same discipline directly on the request when none does. A unit of work carries its own size – one node is a quick change, forty is a long effort, and nothing declares which. Invoke whenever the way is clear and something needs building, changing or extending, however small. Use quick-fix instead when something is broken and needs a root cause found, and map instead when decisions still need settling before anyone can build.
 argument-hint: "[map name, or the request to implement]"
 ---
 
@@ -12,24 +12,22 @@ $ARGUMENTS
 
 ## What this skill does
 
-Implements work under the TDD pipeline. The unit of work is a map node when a
-map exists, and the request itself when none does – same discipline either
-way. Progress lives on the tracker as claims and resolutions; there is no
-checkbox file to maintain.
+- Apply the shared Implementation discipline in `orchestrator/AGENTS.md`
+- Use a map node as the work item when a map exists, otherwise use the request itself
+- Keep tracker claims and resolutions as the progress record
+- Choose delegation for confidence or independent scopes rather than a fixed sequence
 
 ## Steps
 
-Before step 1, copy the eight step headings below into your todo list word
-for word. They go ahead of any task-specific items. A step you skip stays in
-the list, marked `skip: <reason>`.
-
-When step 5 runs on a node, copy its eight numbered steps the same way.
-
 ### 1. Find the work
 
-Check the configured tracker for maps (`workflow.maps.tracker` in
-`acstack/project.yaml`; the map skill's `trackers/` docs declare the
-operations – files backend shown below).
+Resolve the project folder with `~/.claude/acstack/bin/acstack project-data path`.
+Preserve reported resolution errors; do not treat them as missing setup.
+When `project.yaml` exists and configures `workflow.maps.tracker`, check that
+tracker for maps (the map skill's `trackers/` docs declare its operations).
+Without configuration, work directly on the request without tracker writes.
+If the request names a map, establish its storage prerequisite first rather
+than silently ignoring it.
 
 **A map exists** (or `$ARGUMENTS` names one):
 
@@ -46,12 +44,10 @@ off the root.
 
 Before claiming one, check whether the map is ready to build from:
 
-- If any `fog` node changes the alignment artifact, stop and point the user at
-  `/acstack:map`.
-- If `workflow.alignment_packs.approval_gate` is true and no reviewer approved
-  the alignment artifact, stop and point the user at `/acstack:map`.
-- If a `fog` node needs later evidence and does not change the artifact, leave
-  it on the map with its reopening trigger.
+- If any `fog` node changes the design, stop and point the user at `/acstack:map`
+- For a bound design, require `approval.valid: true` from `acstack design-review status <entry>`
+- If approval is invalid, return to `/acstack:design-doc` for reconciliation and exact-revision approval
+- If a `fog` node needs later evidence without changing the design, leave it with its reopening trigger
 
 If the frontier holds only `hitl` nodes – human in the loop, meaning a
 person must answer them – stop and point the user at `/acstack:map`. Those
@@ -63,7 +59,10 @@ small unit of work, and nothing has to declare it small.
 
 ### 2. Read project configuration
 
-Read `acstack/project.yaml` for build/test/lint commands and directory paths.
+Read `<project folder>/project.yaml` when present. Otherwise discover commands,
+directories, and environment activation from repository instructions, manifests,
+existing tests, and CI, under Project configuration in `orchestrator/AGENTS.md`.
+Do not invent commands or treat invalid configuration as absent.
 
 ### 3. Create feature branch
 
@@ -107,85 +106,44 @@ Claim each node as you start it:
 
 Nodes describe behaviour, not paths. **Resolve paths at claim time**.
 
-Before any code change, dispatch parallel read-only codebase-search subagents
-over the relevant code. Use `Explore` on Claude Code and `scout` on pi.
+Investigate relevant source, callers, tests, and docs directly or through useful delegation.
+Pass discovered paths and requirements to any delegated agents to avoid repeated searches.
 
-Use as many as there are distinct places to look, not a fixed count. Act on
-what they find.
-
-Downstream pipeline subagents start fresh. Pass the source, test, and doc paths
-you already discovered into each test-writer, task-executor, task-checker, audit,
-polish, and verifier prompt. Tell them to read those paths directly instead of
-searching the codebase again.
+- Before implementation, read the root node's `Design entry` reference when present
+- Run `acstack design-review status <entry>`
+- Require its `planning.tracker` and `planning.map` to match the active map before trusting its approval
+- Stop on a missing or different binding; an approval for another map does not authorize this work
+- Require `approval.valid: true`
+- Reconcile feedback and contributions through `/acstack:design-doc` when approval is invalid
+- Reopen review after source, saved comments, or contribution inputs change
+- Keep unsettled requirements in design/map records; living specs describe verified implementation
 
 ### 5. Execute within the claim
 
-The pipeline's state lives inside the claim, not on the node. For each
-claimed node (or the bare request), run the Implementation discipline to
-completion:
+Apply the shared Implementation discipline to the claimed node or bare request.
 
-1. **test-writer subagent** – tests from the node's behaviour description.
-   Under strict they must all fail before step 2 runs. Skip step 1 for pure
-   config or setup work with no testable behaviour.
+- Choose useful checks before nontrivial edits
+- Test, implement, format, and verify against requirements
+- Get independent review when the shared policy requires it
+- Read `design-pass.md` when the design gate is on and configured frontend files changed
+- Delegate configured real-browser verification after the required gates pass
+- Fix failures and repeat the affected checks
+- Release a stalled claim (`--status open`) when the session must stop
 
-2. **task-executor subagent** – make the tests pass. Executor CANNOT modify
-   test files.
-
-3. **Format** – run `commands.format` over the files the work touched. A
-   `null` value means this project has no format step.
-
-    Report a non-zero exit. It never counts as a failed implementation.
-
-4. **task-checker subagent** – verify the build compiles, lints, and
-   typechecks. Verify tests pass, the full suite passes, and test count >=
-   baseline. Also check the mock audit, TDD isolation, and integration
-   wired.
-
-    When `acstack/project.yaml` configures `frontend` and frontend files
-    changed, the checker also runs the frontend build, lint, and unit
-    tests.
-
-5. **`/impeccable audit`** – report design findings on the changed frontend
-   files. Steps 5 to 7 run only when three conditions hold: the design gate
-   is on, `acstack/project.yaml` configures `frontend`, and frontend files
-   changed.
-
-6. **`/impeccable polish`** – fix the same files, from the audit findings.
-
-7. **task-checker subagent, second run** – verify the code polish changed.
-
-    Read `design-pass.md` before steps 5 to 7. It holds who types the
-    commands, how to read the gate, and what polish must leave alone.
-
-8. **frontend-verifier subagent** – verify the UI in a browser. The
-   verifier runs after the second checker passes, only when
-   `acstack/project.yaml` configures `frontend`, frontend files changed,
-   and `workflow.frontend_verification` is true.
-
-`workflow.tdd.strict: false`, relaxed TDD, runs step 2 before step 1 and
-skips nothing. Read `relaxed-tdd.md` when the project sets it. It holds how
-the test-writer and the checker's gate change.
-
-If either checker run fails, route back to the executor with the feedback.
-If the work stalls or the session must stop mid-node, release the claim
-(`--status open`). The node is plainly open again, and you need no phase
-breadcrumb.
 
 **Decision log**: on afk nodes, append one row per decision point to
-`<main checkout>/acstack/.decisions/<name>.tsv`. A decision point is a fork chosen, a
+`<project folder>/decision-logs/<name>.tsv`. A decision point is a fork chosen, a
 unit verified, a revert, or a blocker.
 
-Read `decision-log.md` before the first row. It holds how to find the main
-checkout, the columns, and the `.gitignore` the directory needs.
+Read `decision-log.md` before the first row. It holds where the log lives and
+the columns.
 
-**Parallelism**: afk nodes run unlimited and in parallel. When 2+ frontier
-nodes touch non-overlapping files, launch an agent team where each teammate
-owns one node and its file set. Otherwise, or on a host without agent teams,
-work them sequentially.
+**Parallelism**: use teams when independent nodes benefit from parallel work.
+Assign non-overlapping files, and schedule shared-file changes sequentially.
 
 ### 6. Resolve
 
-When the checker passes, resolve the node in one call:
+When required verification passes, resolve the node in one call:
 
 ```bash
 ~/.claude/acstack/bin/acstack node update <id> --map <name> --status resolved \
@@ -203,21 +161,22 @@ decision landed. With a map, then:
 - Classify anything the work surfaced:
     - Agent-clearable fog gets research, tests, or a throwaway prototype.
     - Design-changing fog becomes a `hitl` node and returns to `/acstack:map`.
-    - Local fog that does not change the artifact stays inside the claim notes.
-- Rebuild or rerun the alignment review when the work changes the artifact.
+    - Local fog that does not change the design stays inside the claim notes.
+- Reopen design review when source, saved comments, or contribution inputs change.
 - Recompute the frontier – resolutions unblock nodes.
 
-### 7. Build verification
+### 7. Completion verification
 
-After each node (and before ending the session), run the commands from
-`acstack/project.yaml`: build, full test suite, lint and typecheck. All must
-pass before claiming the next node.
+Use focused checks within each node. One verification owner gathers the required
+completion evidence for the final revision under Build verification in
+`orchestrator/AGENTS.md`, reusing valid results. Full completion checks belong at
+the end of the request or parent effort, not after every node or handoff.
+Do not report the effort complete with failed or blocked required gates.
 
 ### 8. Completion
 
 Stop when the afk frontier is empty, or when only `hitl` nodes remain (hand
-those to `/acstack:map`). With no map, stop when the checker passes and Step
-7 verification is green.
+those to `/acstack:map`). With no map, stop when required verification is green.
 
 Report: nodes resolved, tests passing, lines added/removed. Remind the user:
 `/acstack:commit` to commit – spec sync extracts the durable record from the
@@ -225,21 +184,11 @@ diff.
 
 ## Key rules
 
-- **TDD pipeline is mandatory** – test-writer -> task-executor ->
-  task-checker -> frontend-verifier (frontend only). Only pure config work
-  skips the test-writer.
-  `workflow.tdd.strict: false` reorders the first two and skips neither.
+- Apply `orchestrator/AGENTS.md` as the shared verification policy
+- Respect separate test ownership when chosen
+- Claim on start, resolve after verification, and release on stall
+- Investigate before editing, directly or through useful delegation
 
-    With the design gate on, the audit and polish pass and a second
-    task-checker run sit between the first checker and the verifier
-
-- **Executors CANNOT modify test files** – if tests are wrong, report it.
-- **The tracker is the progress record** – claim on start, resolve on pass,
-  release on stall. No checkbox files, no phase fields.
-
-- **Explore before writing** – parallel read-only codebase-search subagents
-  over the relevant code, sized to the node, before any edit. Use `Explore` on
-  Claude Code and `scout` on pi.
 
 - **Resume is a query** – picking up where you left off means asking the
   tracker what is workable now, not reconstructing history. A fresh session

@@ -17,7 +17,7 @@ set -uo pipefail
 
 BRIDGE="${ACSTACK_BRIDGE_URL:-http://127.0.0.1:19988}"
 OPENER="${ACSTACK_OPENER_URL:-http://127.0.0.1:19989}"
-OPENER_TOKEN="${XDG_CONFIG_HOME:-$HOME/.config}/acstack/opener.token"
+OPENER_TOKEN="${ACSTACK_HOME:-$HOME/.acstack}/opener.token"
 FREE_PORT="${ACSTACK_FREE_PORT:-$HOME/.claude/acstack/bin/vm-free-port.sh}"
 
 CMD="${1:-status}"
@@ -120,6 +120,8 @@ case "$CMD" in
       echo "opener:  reachable - $(printf '%s' "$health" | tr -d '[:space:]')"
     elif [ -z "$(tok)" ]; then
       echo "opener:  no token at $OPENER_TOKEN (run register-tasks.ps1 on the laptop)"
+      [ -e "$HOME/.config/acstack/opener.token" ] \
+        && echo "         an old one is in ~/.config/acstack: run ~/.claude/acstack/bin/acstack project-data migrate"
     else
       echo "opener:  not reachable on $OPENER"
     fi

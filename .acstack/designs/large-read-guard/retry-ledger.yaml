@@ -1,0 +1,14 @@
+id: retry-ledger
+name: Retry ledger
+summary: >-
+  Remembers, per session, which files the guard already blocked, so an
+  identical repeat passes. Claude Code and Codex keep it in
+  ${TMPDIR:-/tmp}/acstack-read-guard-<uid>/<session_id>.json, a folder only
+  the user can open; Pi keeps it in process memory.
+kind: store
+relationships:
+  - id: policy-ledger
+    from: read-policy
+    to: retry-ledger
+    direction: one-way
+    label: Records and checks blocked reads in

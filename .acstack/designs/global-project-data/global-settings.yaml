@@ -1,0 +1,11 @@
+id: global-settings
+name: Global settings and caches
+kind: store
+parent: global-root
+summary: Hold config.json, the opener token, terminal-workspace files, and cached assets such as mermaid.min.js.
+relationships:
+- id: settings-global
+  from: settings
+  to: global-settings
+  direction: one-way
+  label: Reads global settings from

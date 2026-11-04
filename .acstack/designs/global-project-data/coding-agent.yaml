@@ -1,0 +1,15 @@
+id: coding-agent
+name: Coding agent
+kind: actor
+summary: Claude Code, Codex, or pi session that follows ACStack skills inside a checkout.
+relationships:
+- id: asks-agent
+  from: developer
+  to: coding-agent
+  direction: one-way
+  label: Asks for work from
+- id: follows-skills
+  from: coding-agent
+  to: skills
+  direction: one-way
+  label: Follows

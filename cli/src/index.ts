@@ -1,6 +1,7 @@
 import { Command } from 'commander';
 import { spawnSync } from 'node:child_process';
 import { resolveVersion } from './lib/version.js';
+import { fail } from './lib/utils.js';
 
 const program = new Command()
   .name('acstack')
@@ -9,12 +10,13 @@ const program = new Command()
 
 // Commands are registered by their own modules
 const commands = await Promise.all([
+  import('./commands/project-data.js'),
   import('./commands/list.js'),
   import('./commands/show.js'),
   import('./commands/archive.js'),
   import('./commands/node.js'),
-  import('./commands/alignment.js'),
   import('./commands/config.js'),
+  import('./commands/design-doc.js'),
   import('./commands/design-gate.js'),
   import('./commands/feedback.js'),
   import('./commands/handoff.js'),
@@ -36,6 +38,7 @@ program.addHelpText(
 // acstack-md --preview runs on every cursor move in a file manager, and
 // paying Node's startup for it would make previews noticeably slower.
 const first = process.argv[2];
+if (first === 'map' || first === 'align-viewer') fail('This command is retired. Use design-doc, or design-review migrate for explicit legacy imports.');
 const known = new Set(
   program.commands.flatMap((c) => [c.name(), ...c.aliases()])
 );

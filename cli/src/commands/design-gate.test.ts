@@ -23,6 +23,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { gitOnlyDir, trackProject } from '../test-project.js';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, chmodSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -44,14 +45,14 @@ const CLI_BIN = join(__dirname, '..', '..', 'bin', 'acstack.js');
 // implementation never is.
 // ---------------------------------------------------------------------
 
-let xdgConfigHome: string;
+let acstackHome: string;
 
 beforeEach(() => {
-  xdgConfigHome = mkdtempSync(join(tmpdir(), 'acstack-design-gate-xdg-'));
+  acstackHome = mkdtempSync(join(tmpdir(), 'acstack-design-gate-home-'));
 });
 
 afterEach(() => {
-  rmSync(xdgConfigHome, { recursive: true, force: true });
+  rmSync(acstackHome, { recursive: true, force: true });
 });
 
 /**
@@ -64,8 +65,8 @@ function runCli(
   args: string[],
   opts: { cwd?: string; path?: string[]; env?: NodeJS.ProcessEnv } = {}
 ) {
-  const env: NodeJS.ProcessEnv = { ...process.env, XDG_CONFIG_HOME: xdgConfigHome };
-  if (opts.path) env.PATH = opts.path.join(delimiter);
+  const env: NodeJS.ProcessEnv = { ...process.env, ACSTACK_HOME: acstackHome };
+  if (opts.path) env.PATH = [...opts.path, gitOnlyDir()].join(delimiter);
   Object.assign(env, opts.env ?? {});
 
   return spawnSync(process.execPath, [CLI_BIN, ...args], {
@@ -83,12 +84,12 @@ function emptyPathDir(): string {
   return mkdtempSync(join(tmpdir(), 'acstack-empty-path-'));
 }
 
-/** A temp project root whose `acstack/project.yaml` holds `yaml`. */
+/** A temp project root whose `.acstack/project.yaml` holds `yaml`. */
 function makeProject(yaml: string): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
-  writeFileSync(join(root, 'acstack', 'project.yaml'), yaml);
-  return root;
+  mkdirSync(join(root, '.acstack'), { recursive: true });
+  writeFileSync(join(root, '.acstack', 'project.yaml'), yaml);
+  return trackProject(root);
 }
 
 /** A project stating `workflow.design_review: true` - the on-key half of the answer. */

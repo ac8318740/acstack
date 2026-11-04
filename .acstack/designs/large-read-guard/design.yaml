@@ -1,0 +1,47 @@
+id: large-read-guard
+name: Large-read guard
+summary: >-
+  ACStack stops a main agent's first whole-file read of a large file and
+  suggests a targeted read or an investigator. Repeating the same read lets
+  it through. The guard runs in Claude Code, Codex, and Pi, and never applies
+  to subagents or ac-teams members.
+detail: overview.md
+elements:
+  - main-agent.yaml
+  - non-main-agent.yaml
+  - claude-codex-hook.yaml
+  - pi-adapter.yaml
+  - read-policy.yaml
+  - retry-ledger.yaml
+  - project-config.yaml
+  - launcher-signals.yaml
+concerns:
+  - id: never-trap
+    name: Never trap the agent
+    elements: [read-policy, retry-ledger, main-agent]
+    requirement: >-
+      Some instructions require reading a whole file. The guard must not
+      make that impossible or force a delegation that cannot run.
+    response: >-
+      The guard blocks only the first whole read of a file in a session.
+      The retry ledger lets an identical repeat through, so a needed full
+      read costs one extra tool call. Hook errors allow the read.
+  - id: no-runaway-trees
+    name: No runaway agent trees
+    elements: [read-policy, non-main-agent, launcher-signals]
+    requirement: >-
+      A guarded investigator might launch its own investigator to read the
+      file for it, and so on, growing large agent trees.
+    response: >-
+      The guard applies only to main agents, meaning sessions a user
+      created. When the harness gives no clear answer, the guard stays off.
+      A missed guard costs tokens; a wrongly guarded subagent risks a tree.
+  - id: not-a-boundary
+    name: Context saving, not security
+    elements: [claude-codex-hook, pi-adapter, read-policy]
+    requirement: >-
+      Nobody may mistake the guard for an access control.
+    response: >-
+      Ranged reads, pipes, scripts, and other tools all pass. The
+      documentation says so plainly. Access control stays with harness
+      permissions and ac-teams sandboxing.

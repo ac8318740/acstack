@@ -45,20 +45,20 @@ make_base_repo() {
     git init -q -b main
     git config user.email "test@example.com"
     git config user.name "Test"
-    mkdir -p .claude-plugin docs/adr skills/foo .github/workflows .claude acstack tests
+    mkdir -p .claude-plugin .acstack/decisions docs skills/foo .github/workflows .claude tests
     printf '{\n  "version": "%s"\n}\n' "$ver" > .claude-plugin/plugin.json
     echo "readme"    > README.md
     echo "contrib"   > CONTRIBUTING.md
-    echo "context"   > CONTEXT.md
+    echo "context"   > .acstack/CONTEXT.md
     echo "license"   > LICENSE
     echo "notices"   > THIRD_PARTY_NOTICES
-    echo "adr"       > docs/adr/0001-x.md
+    echo "adr"       > .acstack/decisions/0001-x.md
     echo "migrate"   > docs/migrate-0.8.md
     echo "skill v1"  > skills/foo/SKILL.md
     echo "cli code"  > cli.js
     echo "ci"        > .github/workflows/ci.yml
     echo "settings"  > .claude/settings.json
-    echo "spec"      > acstack/specs.md
+    echo "spec"      > .acstack/specs.md
     echo "test"      > tests/test-x.sh
     git add -A
     git commit -q -m "base"
@@ -102,11 +102,11 @@ check "exits 0"                              '[ "$CODE" -eq 0 ]'
 check "reports no shipped files changed"     'printf "%s" "$OUTALL" | grep -qi "no shipped files changed"'
 
 # --- Case 2: only an ADR doc changed, no bump -> exit 0 -----------------------
-echo "Case 2: only docs/adr/0001-x.md changed"
+echo "Case 2: only .acstack/decisions/0001-x.md changed"
 REPO="$WORK/case2"
 make_base_repo "$REPO"
 new_branch "$REPO" feature
-(cd "$REPO" && echo "record" > docs/adr/0002-y.md && git add docs/adr/0002-y.md && git commit -q -m "adr")
+(cd "$REPO" && echo "record" > .acstack/decisions/0002-y.md && git add .acstack/decisions/0002-y.md && git commit -q -m "adr")
 run_gate "$REPO" main feature
 CODE=$?
 check "exits 0"                              '[ "$CODE" -eq 0 ]'
@@ -217,22 +217,22 @@ check "does not flag the main-only file"     '! printf "%s" "$OUTALL" | grep -q 
 check "reports no shipped files changed"     'printf "%s" "$OUTALL" | grep -qi "no shipped files changed"'
 
 # --- Case 11: shipped file renamed into an inert path, no bump -> exit 1 ----
-echo "Case 11: skills/foo/SKILL.md renamed to docs/adr/moved.md (pure rename), no bump"
+echo "Case 11: skills/foo/SKILL.md renamed to .acstack/decisions/moved.md (pure rename), no bump"
 REPO="$WORK/case11"
 make_base_repo "$REPO"
 new_branch "$REPO" feature
-(cd "$REPO" && git mv skills/foo/SKILL.md docs/adr/moved.md && git commit -q -m "move skill into adr")
+(cd "$REPO" && git mv skills/foo/SKILL.md .acstack/decisions/moved.md && git commit -q -m "move skill into adr")
 run_gate "$REPO" main feature
 CODE=$?
 check "exits 1"                                     '[ "$CODE" -eq 1 ]'
 check "stderr mentions the removed shipped path"     'grep -q "skills/foo/SKILL.md" "$ERR"'
 
 # --- Case 12: same, but the moved file is also edited (still >50% similar) --
-echo "Case 12: skills/foo/SKILL.md renamed to docs/adr/moved2.md and edited, no bump"
+echo "Case 12: skills/foo/SKILL.md renamed to .acstack/decisions/moved2.md and edited, no bump"
 REPO="$WORK/case12"
 make_base_repo "$REPO"
 new_branch "$REPO" feature
-(cd "$REPO" && git mv skills/foo/SKILL.md docs/adr/moved2.md && echo "extra" >> docs/adr/moved2.md && git commit -q -am "move and edit skill into adr")
+(cd "$REPO" && git mv skills/foo/SKILL.md .acstack/decisions/moved2.md && echo "extra" >> .acstack/decisions/moved2.md && git commit -q -am "move and edit skill into adr")
 run_gate "$REPO" main feature
 CODE=$?
 check "exits 1"                                     '[ "$CODE" -eq 1 ]'

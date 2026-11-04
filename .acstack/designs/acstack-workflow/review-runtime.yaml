@@ -1,0 +1,24 @@
+id: review-runtime
+name: Review command and server
+summary: >-
+  Reads and validates authored YAML, serves the browser review interface,
+  saves comments, and exports Markdown.
+kind: component
+parent: cli
+channels: [cli, web]
+relationships:
+  - id: export-design
+    from: skills
+    to: review-runtime
+    direction: one-way
+    label: Guides the agent to run
+  - id: read-source
+    from: review-runtime
+    to: design-source
+    direction: one-way
+    label: Reads design source
+  - id: review-session
+    from: review-runtime
+    to: viewer
+    direction: bidirectional
+    label: Exchanges the design and comments with

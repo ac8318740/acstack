@@ -40,7 +40,7 @@
 #   nudge when it crosses each rung rather than on every single stop.
 #
 #   The default rungs are workflow.handoff.nudge_warn and nudge_severe from
-#   acstack/project.yaml (defaulting to 200000 / 500000), and then one rung
+#   <project folder>/project.yaml (defaulting to 200000 / 500000), and then one rung
 #   every workflow.handoff.nudge_step tokens (default 100000) above the last
 #   one. Setting workflow.handoff.context_thresholds replaces the default rungs
 #   entirely with the listed ones - written either block style (one "- item"
@@ -102,6 +102,10 @@ export ACSTACK_HOOK_INPUT
 # Resolve the state directory here so python only has to read one variable.
 ACSTACK_CONTEXT_PRESSURE_DIR="${ACSTACK_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/acstack-context-pressure}"
 export ACSTACK_CONTEXT_PRESSURE_DIR
+
+# The project folder holds project.yaml; empty outside a project, so defaults apply.
+ACSTACK_PROJECT_FOLDER=$("${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/cli/bin/acstack.js" project-data path 2>/dev/null)
+export ACSTACK_PROJECT_FOLDER
 
 # stderr goes nowhere: a hook that writes to stderr is noise at best, and a
 # traceback from an unforeseen payload must never reach the user. Every failure
@@ -361,7 +365,7 @@ def read_config():
         "context_thresholds": None,
     }
     try:
-        with open(os.path.join("acstack", "project.yaml"), encoding="utf-8", errors="replace") as f:
+        with open(os.path.join(os.environ.get("ACSTACK_PROJECT_FOLDER") or "/nonexistent", "project.yaml"), encoding="utf-8", errors="replace") as f:
             lines = f.read().split("\n")
     except OSError:
         return cfg

@@ -57,23 +57,12 @@ pi_npm_package() {  # pi_npm_package <name> -> npm package identity, or nothing
   version_table | awk -F'\t' -v n="$1" '$1==n && $2=="pi" && $3=="npm"{print "npm:" $4; found=1; exit} END{exit !found}'
 }
 
-# A package pi holds at a fixed version, such as npm:pi-subagents@1.0.0.
+# A package pi holds at a fixed version, such as npm:ac-teams@1.0.0.
 pi_npm_pin() {  # pi_npm_pin <name>
   local pkg src
   pkg=$(pi_npm_package "$1") || return 1
   src=$(pi_state pkg "$pkg") || return 1
   [ "$src" != "$pkg" ]
-}
-
-pi_suggest_todo_discipline() {
-  local needle="When using a todo list, keep it current as work completes."
-  grep -qsF "$needle" "$PI_DIR"/AGENTS.override.md "$PI_DIR"/AGENTS.md "$PI_DIR"/AGENTS.MD \
-    "$PI_DIR"/CLAUDE.md "$PI_DIR"/CLAUDE.MD && return 0
-  say "pi: todo tool installed. For stricter todo discipline, ask the agent"
-  say "pi: running this setup to hand-edit $PI_DIR/AGENTS.md and add:"
-  say "pi: $needle Before reporting a task as done, check the todo list"
-  say "pi: and mark every completed step completed. Do not leave stale"
-  say "pi: in-progress or pending todos after a commit, PR, merge or workflow gate."
 }
 
 # The pin apply would move to, or nothing when the installed one is current
@@ -140,6 +129,32 @@ bili_client() {  # bili_client install|remove <client>
   fi
 }
 
+pi_question_bridge() {  # pi_question_bridge install|remove
+  local fresh=0 rc
+  if [ "$1" = "install" ]; then
+    if { [ -e "$PI_QUESTION_BRIDGE" ] || [ -L "$PI_QUESTION_BRIDGE" ]; } \
+        && ! pi_state owns file "$PI_QUESTION_BRIDGE"; then
+      say "pi: $PI_QUESTION_BRIDGE already exists, so the question bridge was left alone"
+      return 0
+    fi
+    [ -e "$PI_QUESTION_BRIDGE" ] || [ -L "$PI_QUESTION_BRIDGE" ] || fresh=1
+    mkdir -p "$(dirname "$PI_QUESTION_BRIDGE")" \
+      && cp "$SCRIPT_DIR/pi/acstack-question-blocked.ts" "$PI_QUESTION_BRIDGE" || return $?
+    if pi_state own file "$PI_QUESTION_BRIDGE"; then
+      say "pi: question blocked bridge written to $PI_QUESTION_BRIDGE"
+    else
+      rc=$?
+      [ "$fresh" = 1 ] && rm -f "$PI_QUESTION_BRIDGE"
+      say "pi: question blocked bridge ownership registration failed for $PI_QUESTION_BRIDGE"
+      return "$rc"
+    fi
+  elif pi_state owns file "$PI_QUESTION_BRIDGE"; then
+    rm -f "$PI_QUESTION_BRIDGE" \
+      && pi_state disown file "$PI_QUESTION_BRIDGE" \
+      && say "pi: question blocked bridge removed"
+  fi
+}
+
 apply_pi() {
   find_pi
   if ! have pi; then
@@ -163,13 +178,11 @@ apply_pi() {
 
   patch_pi_win32_paste
 
-  # ACStack cannot launch a subagent on pi without pi-subagents.
-  pi_add npm:pi-subagents npm:pi-subagents
-  if [ "$(cfg_get pi.todo true)" = "true" ]; then
-    pi_add npm:@juicesharp/rpiv-todo npm:@juicesharp/rpiv-todo
-    pi_suggest_todo_discipline
-  else
+  # Retire only setup-owned packages after their replacement is available.
+  if pi_add npm:ac-teams npm:ac-teams; then
+    pi_drop npm:pi-subagents
     pi_drop npm:@juicesharp/rpiv-todo
+    pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": null}'
   fi
   if [ "$(cfg_get pi.plugin_manager true)" = "true" ]; then
     pi_add npm:pi-plugin-manager npm:pi-plugin-manager
@@ -195,7 +208,9 @@ apply_pi() {
   fi
   if [ "$(cfg_get pi.question_tool true)" = "true" ]; then
     pi_add npm:@juicesharp/rpiv-ask-user-question npm:@juicesharp/rpiv-ask-user-question
+    pi_question_bridge install
   else
+    pi_question_bridge remove
     pi_drop npm:@juicesharp/rpiv-ask-user-question
   fi
   if [ "$(cfg_get pi.web_access true)" = "true" ]; then
@@ -270,9 +285,9 @@ apply_pi() {
 
   pi_state merge "$PI_SETTINGS" settings "$(pi_settings_wanted)"
   pi_state merge "$PI_KEYBINDINGS" keybindings '{"app.message.dequeue": "ctrl+enter"}'
-  pi_state merge "$PI_SUBAGENT_CFG" subagent '{"toolActivation": "eager"}'
   pi_state md write
   patch_pi_win32_paste
+  patch_herdr_pi_status
 
   # Logging in is interactive and stores a credential, so it stays the user's.
   [ -f "$PI_DIR/auth.json" ] || say "pi: not logged in yet. Run pi, then /login"
@@ -283,6 +298,8 @@ apply_pi() {
 # and leaves the pi binary, its logins and its sessions alone.
 remove_pi() {
   find_pi
+  patch_herdr_pi_status --remove
+  pi_question_bridge remove
   if pi_state parses "$PI_SETTINGS"; then
     pi_unpin "$PI_ACSTACK"
     pi_drop "$PI_ACSTACK"
@@ -291,6 +308,7 @@ remove_pi() {
     bili_client remove pi
     pi_drop "$PI_BILLION"
     pi_drop npm:pi-plugin-manager
+    pi_drop npm:ac-teams
     pi_drop npm:@juicesharp/rpiv-todo
     pi_drop npm:pi-compact-tools
     pi_drop "$PI_ZENTUI"

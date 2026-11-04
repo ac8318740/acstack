@@ -1,0 +1,28 @@
+id: project-folders
+name: Project folders
+kind: store
+parent: global-root
+summary: 'One entry per repository under projects/: a real folder in global mode, or a link into the repo
+  in tracked mode.'
+detail: layout.md
+relationships:
+- id: locator-folders
+  from: locator
+  to: project-folders
+  direction: one-way
+  label: Resolves and auto-links entries in
+- id: settings-folders
+  from: settings
+  to: project-folders
+  direction: one-way
+  label: Reads project settings from
+- id: folders-tracked
+  from: project-folders
+  to: tracked-data
+  direction: one-way
+  label: Links to
+- id: cmd-folders
+  from: project-data-cmd
+  to: project-folders
+  direction: one-way
+  label: Writes data and links into

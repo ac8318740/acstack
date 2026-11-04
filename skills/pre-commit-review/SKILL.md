@@ -1,6 +1,6 @@
 ---
 name: pre-commit-review
-description: "Deep code quality review of all changes since last commit. Checks for hardcodes, single-source-of-truth violations, scalability issues, edge cases, and project convention drift using dynamic project awareness (living specs, codebase search, surrounding code). Also flags adjacent code rot worth cleaning up. Auto-invocable in two contexts – (1) when working autonomously through a task list and about to commit (e.g., user said \"implement all tasks and commit\"), use --auto-fix mode; (2) when the user manually invokes /commit and this skill has not already run on the current changes, use INTERACTIVE mode (default). Manual invocation via /pre-commit-review also uses interactive mode by default."
+description: "Deep code quality review of all changes since last commit. Checks for hardcodes, single-source-of-truth violations, scalability issues, edge cases, and project convention drift using dynamic project awareness (living specs, codebase search, surrounding code). Reports adjacent cleanup as advisory, requiring user approval before edits. Auto-invocable in two contexts – (1) when working autonomously through a task list and about to commit (e.g., user said \"implement all tasks and commit\"), use --auto-fix mode; (2) when the user manually invokes /commit and this skill has not already run on the current changes, use INTERACTIVE mode (default). Manual invocation via /pre-commit-review also uses interactive mode by default."
 argument-hint: "[--auto-fix] [scope description]"
 ---
 
@@ -40,9 +40,9 @@ LLM decided to commit during autonomous work -> auto-fix.
 
 ```
 1. SNAPSHOT  – collect the diff and understand what changed
-2. DISCOVER  – learn project conventions dynamically (parallel subagents)
-3. REVIEW    – analyze changes against conventions + best practices (parallel subagents)
-4. ADJACENT  – check surrounding code for related rot (parallel subagents)
+2. DISCOVER  – learn project conventions dynamically
+3. REVIEW    – analyze changes against conventions and requirements
+4. ADJACENT  – note related cleanup encountered during review (advisory)
 5. REPORT    – synthesize findings
 6. FIX       – auto-fix or interactive proposal waves
 ```
@@ -59,65 +59,71 @@ git status --short
 git log --oneline -3  # recent context
 ```
 
-Read `acstack/project.yaml` to understand the project's directory layout, commands, and conventions.
+Read `<project folder>/project.yaml` when present to understand directories, commands, and conventions. The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. Without configuration, discover these from repository instructions, manifests, existing tests, and CI under Project configuration in `orchestrator/AGENTS.md`; do not require setup. Report resolution errors or invalid config rather than treating them as absent.
 
-Categorize changed files into scopes using the project configuration:
+Categorize changed files using configured or discovered directories:
 
-- **source**: files under `directories.source` from project.yaml
-- **frontend**: files under `frontend.directory` from project.yaml (if configured)
+- **source**: files under configured `directories.source`, or discovered source directories
+- **frontend**: files under configured `frontend.directory`, or discovered frontend directories
 - **config**: `*.yaml`, `*.toml`, `*.json`, config files, etc.
-- **tests**: files under `directories.tests` from project.yaml
+- **tests**: files under configured `directories.tests`, or discovered test directories
 - **other**: everything else
 
-If no meaningful code changes exist (only docs, config, assets), report "No code changes to review" and exit. Run the prose lint from Step 3 before you exit, when Markdown files changed.
+Judge changes by effect, including behavior changed through config, assets, or shipped guidance.
+For nonbehavioral edits, review accuracy and run prose lint when Markdown changed.
 
 ## Step 2: DISCOVER – Learn project conventions (parallel)
 
-Launch **3 parallel read-only codebase-search subagents** to build a dynamic understanding of the project's current conventions.
-Use `Explore` on Claude Code and `scout` on pi.
-Do NOT hardcode conventions – discover them fresh each time.
+Follow the shared Implementation discipline in `orchestrator/AGENTS.md` for delegation and required independent review.
+Investigate relevant dimensions directly or through useful delegation.
+Bound each review to changed behavior, connected risks, and the question assigned.
+Reuse valid check evidence under the shared policy instead of repeating completion commands.
+Discover current conventions rather than hardcoding them.
 
-**Subagent A – Living Specs & Architecture:**
+Read `../../output-styles/ac-writing-style.md` relative to this skill directory; apply its shared standard to code design as well as explanations.
+
+**Living specs and architecture:**
 
 ```
-Read the living specs relevant to this change:
-- Check acstack/specs/ directory listing
+Read existing living specs relevant to this change; skip if none exist:
+- Check the <project folder>/specs/ directory listing
 - Read spec.md files for domains touched by the changed files
-  (use acstack/domain-map.yaml to map files -> domains)
+  (use <project folder>/domain-map.yaml to map files -> domains)
 - Extract documented conventions, patterns, and requirements (FR-NNN entries)
 Report: list of project conventions and patterns relevant to these changes.
 ```
 
-**Subagent B – Codebase Patterns via Search:**
+**Codebase patterns:**
 
 ```
 Search the codebase for established patterns related to the changes.
-For each changed function/component, search for similar implementations:
-  Search for function signatures, class names, and patterns from the diff
-  Find files with similar naming conventions
+When conventions are unclear, search for representative implementations related to the change.
+Reuse patterns already established in this review rather than repeating discovery for every function.
 Identify: how does the rest of the codebase handle similar things?
 Report: established patterns, common approaches, naming conventions observed.
 ```
 
-**Subagent C – Local Context & Config:**
+**Local context and configuration:**
 
 ```
 For each changed file, read:
-- The full file (to see surrounding code context)
-- Import targets (what does this file import? read those files' signatures)
+- Changed bodies and surrounding context needed to understand them
+- Connected callers and dependencies needed to assess responsibilities, interface costs, and plausible failures
+- Expand to full files or wider paths when findings justify it
 - Config that governs this area (linter rules, compiler config, etc.)
 Report: local conventions, related code patterns, existing abstractions nearby.
 ```
 
-Synthesize the three reports into a **convention profile** – the set of expectations
-review subagents measure changes against.
+Synthesize findings into a convention profile for the review.
 
 ## Step 3: REVIEW – Analyze changes (parallel)
 
-Launch **3 parallel review subagents**, each examining a different quality dimension.
-Every subagent receives the diff AND the convention profile from Step 2.
+Assess which dimensions below apply, then review them to the depth justified by plausible failures.
+Keep deep scrutiny for affected auth, security, resource lifecycle, concurrency, and performance paths; do not apply unrelated categories mechanically.
+Give delegated reviewers the diff and the convention profile from Step 2.
+Assess coverage against requirements instead of assuming a task-checker already assessed it.
 
-**Subagent 1 – Hardcodes & SSOT:**
+**Hardcodes and single source of truth:**
 
 ```
 Examine the diff for:
@@ -132,23 +138,29 @@ For each finding, report:
   FILE:LINE | SEVERITY (MUST/SHOULD/CONSIDER) | WHAT | WHY | SUGGESTED FIX
 ```
 
-**Subagent 2 – Scalability & Readability:**
+**Scalability and readability:**
 
 ```
 Examine the diff for:
-- Functions > 40 lines or > 3 levels of nesting
-- God functions doing too many things
-- Unclear variable/function names
-- Missing or premature abstractions
+- Tangled control flow, repeated decisions, or mixed responsibilities, with concrete evidence of the complexity
+- Incoherent boundaries or peer components at mismatched abstraction levels
+- Interfaces that expose internals instead of hiding real complexity behind small, useful operations (deep modules)
+- Names that misrepresent meaning, or structure driven by folder layout rather than responsibility
+- Missing useful boundaries or pass-through layers that add no useful boundary
 - Complex conditionals that could be simplified
 - Code that would be hard for a new developer to understand
-- Performance concerns (N+1 queries, unnecessary re-renders, blocking I/O)
+- Performance concerns (N+1 queries, unnecessary re-renders, blocking I/O, unbounded memory or work)
+- Resource lifecycle failures (leaked handles, listeners, subscriptions, or tasks; missing cleanup or cancellation)
+
+Do not require nesting or wrappers; neither line count nor indirection measures design quality.
+Support design findings with effects on connected callers and dependencies.
+Ask whether callers need fewer facts, each rule has one owner, and the interface hides complexity rather than relocating it.
 
 For each finding, report:
   FILE:LINE | SEVERITY (MUST/SHOULD/CONSIDER) | WHAT | WHY | SUGGESTED FIX
 ```
 
-**Subagent 3 – Edge Cases & Robustness:**
+**Edge cases and failure handling:**
 
 ```
 Examine the diff for:
@@ -174,51 +186,44 @@ Run the lint on the changed Markdown files, and on nothing else. Skip the comman
 
 The lint exits 0 even when it reports findings. It groups findings by file with line numbers, then prints a summary per file. It skips `skills/writing/vocabulary.md` on purpose.
 
-Add each finding to the review as `SHOULD | PROSE`, at the `file:line` it names. The writing standard is a project convention, so it sits at the same severity as other convention drift.
+Review each warning in context before treating it as a defect. Preserve necessary technical terms, quotations, and wording that would lose accuracy if changed. Report confirmed clarity or convention problems as `SHOULD | PROSE`, with the `file:line` and their effect on the reader.
 
-## Step 4: ADJACENT – Check surrounding code for rot
+## Step 4: ADJACENT – Report cleanup as advisory
 
-For each file with findings from Step 3, launch a **read-only codebase-search subagent**.
-Use up to 3 subagents in parallel.
-Each subagent examines the rest of that file and its immediate imports for the same categories of issue.
+Note closely related cleanup encountered while reviewing connected code. Do not launch
+an extra scan of whole files and imports solely to find more work.
 
-```
-File [path] has these issues in the changed code: [summary].
-Read the FULL file and its direct imports.
-Find any OTHER instances of the same categories of problem in this file
-or closely related files – even if they weren't part of this commit's changes.
-These are "while we're here" cleanup opportunities.
+Report as: `ADVISORY | ADJACENT | FILE:LINE | WHAT | WHY | SUGGESTED FIX`.
+Keep these suggestions separate from delivery-blocking findings. Neither review mode
+authorizes adjacent edits by default, including `--auto-fix`.
 
-Report as: ADJACENT | FILE:LINE | WHAT | WHY | SUGGESTED FIX
-```
+If cleanup is worth doing, ask the user whether to add it to scope. Approved work may
+run in parallel on non-overlapping files or isolated worktrees; do not make it a
+dependency of the main change. Never run conflicting writers in the same checkout.
 
-Only flag adjacent issues that are **closely related** to the current changes (same file,
-same module, or same pattern). Stay narrowly scoped.
+A defect that prevents requested behavior or exposes a consequential risk is not
+merely cleanup. Classify it by impact and fix it within scope or report the blocker.
 
 ## Step 5: REPORT – Synthesize findings
 
-Merge all subagent findings. Deduplicate. Sort by:
+Deduplicate in-scope findings and sort by:
 
 1. MUST FIX (correctness, security, will-break-in-prod)
 2. SHOULD FIX (convention violations, readability, maintainability)
-3. CONSIDER (style preferences, minor improvements, adjacent rot)
+3. CONSIDER (style preferences, minor improvements)
 
-For each finding, make sure it has:
+Keep adjacent suggestions in a separate advisory list using Step 4's format.
+For each in-scope finding, make sure it has:
 
 - `file:line` reference
-- Category tag (HARDCODE, SSOT, SCALABILITY, READABILITY, EDGE-CASE, PROSE, ADJACENT)
+- Category tag (HARDCODE, SSOT, SCALABILITY, READABILITY, EDGE-CASE, PROSE)
 - Severity (MUST / SHOULD / CONSIDER)
 - Clear 1-sentence description of the problem
 - Why it matters (1 sentence)
 - Suggested fix (concrete, actionable – code snippet or approach)
 
-If any finding needs deeper analysis to determine the right fix, launch a **planning subagent**:
-
-```
-This code has [problem]. The file is [path]. Here's the surrounding context: [context].
-Think through 2-3 possible fixes, evaluate trade-offs, and recommend the best approach.
-Consider: does a fix here require changes in other files? What's the minimal change?
-```
+For deeper analysis, investigate directly or delegate the problem, file, and context.
+Compare useful alternatives and recommend the smallest complete fix, including affected callers.
 
 ## Step 6: FIX – Auto-fix or interactive waves
 
@@ -231,13 +236,13 @@ Consider: does a fix here require changes in other files? What's the minimal cha
 | -------- | ------------------------------------------------------ | ------------------------------------------------------------------ |
 | MUST     | Will cause bugs, security issues, or prod failures     | Hardcoded secrets, unhandled null on critical path, race condition |
 | SHOULD   | Violates conventions, hurts maintainability, tech debt | SSOT violations, unclear naming, missing error handling on I/O     |
-| CONSIDER | Improvement opportunity, not urgent                    | Adjacent rot, minor style, could-be-cleaner patterns               |
+| CONSIDER | In-scope improvement opportunity, not urgent           | Minor style, could-be-cleaner patterns                            |
 
-## What this skill does not check
+## Review responsibilities and tool checks
 
 - **Formatting/style** – linters and formatters handle this
 - **Type errors** – typecheckers handle this
-- **Test coverage** – task-checker handles this
+- Assess test adequacy under the shared Implementation discipline, even when no task-checker ran
 - **UI rendering** – frontend-verify handles this
 - **Security scanning** – dedicated security tools handle credentials in committed code
 

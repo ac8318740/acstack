@@ -20,7 +20,12 @@ set -uo pipefail
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]:-$0}")" && pwd)"
 
-CFG="${ACSTACK_TW_CONFIG:-$HOME/.config/acstack/terminal-workspace.yaml}"
+# ACStack's machine-wide root. An empty ACSTACK_HOME counts as unset.
+ACSTACK_ROOT="${ACSTACK_HOME:-$HOME/.acstack}"
+CFG="${ACSTACK_TW_CONFIG:-$ACSTACK_ROOT/terminal-workspace.yaml}"
+# The old home is never read, only named, so a move is one command away.
+[ ! -e "$CFG" ] && [ -e "$HOME/.config/acstack/terminal-workspace.yaml" ] \
+  && echo "acstack: config is still at ~/.config/acstack; run ~/.claude/acstack/bin/acstack project-data migrate" >&2
 BIN="${ACSTACK_TW_BIN:-$HOME/.local/bin}"
 # Everything installs into $BIN, and the config steps then ask `have <tool>`
 # whether it worked. On a fresh machine $BIN is not on PATH yet, so without
@@ -41,6 +46,7 @@ END="# <<< acstack terminal-workspace <<<"
 PI_DIR="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}"
 PI_SETTINGS="$PI_DIR/settings.json"
 PI_KEYBINDINGS="$PI_DIR/keybindings.json"
+PI_QUESTION_BRIDGE="$PI_DIR/extensions/acstack-question-blocked.ts"
 PI_SUBAGENT_CFG="$PI_DIR/extensions/subagent/config.json"
 # agentic-retro install-pi picks its own directory, from $PI_HOME rather than
 # pi's override, so look where it writes.

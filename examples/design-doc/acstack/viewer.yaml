@@ -1,0 +1,13 @@
+id: viewer
+name: Browser review interface
+summary: >-
+  Receives the prepared design graph and syncs comments with the local server.
+kind: component
+parent: cli
+channels: [web]
+relationships:
+  - id: review-session
+    from: review-runtime
+    to: viewer
+    direction: bidirectional
+    label: Exchanges the design and comments with

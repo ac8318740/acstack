@@ -33,7 +33,7 @@ import {
 } from '../lib/impeccable.js';
 import { DESIGN_REVIEW_KEY, projectKeyDefaultFlag } from '../lib/project-config.js';
 import { findProjectRoot } from '../lib/project.js';
-import { readYaml } from '../lib/utils.js';
+import { fail, readYaml } from '../lib/utils.js';
 
 /**
  * Why the gate is off, in the order a user fixes them: the project key is
@@ -121,7 +121,8 @@ function impeccableJson(impeccable: InstalledPlugin | null): ImpeccableJson | nu
  * plugin version would bury them.
  */
 function runDesignGate(json: boolean): void {
-  const root = findProjectRoot();
+  let root: string | null = null;
+  try { root = findProjectRoot(); } catch (error) { fail((error as Error).message); }
   const impeccable = findInstalledPlugin(IMPECCABLE_PLUGIN);
   const reasons = offReasons(root, impeccable);
   const on = reasons.length === 0;

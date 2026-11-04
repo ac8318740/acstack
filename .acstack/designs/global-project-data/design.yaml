@@ -1,0 +1,62 @@
+id: global-project-data
+name: Global ACStack project data
+summary: Move ACStack settings, caches, and every project's records into one machine-wide root, ~/.acstack/,
+  with an opt-in tracked mode that keeps a project's records in its repository.
+detail: journey.md
+elements:
+- developer.yaml
+- coding-agent.yaml
+- skills.yaml
+- cli.yaml
+- locator.yaml
+- settings.yaml
+- project-data-cmd.yaml
+- git.yaml
+- global-root.yaml
+- global-settings.yaml
+- project-folders.yaml
+- tracked-data.yaml
+- legacy.yaml
+concerns:
+- id: explicit-migration
+  name: Explicit migration
+  elements:
+  - project-data-cmd
+  - legacy
+  - project-folders
+  - global-settings
+  requirement: No data moves without the developer asking, and no move overwrites existing data.
+  response: Only project-data migrate moves legacy data. It preflights every move, aborts on any collision,
+    and leaves the old paths untouched until all moves succeed. ACStack warns once when legacy data exists
+    and names the command.
+- id: worktree-sharing
+  name: One project across worktrees
+  elements:
+  - locator
+  - git
+  - project-folders
+  - tracked-data
+  requirement: Every worktree of a repository must see the same records, wherever the worktree sits on
+    disk.
+  response: The project key comes from the shared git folder, which every worktree reports identically.
+    In tracked mode the link always targets the main checkout, the parent of that shared folder, so a
+    feature branch's own .acstack/ copy takes effect once it reaches the main checkout.
+- id: readable-breadcrumbs
+  name: Readable breadcrumbs
+  elements:
+  - project-folders
+  - tracked-data
+  - locator
+  requirement: ls -l ~/.acstack/projects/ must show every project and where its data lives.
+  response: Keys combine the repo name with a short hash. Global entries are real folders recording their
+    repo path; tracked entries are links whose target is the repo. A missing target or recorded path marks
+    an orphan that relink can repair.
+- id: single-override
+  name: One override for the root
+  elements:
+  - locator
+  - settings
+  - global-settings
+  requirement: Tests and unusual setups must point ACStack at another root without touching the real one.
+  response: ACSTACK_HOME replaces ~/.acstack for every reader, and the XDG variables no longer affect
+    ACStack paths. Tests switch from XDG_CONFIG_HOME to ACSTACK_HOME.

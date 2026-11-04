@@ -65,7 +65,7 @@ managed = set()
 if from_fork == "true":
     block += [
         "# These two keys exist only in the fork build. See the tuicr section",
-        "# of ~/.config/acstack/terminal-workspace.yaml.",
+        "# of ~/.acstack/terminal-workspace.yaml.",
         f"show_file_line_stats = {stats}",
         f"file_list_width = {width}",
         "# A local build must not be replaced by a stock release.",
@@ -81,7 +81,7 @@ else:
 # terminal. Pinning the value sidesteps the whole detection path.
 if appearance:
     block += ["# Pinned rather than detected. See the tuicr section of",
-              "# ~/.config/acstack/terminal-workspace.yaml.",
+              "# ~/.acstack/terminal-workspace.yaml.",
               f'appearance = "{appearance}"']
     managed.add("appearance")
 block.append(end)

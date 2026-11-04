@@ -76,15 +76,14 @@ export interface ParsedVocabulary {
   warnings: VocabularyWarning[];
 }
 
-// The caps come from skills/writing/SKILL.md rule 1 (cap a descriptive
-// sentence at 25 words, and an instruction at 20) and rule 4 (break a
-// paragraph at three sentences). Change them there first, then here.
+// Historical length thresholds prompt review; they are not correctness limits.
+// See skills/writing/SKILL.md for how to interpret heuristic warnings.
 
-/** skills/writing/SKILL.md rule 1: the cap on a descriptive sentence. */
+/** Review threshold for a descriptive sentence. */
 const SENTENCE_LIMIT_PROSE = 25;
-/** skills/writing/SKILL.md rule 1: the cap on an instruction, an ordered list item. */
+/** Review threshold for an ordered list item, treated as an instruction. */
 const SENTENCE_LIMIT_INSTRUCTION = 20;
-/** skills/writing/SKILL.md rule 4: the cap on a paragraph. */
+/** Review threshold for a paragraph. */
 const PARAGRAPH_LIMIT = 3;
 
 /** The number of columns every vocabulary table row must have. */
@@ -698,7 +697,7 @@ function checkPassive(line: CheckLine): Finding[] {
       line: line.line,
       column: columnAt(text, match.index),
       rule: 'passive-voice',
-      message: `Passive voice: "${match[0].trim()}". Name who does it.`,
+      message: `Possible passive voice: "${match[0].trim()}"; review whether naming the actor helps.`,
     });
   }
 
@@ -846,7 +845,7 @@ function checkParagraph(paragraph: CheckLine[]): Finding[] {
       line: sentence.line,
       column: 1,
       rule: 'sentence-length',
-      message: `Sentence runs ${sentence.words} words, over the ${limit}-word limit for ${where}.`,
+      message: `Sentence runs ${sentence.words} words, above the ${limit}-word review threshold for ${where}; keep it if clearer.`,
     });
   }
 
@@ -855,7 +854,7 @@ function checkParagraph(paragraph: CheckLine[]): Finding[] {
       line: paragraph[0].line,
       column: 1,
       rule: 'paragraph-length',
-      message: `Paragraph runs ${sentences.length} sentences, over the ${PARAGRAPH_LIMIT}-sentence limit.`,
+      message: `Paragraph runs ${sentences.length} sentences, above the ${PARAGRAPH_LIMIT}-sentence review threshold; split only if clearer.`,
     });
   }
 

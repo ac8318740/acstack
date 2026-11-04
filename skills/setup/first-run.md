@@ -1,9 +1,9 @@
 # Setup: first run
 
-`SKILL.md` decides when to read this file: Step 2 found no `acstack/project.yaml`, so the first-run path runs Steps 3 to 6 from here.
+`SKILL.md` decides when to read this file: Step 2 found no `project.yaml` in the project folder, so the first-run path runs Steps 3 to 6 from here.
 
-The file keeps its schema on both paths, so nothing migrates. `docs/config-reference.md`
-lists every key it can hold.
+First-run setup does not migrate legacy records; use the procedure in `docs/config-reference.md`.
+That reference also lists every configuration key.
 
 ## Step 3: Detect the project type and propose defaults
 
@@ -18,7 +18,7 @@ Profile:      [detected]
 Directories:  src/, tests/
 Commands:     [from profile]
 Frontend:     [if applicable]
-Workflow:     strict TDD, strict orchestrator, spec sync on, grilling via question tool
+Workflow:     adaptive verification, spec sync on, grilling via question tool
 ```
 
 ## Step 4: Ask what to customise
@@ -46,8 +46,6 @@ numbered list. It holds two questions in one call:
       "multiSelect": true,
       "options": [
         {"label": "Grilling", "description": "How grilling asks its questions – a question tool (default) or plain prose"},
-        {"label": "TDD strictness", "description": "Relaxed writes the tests after the code; all three phases still run"},
-        {"label": "Orchestrator", "description": "Allow direct code work instead of subagent delegation"},
         {"label": "Spec sync", "description": "Disable automatic spec sync on commit"}
       ]
     }
@@ -71,17 +69,10 @@ user did not select.
 - **Grilling** – ask `tool`, the host's question tool, against `inline` prose.
   Recommend `tool`. It writes `workflow.grilling.questions`.
 
-- **TDD strictness** – ask strict against relaxed, and write
-  `workflow.tdd.strict`.
+- Apply the shared Implementation discipline in `orchestrator/AGENTS.md` without adding workflow switches
+- Do not offer or generate the deprecated TDD booleans or retired `workflow.alignment_packs` settings
 
-    Strict runs the test-writer first, so the tests exist before the code.
-    Relaxed runs the task-executor first and the test-writer after it. Relaxed
-    drops no phase, and all three agents run under both.
 
-    Recommend strict, because the relaxed test-writer works beside an
-    implementation it must not read.
-
-- **Orchestrator** – ask strict against relaxed.
 - **Spec sync** – ask enabled against disabled.
 - **Python venv** – ask the activation command. Ask it only for a Python profile.
 
@@ -90,12 +81,21 @@ paths reach Step 10 through the health check.
 
 ## Step 6: Write the config
 
-1. Create the `acstack/` directory.
-2. Write `acstack/project.yaml` from the profile and the answers.
-3. Leave the project CLAUDE.md alone. The SessionStart hook loads the
+1. Create the project folder:
+
+    ```bash
+    mkdir -p "$(~/.claude/acstack/bin/acstack project-data path)"
+    ```
+
+2. Write `<project folder>/project.yaml` from the profile and the answers.
+3. Ask where the project's records should live, with a structured question.
+    - **Outside the repository (Recommended)** – global mode, the default. The repository holds no ACStack files and needs no `.gitignore` rules
+    - **Committed with the repository** – tracked mode. Run `~/.claude/acstack/bin/acstack project-data mode tracked`, then tell the user to commit `.acstack/` from the main checkout
+    - Never stage or commit `.acstack/` yourself
+4. Leave the project CLAUDE.md alone. The SessionStart hook loads the
    orchestrator instructions.
 
-4. Remove a legacy `@import` line from the project CLAUDE.md, if one is there.
+5. Remove a legacy `@import` line from the project CLAUDE.md, if one is there.
    It points at `.../plugins/cache/ac8318740-plugins/acstack/<version>/CLAUDE.md`.
 
 Then go to Step 7. Everything a fresh project still lacks shows up there as a

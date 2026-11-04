@@ -1,0 +1,18 @@
+id: launcher-signals
+name: Launcher signals
+summary: >-
+  What each harness and launcher already exposes about who started a
+  session: hook payload fields, environment variables, and Pi session
+  headers. ACStack reads these; it adds no marker of its own.
+kind: external-system
+relationships:
+  - id: carries-signal
+    from: non-main-agent
+    to: launcher-signals
+    direction: one-way
+    label: Is marked by
+  - id: policy-signals
+    from: read-policy
+    to: launcher-signals
+    direction: one-way
+    label: Decides main or not from

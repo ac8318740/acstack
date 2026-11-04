@@ -25,6 +25,9 @@ done
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+# Every helper roots its files at $ACSTACK_HOME, so one set by the caller would
+# point a test at the real machine-wide folder.
+unset ACSTACK_HOME
 
 pass=0
 fail=0
@@ -93,10 +96,10 @@ if [ "$setup_lines" -le 300 ]; then ok "setup.sh is a short entry file"
 else no "setup.sh is a short entry file (lines: $setup_lines)"; fi
 
 SOURCEWORK="$WORK/source-guard"
-mkdir -p "$SOURCEWORK/home/.config/acstack" "$SOURCEWORK/bin"
+mkdir -p "$SOURCEWORK/home/.acstack" "$SOURCEWORK/bin"
 source_output=$(env \
   HOME="$SOURCEWORK/home" \
-  ACSTACK_TW_CONFIG="$SOURCEWORK/home/.config/acstack/terminal-workspace.yaml" \
+  ACSTACK_TW_CONFIG="$SOURCEWORK/home/.acstack/terminal-workspace.yaml" \
   ACSTACK_TW_BIN="$SOURCEWORK/bin" \
   ACSTACK_TW_NO_MAIN=1 \
   bash -c '. "$1"; command -v write_helpers >/dev/null' sh "$SETUP" 2>&1)
@@ -1895,6 +1898,9 @@ SO
 cat > "$BRBIN/agent-browser" <<'AB'
 #!/bin/sh
 echo "agent-browser $*" >> "$ACSTACK_TEST_LOG"
+if [ "${1:-}" = "--config" ]; then
+  [ -f "${2:-}" ] || { echo "config file not found: ${2:-}" >&2; exit 64; }
+fi
 # The real listing marks the active tab with an arrow and indents the rest.
 # Which line carries the arrow is the whole point: switching to the wrong index
 # raises somebody else's tab.
@@ -1926,15 +1932,26 @@ chmod +x "$BRBIN/acstack-open" "$BRBIN/agent-browser"
 br_log="$WORK/browser.log"
 br_push="$WORK/browser.push"
 rm -f "$br_log" "$br_push"
-PATH="$BRBIN:$PATH" ACSTACK_TEST_ROUTE=bridge ACSTACK_TEST_LOG="$br_log" \
+browser_project="$WORK/browser-project"
+mkdir -p "$browser_project/.acstack" "$browser_project/nested"
+printf '{}\n' > "$browser_project/.acstack/agent-browser.json"
+printf '{"shadow":true}\n' > "$browser_project/agent-browser.json"
+(cd "$browser_project/nested" && PATH="$BRBIN:$PATH" ACSTACK_TEST_ROUTE=bridge ACSTACK_TEST_LOG="$br_log" \
   ACSTACK_TEST_PUSH="$br_push" timeout 30 "$MD" --browser "$WORK/html.md" \
-  </dev/null >/dev/null 2>&1
+  </dev/null >/dev/null 2>&1)
 br_rc=$?
 
 if [ "$br_rc" -eq 0 ] && grep -q 'agent-browser.*eval' "$br_log" 2>/dev/null; then
   okr "--browser hands the page to agent-browser on the bridge route"
 else
   nor "--browser hands the page to agent-browser on the bridge route (rc=$br_rc)"
+fi
+
+if grep -q '^agent-browser ' "$br_log" \
+   && ! grep '^agent-browser ' "$br_log" | grep -Fv -- "--config $browser_project/.acstack/agent-browser.json " >/dev/null; then
+  okr "every browser document command uses the absolute project config"
+else
+  nor "every browser document command uses the absolute project config"
 fi
 
 # The payload has to be the rendered document, not the markdown and not a
@@ -2328,6 +2345,39 @@ then
 else
   no "a fresh keymap.toml binds b to the browser on the hovered file"
 fi
+
+if python3 - "$WORK/km-fresh.toml" "$KEYMAP" <<'PYFROG'
+import os, pathlib, shlex, subprocess, sys, tempfile, tomllib
+config = tomllib.load(open(sys.argv[1], "rb"))["mgr"]["prepend_keymap"]
+binding = next(b for b in config if b["on"] == "i")
+assert next(b for b in config if b["on"] == "e")["run"] == 'shell --block -- ${EDITOR:-vi} %h'
+command = binding["run"].removeprefix("shell --block -- ")
+assert command != binding["run"], "Frogmouth must block Yazi"
+with tempfile.TemporaryDirectory() as tmp:
+    root = pathlib.Path(tmp)
+    stub = root / "frogmouth"
+    stub.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$FROG_ARGS"\n')
+    stub.chmod(0o755)
+    output = root / "args"
+    env = dict(os.environ, PATH=tmp + ":" + os.environ["PATH"], FROG_ARGS=str(output))
+    for name in ("read me.md", "NOTES.MARKDOWN", "quote';$.md"):
+        subprocess.run(["sh", "-c", command.replace("%h", shlex.quote(name))], env=env, check=True)
+        assert output.read_text().splitlines() == ["--", name]
+    output.unlink()
+    subprocess.run(["sh", "-c", command.replace("%h", shlex.quote("image.png"))], env=env, check=True)
+    assert not output.exists(), "Non-Markdown files must not open in Frogmouth"
+    for on in ('"i"', '["i", "x"]'):
+        custom = root / "keymap.toml"
+        original = f'[[mgr.prepend_keymap]]\non = {on}\nrun = "plugin mine"\n'
+        custom.write_text(original)
+        subprocess.run([sys.executable, sys.argv[2], str(custom)], check=True,
+                       env=dict(os.environ, ACSTACK_ARGS="b|#|D||e|# >>> acstack terminal-workspace >>>|# <<< acstack terminal-workspace <<<"))
+        data = tomllib.loads(custom.read_text())["mgr"]["prepend_keymap"]
+        assert not any("frogmouth" in str(b.get("run")) for b in data), "Existing i binding must survive"
+        assert any(b["run"] == "plugin mine" for b in data)
+PYFROG
+then ok "i opens only Markdown in Frogmouth, quotes paths, and preserves custom bindings"
+else no "i opens only Markdown in Frogmouth, quotes paths, and preserves custom bindings"; fi
 
 # The line-numbers key is two actions, not one: flipping the flag changes
 # nothing a reader can see until the pane is drawn again.
@@ -2794,13 +2844,13 @@ echo "the opener route"
 # the route is decided by asking it - never by finding a token on disk - and
 # that a document handed over is only called delivered when the opener says so.
 OWORK="$WORK/opener"
-mkdir -p "$OWORK/bin" "$OWORK/home/.config/acstack"
+mkdir -p "$OWORK/bin" "$OWORK/home/.acstack"
 cp "$(extract acstack-open)" "$OWORK/bin/acstack-open"
 cp "$(extract acstack-clip)" "$OWORK/bin/acstack-clip"
 cp "$(extract acstack-md)"   "$OWORK/bin/acstack-md"
 cp "$WORK/acstack-md-lib"     "$OWORK/bin/acstack-md-lib"
 chmod +x "$OWORK/bin"/*
-OTOKEN="$OWORK/home/.config/acstack/opener.token"
+OTOKEN="$OWORK/home/.acstack/opener.token"
 
 # A stand-in for the opener that speaks the same protocol and writes down what
 # it was asked to do. $OWORK/mode steers the answer, because "opened a tab",
@@ -2905,6 +2955,34 @@ opener_down() {
 }
 obare() { env -i PATH="$OWORK/bin:/usr/bin:/bin" HOME="$OWORK/home" "$@"; }
 
+# The token lives in ACStack's root: $ACSTACK_HOME when set, ~/.acstack when it
+# is unset or empty. The old ~/.config/acstack copy is never read, only named.
+cp "$(extract acstack-bridge)" "$OWORK/bin/acstack-bridge"
+chmod +x "$OWORK/bin/acstack-bridge"
+rstat() { obare env ACSTACK_BRIDGE_URL=http://127.0.0.1:1 ACSTACK_OPENER_URL=http://127.0.0.1:1 "$@" acstack-bridge status 2>&1; }
+root_out=$(rstat ACSTACK_HOME="$OWORK/alt")
+case "$root_out" in
+  *"no token at $OWORK/alt/opener.token"*) ok "ACSTACK_HOME moves the opener token" ;;
+  *) no "ACSTACK_HOME moves the opener token ($root_out)" ;;
+esac
+root_out=$(rstat ACSTACK_HOME=)
+case "$root_out" in
+  *"no token at $OWORK/home/.acstack/opener.token"*) ok "an empty ACSTACK_HOME means ~/.acstack" ;;
+  *) no "an empty ACSTACK_HOME means ~/.acstack ($root_out)" ;;
+esac
+case "$root_out" in
+  *"project-data migrate"*) no "the migrate hint stays quiet with no old token" ;;
+  *) ok "the migrate hint stays quiet with no old token" ;;
+esac
+mkdir -p "$OWORK/home/.config/acstack"
+printf 'old-token' > "$OWORK/home/.config/acstack/opener.token"
+root_out=$(rstat)
+case "$root_out" in
+  *"no token at"*"project-data migrate"*) ok "an old token is named, not used" ;;
+  *) no "an old token is named, not used ($root_out)" ;;
+esac
+rm -rf "$OWORK/home/.config"
+
 # A token on disk is not a service that is up. With nothing listening, the
 # route must fall through rather than be taken on the strength of a file.
 printf 'test-token-0123456789' > "$OTOKEN"
@@ -2951,7 +3029,7 @@ fi
 # Both reachable at once is the interesting case: the bridge drives a browser
 # for an agent and needs a tab armed by hand, the opener reaches the browser
 # the user actually uses. The opener wins.
-printf '#!/bin/sh\nexit 0\n' > "$OWORK/bin/agent-browser"
+cp "$BRBIN/agent-browser" "$OWORK/bin/agent-browser"
 chmod +x "$OWORK/bin/agent-browser"
 relay_up '[{"id":"1","type":"page","url":"https://example.com"}]'
 if [ "$(obare env ACSTACK_OPENER_URL="$OURL" ACSTACK_BRIDGE_URL="$BURL" acstack-open --why 2>/dev/null)" = "opener" ]; then
@@ -2959,6 +3037,39 @@ if [ "$(obare env ACSTACK_OPENER_URL="$OURL" ACSTACK_BRIDGE_URL="$BURL" acstack-
 else
   no "with both reachable the opener outranks the bridge"
 fi
+git init -q "$browser_project"
+open_browser_log="$OWORK/browser.log"
+(cd "$browser_project/nested" && obare env ACSTACK_OPENER_URL="$OURL" ACSTACK_OPEN_OPENER=off ACSTACK_BRIDGE_URL="$BURL" \
+  ACSTACK_TEST_LOG="$open_browser_log" acstack-open "https://example.com/config" >/dev/null 2>&1)
+if [ "$(wc -l < "$open_browser_log")" -eq 2 ] \
+   && ! grep -Fv -- "--config $browser_project/.acstack/agent-browser.json --cdp $BURL " "$open_browser_log" >/dev/null; then
+  ok "every URL browser command uses the absolute project config"
+else
+  no "every URL browser command uses the absolute project config"
+fi
+# No optional browser config: both real helpers still use the healthy stub relay.
+plain_browser_project="$OWORK/plain-project"
+mkdir -p "$plain_browser_project/nested"
+git init -q "$plain_browser_project"
+for helper in acstack-open acstack-md; do
+  : > "$open_browser_log"
+  if [ "$helper" = acstack-open ]; then
+    browser_args=("https://example.com/no-config")
+  else
+    browser_args=(--browser "$WORK/html.md")
+  fi
+  (cd "$plain_browser_project/nested" && obare env ACSTACK_OPEN_OPENER=off ACSTACK_BRIDGE_URL="$BURL" \
+    ACSTACK_TEST_LOG="$open_browser_log" ACSTACK_TEST_PUSH="$br_push" \
+    "$helper" "${browser_args[@]}" </dev/null >/dev/null 2>&1)
+  browser_rc=$?
+  if [ "$browser_rc" -eq 0 ] && [ -s "$open_browser_log" ] \
+     && ! grep -q -- '--config' "$open_browser_log" \
+     && ! grep -Fv -- "--cdp $BURL " "$open_browser_log" >/dev/null; then
+    ok "$helper opens through a healthy bridge without an optional config"
+  else
+    no "$helper opens through a healthy bridge without an optional config (rc=$browser_rc)"
+  fi
+done
 kill "$RELAY_PID" 2>/dev/null; wait "$RELAY_PID" 2>/dev/null
 rm -f "$WORK/relay.port" "$OWORK/bin/agent-browser"
 
@@ -3021,8 +3132,8 @@ else
   no "--browser keys the document by its absolute path, hex-encoded"
 fi
 
-# Serving would leave a port behind on a machine whose ports nobody can reach.
-if ! pgrep -f 'acstack-md-serve' >/dev/null 2>&1; then
+# Check this fixture; another terminal may already have a preview open.
+if ! pgrep -f "acstack-md-serve.*$OWORK/doc.md" >/dev/null 2>&1; then
   ok "--browser on the opener route leaves no server behind"
 else
   no "--browser on the opener route leaves no server behind"
@@ -3047,8 +3158,8 @@ fi
 rm -f "$OWORK/mode"
 
 # Vendored mermaid goes up once, so a diagram draws without reaching a CDN.
-mkdir -p "$OWORK/home/.local/share/acstack"
-printf 'pretend-this-is-mermaid' > "$OWORK/home/.local/share/acstack/mermaid.min.js"
+mkdir -p "$OWORK/home/.acstack/cache"
+printf 'pretend-this-is-mermaid' > "$OWORK/home/.acstack/cache/mermaid.min.js"
 obare env ACSTACK_OPENER_URL="$OURL" acstack-md --browser "$OWORK/doc.md" >/dev/null 2>&1
 if grep -q '^mermaid ' "$OWORK/opener.log"; then
   ok "the vendored mermaid is uploaded to an opener that has none"
@@ -3426,17 +3537,17 @@ echo "the neovim unsaved-changes dot and OSC 52 copy"
 # reaches the network. HOME, $BIN, the config and git's global config all
 # point inside $WORK, because apply writes files and uninstall deletes them.
 NWORK="$WORK/nvim-run"
-mkdir -p "$NWORK/home/.local/bin" "$NWORK/home/.config/acstack" \
+mkdir -p "$NWORK/home/.local/bin" "$NWORK/home/.acstack" \
          "$NWORK/home/.config/nvim/lua/config" "$NWORK/home/.config/nvim/lua/plugins"
 NPLUG="$NWORK/home/.config/nvim/lua/plugins/acstack.lua"
 nw() {
   env HOME="$NWORK/home" \
       ACSTACK_TW_BIN="$NWORK/home/.local/bin" \
-      ACSTACK_TW_CONFIG="$NWORK/home/.config/acstack/terminal-workspace.yaml" \
+      ACSTACK_TW_CONFIG="$NWORK/home/.acstack/terminal-workspace.yaml" \
       GIT_CONFIG_GLOBAL="$NWORK/gitconfig" \
       bash "$SETUP" "$@" 2>&1
 }
-cat > "$NWORK/home/.config/acstack/terminal-workspace.yaml" <<'NCFG'
+cat > "$NWORK/home/.acstack/terminal-workspace.yaml" <<'NCFG'
 enabled: true
 herdr: {enabled: false}
 gh_dash: {enabled: false}
@@ -3510,7 +3621,7 @@ fi
 
 # The colour is a config key rather than a constant, because the dot has to
 # match whatever theme the user runs.
-python3 - "$NWORK/home/.config/acstack/terminal-workspace.yaml" <<'PYCOL'
+python3 - "$NWORK/home/.acstack/terminal-workspace.yaml" <<'PYCOL'
 import sys, yaml
 p = sys.argv[1]
 c = yaml.safe_load(open(p))
@@ -3676,7 +3787,7 @@ else
 fi
 rm -f "$NWORK/home/.config/nvim/lua/config/options.lua"
 
-python3 - "$NWORK/home/.config/acstack/terminal-workspace.yaml" <<'PYCLIP'
+python3 - "$NWORK/home/.acstack/terminal-workspace.yaml" <<'PYCLIP'
 import sys, yaml
 p = sys.argv[1]
 c = yaml.safe_load(open(p))
@@ -3705,17 +3816,17 @@ echo "disable answers for every component"
 # and unsets git settings, and a leak here would edit the machine running the
 # suite.
 UWORK="$WORK/tw-run"
-mkdir -p "$UWORK/home/.local/bin" "$UWORK/home/.config/acstack"
+mkdir -p "$UWORK/home/.local/bin" "$UWORK/home/.acstack"
 tw() {
   env HOME="$UWORK/home" \
       ACSTACK_TW_BIN="$UWORK/home/.local/bin" \
-      ACSTACK_TW_CONFIG="$UWORK/home/.config/acstack/terminal-workspace.yaml" \
+      ACSTACK_TW_CONFIG="$UWORK/home/.acstack/terminal-workspace.yaml" \
       GIT_CONFIG_GLOBAL="$UWORK/gitconfig" \
       bash "$SETUP" "$@" 2>&1
 }
 
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$UWORK/home/.config/acstack/terminal-workspace.yaml"
+   "$UWORK/home/.acstack/terminal-workspace.yaml"
 
 # The three components with no branch. Turning one of these off is a config
 # edit, so the only useful answer is to refuse and say which edit to make.
@@ -3762,17 +3873,17 @@ echo "outdated reports what a machine is missing"
 # covered by the table check below rather than by a live call, because a
 # passing suite must not depend on GitHub being up.
 OWORK="$WORK/tw-outdated"
-mkdir -p "$OWORK/home/.config/acstack" "$OWORK/home/.config/herdr"
+mkdir -p "$OWORK/home/.acstack" "$OWORK/home/.config/herdr"
 otw() {
   env HOME="$OWORK/home" \
       ACSTACK_TW_BIN="$OWORK/home/.local/bin" \
-      ACSTACK_TW_CONFIG="$OWORK/home/.config/acstack/terminal-workspace.yaml" \
+      ACSTACK_TW_CONFIG="$OWORK/home/.acstack/terminal-workspace.yaml" \
       ACSTACK_TW_OFFLINE=1 \
       bash "$SETUP" "$@" 2>&1
 }
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/acstack/terminal-workspace.yaml"
-STAMPF="$OWORK/home/.config/acstack/terminal-workspace.applied"
+   "$OWORK/home/.acstack/terminal-workspace.yaml"
+STAMPF="$OWORK/home/.acstack/terminal-workspace.applied"
 OHERDR="$OWORK/home/.config/herdr/config.toml"
 
 # No stamp and no managed block: apply has never run here at all. Listing what
@@ -3814,7 +3925,7 @@ fi
 # upgrade leaves behind. The row stays, because apply still has to install the
 # component; only the detail moves, because "not in your config" is now false.
 printf '\nharlequin:\n  enabled: true\n' \
-  >> "$OWORK/home/.config/acstack/terminal-workspace.yaml"
+  >> "$OWORK/home/.acstack/terminal-workspace.yaml"
 out=$(otw outdated); rc=$?
 if [ "$rc" = "1" ] && printf '%s' "$out" | grep -q '^new	harlequin	new component, run apply'; then
   ok "a new component that upgrade already added reads as one to install, not one to add"
@@ -3822,7 +3933,7 @@ else
   no "outdated still says harlequin is not in the config (rc=$rc, said: $(flat "$out"))"
 fi
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/acstack/terminal-workspace.yaml"
+   "$OWORK/home/.acstack/terminal-workspace.yaml"
 
 # A stamp that names every shipped component. Nothing is new, nothing is
 # reachable offline, so there is nothing to say.
@@ -3843,7 +3954,7 @@ fi
 # it with the stock binary and drop the patches it carries. outdated already
 # skips it, and naming it on upgrade has to skip it too.
 printf 'tuicr:\n  build_from_fork: true\n' \
-  > "$OWORK/home/.config/acstack/terminal-workspace.yaml"
+  > "$OWORK/home/.acstack/terminal-workspace.yaml"
 # A curl that always fails, so this check cannot reach the network even if the
 # guard it tests regresses. ACSTACK_TW_OFFLINE gates the version lookups and
 # not install_binary, which is the call a regression here would reach.
@@ -3851,11 +3962,11 @@ NOCURL="$WORK/nocurl"; mkdir -p "$NOCURL"
 printf '#!/usr/bin/env bash\nexit 1\n' > "$NOCURL/curl"; chmod +x "$NOCURL/curl"
 out=$(env HOME="$OWORK/home" \
           ACSTACK_TW_BIN="$OWORK/home/.local/bin" \
-          ACSTACK_TW_CONFIG="$OWORK/home/.config/acstack/terminal-workspace.yaml" \
+          ACSTACK_TW_CONFIG="$OWORK/home/.acstack/terminal-workspace.yaml" \
           ACSTACK_TW_OFFLINE=1 PATH="$NOCURL:$PATH" \
           bash "$SETUP" upgrade tuicr 2>&1); rc=$?
 cp "$ROOT/assets/terminal-workspace/config.example.yaml" \
-   "$OWORK/home/.config/acstack/terminal-workspace.yaml"
+   "$OWORK/home/.acstack/terminal-workspace.yaml"
 if printf '%s' "$out" | grep -q 'fork' && ! printf '%s' "$out" | grep -q 'tuicr installed'; then
   ok "upgrade refuses to overwrite a tuicr built from a fork"
 else
@@ -3877,7 +3988,7 @@ NOYSTUB
 chmod +x "$NOYAML/python3"
 out=$(env HOME="$OWORK/home" \
           ACSTACK_TW_BIN="$OWORK/home/.local/bin" \
-          ACSTACK_TW_CONFIG="$OWORK/home/.config/acstack/terminal-workspace.yaml" \
+          ACSTACK_TW_CONFIG="$OWORK/home/.acstack/terminal-workspace.yaml" \
           ACSTACK_TW_OFFLINE=1 PATH="$NOYAML:$PATH" \
           bash "$SETUP" outdated 2>&1); rc=$?
 if [ "$rc" = "2" ]; then
@@ -3925,7 +4036,7 @@ echo "acstack-db opens a profile without rewriting the user's file"
 DBHELPER="$WORK/db-helper"
 copy_helper acstack-db "$DBHELPER"
 DBH="$WORK/db-home"; DBBIN="$WORK/db-bin"
-mkdir -p "$DBH/.config/acstack" "$DBBIN"
+mkdir -p "$DBH/.acstack" "$DBBIN"
 # A stand-in for harlequin, so the launch is observable and nothing is
 # installed to make it so. Without it the helper exits before it reads a
 # profile at all, and the check below would pass on a file nothing opened.
@@ -3935,18 +4046,18 @@ printf '%s\n' "$*" > "$HOME/harlequin-argv"
 DBSTUB
 chmod +x "$DBBIN/harlequin"
 printf 'default_profile = "mine"\n\n[profiles.mine]\nadapter = "postgres"\n' \
-  > "$DBH/.config/acstack/harlequin.toml"
-before=$(cat "$DBH/.config/acstack/harlequin.toml")
+  > "$DBH/.acstack/harlequin.toml"
+before=$(cat "$DBH/.acstack/harlequin.toml")
 env HOME="$DBH" PATH="$DBBIN:$PATH" bash "$DBHELPER" >/dev/null 2>&1
-if [ "$before" = "$(cat "$DBH/.config/acstack/harlequin.toml")" ]
+if [ "$before" = "$(cat "$DBH/.acstack/harlequin.toml")" ]
 then ok "acstack-db never rewrites a profile file that already exists"
 else no "acstack-db overwrote the user's profile file"; fi
 
 # A path in the config is a path the script has to read, or the config is a
 # place a user edits a line and sees nothing happen.
 CPW="$WORK/tw-cfgpath"
-mkdir -p "$CPW/home/.config/acstack" "$CPW/home/.local/bin"
-cat > "$CPW/home/.config/acstack/terminal-workspace.yaml" <<YML
+mkdir -p "$CPW/home/.acstack" "$CPW/home/.local/bin"
+cat > "$CPW/home/.acstack/terminal-workspace.yaml" <<YML
 harlequin:
   config_path: "$CPW/home/my profiles.toml"
 YML
@@ -3955,7 +4066,7 @@ YML
 (
   export HOME="$CPW/home"
   export ACSTACK_TW_BIN="$CPW/home/.local/bin"
-  export ACSTACK_TW_CONFIG="$CPW/home/.config/acstack/terminal-workspace.yaml"
+  export ACSTACK_TW_CONFIG="$CPW/home/.acstack/terminal-workspace.yaml"
   export ACSTACK_TW_NO_MAIN=1
   # shellcheck disable=SC1090
   . "$SETUP"
@@ -4218,8 +4329,8 @@ PHOME="$PWORK/home"
 PBIN="$PWORK/bin"
 PSTUB="$PWORK/stubbin"
 PLOG="$PWORK/ran.log"
-PCFG="$PHOME/.config/acstack/terminal-workspace.yaml"
-mkdir -p "$PHOME/.config/acstack" "$PBIN" "$PSTUB" "$PWORK/cwd"
+PCFG="$PHOME/.acstack/terminal-workspace.yaml"
+mkdir -p "$PHOME/.acstack" "$PBIN" "$PSTUB" "$PWORK/cwd"
 cat > "$PCFG" <<'PCFGEOF'
 enabled: true
 herdr: {enabled: true, renumber_plugin: false}
@@ -4364,10 +4475,10 @@ IMD="$IAGENT/AGENTS.md"
 IRETRO="$IAGENT/extensions/agentic-retro.ts"
 IBILLION="$IHOME/.config/billion-context/billion-context.json"
 ILENS="$IHOME/.pi-lens/config.json"
-ICFG="$IHOME/.config/acstack/terminal-workspace.yaml"
+ICFG="$IHOME/.acstack/terminal-workspace.yaml"
 IVER=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
   "$ROOT/.claude-plugin/plugin.json")
-mkdir -p "$ISTUB" "$INPM/bin" "$IHOME/.config/acstack" "$IAGENT"
+mkdir -p "$ISTUB" "$INPM/bin" "$IHOME/.acstack" "$IAGENT"
 
 cat > "$ISTUB/pi.installed" <<'PISTUB'
 #!/usr/bin/env bash
@@ -4376,7 +4487,9 @@ S="${PI_CODING_AGENT_DIR:-$HOME/.pi/agent}/settings.json"
 case "$1" in
   --version) echo 1.1.0 ;;
   update) ;;
-  install|remove) python3 - "$S" "$1" "$2" <<'PY'
+  install|remove)
+    if [ "$1" = install ] && [ "$2" = npm:ac-teams ] && [ -e "$HOME/fail-teams-install" ]; then exit 1; fi
+    python3 - "$S" "$1" "$2" <<'PY'
 import json, os, sys
 p, op, src = sys.argv[1:]
 d = json.load(open(p)) if os.path.exists(p) else {}
@@ -4526,24 +4639,22 @@ if [ "$PI_APPLY" = "1" ]; then
     no "apply installs pi with npm when it is missing (said: $(flat "$out"))"
   fi
   pkgs=$(jget "$ISET" packages)
-  if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
+  if printf '%s' "$pkgs" | grep -qF '"npm:ac-teams"' \
+     && ! printf '%s' "$pkgs" | grep -qE 'pi-subagents|rpiv-todo' \
      && printf '%s' "$pkgs" | grep -qF "\"npm:acstack@$IVER\"" \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-compact-tools"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:billion-context"' \
-     && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-plugin-manager"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-slash-anywhere"' \
      && printf '%s' "$pkgs" | grep -qF '"npm:pi-zentui"'; then
-    ok "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui"
+    ok "apply installs ac-teams, ACStack pinned to $IVER, pi-compact-tools, billion-context, pi-plugin-manager, pi-slash-anywhere and pi-zentui without retired packages"
   else
-    no "apply installs pi-subagents, ACStack pinned to $IVER, pi-compact-tools, billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui (packages: $pkgs)"
+    no "apply installs ac-teams and supported packages without retired packages (packages: $pkgs)"
   fi
-  if printf '%s' "$out" | grep -qF 'todo tool installed' \
-     && printf '%s' "$out" | grep -qF 'hand-edit' \
-     && printf '%s' "$out" | grep -qF 'When using a todo list, keep it current as work completes.'; then
-    ok "apply suggests a user-owned Pi todo discipline instruction"
+  if ! printf '%s' "$out" | grep -qE 'todo tool installed|pi-subagents|rpiv-todo'; then
+    ok "apply does not recommend retired delegation or todo packages"
   else
-    no "apply suggests a user-owned Pi todo discipline instruction (said: $(flat "$out"))"
+    no "apply does not recommend retired delegation or todo packages (said: $(flat "$out"))"
   fi
   if grep -q '^pi .*billion-context' "$IHOME/pi.log" \
      && grep -q '^bili plugin install pi' "$IHOME/bili.log" 2>/dev/null \
@@ -4582,7 +4693,7 @@ if [ "$PI_APPLY" = "1" ]; then
     no "apply writes the quiet Zentui, theme and pi-lens UI config"
   fi
   if [ "$(jget "$ISET" deviceId)" = '"dev-1"' ] && grep -qF '"note": "café"' "$ISET" \
-     && [ "$(jget "$ISUB" maxDepth)" = "2" ] && [ "$(jget "$ISUB" toolActivation)" = '"eager"' ]; then
+     && [ "$(jget "$ISUB" maxDepth)" = "2" ] && [ "$(jget "$ISUB" toolActivation)" = "MISSING" ]; then
     ok "the JSON merge keeps every key it does not claim, unescaped"
   else
     no "the JSON merge keeps every key it does not claim ($(flat "$(cat "$ISET" "$ISUB")"))"
@@ -4623,16 +4734,16 @@ if [ "$PI_APPLY" = "1" ]; then
   if printf '%s' "$out" | grep -q 'pi: 1.1.0' \
      && printf '%s' "$out" | grep -qF "pi package: npm:acstack@$IVER" \
      && printf '%s' "$out" | grep -qF 'pi package: npm:billion-context' \
-     && printf '%s' "$out" | grep -qF 'pi package: npm:@juicesharp/rpiv-todo' \
+     && printf '%s' "$out" | grep -qF 'pi package: npm:ac-teams' \
+     && ! printf '%s' "$out" | grep -qE 'pi-subagents|rpiv-todo|toolActivation' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-plugin-manager' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-slash-anywhere' \
      && printf '%s' "$out" | grep -qF 'pi package: npm:pi-zentui' \
      && printf '%s' "$out" | grep -q 'pi delegation line: present' \
-     && printf '%s' "$out" | grep -q 'pi toolActivation: eager' \
      && printf '%s' "$out" | grep -q 'pi login: not logged in'; then
-    ok "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui, delegation line, toolActivation and login"
+    ok "status reports pi's version, ac-teams and other packages, delegation line and login without retired packages"
   else
-    no "status reports pi's version, packages including billion-context, rpiv-todo, pi-plugin-manager, pi-slash-anywhere and pi-zentui, delegation line, toolActivation and login (said: $(flat "$out"))"
+    no "status reports pi's version, ac-teams and other packages, delegation line and login without retired packages (said: $(flat "$out"))"
   fi
   : > "$IAGENT/auth.json"
   out=$(iw status)
@@ -4694,7 +4805,7 @@ if [ "$PI_APPLY" = "1" ]; then
      && [ "$(jget "$ILENS" ui.hideLspStatus)" = "MISSING" ] \
      && [ -x "$INPM/bin/pi" ] \
      && grep -Eq '^pi (remove|uninstall|disable).*billion-context|^pi .*billion-context.*(remove|uninstall|disable)' "$IHOME/pi.log" \
-     && grep -Eq '^pi (remove|uninstall|disable).*@juicesharp/rpiv-todo|^pi .*@juicesharp/rpiv-todo.*(remove|uninstall|disable)' "$IHOME/pi.log" \
+     && grep -q '^pi remove npm:ac-teams' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-plugin-manager|^pi .*pi-plugin-manager.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-slash-anywhere|^pi .*pi-slash-anywhere.*(remove|uninstall|disable)' "$IHOME/pi.log" \
      && grep -Eq '^pi (remove|uninstall|disable).*pi-zentui|^pi .*pi-zentui.*(remove|uninstall|disable)' "$IHOME/pi.log" \
@@ -4716,6 +4827,35 @@ if [ "$PI_APPLY" = "1" ]; then
     no "apply skips billion-context when its acp_delegate setting cannot be written (said: $(flat "$out"); packages: $(jget "$ISET" packages); bili: $(flat "$(cat "$IHOME/bili.log")"))"
   fi
   iw disable pi >/dev/null
+
+  # Older setup-owned tools retire only once their replacement is available.
+  for replacement in failed installed; do
+    printf '{"packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo"]}\n' > "$ISET"
+    printf '{"toolActivation": "eager", "maxDepth": 2}\n' > "$ISUB"
+    printf '{"packages": ["npm:pi-subagents", "npm:@juicesharp/rpiv-todo"], "subagent": {"toolActivation": "eager"}, "subagent_prior": {"toolActivation": "dynamic"}}\n' > "$IHOME/.acstack/terminal-workspace.pi.json"
+    [ "$replacement" = failed ] && touch "$IHOME/fail-teams-install"
+    iw apply >/dev/null
+    pkgs=$(jget "$ISET" packages)
+    if [ "$replacement" = failed ]; then
+      if printf '%s' "$pkgs" | grep -qF '"npm:pi-subagents"' \
+         && printf '%s' "$pkgs" | grep -qF '"npm:@juicesharp/rpiv-todo"' \
+         && ! printf '%s' "$pkgs" | grep -qF '"npm:ac-teams"' \
+         && [ "$(jget "$ISUB" toolActivation)" = '"eager"' ]; then
+        ok "failed ac-teams installation preserves previous delegation and todo tools"
+      else
+        no "failed ac-teams installation preserves previous delegation and todo tools (packages: $pkgs)"
+      fi
+    elif printf '%s' "$pkgs" | grep -qF '"npm:ac-teams"' \
+         && ! printf '%s' "$pkgs" | grep -qE 'pi-subagents|rpiv-todo' \
+         && [ "$(jget "$ISUB" toolActivation)" = '"dynamic"' ] \
+         && [ "$(jget "$ISUB" maxDepth)" = 2 ]; then
+      ok "ac-teams replaces setup-owned tools and restores prior delegation config"
+    else
+      no "ac-teams replaces setup-owned tools and restores prior delegation config (packages: $pkgs)"
+    fi
+    rm -f "$IHOME/fail-teams-install"
+    iw disable pi >/dev/null
+  done
 
   # What the user had before apply stays theirs: their pi-subagents, their
   # rpiv-todo, their plugin manager, their slash-anywhere package, their older
@@ -4745,7 +4885,7 @@ if [ "$PI_APPLY" = "1" ]; then
      && ! printf '%s' "$pkgs" | grep -qF 'pi-compact-tools' \
      && [ -f "$IRETRO" ] && [ -x "$INPM/bin/pi" ] \
      && [ "$(jget "$IBILLION" pi.subagents)" = "true" ] && [ "$(jget "$IBILLION" keep)" = "1" ] \
-     && [ ! -e "$IHOME/.config/acstack/terminal-workspace.pi.json" ]; then
+     && [ ! -e "$IHOME/.acstack/terminal-workspace.pi.json" ]; then
     ok "uninstall leaves pi, and every package and file the user had before apply"
   else
     no "uninstall leaves pi, and every package and file the user had before apply (packages: $pkgs; billion: $(flat "$(cat "$IBILLION" 2>/dev/null)"))"
@@ -4758,7 +4898,7 @@ if [ "$PI_APPLY" = "1" ]; then
   iw uninstall >/dev/null
   if ! grep -q '^bili plugin install' "$IHOME/bili.log" \
      && ! grep -q '^bili plugin remove' "$IHOME/bili.log" \
-     && [ ! -e "$IHOME/.config/acstack/terminal-workspace.pi.json" ]; then
+     && [ ! -e "$IHOME/.acstack/terminal-workspace.pi.json" ]; then
     ok "apply and uninstall leave pre-existing billion-context client plugins alone"
   else
     no "apply and uninstall leave pre-existing billion-context client plugins alone (bili: $(flat "$(cat "$IHOME/bili.log")"))"
@@ -4767,8 +4907,8 @@ if [ "$PI_APPLY" = "1" ]; then
 
   # An older setup enabled bili for Claude Code and Codex. apply now undoes it.
   printf '{}\n' > "$ISET"
-  mkdir -p "$IHOME/.config/acstack"
-  printf '{"files": ["bili:claude", "bili:codex"]}\n' > "$IHOME/.config/acstack/terminal-workspace.pi.json"
+  mkdir -p "$IHOME/.acstack"
+  printf '{"files": ["bili:claude", "bili:codex"]}\n' > "$IHOME/.acstack/terminal-workspace.pi.json"
   : > "$IHOME/bili.log"
   iw apply >/dev/null
   if grep -q '^bili plugin remove claude' "$IHOME/bili.log" \
@@ -4874,7 +5014,7 @@ if [ "$PI_APPLY" = "1" ]; then
   fi
 
   # A value the user had before apply goes back on disable, not away. Their
-  # own toolActivation is the case the subagent config adds.
+  # own legacy toolActivation stays untouched throughout.
   iw disable pi >/dev/null
   printf '{\n  "theme": "dark",\n  "markdown": {"mermaid": "final"}\n}\n' > "$ISET"
   printf '{\n  "toolActivation": "dynamic"\n}\n' > "$ISUB"
@@ -4883,8 +5023,8 @@ if [ "$PI_APPLY" = "1" ]; then
   mid="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation) $(jget_key "$IAGENT/keybindings.json" app.message.dequeue)"
   iw disable pi >/dev/null
   after="$(jget "$ISET" theme) $(jget "$ISET" markdown.mermaid) $(jget "$ISUB" toolActivation) $(jget_key "$IAGENT/keybindings.json" app.message.dequeue)"
-  if [ "$mid" = '"alex-mid-grey" "streaming" "eager" "ctrl+enter"' ] && [ "$after" = '"dark" "final" "dynamic" "ctrl+r"' ]; then
-    ok "disable puts back the values apply replaced in settings.json, keybindings.json and the subagent config"
+  if [ "$mid" = '"alex-mid-grey" "streaming" "dynamic" "ctrl+enter"' ] && [ "$after" = '"dark" "final" "dynamic" "ctrl+r"' ]; then
+    ok "disable restores settings and keybindings while leaving legacy delegation config alone"
   else
     no "disable puts back the values apply replaced (after apply: $mid; after disable: $after)"
   fi
@@ -4911,10 +5051,10 @@ import json, sys
 d = json.load(open(sys.argv[1])); d.pop("markdown"); json.dump(d, open(sys.argv[1], "w"))
 PY
   iw disable pi >/dev/null
-  if [ ! -e "$IHOME/.config/acstack/terminal-workspace.pi.json" ]; then
+  if [ ! -e "$IHOME/.acstack/terminal-workspace.pi.json" ]; then
     ok "disable forgets a key whose parent object the user deleted"
   else
-    no "disable forgets a key whose parent object the user deleted ($(flat "$(cat "$IHOME/.config/acstack/terminal-workspace.pi.json")"))"
+    no "disable forgets a key whose parent object the user deleted ($(flat "$(cat "$IHOME/.acstack/terminal-workspace.pi.json")"))"
   fi
 
   # YAML reads a bare off as false. pi wants the string, and a value pi does
@@ -4951,49 +5091,44 @@ PY
   printf '%s\n' "$USER_MD" > "$IMD"
 
   # A pinned npm package never moves under pi update, so it is no finding and
-  # upgrade leaves it. billion-context, rpiv-todo, pi-plugin-manager,
+  # upgrade leaves it. billion-context, pi-plugin-manager,
   # pi-lens and pi-slash-anywhere are covered here too, because they are pi
   # npm packages with the same version, outdated and upgrade behaviour.
-  printf '{\n  "packages": ["npm:pi-subagents@1.0.0", "npm:billion-context@1.0.0", "npm:@juicesharp/rpiv-todo@1.0.0", "npm:pi-plugin-manager@1.0.0", "npm:pi-lens@1.0.0", "npm:pi-slash-anywhere@1.0.0"]\n}\n' > "$ISET"
-  mkdir -p "$IAGENT/npm/node_modules/pi-subagents" "$IAGENT/npm/node_modules/billion-context" \
-           "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo" "$IAGENT/npm/node_modules/pi-plugin-manager" \
+  printf '{\n  "packages": ["npm:ac-teams@1.0.0", "npm:billion-context@1.0.0", "npm:pi-plugin-manager@1.0.0", "npm:pi-lens@1.0.0", "npm:pi-slash-anywhere@1.0.0"]\n}\n' > "$ISET"
+  mkdir -p "$IAGENT/npm/node_modules/ac-teams" "$IAGENT/npm/node_modules/billion-context" \
+           "$IAGENT/npm/node_modules/pi-plugin-manager" \
            "$IAGENT/npm/node_modules/pi-lens" "$IAGENT/npm/node_modules/pi-slash-anywhere"
-  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-subagents/package.json"
+  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/ac-teams/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/billion-context/package.json"
-  printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/@juicesharp/rpiv-todo/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-plugin-manager/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-lens/package.json"
   printf '{"version": "1.0.0"}\n' > "$IAGENT/npm/node_modules/pi-slash-anywhere/package.json"
   out=$(iw outdated)
   : > "$IHOME/pi.log"
-  up=$(iw upgrade pi-subagents)
+  up=$(iw upgrade ac-teams)
   bup=$(iw upgrade billion-context)
-  tup=$(iw upgrade @juicesharp/rpiv-todo)
   pup=$(iw upgrade pi-plugin-manager)
   lup=$(iw upgrade pi-lens)
   sup=$(iw upgrade pi-slash-anywhere)
-  if printf '%s' "$out" | grep -qF "unknown	pi-subagents	pinned to npm:pi-subagents@1.0.0" \
+  if printf '%s' "$out" | grep -qF "unknown	ac-teams	pinned to npm:ac-teams@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	billion-context	pinned to npm:billion-context@1.0.0" \
-     && printf '%s' "$out" | grep -qF "unknown	@juicesharp/rpiv-todo	pinned to npm:@juicesharp/rpiv-todo@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-plugin-manager	pinned to npm:pi-plugin-manager@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-lens	pinned to npm:pi-lens@1.0.0" \
      && printf '%s' "$out" | grep -qF "unknown	pi-slash-anywhere	pinned to npm:pi-slash-anywhere@1.0.0" \
-     && ! printf '%s' "$out" | grep -q '^stale	pi-subagents' \
+     && ! printf '%s' "$out" | grep -q '^stale	ac-teams' \
      && ! printf '%s' "$out" | grep -q '^stale	billion-context' \
-     && ! printf '%s' "$out" | grep -q '^stale	@juicesharp/rpiv-todo' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-plugin-manager' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-lens' \
      && ! printf '%s' "$out" | grep -q '^stale	pi-slash-anywhere' \
      && ! grep -q '^pi update' "$IHOME/pi.log" \
      && printf '%s' "$up" | grep -q 'pinned' \
      && printf '%s' "$bup" | grep -q 'pinned' \
-     && printf '%s' "$tup" | grep -q 'pinned' \
      && printf '%s' "$pup" | grep -q 'pinned' \
      && printf '%s' "$lup" | grep -q 'pinned' \
      && printf '%s' "$sup" | grep -q 'pinned'; then
-    ok "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them"
+    ok "pinned npm packages including ac-teams, billion-context, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them"
   else
-    no "pinned npm packages including billion-context, rpiv-todo, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); todo upgrade: $(flat "$tup"); plugin manager upgrade: $(flat "$pup"); lens upgrade: $(flat "$lup"); slash upgrade: $(flat "$sup"))"
+    no "pinned npm packages including ac-teams, billion-context, pi-plugin-manager, pi-lens and pi-slash-anywhere read as pinned in outdated, and upgrade leaves them (outdated: $(flat "$out"); upgrade: $(flat "$up"); billion upgrade: $(flat "$bup"); plugin manager upgrade: $(flat "$pup"); lens upgrade: $(flat "$lup"); slash upgrade: $(flat "$sup"))"
   fi
   rm -rf "$IAGENT/npm"
 
@@ -5019,12 +5154,186 @@ PY
   rm -f "$IRETRO"
   ALT="$IWORK/alt-agent"; mkdir -p "$ALT"
   PI_CODING_AGENT_DIR="$ALT" iw apply >/dev/null
-  owned=$(jget "$IHOME/.config/acstack/terminal-workspace.pi.json" files)
+  owned=$(jget "$IHOME/.acstack/terminal-workspace.pi.json" files)
   PI_CODING_AGENT_DIR="$ALT" iw disable pi >/dev/null
   if printf '%s' "$owned" | grep -qF "$IRETRO" && [ ! -e "$IRETRO" ]; then
     ok "the agentic-retro extension is found where agentic-retro writes it, whatever pi's override"
   else
     no "the agentic-retro extension is found where agentic-retro writes it (owned: $owned)"
+  fi
+  echo "question waits reach herdr without changing user extensions"
+  # A separate fake home keeps these contracts independent of earlier pi cases.
+  IHOME="$IWORK/bridge-home"
+  IAGENT="$IHOME/.pi/agent"
+  ISET="$IAGENT/settings.json"
+  ICFG="$IHOME/.acstack/terminal-workspace.yaml"
+  mkdir -p "$IAGENT/extensions" "$(dirname "$ICFG")"
+  printf '{}\n' > "$ISET"
+  pi_cfg ""
+  iw apply >/dev/null
+  bridge_harness="$SCRIPT_DIR/integration/question-blocked-bridge.mjs"
+  bridge_run() {
+    env HOME="$IHOME" PI_CODING_AGENT_DIR="$IAGENT" \
+      node --no-warnings "$bridge_harness" "$IAGENT" "$1" 2>&1
+  }
+  if [ "$(node -p 'process.features.typescript || ""' 2>/dev/null)" = "strip" ]; then
+    for scenario in pristine-answer pristine-cancel pristine-error pristine-unrelated dual-unrelated; do
+      result=$(bridge_run "$scenario"); rc=$?
+      if [ "$rc" -eq 0 ]; then ok "question bridge $scenario"
+      else no "question bridge $scenario ($(flat "$result"))"; fi
+    done
+  else
+    skip "question event contracts require Node TypeScript stripping"
+  fi
+
+  # Lifecycle checks need only the ownership ledger, never a TypeScript import.
+  # agentic-retro is the other extension installed by this fixture's stub.
+  bridge_locate() {
+    python3 - "$IHOME/.acstack/terminal-workspace.pi.json" "$1" <<'PYBRIDGE'
+import json, os, sys
+with open(sys.argv[1]) as ledger:
+    files = json.load(ledger).get("files", [])
+extensions = os.path.join(sys.argv[2], "extensions") + os.sep
+for file in files:
+    if file.startswith(extensions) and os.path.basename(file) != "agentic-retro.ts":
+        print(file)
+PYBRIDGE
+  }
+  bridge=$(bridge_locate "$IAGENT")
+
+  # Discover the owned asset without prescribing its basename.
+  if [ -f "$bridge" ]; then
+    original=$(cat "$bridge")
+    iw apply >/dev/null
+    repeated=$(cat "$bridge")
+    printf '\n// stale owned test fixture\n' >> "$bridge"
+    iw apply >/dev/null
+    refreshed=$(cat "$bridge")
+    if [ "$original" = "$repeated" ] && [ "$original" = "$refreshed" ]; then
+      ok "question bridge apply is idempotent and refreshes its owned asset"
+    else
+      no "question bridge apply is idempotent and refreshes its owned asset"
+    fi
+  else
+    no "question bridge apply is idempotent and refreshes its owned asset (no installed public-event bridge)"
+  fi
+
+  # Toggling off and both removal entrypoints must release the managed bridge,
+  # but not an unrelated workaround the user had installed themselves.
+  user_workaround="$IAGENT/extensions/user-question-workaround.ts"
+  printf '// user-owned rpiv:ask-user:blocked workaround\n' > "$user_workaround"
+  for removal in toggle disable uninstall; do
+    pi_cfg ""
+    iw apply >/dev/null
+    present=0
+    [ -n "$bridge" ] && [ -f "$bridge" ] && present=1
+    case "$removal" in
+      toggle) pi_cfg "  question_tool: false"; iw apply >/dev/null ;;
+      disable) iw disable pi >/dev/null ;;
+      uninstall) iw uninstall >/dev/null ;;
+    esac
+    if [ "$present" = "1" ] && [ ! -e "$bridge" ] \
+       && [ "$(cat "$user_workaround" 2>/dev/null)" = '// user-owned rpiv:ask-user:blocked workaround' ]; then
+      ok "question bridge $removal removes only its owned asset"
+    else
+      no "question bridge $removal removes only its owned asset (installed before removal: $present)"
+    fi
+  done
+
+  # A collision at the actual installation path is the user's, regardless of
+  # basename. Neither reapply nor either removal command may claim it.
+  if [ -n "$bridge" ]; then
+    mkdir -p "$(dirname "$bridge")"
+    printf '// my same-path question workaround\n' > "$bridge"
+    preserved=1
+    for action in apply apply 'disable pi' apply uninstall; do
+      pi_cfg ""
+      iw $action >/dev/null
+      [ "$(cat "$bridge" 2>/dev/null)" = '// my same-path question workaround' ] || preserved=0
+    done
+    if [ "$preserved" = "1" ]; then ok "question bridge preserves same-path user workaround on apply and removal"
+    else no "question bridge preserves same-path user workaround on apply and removal"; fi
+    rm -f "$bridge"
+  else
+    no "question bridge preserves same-path user workaround on apply and removal (no installed public-event bridge)"
+  fi
+
+  # A dangling symlink is still a user path, not an absent asset.
+  if [ -n "$bridge" ]; then
+    ln -s "$IWORK/missing-question-extension.ts" "$bridge"
+    out=$(iw status)
+    if printf '%s' "$out" | grep -i 'question.*bridge' | grep -qi 'user' \
+       && ! printf '%s' "$out" | grep -i 'question.*bridge' | grep -qi 'absent'; then
+      ok "question bridge status reports a dangling user symlink as preserved"
+    else
+      no "question bridge status reports a dangling user symlink as preserved (said: $(flat "$out"))"
+    fi
+    rm -f "$bridge"
+  else
+    no "question bridge status reports a dangling user symlink as preserved (no installed bridge path)"
+  fi
+
+  # Deny writes to the ledger while leaving extensions writable, as on a
+  # machine where ownership registration fails after the copy succeeds.
+  pi_cfg ""
+  iw apply >/dev/null
+  ledger="$IHOME/.acstack/terminal-workspace.pi.json"
+  ledger_dir=$(dirname "$ledger")
+  registration_safe=1
+  registration_details=""
+  for prior in new owned; do
+    cp "$ledger" "$IWORK/bridge-ledger.json"
+    if [ "$prior" = new ]; then
+      rm -f "$bridge"
+      python3 - "$ledger" "$bridge" <<'PYBRIDGE'
+import json, sys
+with open(sys.argv[1]) as source:
+    data = json.load(source)
+data["files"] = [file for file in data.get("files", []) if file != sys.argv[2]]
+with open(sys.argv[1], "w") as target:
+    json.dump(data, target)
+PYBRIDGE
+    fi
+    chmod a-w "$ledger" "$ledger_dir"
+    out=$(iw apply); rc=$?
+    chmod u+w "$ledger_dir" "$ledger"
+    reported=0
+    if [ "$rc" -ne 0 ] || printf '%s' "$out" | grep -Eqi 'cannot|could not|failed|unable|error|permission denied'; then
+      reported=1
+    fi
+    if [ "$prior" = new ]; then
+      [ ! -e "$bridge" ] && [ ! -L "$bridge" ] && [ "$reported" = 1 ] || registration_safe=0
+    else
+      [ -f "$bridge" ] && [ "$(cat "$bridge")" = "$original" ] && [ "$reported" = 1 ] || registration_safe=0
+    fi
+    registration_details="$registration_details [$prior: rc=$rc, asset=$([ -e "$bridge" ] && echo present || echo absent), reported=$reported]"
+    cp "$IWORK/bridge-ledger.json" "$ledger"
+    iw apply >/dev/null
+  done
+  iw disable pi >/dev/null
+  if [ "$registration_safe" = 1 ]; then
+    ok "question bridge registration failure cleans new assets, preserves owned assets, and reports failure"
+  else
+    no "question bridge registration failure cleans new assets, preserves owned assets, and reports failure ($registration_details)"
+  fi
+
+  # Pi's override determines extension discovery; never leak a second bridge
+  # into the default agent directory while installing under the override.
+  ALT="$IWORK/bridge-alt-agent"
+  mkdir -p "$ALT"
+  printf '{}\n' > "$ALT/settings.json"
+  pi_cfg ""
+  PI_CODING_AGENT_DIR="$ALT" iw apply >/dev/null
+  alternate=$(bridge_locate "$ALT")
+  default=$(bridge_locate "$IAGENT")
+  PI_CODING_AGENT_DIR="$ALT" iw disable pi >/dev/null
+  if [ -f "${alternate:-/nonexistent}" ]; then
+    no "question bridge honors PI_CODING_AGENT_DIR and cleans up there (alternate asset remains)"
+  elif [ -n "$alternate" ] && [ -z "$default" ] \
+       && [ "$(cat "$user_workaround" 2>/dev/null)" = '// user-owned rpiv:ask-user:blocked workaround' ]; then
+    ok "question bridge honors PI_CODING_AGENT_DIR and cleans up there"
+  else
+    no "question bridge honors PI_CODING_AGENT_DIR and cleans up there (no alternate bridge or default path changed)"
   fi
 else
   printf '  note: apply installs x86_64 binaries only and reads its config with\n'

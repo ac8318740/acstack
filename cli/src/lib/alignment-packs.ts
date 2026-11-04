@@ -1,5 +1,27 @@
 import { z } from 'zod';
 
+const sourcePoint = z.object({ line: z.number().int().min(1).max(262145), column: z.number().int().min(1).max(262145) }).strict();
+export const DesignHighlightSchema = z.object({
+  element: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/), start: sourcePoint, end: sourcePoint,
+}).strict().refine(({ start, end }) => end.line > start.line || (end.line === start.line && end.column > start.column), 'Highlight end must follow start');
+export type DesignHighlight = z.infer<typeof DesignHighlightSchema>;
+
+const questionText = z.string().trim().min(1).max(16000);
+export const DesignQuestionSchema = z.object({
+  id: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/),
+  target: z.object({ type: z.enum(['node', 'edge']), id: z.string().min(1).max(80) }).strict(),
+  question: questionText, proposal: questionText, recommendation: questionText,
+  choices: z.array(z.string().trim().min(1).max(500)).min(2).max(12).optional(),
+  multiple: z.boolean().optional(),
+  highlights: z.array(DesignHighlightSchema).min(1).max(20).optional(),
+}).strict().superRefine((question, context) => {
+  if (question.multiple && !question.choices) context.addIssue({ code: 'custom', message: 'Multiple selection requires choices' });
+  if (question.choices && (new Set(question.choices).size !== question.choices.length || question.choices.some(choice => choice.toLowerCase() === 'other'))) {
+    context.addIssue({ code: 'custom', message: 'Choices must be unique; Other is provided automatically' });
+  }
+});
+export type DesignQuestion = z.infer<typeof DesignQuestionSchema>;
+
 const SourceReferenceSchema = z
   .object({
     id: z.string().min(1),
@@ -13,6 +35,7 @@ const AlignmentGroupSchema = z
   .object({
     id: z.string().min(1),
     parentGroupId: z.string().min(1).optional(),
+    ownerNodeId: z.string().min(1).optional(),
     label: z.string().min(1),
     summary: z.string().min(1),
     sourceRefs: z.array(z.string().min(1)).default([]),
@@ -25,6 +48,8 @@ const AlignmentNodeSchema = z
     groupId: z.string().min(1),
     label: z.string().min(1),
     technicalLabel: z.string().min(1).optional(),
+    elementKind: z.enum(['actor', 'component', 'store', 'external-system']).optional(),
+    channels: z.array(z.enum(['web', 'mobile', 'desktop', 'cli', 'agent', 'email', 'sms', 'voice'])).optional(),
     summary: z.string().min(1),
     // The full technical definition, as markdown; `summary` is the plain-language one.
     technicalSummary: z.string().min(1).optional(),
@@ -35,6 +60,7 @@ const AlignmentNodeSchema = z
 const AlignmentEdgeSchema = z
   .object({
     id: z.string().min(1),
+    direction: z.enum(['one-way', 'bidirectional']).optional(),
     fromNodeId: z.string().min(1),
     toNodeId: z.string().min(1),
     relationship: z.string().min(1),
@@ -66,8 +92,12 @@ const AlignmentGraphSchema = z
   })
   .strict();
 
+export const DiagramOrientationSchema = z.enum(['top-to-bottom', 'left-to-right']);
+export type DiagramOrientation = z.infer<typeof DiagramOrientationSchema>;
+
 const ViewStateSchema = z
   .object({
+    orientation: DiagramOrientationSchema.optional(),
     globalDepth: z.number().int().nonnegative(),
     expandedGroups: z.array(z.string().min(1)).default([]),
     semanticZoom: z.string().min(1),
@@ -110,6 +140,12 @@ export type ReviewAnnotation = z.infer<typeof ReviewAnnotationSchema>;
 
 export const AlignmentPackSchema = z
   .object({
+    // Optional so legacy alignment packs keep their existing framing.
+    documentKind: z.literal('design').optional(),
+    designDocument: z.object({
+      id: z.string().min(1), name: z.string().min(1), summary: z.string().min(1), detail: z.string().optional(),
+      questions: z.array(DesignQuestionSchema).max(100).optional(),
+    }).strict().optional(),
     packVersion: z.string().min(1),
     source: z
       .object({
@@ -128,6 +164,16 @@ export const AlignmentPackSchema = z
   })
   .strict()
   .superRefine((pack, ctx) => {
+    const owners = new Set<string>();
+    for (const [index, group] of pack.graph.groups.entries()) {
+      if (!group.ownerNodeId) continue;
+      const owner = pack.graph.nodes.find(node => node.id === group.ownerNodeId);
+      const message = !owner ? 'group owner must name an existing node'
+        : owners.has(owner.id) ? 'node ownership must be unique'
+        : owner.groupId !== group.id ? 'owner membership must be its owned group' : undefined;
+      if (message) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['graph', 'groups', index, 'ownerNodeId'], message });
+      owners.add(group.ownerNodeId);
+    }
     if (pack.reviewState.approval && pack.reviewState.approval.packVersion !== pack.packVersion) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

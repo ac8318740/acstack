@@ -11,7 +11,7 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-function embeddedJson(value: unknown): string {
+export function embeddedJson(value: unknown): string {
   return JSON.stringify(value)
     .replaceAll('<', '\\u003c')
     .replaceAll('>', '\\u003e')
@@ -27,12 +27,12 @@ export function renderAlignmentPackHtml(pack: AlignmentPack): string {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(pack.source.map.id)} · Alignment review</title>
+  <title>${escapeHtml(pack.source.map.id)} · ${pack.documentKind === 'design' ? 'Design document' : 'Alignment review'}</title>
   <style>${VIEWER_CSS}</style>
 </head>
 <body>
   <div id="root"></div>
-  <noscript>This alignment pack needs JavaScript to draw its diagram.</noscript>
+  <noscript>This review artifact needs JavaScript to draw its diagram.</noscript>
   <script id="${PACK_DATA_ID}" type="application/json">${embeddedJson(pack)}</script>
   <script>${VIEWER_JS}</script>
 </body>

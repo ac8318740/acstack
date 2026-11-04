@@ -4,7 +4,7 @@
 #
 # Handoff and compact-and-continue refuse to run outside the lead session,
 # because both write state the lead alone owns: the context-pressure quiet
-# marker, keyed on CLAUDE_CODE_SESSION_ID, and the shared acstack/HANDOFF.md
+# marker, keyed on CLAUDE_CODE_SESSION_ID, and the shared .acstack/HANDOFF.md
 # anchor.
 #
 # The first version of that check read an environment variable, and the variable

@@ -17,7 +17,7 @@
 # Both symlinks point at ${CLAUDE_PLUGIN_ROOT}/cli/bin/acstack.js, which is a
 # tiny node wrapper that loads ../dist/index.js.
 #
-# When a project is initialized (acstack/project.yaml exists), the hook also
+# When a project is initialized (its project folder holds project.yaml), the hook also
 # injects the plugin's orchestrator instructions as additionalContext so installs
 # stay version-agnostic. Otherwise prints a one-line reminder.
 
@@ -181,8 +181,8 @@ if [ -n "$plugin_root" ]; then
   esac
 fi
 
-if [ ! -f acstack/project.yaml ]; then
-  echo 'acstack: no project config found. Run /acstack:setup to set up.' >&2
+source "${plugin_root}/hooks/project-data.sh"
+if ! project_folder=$(acstack_project_folder "$cli_wrapper"); then
   exit 0
 fi
 
@@ -198,11 +198,15 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-python3 - "$claude_md" <<'PY'
-import json, sys
+python3 - "$claude_md" "$project_folder" <<'PY'
+import json, re, sys
 path = sys.argv[1]
 with open(path, 'r', encoding='utf-8') as f:
     content = f.read()
+# SessionStart reaches the lead session, so it keeps the lead block and drops the delegated one.
+content = re.sub(r'<!-- acstack:delegated:start -->[\s\S]*?<!-- acstack:delegated:end -->\n?', '', content)
+content = re.sub(r'<!-- acstack:lead:(start|end) -->\n?', '', content)
+content += "\n\nThis repository's ACStack project folder: " + sys.argv[2] + "\n"
 print(json.dumps({
     "hookSpecificOutput": {
         "hookEventName": "SessionStart",

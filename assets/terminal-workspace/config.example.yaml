@@ -1,9 +1,9 @@
 # ACStack terminal workspace.
-# Copy to ~/.config/acstack/terminal-workspace.yaml, edit, then run
+# Copy to ~/.acstack/terminal-workspace.yaml, edit, then run
 # setup.sh apply.
 #
 # This is machine-level, not per-project. It installs binaries and writes
-# keybindings for your user, so it does not belong in acstack/project.yaml.
+# keybindings for your user, so it does not belong in .acstack/project.yaml.
 #
 # What each component is, every key, and the traps worth knowing:
 # docs/terminal-workspace.md in the ACStack plugin.
@@ -190,19 +190,18 @@ harlequin:
   # schema, or a single connection_name pointing at a connection in
   # ~/.snowflake/connections.toml. Prefer the second: it keeps the secret out
   # of this file.
-  config_path: "~/.config/acstack/harlequin.toml"
+  config_path: "~/.acstack/harlequin.toml"
 
 pi:
   # Off by default, because it writes into pi's own config in ~/.pi/agent.
   # pi is a coding agent in the terminal. Turning this on installs it with npm
   # if it is missing, then installs ACStack into it, pinned to this plugin's
-  # version, with pi-subagents, which ACStack needs to launch a subagent.
+  # version, with ac-teams for agent delegation, shared tasks, and messaging.
   #
   # It also writes one line into pi's context file in ~/.pi/agent (AGENTS.md
   # by default) that lets pi delegate when an ACStack skill says to.
-  # It sets "toolActivation": "eager" in
-  # ~/.pi/agent/extensions/subagent/config.json. It binds
-  # "app.message.dequeue" to "ctrl+enter" in ~/.pi/agent/keybindings.json.
+  # It binds "app.message.dequeue" to "ctrl+enter" in
+  # ~/.pi/agent/keybindings.json.
   # These changes sit beside your own settings, which stay.
   #
   # Logging in is yours: run pi, then /login.
@@ -217,11 +216,6 @@ pi:
   # markdown, code and artifact previews beside a decision, accepts freeform
   # answers and notes, and does not require a full-event telemetry env var.
   question_tool: true
-  # rpiv-todo, which adds a todo tool to pi. When this is on, apply also
-  # suggests a line for the user's global ~/.pi/agent/AGENTS.md if their Pi
-  # context file does not already mention todo discipline. It never edits that
-  # user-owned file for them.
-  todo: true
   # pi-plugin-manager, which adds pi plugin management commands.
   plugin_manager: true
   # pi-web-access, which adds web search, URL fetching, GitHub repo cloning,

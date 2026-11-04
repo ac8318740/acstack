@@ -39,7 +39,7 @@ import {
   setProjectKey,
   unsetProjectKey,
 } from '../lib/project-config.js';
-import { findProjectRoot } from '../lib/project.js';
+import { checkoutRoot, findProjectRoot, ProjectDataError } from '../lib/project.js';
 import { readYaml } from '../lib/utils.js';
 import {
   CheckReport,
@@ -68,7 +68,7 @@ import {
  * so it can never be added to the sync path and missed on the async one.
  */
 function reportUserError(err: unknown): never {
-  if (err instanceof ConfigValidationError || err instanceof ConfigFileError) {
+  if (err instanceof ConfigValidationError || err instanceof ConfigFileError || err instanceof ProjectDataError) {
     console.error(chalk.red(err.message));
     process.exit(1);
   }
@@ -119,7 +119,7 @@ export interface LoadedProject {
    */
   workflow: ProjectWorkflow;
   /**
-   * The directory holding acstack/, or null when there is no project here.
+   * The directory holding .acstack/, or null when there is no project here.
    * Carried so the checks that stat the project's own files have somewhere to
    * stat them from.
    */
@@ -235,7 +235,7 @@ function browserModeReason(resolved: ResolvedBrowserMode): string {
 /**
  * Which file a key belongs in. A `host.*` key describes the machine, so it
  * goes to the global config; every other key ACStack knows describes the
- * project, so it goes to `acstack/project.yaml`. Bare `host` counts as a host
+ * project, so it goes to `.acstack/project.yaml`. Bare `host` counts as a host
  * key so the "that is a section" message keeps coming from the host schema.
  */
 function isHostKey(key: string): boolean {
@@ -309,7 +309,7 @@ function projectFileFor(key: string, use: ProjectKeyUse): string {
 }
 
 /**
- * Write one key to the project's `acstack/project.yaml`.
+ * Write one key to the project's `.acstack/project.yaml`.
  *
  * The value is validated before the file is opened, so a value the schema
  * refuses leaves the file exactly as it was.
@@ -355,7 +355,7 @@ function unsetHostKey(key: string): void {
 }
 
 /**
- * Print one key of the project's `acstack/project.yaml`, exiting 2 when the
+ * Print one key of the project's `.acstack/project.yaml`, exiting 2 when the
  * file states no value for it.
  *
  * Exit 2 is the code the host axes use for the same answer, so a caller
@@ -376,7 +376,7 @@ function getProjectFileKey(key: string): void {
   printConfigValue(result.value);
 }
 
-/** Remove one key from the project's `acstack/project.yaml`. */
+/** Remove one key from the project's `.acstack/project.yaml`. */
 function unsetProjectFileKey(key: string): void {
   const file = projectFileFor(key, 'unset');
   if (!unsetProjectKey(file, key)) {
@@ -392,7 +392,7 @@ function unsetProjectFileKey(key: string): void {
 const UNKNOWN_KEY_MARK = '(unknown key)';
 
 /**
- * Print what the project's `acstack/project.yaml` states, above the host lines.
+ * Print what the project's `.acstack/project.yaml` states, above the host lines.
  *
  * Each side is headed by the file it came out of. The two sets of keys are
  * edited in completely different places, so a listing that ran them together
@@ -503,9 +503,9 @@ async function checkConfig(asJson: boolean): Promise<void> {
   checkImpeccable(report);
   // The output style lives in Claude Code's settings rather than in the
   // project, so it gets its own section rather than sitting among files the
-  // project owns. Without a project root the settings files are still looked
-  // for from where the user ran the command.
-  checkOutputStyle(report, loaded.root ?? process.cwd());
+  // project owns. Claude Code reads them from the checkout, not the project
+  // folder; outside Git they are looked for from where the user ran the command.
+  checkOutputStyle(report, checkoutRoot() ?? process.cwd());
 
   report.finish(asJson);
 }
@@ -612,7 +612,7 @@ export function register(program: Command): void {
     .addHelpText(
       'after',
       '\nReference: docs/dev-setups.md for the host.* axes, ' +
-        'docs/config-reference.md for the acstack/project.yaml keys.\n'
+        'docs/config-reference.md for the .acstack/project.yaml keys.\n'
     )
     .action((key: string, value: string) => {
       reportingUserErrors(() => {

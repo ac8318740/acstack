@@ -4,8 +4,8 @@
  * The pi port of the Claude Code hooks in hooks/. Claude Code and Codex never
  * load this file, and nothing in hooks/ depends on it.
  *
- *   session_start        symlink the CLI, warn once if pi-subagents is
- *                        missing, and print the setup reminder outside a
+ *   session_start        symlink the CLI, warn once if delegation is
+ *                        unavailable, and print the setup reminder outside a
  *                        acstack project            (hooks/session-start.sh)
  *   before_agent_start   list ACStack's skills in the system prompt in every
  *                        session, and add orchestrator/AGENTS.md in a
@@ -14,9 +14,11 @@
  *                        from the SSOT style file   (hooks/ac-writing-style-reminder.sh)
  *   agent_before_settle  nudge with a continuity-versus-freshness checkpoint
  *                        as context fills          (hooks/context-pressure.sh)
- *   session_compact      re-inject acstack/HANDOFF.md after a compaction, and
+ *   session_compact      re-inject <project folder>/HANDOFF.md after a compaction, and
  *                        restart the nudge ladder   (hooks/session-start-handoff.sh,
  *                                                    hooks/context-pressure.sh)
+ *   tool_call            block a main agent's first whole read of a large
+ *                        file                       (hooks/read-guard.mjs)
  *
  * It also registers /acstack <skill>, a /acstack:<skill> command per skill,
  * and /acstack-writing-style for the bundled/default/custom style choice.
@@ -31,15 +33,43 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
+// @ts-ignore -- plain ESM shared with hooks/read-guard.mjs, no type declarations
+import { decide, envSaysNotMain, readGuardSettings } from "../hooks/lib/read-guard.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const troubleshoot = path.join(packageRoot, "TROUBLESHOOTING.md");
+
+/**
+ * Ask the bundled CLI for this repository's project folder, the way the
+ * Claude Code hooks do. Null outside a Git repository, or when the CLI names a
+ * fix (legacy data, orphaned entry, conflicting modes); that message and any
+ * legacy-data warning reach the user once per cwd.
+ */
+const projectFolders = new Map<string, string | null>();
+function projectFolder(ctx: ExtensionContext | undefined, cwd: string): string | null {
+	const key = path.resolve(cwd);
+	if (projectFolders.has(key)) return projectFolders.get(key)!;
+	let folder: string | null = null;
+	try {
+		const result = spawnSync(process.execPath, [path.join(packageRoot, "cli", "bin", "acstack.js"), "project-data", "path"], { cwd: key, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+		const message = result.stderr.trim();
+		if (message && ctx) report(ctx, message.startsWith("acstack:") ? message : `acstack: ${message}`, result.status === 0 ? "warning" : "error");
+		if (result.status === 0) folder = result.stdout.trim() || null;
+	} catch {
+		folder = null;
+	}
+	projectFolders.set(key, folder);
+	return folder;
+}
 
 /** pi-subagents' background runner sets this in every child process. */
 const SUBAGENT_CHILD_ENV = "PI_SUBAGENT_CHILD";
 /** pi-subagents sets this instead in a child it places in its own herdr pane. */
 const HERDR_BRIDGE_CHILD_ENV = "PI_SUBAGENTS_HERDR_BRIDGE";
+/** ac-teams sets this in every member it launches. */
+const AC_TEAMS_MEMBER_ENV = "AC_TEAMS_MEMBER";
 
 function agentDir(): string {
 	return process.env.PI_CODING_AGENT_DIR || path.join(os.homedir(), ".pi", "agent");
@@ -213,11 +243,20 @@ function stripFrontmatter(text: string): string {
 
 /**
  * The per-turn reminder, extracted from the style file on every call so it
- * cannot drift. Mirrors the awk in hooks/ac-writing-style-reminder.sh line for
- * line: the top-level lines of "## Who you are", then "## Before you send" in
- * full. tests/test-pi-extension.sh checks the two produce the same text.
+ * cannot drift. The bundled style uses a complete marked communication block,
+ * matching hooks/ac-writing-style-reminder.sh. Keep the older heading-based
+ * extraction below for user-owned custom styles.
  */
 export function extractWritingReminder(style: string): string | undefined {
+	const start = "<!-- acstack:communication:start -->\n";
+	const end = "<!-- acstack:communication:end -->";
+	const startAt = style.indexOf(start);
+	if (startAt !== -1) {
+		const endAt = style.indexOf(end, startAt + start.length);
+		if (endAt === -1) return undefined;
+		const shared = style.slice(startAt + start.length, endAt);
+		return shared.trim() ? `ac-writing-style reminder\n\n${shared}` : undefined;
+	}
 	const out: string[] = [];
 	let persona = false;
 	let checklist = false;
@@ -294,7 +333,7 @@ function flowList(value: string): string[] {
 }
 
 /**
- * The workflow.handoff keys from acstack/project.yaml. A port of read_config
+ * The workflow.handoff keys from <project folder>/project.yaml. A port of read_config
  * in hooks/context-pressure.sh, hand-rolled for the same reason: no YAML
  * library is guaranteed to be installed.
  */
@@ -441,12 +480,12 @@ const HANDOFF_PREAMBLE =
 	"wrong assumption taken after compaction is expensive to unwind.\n\n";
 
 /**
- * Consume acstack/HANDOFF.md the way hooks/session-start-handoff.sh does:
+ * Consume <project folder>/HANDOFF.md the way hooks/session-start-handoff.sh does:
  * only a file carrying the acstack_handoff marker, moved into a per-map
  * archive so it is never injected twice. Returns the text to inject.
  */
-export function consumeHandoff(cwd: string, now: Date = new Date()): string | undefined {
-	const active = path.join(cwd, "acstack", "HANDOFF.md");
+export function consumeHandoff(folder: string, now: Date = new Date()): string | undefined {
+	const active = path.join(folder, "HANDOFF.md");
 	const raw = readText(active);
 	if (!raw?.trim()) return undefined;
 
@@ -467,11 +506,11 @@ export function consumeHandoff(cwd: string, now: Date = new Date()): string | un
 	let stamp = (meta.created || "").replace(/[^A-Za-z0-9._-]/g, "-");
 	if (!stamp) stamp = now.toISOString().replace(/\.\d+Z$/, "Z").replace(/:/g, "-");
 
-	const changeDir = path.join(cwd, "acstack", "changes", map);
+	const changeDir = path.join(folder, "changes", map);
 	const archiveDir =
 		map !== "ad-hoc" && fs.existsSync(changeDir)
 			? path.join(changeDir, "handoffs")
-			: path.join(cwd, "acstack", "handoffs", map);
+			: path.join(folder, "handoffs", map);
 	try {
 		fs.mkdirSync(archiveDir, { recursive: true });
 		let dest = path.join(archiveDir, `${stamp}.md`);
@@ -574,6 +613,18 @@ export function skillsSection(skills: Map<string, SkillInfo>): string | undefine
 }
 
 /**
+ * The orchestrator text for one kind of session. orchestrator/AGENTS.md marks
+ * the lead-only and delegated-only blocks; each session keeps its own block
+ * and drops the other.
+ */
+export function orchestratorFor(text: string, role: "lead" | "delegated"): string {
+	const other = role === "lead" ? "delegated" : "lead";
+	return text
+		.replace(new RegExp(`<!-- acstack:${other}:start -->[\\s\\S]*?<!-- acstack:${other}:end -->\\n?`, "g"), "")
+		.replace(new RegExp(`<!-- acstack:${role}:(start|end) -->\\n?`, "g"), "");
+}
+
+/**
  * The user message for one ACStack skill, in the same shape pi's own
  * /skill:<name> expansion produces. Built from this package's file, so a
  * generic name such as map or commit that another package's skill took
@@ -591,29 +642,27 @@ export function skillInvocation(name: string, file: string, args: string): strin
 // --------------------------------------------------------------------------
 
 export default function acstack(pi: ExtensionAPI): void {
-	// A background subagent loads every ambient extension. The orchestrator
-	// prompt and the nudges belong to the lead session, never to a subagent.
-	if (process.env[SUBAGENT_CHILD_ENV] === "1" || process.env[HERDR_BRIDGE_CHILD_ENV] === "1") return;
+	// A delegated session keeps the shared guidance but not the lead's role,
+	// CLI symlinks, launcher warning, context nudges, or handoff reload.
+	const delegated = process.env[SUBAGENT_CHILD_ENV] === "1" || process.env[HERDR_BRIDGE_CHILD_ENV] === "1" || Boolean(process.env[AC_TEAMS_MEMBER_ENV]);
 
 	const orchestratorFile = path.join(packageRoot, "orchestrator", "AGENTS.md");
 	const styleFile = path.join(packageRoot, "output-styles", "ac-writing-style.md");
-	const isProject = (cwd: string) => fs.existsSync(path.join(cwd, "acstack", "project.yaml"));
 	let warnedSubagents = false;
 
-	pi.on("session_start", async (event, ctx) => {
-		linkClis(ctx);
+	pi.on("session_start", async (_event, ctx) => {
+		if (!delegated) linkClis(ctx);
+		projectFolders.delete(path.resolve(ctx.cwd));
+		if (projectFolder(ctx, ctx.cwd) === null) return;
 
-		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent")) {
+		if (delegated) return;
+		if (!warnedSubagents && !pi.getAllTools().some((tool) => tool.name === "subagent" || tool.name === "Agent" || tool.name === "team_agent")) {
 			warnedSubagents = true;
 			report(
 				ctx,
-				"acstack: pi-subagents is not loaded, so the test-writer, task-executor, task-checker and frontend-verifier agents cannot run. Install it with `pi install npm:pi-subagents`.",
+				"acstack: no supported subagent tool is loaded (Agent, subagent, or team_agent), so the test-writer, task-executor, task-checker, and frontend-verifier agents cannot run. Install `npm:ac-teams` with `pi install`.",
 				"warning",
 			);
-		}
-
-		if (event.reason === "startup" && !isProject(ctx.cwd)) {
-			report(ctx, "acstack: no project config found. Run /acstack:setup to set up.");
 		}
 	});
 
@@ -628,16 +677,22 @@ export default function acstack(pi: ExtensionAPI): void {
 		// Every session, like the plugin's skills on Claude Code.
 		if (skillsPrompt) sections["acstack-skills"] = skillsPrompt;
 
-		if (isProject(ctx.cwd)) {
+		const folder = projectFolder(undefined, ctx.cwd);
+		if (folder !== null) {
 			const orchestrator = readText(orchestratorFile);
-			if (orchestrator) sections["acstack-orchestrator"] = orchestrator;
+			if (orchestrator) sections["acstack-orchestrator"] = `${orchestratorFor(orchestrator, delegated ? "delegated" : "lead")}\n\nThis repository's ACStack project folder: ${folder}\n`;
 			else report(ctx, `acstack: could not read ${orchestratorFile}`, "warning");
 		}
 
 		const styleCfg = writingStyleSettings();
 		if (styleCfg.mode === "off") return;
 		const resolvedStyleFile = styleCfg.mode === "custom" && styleCfg.path ? expandUserPath(styleCfg.path) : styleFile;
-		const style = readText(resolvedStyleFile);
+		let style = readText(resolvedStyleFile);
+		// A sandboxed delegated session may not see a custom file outside its read roots.
+		if (!style && delegated && resolvedStyleFile !== styleFile) {
+			report(ctx, `acstack: could not read writing style at ${resolvedStyleFile}; using the bundled style`, "warning");
+			style = readText(styleFile);
+		}
 		if (!style) {
 			report(ctx, `acstack: could not read writing style at ${resolvedStyleFile}`, "warning");
 			return;
@@ -649,7 +704,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		return { message: { customType: "acstack-writing-style-reminder", content: reminder, display: false } };
 	});
 
-	pi.on("agent_before_settle", async (event, ctx) => {
+	if (!delegated) pi.on("agent_before_settle", async (event, ctx) => {
 		if (event.outcome !== "completed") return;
 		const usage = ctx.getContextUsage();
 		if (!usage || usage.tokens === null) return;
@@ -662,7 +717,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		const lastText = readText(lastFile)?.trim();
 		const lastRung = lastText && /^\d+$/.test(lastText) ? Number.parseInt(lastText, 10) : undefined;
 
-		const cfg = readHandoffConfig(readText(path.join(ctx.cwd, "acstack", "project.yaml")));
+		const cfg = readHandoffConfig(readText(path.join(projectFolder(undefined, ctx.cwd) ?? "/nonexistent", "project.yaml")));
 		const nudge = contextNudge(usage.tokens, usage.contextWindow, cfg, lastRung, process.env.HERDR_ENV === "1");
 		if (!nudge) return;
 
@@ -680,7 +735,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		};
 	});
 
-	pi.on("session_compact", async (_event, ctx) => {
+	if (!delegated) pi.on("session_compact", async (_event, ctx) => {
 		// The compaction threw the old context away, so the ladder starts over.
 		const key = sessionKey(ctx);
 		if (key) {
@@ -693,10 +748,30 @@ export default function acstack(pi: ExtensionAPI): void {
 			}
 		}
 
-		const handoff = consumeHandoff(ctx.cwd);
+		const folder = projectFolder(ctx, ctx.cwd);
+		if (folder === null) return;
+		const handoff = consumeHandoff(folder);
 		if (handoff) {
 			pi.sendMessage({ customType: "acstack-handoff", content: handoff, display: true }, { deliverAs: "nextTurn" });
 		}
+	});
+
+	// The large-read guard. Environment markers are read once, at load, which
+	// is when pi-subagents sets them for an in-process child. A session with a
+	// parentSession header (a tintinweb/pi-subagents child, or a user's /fork)
+	// or with no session file is not treated as main: unclear means off.
+	const readGuardOff = delegated || envSaysNotMain();
+	const readLedgers = new Map<string, Set<string>>();
+	pi.on("tool_call", async (event, ctx) => {
+		if (readGuardOff || (event.toolName !== "read" && event.toolName !== "bash")) return;
+		const sessions = ctx.sessionManager;
+		const sessionId = sessions.getSessionId();
+		const main = Boolean(sessionId && sessions.getSessionFile?.() && !sessions.getHeader?.()?.parentSession);
+		if (!main) return;
+		let ledger = readLedgers.get(sessionId);
+		if (!ledger) readLedgers.set(sessionId, (ledger = new Set()));
+		const result = decide({ toolName: event.toolName, toolInput: event.input, cwd: ctx.cwd, main, ledger, settings: readGuardSettings(ctx.cwd, projectFolder(ctx, ctx.cwd)) });
+		if (result.block) return { block: true, reason: result.message };
 	});
 
 	const runSkill = (name: string, args: string, ctx: ExtensionContext): void => {

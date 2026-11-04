@@ -41,6 +41,7 @@ HOOKS_JSON="${SCRIPT_DIR}/../hooks/hooks.json"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+export ACSTACK_HOME="$WORK/home" XDG_CONFIG_HOME="$WORK/config" XDG_DATA_HOME="$WORK/share"
 
 pass=0
 fail=0
@@ -56,12 +57,13 @@ echo ""
 # Fixture / assertion helpers
 # ---------------------------------------------------------------------------
 
-# Enter a fresh, isolated cwd for one case (the hook reads acstack/project.yaml
-# relative to cwd, so each case gets its own directory to avoid bleed).
+# Enter a fresh, isolated repository for one case, so each case gets its own
+# project folder and no config bleeds between cases.
 enter_case() {
   CASE_DIR="$WORK/case_$1"
   mkdir -p "$CASE_DIR"
   cd "$CASE_DIR" || exit 1
+  git init -q
   fresh_state_dir
 }
 
@@ -157,23 +159,25 @@ ladder_step() {
   run_hook "$(stop_payload_session "$T" "$SID")" -u HERDR_ENV
 }
 
-# Write acstack/project.yaml (relative to cwd) from stdin, for the cases whose
-# config is richer than mk_config's two thresholds.
+# Write a committed .acstack/project.yaml from stdin, which makes .acstack the
+# project folder, for the cases whose config is richer than mk_config's two thresholds.
 mk_config_raw() {
-  mkdir -p acstack
-  cat > acstack/project.yaml
+  mkdir -p .acstack
+  cat > .acstack/project.yaml
+  git add .acstack/project.yaml
 }
 
-# Write acstack/project.yaml (relative to cwd) with threshold overrides.
+# Write a committed .acstack/project.yaml with threshold overrides.
 mk_config() {
   local warn="$1" severe="$2"
-  mkdir -p acstack
-  cat > acstack/project.yaml <<EOF
+  mkdir -p .acstack
+  cat > .acstack/project.yaml <<EOF
 workflow:
   handoff:
     nudge_warn: $warn
     nudge_severe: $severe
 EOF
+  git add .acstack/project.yaml
 }
 
 # Build a Stop payload. $1 = transcript path, $2 = stop_hook_active (true/false)

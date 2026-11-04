@@ -74,6 +74,9 @@ jobs:
       - name: pi extension suite
         run: bash tests/test-pi-extension.sh
 
+      - name: herdr Pi status suite
+        run: bash tests/test-herdr-pi-status.sh
+
   shell:
     name: Shell suites
     runs-on: ubuntu-latest

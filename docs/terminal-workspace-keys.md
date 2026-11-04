@@ -74,6 +74,7 @@ Add `shift` to any of these to open it in a full tab instead of a popup.
 | Key | Does |
 |---|---|
 | `e` | edit in `$EDITOR` |
+| `i` | inspect Markdown in Frogmouth (install with `pipx install frogmouth`; existing `i` bindings take precedence) |
 | `o` | open by rule, which for markdown is the reader |
 | `b` | open in the browser you are sitting at |
 | `D` | send the file to your laptop over Taildrop |

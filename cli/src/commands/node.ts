@@ -100,7 +100,7 @@ const GH_ISSUE_LIST = 'gh issue list --json number,title,body,state,stateReason,
 /**
  * Refuses a `--map` read when the project keeps its maps in GitHub issues.
  *
- * `acstack/maps/<name>/` is not there on that tracker and never will be, so an
+ * `.acstack/maps/<name>/` is not there on that tracker and never will be, so an
  * unguarded read answers out of an empty directory - and an empty map reads as
  * a finished one, which is the one wrong answer nobody goes and checks. A
  * stray directory left over from before the move is still not the map, so this
@@ -536,7 +536,7 @@ export function register(program: Command): void {
   const nodeCmd = program
     .command('node')
     .description(
-      'Map nodes: small markdown records, one file each, under acstack/maps/<name>/.\n' +
+      'Map nodes: small markdown records, one file each, under .acstack/maps/<name>/.\n' +
         'Status: fog (not yet stated precisely), open (ready), claimed (being worked),\n' +
         'resolved (settled), out-of-scope (dropped).'
     );

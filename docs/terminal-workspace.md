@@ -18,7 +18,8 @@ This is an optional setup for running several coding agents on a remote machine,
 - The server keeps every pane alive when your connection drops
 - The local client is what lets your own clipboard and browser reach the session, which an SSH shell cannot do
 - Run `/acstack:terminal-workspace` to install and configure all of it
-- One file, `~/.config/acstack/terminal-workspace.yaml`, turns each part on or off
+- One file, `~/.acstack/terminal-workspace.yaml`, turns each part on or off
+- `ACSTACK_HOME` moves that folder, `~/.acstack/`, for every ACStack file in it
 - The rest of this document explains what that sets up and why
 - Read it if you would rather configure it by hand or change the defaults
 
@@ -157,7 +158,7 @@ What `uninstall` removes:
 
 What the config holds:
 
-- The script reads `~/.config/acstack/terminal-workspace.yaml`, which the skill copies from `assets/terminal-workspace/config.example.yaml`
+- The script reads `~/.acstack/terminal-workspace.yaml`, which the skill copies from `assets/terminal-workspace/config.example.yaml`
 - The config holds twelve components, each with its own `enabled` key
     - You turn a part off there and run `apply` again
 - Eight components name a tool this setup installs: `herdr`, `gh_dash`, `diffnav`, `delta`, `tuicr`, `lazygit`, `yazi`, and `harlequin`
@@ -237,7 +238,7 @@ Three more steps `apply` handles that no release tarball covers:
 
 - `ya pkg add yazi-rs/plugins:piper`, the yazi plugin that lets `acstack-md` draw the preview pane
 - `pip install --user markdown`, which `acstack-md --serve` needs
-- a copy of `mermaid.min.js` at `~/.local/share/acstack/mermaid.min.js`
+- a copy of `mermaid.min.js` at `~/.acstack/cache/mermaid.min.js`
     - A served page fetches nothing from a content delivery network (CDN)
 
 ### 3.2. Let herdr read agent state from the agent
@@ -353,19 +354,29 @@ What `apply` does:
 - It installs pi with `npm install -g @earendil-works/pi-coding-agent` when pi is missing
 - It installs ACStack into pi, pinned to the version of this plugin
     - Re-running `apply` after a plugin update moves the pin forward, and never back
-- It installs `pi-subagents`, which ACStack on pi needs to launch a subagent
+- It installs `ac-teams` for agent delegation, shared tasks, and messaging
+    - Reapplying removes replaced delegation and todo packages only if this setup installed them; user-installed packages stay
 - It installs `billion-context` by default for context compression in pi
     - When the `bili` command is available, setup runs native plugin setup for pi
     - Setup leaves Claude Code and Codex alone, and removes bili from them if an older setup added it
     - Set `pi.billion_context: false` to leave it out, or to remove it later if this setup installed it
-- It installs `@juicesharp/rpiv-todo` and `pi-plugin-manager` by default
-    - When todo is on, `apply` suggests a todo-discipline line for the user's global Pi context file if it is missing
-    - Set `pi.todo: false` or `pi.plugin_manager: false` to leave either package out
+- It installs `pi-plugin-manager` by default
+    - Set `pi.plugin_manager: false` to leave it out
 - It installs `@juicesharp/rpiv-ask-user-question` as pi's question tool by default
     - ACStack uses it because decisions can include markdown, code and artifact previews
     - It accepts freeform answers and notes, and needs no full-event telemetry environment variable
     - This setup still keeps pi's install telemetry disabled through `pi.settings.install_telemetry: false`
-    - Set `pi.question_tool: false` to leave it out, or to remove it later if this setup installed it
+    - ACStack's Pi package loads the question bridge automatically, including installations made without terminal-workspace setup
+    - Setup also installs a fallback copy under pi's agent directory, honoring `PI_CODING_AGENT_DIR`
+    - The packaged bridge and fallback copy count each wait once when both load
+    - The bridge translates `rpiv:ask-user:blocked` into `herdr:blocked`, so herdr shows the question's input wait
+    - Answer, cancellation, and error completion release the question's blocker while other herdr blockers stay active
+    - Anonymous native Herdr events remain independent from question events, including simultaneous waits
+    - A producer emitting both event types contributes two balanced blockers, which clear when both sources finish
+    - Older fallback copies work unless another extension recursively emits public question events; remove the older copy in that case
+    - Reapply refreshes the owned bridge, but preserves a pre-existing file at the same path
+    - `pi.question_tool: false`, `disable pi`, and `uninstall` remove only the owned bridge and leave user workarounds alone
+    - Set `pi.question_tool: false` to leave the package out, or remove it later if this setup installed it
 - It installs `pi-web-access` by default for Pi web search and web access
     - The package is `pi-web-access` from `nicobailon/pi-web-access`
     - It adds web search, URL fetching, GitHub repo cloning, PDF extraction and media understanding tools to pi
@@ -380,12 +391,19 @@ What `apply` does:
     - The agentic-retro step needs the agentic-retro plugin installed first, and `apply` says so when it is not
 - It writes the delegation line into pi's context file in `~/.pi/agent`, between HTML comment markers
     - That is `AGENTS.md` by default, or the first of `AGENTS.override.md`, `AGENTS.md`, `AGENTS.MD`, `CLAUDE.md` and `CLAUDE.MD` that exists, which is the one pi reads
-    - `pi-subagents` delegates only when your request or your instructions allow it
-- It sets `"toolActivation": "eager"` in `~/.pi/agent/extensions/subagent/config.json`
+    - Delegate only when your request or your instructions allow it
 - It binds `"app.message.dequeue"` to `"ctrl+enter"` in `~/.pi/agent/keybindings.json`
 - It writes the four keys under `pi.settings` into `~/.pi/agent/settings.json`
 - It patches pi's bundled TUI so Windows Terminal Win32 input records paste as text
     - `pi update` can replace the bundle, so `setup.sh upgrade pi` reapplies the patch
+- It patches an existing herdr Pi reporter to keep the parent working while background subagents run
+    - Questions still show blocked, even when children are active
+    - The patch retains legacy delegation-event support; it does not track ac-teams sessions
+    - Children already running during an extension reload lack lifecycle replay and remain outside this tracking
+    - `apply`, herdr integration installation, and `setup.sh upgrade herdr` reapply the patch
+    - Direct `herdr integration install pi` overwrites the patch; run `apply` afterward, then restart Pi or use `/reload`
+    - Setup leaves unknown reporter layouts unchanged and reports the skipped patch
+    - `disable pi`, `disable herdr`, and `uninstall` remove unchanged managed patch blocks
 
 How it treats pi's files:
 
@@ -394,15 +412,17 @@ How it treats pi's files:
 - `apply` installs and removes packages through `pi install` and `pi remove`, and never edits `packages` itself
 - `apply` touches nothing in a file that does not parse, and names it
     - A broken `settings.json` stops the whole component, because `pi install` rewrites that file
-- `~/.config/acstack/terminal-workspace.pi.json` records what `apply` added
+- `~/.acstack/terminal-workspace.pi.json` records what `apply` added
     - `disable pi` and `uninstall` undo only what that file names
     - A package or a key you had before `apply` stays yours
     - A value of yours that `apply` replaced goes back, and so does an ACStack pin it moved forward
     - A value you changed after `apply` stays as you set it
 - `apply` never touches `auth.json`
     - Run `pi`, then `/login`, yourself
-- `setup.sh status` reports pi's version, its packages, the delegation line, `toolActivation`, and whether `auth.json` exists
-- `setup.sh outdated` and `setup.sh upgrade` include `billion-context`, `@juicesharp/rpiv-todo`, `pi-plugin-manager`, `@juicesharp/rpiv-ask-user-question`, `pi-web-access`, `pi-lens`, and `pi-slash-anywhere` like pi's other npm packages
+- `setup.sh status` reports pi's version, its packages, the delegation line, and whether `auth.json` exists
+    - The question bridge line reports a managed asset, a user-owned path, or an absent asset
+    - Start a new pi session or run `/reload` after setup changes extensions
+- `setup.sh outdated` and `setup.sh upgrade` include `ac-teams`, `billion-context`, `pi-plugin-manager`, `@juicesharp/rpiv-ask-user-question`, `pi-web-access`, `pi-lens`, and `pi-slash-anywhere` like pi's other npm packages
 
 ## 4. How you attach
 
@@ -1101,7 +1121,7 @@ We measured one delivery rather than estimating it.
 *`alt+q` opens harlequin on a connection profile. `alt+shift+q` opens it in a tab.*
 
 - Query on the left, rows on the right, schema tree beside both
-- Profiles live in `~/.config/acstack/harlequin.toml`, which `acstack-db` writes once and never touches again
+- Profiles live in `~/.acstack/harlequin.toml`, which `acstack-db` writes once and never touches again
 - `acstack-db` with no argument launches the only profile, or opens an fzf menu when there is more than one
 - `acstack-db <profile>` skips the menu
 
@@ -1542,7 +1562,7 @@ export ACSTACK_OPEN_CMD="ssh laptop open"   # or any command taking a URL
     - It needs a tab armed by hand before every session
     - The tab it drives lives in a dedicated Chrome profile rather than your default browser
 - The opener is the answer for reading
-- It is a separate service on purpose, per [ADR 0006](adr/0006-document-opener-service.md)
+- A separate service opens documents without depending on the relay or the browser automation session
 
 What it does is deliberately small:
 
@@ -1567,7 +1587,7 @@ cd $env:USERPROFILE\playwriter-bridge
 ```
 
 - That generates a shared secret and stores it at `%LOCALAPPDATA%\playwriter-bridge\opener.token`
-- It copies the secret to each dev machine at `~/.config/acstack/opener.token`, over the same ssh the tunnel uses
+- It copies the secret to each dev machine at `~/.acstack/opener.token`, over the same ssh the tunnel uses
 - Every request from the dev machine carries it
 - Loopback binding alone would not be enough
     - The reverse tunnel makes the port reachable by anything running on the dev machine

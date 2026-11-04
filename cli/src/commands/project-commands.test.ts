@@ -25,6 +25,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { trackProject } from '../test-project.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI_BIN = join(__dirname, '..', '..', 'bin', 'acstack.js');
@@ -68,29 +69,29 @@ interface ShowSpecJson {
  */
 function makeProject(): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-cmds-'));
-  mkdirSync(join(root, 'acstack'), { recursive: true });
-  writeFileSync(join(root, 'acstack', 'project.yaml'), '# test project\n');
+  mkdirSync(join(root, '.acstack'), { recursive: true });
+  writeFileSync(join(root, '.acstack', 'project.yaml'), '# test project\n');
   mkdirSync(changeDir(root), { recursive: true });
   writeFileSync(join(changeDir(root), 'proposal.md'), '# Proposal\n\nSome prose.\n');
   mkdirSync(specDir(root), { recursive: true });
   writeFileSync(join(specDir(root), 'spec.md'), '# Spec\n\nSome prose.\n');
   mkdirSync(archiveDir(root), { recursive: true });
-  return root;
+  return trackProject(root);
 }
 
 const CHANGE_NAME = 'mychange';
 const SPEC_NAME = 'myspec';
 
 function changeDir(root: string): string {
-  return join(root, 'acstack', 'changes', CHANGE_NAME);
+  return join(root, '.acstack', 'changes', CHANGE_NAME);
 }
 
 function specDir(root: string): string {
-  return join(root, 'acstack', 'specs', SPEC_NAME);
+  return join(root, '.acstack', 'specs', SPEC_NAME);
 }
 
 function archiveDir(root: string): string {
-  return join(root, 'acstack', 'changes', 'archive');
+  return join(root, '.acstack', 'changes', 'archive');
 }
 
 /**

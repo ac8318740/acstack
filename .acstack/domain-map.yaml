@@ -1,0 +1,44 @@
+# Domain Map: maps source paths to spec domains
+# Read by spec sync, /acstack:archive, /acstack:bootstrap
+
+domains:
+  orchestration:
+    paths:
+      - orchestrator/
+      - pi/extension.ts
+    description: >-
+      Shared implementation and verification policy, delegation,
+      and required gates
+  skills:
+    paths:
+      - skills/
+      - output-styles/
+    description: >-
+      The workflow skills – the prose instructions an agent follows for each
+      ACStack command and model-invoked technique
+  agents:
+    paths:
+      - agents/
+      - pi/agents/
+      - scripts/gen-codex-agents.mjs
+      - scripts/gen-pi-agents.mjs
+    description: >-
+      Specialized agents for adaptive verification – test-writer,
+      task-executor, task-checker, and frontend-verifier
+  cli:
+    paths:
+      - cli/src/
+    description: >-
+      The bundled acstack CLI – map nodes, project config, init and archive
+      commands
+  terminal-workspace:
+    paths:
+      - assets/terminal-workspace/
+    description: >-
+      The terminal workspace installer and managed Pi integration assets
+  hooks:
+    paths:
+      - hooks/
+    description: >-
+      Claude Code session hooks – SessionStart symlink maintenance and handoff
+      delivery
