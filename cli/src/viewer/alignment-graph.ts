@@ -698,6 +698,8 @@ function preferStraightRoutes(nodes: DiagramNode[], edges: DiagramEdge[], horizo
   }
 }
 
+// How far inside a slid label its own run stays, so the break in the line still reads as passing under the text.
+const LABEL_RUN_INSET = 18;
 // ELK misplaces labels on edges that cross group borders, so each label tries spots along its own straight runs,
 // longest first, and takes the first that clears every box, group header, and earlier label.
 export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLabels: DiagramEdge[] = [], headers: Record<string, HeaderGeometry> = {}): string[] {
@@ -718,15 +720,19 @@ export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLa
       .map((end, index) => [edge.points[index], end] as const)
       .sort(([a, b], [c, d]) => Math.hypot(d.x - c.x, d.y - c.y) - Math.hypot(b.x - a.x, b.y - a.y));
     // A spot must sit wholly inside one straight run, clear of its rounded corners, or the line cannot break around it.
-    const spots = runs.flatMap(([a, b]) => {
+    const centred = runs.flatMap(([a, b]) => {
       const length = Math.hypot(b.x - a.x, b.y - a.y);
       const half = (a.y === b.y ? label.width : label.height) / 2 + CORNER_RADIUS + 2;
       if (length < half * 2) return [];
       return [0.5, 0.3, 0.7, 0.15, 0.85].map(t => {
         const along = Math.min(Math.max(length * t, half), length - half) / length;
-        return { x: a.x + (b.x - a.x) * along - label.width / 2, y: a.y + (b.y - a.y) * along - label.height / 2, width: label.width, height: label.height };
+        return { x: a.x + (b.x - a.x) * along - label.width / 2, y: a.y + (b.y - a.y) * along - label.height / 2, width: label.width, height: label.height, vertical: a.x === b.x };
       });
     });
+    // A label wider than the gap between two routes leaving one card cannot sit centred on either. Sliding it
+    // sideways keeps its own run passing through it, which is all the line break needs, and clears the neighbour.
+    const slide = label.width / 2 - LABEL_RUN_INSET;
+    const spots = [...centred, ...centred.filter(spot => spot.vertical).flatMap(spot => [{ ...spot, x: spot.x - slide }, { ...spot, x: spot.x + slide }])];
     const intersects = (box: Box, a: Point, b: Point) =>
       Math.min(a.x, b.x) < box.x + box.width + pad && Math.max(a.x, b.x) > box.x - pad
       && Math.min(a.y, b.y) < box.y + box.height + pad && Math.max(a.y, b.y) > box.y - pad;
@@ -736,7 +742,7 @@ export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLa
     });
     const spot = spots.find(box => clear(box) && !crossesOtherRoute(box));
     if (!spot) { failedLabels.push(edge); unresolved.push(`${nodes.find(node => node.id === edge.source)?.label ?? edge.source} ${edge.label} ${nodes.find(node => node.id === edge.target)?.label ?? edge.target}`); continue; }
-    Object.assign(label, spot);
+    Object.assign(label, { x: spot.x, y: spot.y, width: spot.width, height: spot.height });
     taken.push(label);
   }
   return unresolved;
