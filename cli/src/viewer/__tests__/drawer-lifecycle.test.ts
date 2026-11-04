@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Drawer } from '../drawer.js';
 import { DesignApproval, DesignApprovalProvider, ElementLock, useBlockerNavigation, useLockCapture } from '../design-approval.js';
-import { pack } from '../pack.js';
+import { pack, useReviewAnnotations } from '../pack.js';
 import { DesignQuestions, useQuestionCounts } from '../design-questions.js';
 import type { DesignAnswer } from '../../lib/design-review.js';
 import { MermaidDiagram } from '../sidebar-markdown.js';
@@ -465,6 +465,9 @@ it.each([false, true])('saves choice selections and Other through collapsed rows
     act(() => handlers(button('Expand all')).onClick!());
     expect(inputs().map(input => handlers(input).type)).toEqual(Array<string>(3).fill(multiple ? 'checkbox' : 'radio'));
     expect(button('Save answer').attributes).toHaveProperty('disabled');
+    // A hot reload's resync reads Saving for a moment; answering must stay clickable through it.
+    const sync = useReviewAnnotations().syncState as { status: string };
+    sync.status = 'Saving';
     select(0);
     select(1);
     expect(handlers(inputs()[0]).checked).toBe(multiple);
@@ -474,7 +477,9 @@ it.each([false, true])('saves choice selections and Other through collapsed rows
     expect(inputs()).toHaveLength(0);
     act(() => handlers(button('Expand all')).onClick!());
     expect(all(container).find(node => node.tagName === 'TEXTAREA')?.value).toBe('Keep the draft and ask again.');
+    expect(button('Save answer').attributes).not.toHaveProperty('disabled');
     await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
+    sync.status = 'Saved';
     expect(saved).toEqual({ questionId: 'retry', answer: 'Keep the draft and ask again.', choices: multiple ? ['Yes', 'No'] : [] });
     expect(countsSeen.at(-1)?.size).toBe(0);
     expect(inputs()).toHaveLength(0);

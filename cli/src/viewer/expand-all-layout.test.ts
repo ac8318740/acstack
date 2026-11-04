@@ -50,3 +50,17 @@ describe('revealing an element from a blocker', () => {
     expect(revealElement(graph, EX.github)).toEqual({ groups: [], selection: `item:${EX.github}` });
   });
 });
+
+describe('comment counts on a collapsed container', () => {
+  it('totals the comments on everything the container hides', async () => {
+    const { commentsOn } = await import('./alignment-graph.js');
+    const graph = designDocToPack(exampleDesign()).graph;
+    const diagram = await buildDiagram(graph, [], measured.geometry, undefined, 'top-to-bottom', replay());
+    const plugin = diagram.nodes.find(node => node.id === `group:design:container:${EX.acstack}`)!;
+    const github = diagram.nodes.find(node => node.id === `item:${EX.github}`)!;
+    const counts = new Map([[`item:${EX.viewer}`, 2], [`item:${EX.skills}`, 1], [`item:${EX.github}`, 4]]);
+    expect(plugin.kind).toBe('folded-group');
+    expect(commentsOn(plugin, counts, diagram, graph)).toBe(3);
+    expect(commentsOn(github, counts, diagram, graph)).toBe(4);
+  });
+});

@@ -73,5 +73,5 @@ export function designMapInputs(nodes: readonly GraphNode[], doc: DesignDoc) {
 /** Each multi-variant mock on a loose element; approval waits until the reviewer locks the element on a chosen variant. */
 export function unchosenVariants(doc: DesignDoc): ApprovalBlocker[] {
   return doc.items.flatMap(item => item.locked ? [] : unchosenMocks(item)
-    .map((example): ApprovalBlocker => ({ kind: 'variant', targetId: item.id, label: `Choose a variant of ${example.title}`, nodeId: item.id, example: example.path })));
+    .map((example): ApprovalBlocker => ({ kind: 'variant', targetId: item.id, label: `${item.name}: choose a variant of ${example.title}`, nodeId: item.id, example: example.path })));
 }

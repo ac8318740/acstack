@@ -842,3 +842,9 @@ export function revealElement(graph: AlignmentGraph, nodeId: string): { groups: 
   for (let id = owns ? groupOf(node?.groupId)?.parentGroupId : node?.groupId; id && id !== 'design:root'; id = groupOf(id)?.parentGroupId) groups.push(id);
   return { groups, selection: owns ? `group:${node!.groupId}` : `item:${nodeId}` };
 }
+
+// A collapsed container counts every comment it hides, on its descendants and their relationships.
+export function commentsOn(node: DiagramNode, counts: Map<string, number> | undefined, diagram: Diagram, graph: AlignmentGraph): number {
+  if (node.kind !== 'folded-group') return counts?.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0;
+  return [...counts ?? []].reduce((sum, [id, count]) => sum + (reconcileSelection(id, diagram, graph) === node.id ? count : 0), 0);
+}

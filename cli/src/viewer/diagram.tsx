@@ -6,7 +6,7 @@ import {
 import { ChevronDown, ListTodo, MessageSquarePlus, Minus, Plus } from 'lucide-react';
 import { useQuestionCounts } from './design-questions.js';
 import { ElementMetadata } from './element-metadata.js';
-import { CARD_WIDTH, LABEL_WIDTH, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
+import { CARD_WIDTH, commentsOn, LABEL_WIDTH, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
 import type { DiagramOrientation } from '../lib/alignment-packs.js';
 import { pack } from './pack.js';
 
@@ -18,6 +18,7 @@ type RouteData = DiagramEdge & Actions & { state: 'idle' | 'active' | 'dimmed'; 
 const ACCENT = 'oklch(42% 0.14 262)';
 const EDGE = 'oklch(55% 0.035 262)';
 const itemsText = (count = 0) => `${count} item${count === 1 ? '' : 's'}`;
+const commentsText = (count: number) => `${count} comment${count === 1 ? '' : 's'}`;
 const noActions: Actions = { onToggle: () => {}, onSelect: () => {}, onAnnotate: () => {}, onQuestions: () => {} };
 
 function sourceFile(nodeId: string): string | undefined {
@@ -31,7 +32,7 @@ function AnnotateButton({ onClick, label }: { onClick: () => void; label: string
 }
 
 function QuestionBadge({ count, onClick }: { count: number; onClick: () => void }) {
-  return count > 0 ? <button type="button" className="question-badge nodrag nopan" aria-label={`${count} design question${count === 1 ? '' : 's'} need input`} data-tooltip={`${count} question${count === 1 ? '' : 's'} need input`} onClick={event => { event.stopPropagation(); onClick(); }}><ListTodo size={14} aria-hidden="true" /><span>{count}</span></button> : null;
+  return count > 0 ? <button type="button" className="question-badge nodrag nopan" aria-label={`${count} design question${count === 1 ? ' needs' : 's need'} input`} data-tooltip={`${count} question${count === 1 ? ' needs' : 's need'} input`} onClick={event => { event.stopPropagation(); onClick(); }}><ListTodo size={14} aria-hidden="true" /><span>{count}</span></button> : null;
 }
 
 // Both the live canvas and the inert measuring tree use this exact content and constrained width.
@@ -58,7 +59,7 @@ function BoxContent({ data }: { data: BoxData }) {
         {framed && <ChevronDown size={14} />} {framed ? 'Collapse' : 'Expand'}
       </button>}
       {(folded || framed) && <span className="box-kind">{itemsText(data.itemCount)}</span>}
-      {data.comments > 0 && <span className="count-pill">{data.comments} comments</span>}
+      {data.comments > 0 && <span className="count-pill">{commentsText(data.comments)}</span>}
     </div>}
   </div>;
 }
@@ -160,7 +161,7 @@ export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }
     return () => { current = false; };
   }, [diagram, zoom, onMeasured, commentCounts, questionCounts]);
   return <div ref={tree} className="measurement" aria-hidden="true" inert>
-    {diagram.nodes.map(node => <div key={node.id} data-measure="node" data-key={node.id} className={node.kind === 'group' ? 'measure-header' : 'box'} style={{ width: CARD_WIDTH }}><BoxContent data={{ ...node, ...noActions, zoom, dimmed: false, questions: questionCounts.get(node.id) ?? 0, comments: commentCounts?.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0 }} /></div>)}
+    {diagram.nodes.map(node => <div key={node.id} data-measure="node" data-key={node.id} className={node.kind === 'group' ? 'measure-header' : 'box'} style={{ width: CARD_WIDTH }}><BoxContent data={{ ...node, ...noActions, zoom, dimmed: false, questions: questionCounts.get(node.id) ?? 0, comments: commentsOn(node, commentCounts, diagram, pack.graph) }} /></div>)}
     {diagram.edges.map(edge => <div key={edge.id} data-measure="label" data-key={edge.id} className="edge-label" style={{ width: LABEL_WIDTH }}><LabelContent edge={edge} questions={questionCounts.get(`edge:${edge.childEdgeIds[0]}`) ?? 0} comments={edge.childEdgeIds.reduce((sum, id) => sum + (commentCounts?.get(`edge:${id}`) ?? 0), 0)} /></div>)}
   </div>;
 }
@@ -226,6 +227,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
   const questionCounts = useQuestionCounts(diagram);
   const { fitView, zoomIn, zoomOut, getViewport, setViewport, setCenter } = useReactFlow();
   const revealed = useRef<{ id: string } | undefined>(undefined);
+  const revealedIn = useRef<DiagramModel | undefined>(undefined);
   const fitted = useRef(false);
   const appliedAnchor = useRef<ViewportAnchor | null>(null);
   const pending = useRef<ToggleFocus | null>(null);
@@ -235,15 +237,16 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     const node = diagram.nodes.find(item => item.id === reveal.id);
     if (!node) return;
     revealed.current = reveal;
+    revealedIn.current = diagram;
     void setCenter(node.x + node.width / 2, node.y + node.height / 2, { zoom: getViewport().zoom, duration: reducedMotion() ? 0 : 200 });
   }, [reveal, diagram, setCenter, getViewport]);
   // Refitting on resize stops once the reviewer pans or zooms; Fit diagram hands control back.
   const userMoved = useRef(false);
-  const fit = (animate = true) => {
-    pending.current = null;
+  const fit = (animate = true, keepFocus = false) => {
+    if (!keepFocus) pending.current = null;
     userMoved.current = false;
     const toolbar = canvas.current?.querySelector<HTMLElement>('.toolbar');
-    void fitView({ padding: { top: `${(toolbar?.offsetHeight ?? 0) + 30}px`, bottom: '80px', x: '30px' }, minZoom: 0.15, maxZoom: 1, duration: animate && !reducedMotion() ? 200 : 0 });
+    void fitView({ padding: { top: `${(toolbar?.offsetHeight ?? 0) + 30}px`, bottom: '80px', x: '30px' }, minZoom: 0.15, maxZoom: 1.25, duration: animate && !reducedMotion() ? 200 : 0 });
   };
   // The canvas narrows when the drawer opens and with the window, so the fitted view follows it.
   useEffect(() => {
@@ -269,6 +272,14 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     }); });
     return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
   }, [diagram, fitView]);
+  // Expanding or collapsing changes the layout, so the view refits unless the reviewer has moved it.
+  const laidOut = useRef(diagram);
+  useEffect(() => {
+    if (laidOut.current === diagram) return;
+    laidOut.current = diagram;
+    // A revealed element keeps its centring for the layout that brought it into view.
+    if (fitted.current && !userMoved.current && revealedIn.current !== diagram) fit(true, true);
+  }, [diagram, fitView]);
   useLayoutEffect(() => {
     if (!anchor || anchor === appliedAnchor.current || anchor.key !== layoutKey || diagram === anchor.before) return;
     const node = diagram.nodes.find(node => node.id === anchor.node.id);
@@ -290,7 +301,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
   const byId = new Map(diagram.nodes.map(node => [node.id, node]));
   const nodes: Node<BoxData>[] = diagram.nodes.map(node => {
     const parent = node.parentId ? byId.get(node.parentId) : undefined;
-    const comments = commentCounts.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0;
+    const comments = commentsOn(node, commentCounts, diagram, pack.graph);
     let depth = 0;
     for (let ancestor = parent; ancestor; ancestor = ancestor.parentId ? byId.get(ancestor.parentId) : undefined) depth++;
     // ReactFlow puts children above their parents; keep every frame below routes at z-index 0.
