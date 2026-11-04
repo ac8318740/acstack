@@ -158,23 +158,30 @@ opener, same handoff file path.
 
 ## The trust dialog
 
-Handle this, or the launch hangs silently. A new worktree is a new directory, so
-the launched session asks the user to trust the directory. It then sits at
-`blocked`, while `agent start` has *already* returned success with
-`interactive_ready: true`.
+A new worktree can trigger a directory-trust dialog. `agent start` may return
+success with `interactive_ready: true`, or `agent_not_ready` because startup is
+blocked. The latter keeps the agent name available; do not launch a duplicate.
+Neither result proves the handoff prompt is running.
 
-Readiness is not proof the prompt is running. So after starting, wait for the
-blocked state instead of polling by hand:
+After starting, wait for a blocked state:
 
 ```bash
 herdr agent wait <name> --until blocked --timeout <ms>
 ```
 
-At the trust dialog, `agent_not_ready` means the session has not reached the
-prompt yet. Wait again or read `herdr agent get <name>` before sending keys.
-A `blocked` result means the trust dialog is ready.
+If startup returns `agent_not_ready`, or the wait returns `blocked`, inspect
+both the state and the visible prompt before sending keys:
 
-On `blocked`, accept the dialog with:
+```bash
+herdr agent get <name>
+herdr agent read <name> --source visible
+```
+
+`blocked` does not identify the prompt. Only accept a directory-trust dialog
+when it names the repository the user authorized for this handoff. For any
+other prompt, stop and report what needs a decision.
+
+For that confirmed trust dialog, use:
 
 ```bash
 herdr agent send-keys <name> down
