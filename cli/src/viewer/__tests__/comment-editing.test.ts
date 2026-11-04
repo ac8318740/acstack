@@ -14,6 +14,7 @@ vi.mock('react', async original => ({
     return [hooks.slots[index], (value: unknown) => { hooks.slots[index] = value; }];
   },
   useRef: (current: unknown) => ({ current }),
+  useContext: () => null,
   useId: () => 'comment-field',
   useMemo: (compute: () => unknown) => compute(),
   useCallback: (callback: unknown) => callback,
