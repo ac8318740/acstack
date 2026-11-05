@@ -17,7 +17,7 @@ type Status = {
 export type EarlierReview = { reviewPath: string; packVersion: string; label: string; annotations: ReviewAnnotation[] };
 // What the page shows of an element when it locks, such as a mock's variant and tweaks.
 export type LockCapture = Record<string, unknown>;
-const BLOCKER_KINDS: Record<ApprovalBlocker['kind'], string> = { question: 'Open question', changed: 'Changed since approval', variant: 'Example needs a choice' };
+const BLOCKER_KINDS: Record<ApprovalBlocker['kind'], string> = { question: 'Open question', changed: 'Changed since approval', variant: 'Mock needs a choice' };
 async function request(body?: unknown): Promise<Status> {
   const response = await fetch('/api/design-review', {
     method: body ? 'POST' : 'GET',

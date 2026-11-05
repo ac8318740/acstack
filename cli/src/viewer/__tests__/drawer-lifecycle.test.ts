@@ -661,7 +661,7 @@ it('offers one-click re-approval for an element changed since approval', async (
   vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
-  let blockers = [{ kind: 'changed', targetId: 'app', label: 'Application', nodeId: 'app', changes: [{ label: 'Summary changed', before: 'Old summary', after: 'App summary' }, { label: 'Example orders.json changed' }] }];
+  let blockers = [{ kind: 'changed', targetId: 'app', label: 'Application', nodeId: 'app', changes: [{ label: 'Summary changed', before: 'Old summary', after: 'App summary' }, { label: 'Mock orders.json changed' }] }];
   const posts: unknown[] = [];
   vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
     if (options.method === 'POST' && typeof options.body === 'string') { posts.push(JSON.parse(options.body)); blockers = []; }
@@ -679,7 +679,7 @@ it('offers one-click re-approval for an element changed since approval', async (
     const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
     expect(text()).toContain('Summary changed');
     expect(text()).toContain('Old summary');
-    expect(text()).toContain('Example orders.json changed');
+    expect(text()).toContain('Mock orders.json changed');
     act(() => handlers(buttons('Approve this version')[0]).onClick!());
     expect(text()).toContain('1 item to settle before approving');
     expect(text()).toContain('Summary changed, and 1 more');

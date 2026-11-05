@@ -17,10 +17,10 @@ export const examplesFor = (nodeId: string): ExampleSummary[] => pack.graph.node
 
 // Content loads on open, behind the review token, so large builds never sit in the page.
 async function fetchExample(nodeId: string, summary: ExampleSummary): Promise<ElementExample> {
-  if (!token) throw new Error('Examples open only in the live review that `acstack design-doc` serves.');
+  if (!token) throw new Error('Mocks open only in the live review that `acstack design-doc` serves.');
   const response = await fetch(`/api/examples?element=${encodeURIComponent(nodeId)}&path=${encodeURIComponent(summary.path)}`, { headers: { [REVIEW_TOKEN_HEADER]: token } });
   const body = await response.json() as { error?: string };
-  if (!response.ok) throw new Error(body.error ?? 'Cannot load this example');
+  if (!response.ok) throw new Error(body.error ?? 'Cannot load this mock');
   const example = { ...body, path: summary.path, title: summary.title, ...(summary.illustrative && { illustrative: true }) } as ElementExample;
   cacheExample(nodeId, example, summary.revision);
   return example;
@@ -123,7 +123,7 @@ export const describe = (selection: { selector: string; text?: string; component
   return text || 'Element';
 };
 const rawName = (selection: { selector: string; component?: { name: string } }) => selection.component?.name ?? selection.selector;
-const anchorLabel = (anchor: Anchor) => anchor.selections?.length ? anchor.selections.map(describe).join('; ') : 'Whole example';
+const anchorLabel = (anchor: Anchor) => anchor.selections?.length ? anchor.selections.map(describe).join('; ') : 'Whole mock';
 // Keys follow ReviewAnnotationSchema's order, because the save acknowledgement compares the server's parsed copy as JSON.
 const anchorSelection = ({ selector, text, rect, component }: Selection): AnchorSelection => ({
   selector, ...(text ? { text } : {}), rect,
@@ -275,13 +275,13 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
       }} />
   ) : content?.kind === 'markdown' ? <div className="example-doc"><div className="markdown"><SidebarMarkdown hideImages>{content.markdown}</SidebarMarkdown></div></div>
     : content?.kind === 'fixture' ? <div className="example-doc"><FixtureView format={content.format} data={content.data} /></div>
-      : error ? <div className="example-doc" role="alert"><p>This example could not load.</p><pre>{error}</pre></div> : <p className="example-loading" role="status">Loading example...</p>;
+      : error ? <div className="example-doc" role="alert"><p>This mock could not load.</p><pre>{error}</pre></div> : <p className="example-loading" role="status">Loading example...</p>;
   return (
     <dialog ref={dialog} className="examples-modal" aria-labelledby={titleId} onClose={onClose}
       onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }}
       onMouseUp={event => event.stopPropagation()}>
       <header className="examples-head">
-        <h2 id={titleId}><span className="examples-crumb">{element}</span><span aria-hidden="true"> / </span>Examples</h2>
+        <h2 id={titleId}><span className="examples-crumb">{element}</span><span aria-hidden="true"> / </span>Mocks</h2>
         <button type="button" className="icon-btn" aria-label="Close examples" data-tooltip="Close" autoFocus onClick={close}><X size={18} aria-hidden="true" /></button>
       </header>
       <div className="examples-toolbar" role="toolbar" aria-label="Example controls">
@@ -310,7 +310,7 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
               const anchor = comment.example!;
               const key = `${comment.id}#0`;
               const variantName = (id?: string) => variants.find(item => item.id === id)?.label ?? id;
-              const target = anchor.selections?.length ? anchorLabel(anchor) : variant && anchor.variant !== variant.id ? `On ${variantName(anchor.variant) ?? 'another variant'}` : 'Whole example';
+              const target = anchor.selections?.length ? anchorLabel(anchor) : variant && anchor.variant !== variant.id ? `On ${variantName(anchor.variant) ?? 'another variant'}` : 'Whole mock';
               return (
                 <li key={comment.id} className={focused === comment.id ? 'focused' : undefined}>
                   <span className="mark-number" aria-hidden="true">{index + 1}</span>
@@ -320,12 +320,12 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
                       : <span className="comment-target">{target}</span>}
                     {anchor.variant && !onScreen(anchor) && anchor.selections?.length ? <span className="comment-variant">On {variantName(anchor.variant)}</span> : null}
                     <p>{comment.comment}</p>
-                    {unanchored.includes(key) && <p className="hint" role="status">This element is no longer in the example.</p>}
+                    {unanchored.includes(key) && <p className="hint" role="status">This element is no longer in the mock.</p>}
                   </div>
                 </li>
               );
             })}
-          </ol> : <p className="rail-empty">No comments on this example yet.</p>}
+          </ol> : <p className="rail-empty">No comments on this mock yet.</p>}
           <div className="rail-composer">
             {picked.length > 0 && <div className="example-picks">
               <p className="picks-count">{picked.length} element{picked.length === 1 ? '' : 's'} picked</p>
@@ -333,8 +333,8 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
                 {picked.map(item => <li key={item.id} className="chip" data-tooltip={rawName(item)}><span>{describe(item)}</span><button type="button" aria-label={`Remove ${describe(item)}`} onClick={() => unpick(item.id)}><X size={12} aria-hidden="true" /></button></li>)}
               </ul>
             </div>}
-            <Composer key={example.path} label={picked.length ? `Comment on ${picked.length} picked element${picked.length === 1 ? '' : 's'}` : 'Comment on this example'}
-              placeholder={picked.length ? `Comment on ${picked.length === 1 ? 'this element' : `these ${picked.length} elements`}` : picker ? 'Click elements in the mock to pick them' : 'Comment on this example'}
+            <Composer key={example.path} label={picked.length ? `Comment on ${picked.length} picked element${picked.length === 1 ? '' : 's'}` : 'Comment on this mock'}
+              placeholder={picked.length ? `Comment on ${picked.length === 1 ? 'this element' : `these ${picked.length} elements`}` : picker ? 'Click elements in the mock to pick them' : 'Comment on this mock'}
               text={drafts[example.path] ?? ''} onText={text => setDrafts(previous => ({ ...previous, [example.path]: text }))} onPost={post} />
           </div>
         </aside>

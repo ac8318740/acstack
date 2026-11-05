@@ -131,8 +131,8 @@ export function ExampleFrame({ path, html, title, picker, marks, tweaks, control
 
 // Frame-supplied text renders as text only.
 export function FrameStatus({ status }: { status: FrameStatusValue }) {
-  if (status.state === 'closed') return <p role="alert">This example navigated away and was stopped.</p>;
-  if (status.state === 'mismatch') return <p role="alert">This example was built for a different OpenDesigner version; rebuild it.</p>;
-  if (status.state === 'error') return <div role="alert"><p>This example failed to render.</p><pre>{status.message}</pre></div>;
+  if (status.state === 'closed') return <p role="alert">This mock navigated away and was stopped.</p>;
+  if (status.state === 'mismatch') return <p role="alert">This mock was built for a different OpenDesigner version; rebuild it.</p>;
+  if (status.state === 'error') return <div role="alert"><p>This mock failed to render.</p><pre>{status.message}</pre></div>;
   return null;
 }

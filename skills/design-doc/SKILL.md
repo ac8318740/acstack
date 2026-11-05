@@ -90,7 +90,7 @@ connections:           # each connection declared once, on the acting element
 
 ### Examples on an element
 
-Give an element concrete mocks, flows, and sample data under `examples:` in its config block. The reviewer opens them from the element's Examples tab.
+Give an element concrete mocks, flows, and sample data under `examples:` in its config block. The reviewer opens them from the Mocks tab.
 
 ```yaml
 examples:

@@ -73,10 +73,10 @@ export function elementChanges(before: ApprovedElement, after: ApprovedElement):
   }
   for (const edge of before.connections) if (!after.connections.some(item => key(item) === key(edge))) changes.push({ label: `Connection '${edge.label}' removed` });
   for (const [path, revision] of Object.entries(after.examples)) {
-    if (!(path in before.examples)) changes.push({ label: `Example ${path} added` });
-    else if (before.examples[path] !== revision) changes.push({ label: `Example ${path} changed` });
+    if (!(path in before.examples)) changes.push({ label: `Mock ${path} added` });
+    else if (before.examples[path] !== revision) changes.push({ label: `Mock ${path} changed` });
   }
-  for (const path of Object.keys(before.examples)) if (!(path in after.examples)) changes.push({ label: `Example ${path} removed` });
+  for (const path of Object.keys(before.examples)) if (!(path in after.examples)) changes.push({ label: `Mock ${path} removed` });
   return changes;
 }
 const hasRecord = (saved: StoredDesignReview, item: DesignDoc['items'][number]) => saved.lifecycle?.locks[item.id]?.config === item.configDigest;
@@ -161,7 +161,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     if (staleRendered) reason = 'The design changed on the map. Reopen this revision before reviewing.';
     else if (inputs.blockers.some(blocker => blocker.kind === 'question')) reason = 'Open questions target this design';
     else if (changed.length) reason = 'Changed elements need re-approval';
-    else if (inputs.blockers.length) reason = 'Choose a variant in each example that has several';
+    else if (inputs.blockers.length) reason = 'Choose a variant in each mock that has several';
     else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback needs explicit reconciliation';
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
     const answers = Object.fromEntries(doc.questions.flatMap(question => question.answer === undefined ? [] : [[question.id, question.answer]]));

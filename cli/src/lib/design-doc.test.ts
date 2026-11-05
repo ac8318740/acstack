@@ -189,7 +189,7 @@ describe('describing what changed since approval', () => {
       { label: 'Interfaces changed', before: 'cli', after: 'cli, web' },
       { label: "Connection 'Reads' changed direction" },
       { label: "Connection 'Writes' added" },
-      { label: 'Example orders.json changed' },
+      { label: 'Mock orders.json changed' },
     ]);
     expect(elementChanges(before, before)).toEqual([]);
   });

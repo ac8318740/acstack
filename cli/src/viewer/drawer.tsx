@@ -612,7 +612,7 @@ export function Drawer({
             {needsInput > 0 && <span className="tab-count" aria-label={`${needsInput} open`}>{needsInput}</span>}
             {needsInput === 0 && answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
           </button>}
-          {pack.designDocument && <button type="button" aria-pressed={view === 'examples'} onClick={() => { if (view !== 'examples') { setExampleScope(exampleScopeForSelection(selected, diagram)); setView('examples'); } }}>Examples{exampleNode && examplesFor(exampleNode).length > 0 && <span className="tab-count" aria-label={`${examplesFor(exampleNode).length} example${examplesFor(exampleNode).length === 1 ? '' : 's'}`}>{examplesFor(exampleNode).length}</span>}</button>}
+          {pack.designDocument && <button type="button" aria-pressed={view === 'examples'} onClick={() => { if (view !== 'examples') { setExampleScope(exampleScopeForSelection(selected, diagram)); setView('examples'); } }}>Mocks{exampleCount > 0 && <span className="tab-count" aria-label={`${exampleCount} mock${exampleCount === 1 ? '' : 's'}`}>{exampleCount}</span>}</button>}
         </div>
         <div className="row">
           <button type="button" className="icon-btn" data-tooltip="Collapse details panel" aria-label="Collapse details panel" onClick={() => setOpen(false)}>
@@ -625,8 +625,8 @@ export function Drawer({
           selected && selected !== 'group:design:root' ? <Details selected={selected} diagram={diagram} openQuestions={openQuestions} onQuestion={openQuestion} onInspect={selected => setInspection({ selected })} onSelect={onSelect} onOpenGroup={onOpenGroup} /> :
             pack.designDocument ? <DocumentOverview /> : <p className="muted">Select a box or relationship to see its details.</p>
         ) : view === 'examples' ? <div className="drawer-examples">
-          <div className="review-toolbar"><ReviewScope label="Example scope" value={exampleScope} currentLabel={exampleLabel} count={exampleCount} options={exampleOptions} onChange={setExampleScope} /></div>
-          <ExamplesTab nodeIds={scopedExamples} empty={exampleNodes.length ? 'No examples match this filter.' : 'This design has no examples.'} link={exampleLink} annotations={annotations} setAnnotations={setAnnotations} />
+          <div className="review-toolbar"><ReviewScope label="Mock scope" value={exampleScope} currentLabel={exampleLabel} count={exampleCount} options={exampleOptions} onChange={setExampleScope} /></div>
+          <ExamplesTab nodeIds={scopedExamples} empty={exampleNodes.length ? 'No mocks match this filter.' : 'This design has no mocks.'} link={exampleLink} annotations={annotations} setAnnotations={setAnnotations} />
         </div> : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>

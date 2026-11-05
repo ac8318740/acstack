@@ -39,7 +39,7 @@ it('lists an element\'s examples with their kind in the Examples tab', () => {
   const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', annotations: [comment], setAnnotations: vi.fn() }));
   for (const text of ['Checkout mock', 'Mock, 1 comment', 'Cart build', 'Document', 'Sample data, illustrative']) expect(html).toContain(text);
   expect(html).toContain('aria-haspopup="dialog"');
-  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['other'], empty: 'No examples match this filter.', annotations: [], setAnnotations: vi.fn() }))).toContain('No examples match this filter.');
+  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['other'], empty: 'No mocks match this filter.', annotations: [], setAnnotations: vi.fn() }))).toContain('No mocks match this filter.');
 });
 
 it('labels each listed example by its element, across the whole design', () => {
@@ -114,7 +114,7 @@ it('renders fixtures as a text-only table', () => {
 
 it('renders frame-supplied error text and selections as text only', () => {
   const html = renderToStaticMarkup(createElement(FrameStatus, { status: { state: 'error', message: '<img src=x onerror=alert(1)>' } }));
-  expect(html).toContain('This example failed to render.');
+  expect(html).toContain('This mock failed to render.');
   expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
   expect(renderToStaticMarkup(createElement(FrameStatus, { status: { state: 'closed' } }))).toContain('navigated away and was stopped');
   expect(describeSelection({ selector: '#a', text: '', component: { name: 'Card' } })).toBe('Card');
