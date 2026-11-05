@@ -19,3 +19,5 @@
 - [0019](0019-keep-project-data-local.md) – Keep project data local under .acstack
 - [0020](0020-bind-design-approval-to-exact-inputs.md) – Bind design approval to exact inputs
 - [0021](0021-retire-legacy-review-through-explicit-migration.md) – Retire legacy review through explicit migration
+- [0022](0022-design-elements-are-a-sixth-node-kind.md) – Design elements are a sixth node kind, and the frontier skips them
+- [0023](0023-the-map-is-the-only-design-doc-source.md) – The map is the only design-doc source

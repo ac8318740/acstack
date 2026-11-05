@@ -5,7 +5,7 @@ workflow:
   grilling:
     questions: tool      # tool | inline
   maps:
-    tracker: github
+    tracker: files
   frontend_verification: false
   design_review: true
   handoff:

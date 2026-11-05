@@ -72,29 +72,27 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: The skill chooses diagrams and sections to explain those relationships without requiring a diagram-node-to-heading correspondence
 - **Source**: `skills/writing/SKILL.md`, `skills/writing/examples.md`, `skills/visual-docs/SKILL.md`, `skills/code-review/SKILL.md`, `skills/pre-commit-review/SKILL.md`, `output-styles/ac-writing-style.md`
 
-## FR-006: Author a design for human review
+## FR-006: Author a design doc on a map for human review
 
 - **Given**: An agent runs the design-doc skill
-- **When**: The agent prepares the review source
-- **Then**: The agent separates existing behavior from the proposed change and explains the review questions, trade-offs, and worked journey
-- **Then**: The agent models real entities with atomic files, genuine containment, mirrored relationships, and explained cross-element concerns
-- **Then**: Peer elements use comparable abstractions and consistent names across the overview, relationships, and supporting detail
-- **Then**: Interactive React Flow review and the Markdown/Mermaid companion derive from the same authored source
-- **Then**: New project designs default to `.acstack/designs/<id>/design.yaml` unless the user chooses another location
+- **When**: The agent prepares the design doc
+- **Then**: The agent separates existing behavior from the proposed change and explains the review questions, trade-offs, and worked journey in the map root
+- **Then**: The agent writes one `element` node per real entity, with a collapsed `Design element` block for kind, parent, channels, and connections
+- **Then**: Each connection is declared once, on the acting element; nesting expresses containment without a duplicate arrow
+- **Then**: Cross-element concerns live in the root's `Design doc` block
+- **Then**: Peer elements use comparable abstractions and consistent names across the overview, relationships, and detail
+- **Then**: The agent creates elements open and never locks one; only the user locks
+- **Then**: Questions for the user hang off the element they target with `answers`, with an optional `Design question` block of choices, `multiple`, and quoted highlights
+- **Then**: The agent runs `design-doc <map> --check` and fixes contradictions before review
+- **Then**: Interactive review and the Markdown companion derive from the same map nodes
 - **Then**: Plugin worked examples remain public source under `examples/design-doc/acstack/`
-- **Then**: Design files persist on disk with Git tracking controlled by the project's explicit opt-ins
 - **Then**: The agent starts a live design review through localhost or SSH and optionally exports Markdown for GitHub
 - **Then**: Posted, edited, and deleted comments save on the agent's device without approving the design
-- **Then**: Send to agent waits for saved comments and provides a clipboard prompt naming the review JSON and authored entry
-- **Then**: A clipboard failure leaves the prompt available for manual copying
-- **Then**: The agent reads the printed `review.json`, resolves comment targets against the authored design, and revises that source
-- **Then**: The agent uses the developer's comments as requests to revise the design
-- **Then**: The skill preserves feedback with its source version and explains failed saves and conflicting revisions
-- **Then**: Nesting expresses containment without a duplicate containment arrow
+- **Then**: Answers resolve their question nodes through the tracker; the agent picks up follow-ups at its next frontier recompute
+- **Then**: Send to agent waits for saved comments and provides a clipboard prompt naming the review JSON and the map
+- **Then**: The agent reads the printed `review.json`, resolves comment targets against the map, and revises element nodes
+- **Then**: The agent reconciles every comment explicitly before approval; approval locks every loose element
 - **Then**: Map planning invokes design-doc for changes to behavior, boundaries, or data flow
-- **Then**: Structured node contributions retain their node identities and answer-chain provenance across both trackers
-- **Then**: The agent explicitly reconciles comments and contributions before requesting approval
-- **Then**: Implementation checks approval against the current authored files, comments, and map inputs
 - **Source**: `skills/design-doc/SKILL.md`, `skills/map/SKILL.md`, `skills/map/materialising.md`, `examples/design-doc/acstack/`
 
 ## FR-007: Ask where a new project's records live
@@ -121,30 +119,23 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: Archive retains the original decision log independently of `workflow.maps.persist`
 - **Source**: `skills/implement/decision-log.md`, `skills/archive/SKILL.md`
 
-## FR-009: Require matching design approval before implementation and archive
+## FR-009: Require design approval before implementation and archive
 
-- **Given**: A map root names a design entry
-- **When**: Implementation or archive checks that design's status
-- **Then**: The returned planning tracker and map must match the active map
-- **Then**: A missing or different binding blocks reliance on that design's approval
-- **Then**: The agent requires valid approval for the current authored source, saved comments, and map contributions
+- **Given**: A map has `element` nodes
+- **When**: Implementation or archive checks `design-review status <map>`
+- **Then**: The agent requires valid approval for the current element nodes, saved comments, and open nodes targeting elements
 - **Then**: Invalid approval or unresolved reconciliation returns the work to design-doc
+- **Then**: Element nodes never reach the frontier on either tracker
 - **Given**: Archive prepares node disposal
 - **When**: Fog, open questions, claims, or undecided scope remain
 - **Then**: Archive stops until the work resolves or the user explicitly drops the scope
-- **Source**: `skills/implement/SKILL.md`, `skills/map/SKILL.md`, `skills/map/materialising.md`, `skills/map/alignment.md`, `skills/archive/SKILL.md`
+- **Source**: `skills/implement/SKILL.md`, `skills/map/SKILL.md`, `skills/map/materialising.md`, `skills/map/alignment.md`, `skills/map/trackers/`, `skills/archive/SKILL.md`
 
-## FR-010: Migrate legacy feedback explicitly and retain review evidence
+## FR-010: Retain review evidence
 
-- **Given**: An agent imports legacy review history
-- **When**: The agent follows design-doc
-- **Then**: The agent authors the design first and explicitly maps every commented legacy target to a current design target
-- **Then**: The agent invokes `design-review migrate` instead of the removed `map --map` or `align-viewer` commands
-- **Then**: Imported approvals remain history and require reconciliation and fresh exact-revision approval
-- **Then**: Startup and archive never migrate legacy review history automatically
 - **Given**: Archive disposes of temporary map nodes
 - **When**: It checks durable records
-- **Then**: It retains authored designs, canonical reviews, import history, original alignment artifacts, and decision logs independently of `workflow.maps.persist`
+- **Then**: It retains canonical reviews, original alignment artifacts, and decision logs independently of `workflow.maps.persist`
 - **Then**: It retains handoffs containing review evidence or provenance absent elsewhere
 - **Then**: It stops if a retained record lies inside the proposed node disposal path
 - **Then**: It preserves native Git ignore rules without force-adding private records
