@@ -60,9 +60,9 @@ kind: component        # actor | component | store | external-system
 parent: "003"          # optional: the element that contains this one
 channels: [cli, web]   # optional
 connections:           # each connection declared once, on the acting element
-  - to: "007"
-    direction: one-way # one-way | bidirectional
-    label: Reads design source
+    - to: "007"
+      direction: one-way # one-way | bidirectional
+      label: Reads design source
 ```
 </details>
 ````
@@ -127,11 +127,11 @@ The root's title and summary name the design. Its body is the overview and worke
 
 ```yaml
 concerns:
-  - id: offline-review
-    name: Offline review
-    elements: ["007", "008"]
-    requirement: Reviewers can inspect the design without uploading project details.
-    response: The server embeds validated graph data with bundled browser assets.
+    - id: offline-review
+      name: Offline review
+      elements: ["007", "008"]
+      requirement: Reviewers can inspect the design without uploading project details.
+      response: The server embeds validated graph data with bundled browser assets.
 ```
 </details>
 ````
