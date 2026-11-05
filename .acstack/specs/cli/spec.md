@@ -447,6 +447,42 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: A temporary approval-request failure permits retry with a fresh input check without reloading or changing comments
 - **Source**: `cli/src/lib/design-doc.ts`, `cli/src/lib/design-lifecycle.ts`, `cli/src/lib/design-review.ts`, `cli/src/viewer/design-approval.tsx`, `cli/src/commands/design-lifecycle-workflow.test.ts`, `cli/src/viewer/__tests__/drawer-lifecycle.test.ts`
 
+### FR-028: Answer questions beside the elements they target
+
+- **Given**: An open hitl node targets an element, optionally with a `Design question` block of choices, `multiple`, and quoted highlights
+- **When**: The developer opens Questions
+- **Then**: Collapsed rows expose the node's title, body, and target details without adding inline question cards to the diagram
+- **Then**: Questions without choices accept text; choices default to single selection, and `multiple: true` permits multiple selections
+- **Then**: Choice inputs include an automatic Other write-in; reserved, duplicate, or unknown choices fail validation
+- **Then**: A saved answer resolves the node; the question moves under Answered with the latest answer and a Change answer action
+- **Then**: The Questions tab counts open and answered questions
+- **Then**: Stale saves preserve local drafts
+- **Then**: Unanswered counts project through folded nodes and merged relationships using the diagram's visible-target mapping
+- **Then**: Questions support whole-design and target scopes; comments distinguish All targets from Document overview
+- **Then**: Scope changes, drawer tabs, and collapsed rails preserve drafts
+- **Then**: Answered cards show a soft green background and border, with a check by the title
+- **Then**: A Questions, Comments, or Mocks filter still on the selection's scope follows the selection, also into the container a collapse folds it into; that container's scope covers everything it hides, and a filter the reviewer picked stays
+- **Then**: Save answer stays enabled while a hot reload refreshes status, and the answer goes against the refreshed revision
+- **Source**: `cli/src/lib/alignment-packs.ts`, `cli/src/lib/design-doc.ts`, `cli/src/lib/design-review.ts`, `cli/src/lib/design-lifecycle.ts`, `cli/src/viewer/design-questions.tsx`, `cli/src/viewer/question-targets.ts`, `cli/src/viewer/drawer.tsx`
+
+### FR-029: Inspect rich design detail and linked questions
+
+- **Given**: An element node carries Markdown detail in its body
+- **When**: Details or the shared inspection modal renders it
+- **Then**: Tables and nested disclosures render through sanitized Markdown
+- **Then**: Mermaid renders offline in an opaque-origin sandbox with a restrictive content security policy, after its frame becomes visible
+- **Then**: Successful diagrams hide source; rendering failures expose safe source diagnostics
+- **Then**: Details and question links open the same modal, retaining drawer drafts, selection, disclosure state, and focus on close
+- **Given**: A question quotes passages from its target element's prose
+- **When**: The loader finds each passage exactly once and converts it to positions, and the viewer renders the detail
+- **Then**: Positions use one-based lines and UTF-16 columns with an exclusive end; invalid, reversed, or split-surrogate ranges fail
+- **Then**: Prose and table text receive semantic highlights without highlighting Mermaid source or reviving unsafe HTML
+- **Then**: Inspection opens containing disclosures and scrolls to the selected question's first rendered highlight
+- **Then**: Unanswered passages reserve a nonoverlapping gutter with hover, focus, and touch controls; shared passages use the existing styled dropdown
+- **Then**: A passage link scopes Questions to its exact target, expands and focuses the requested row, scrolls it into view, and briefly emphasizes it
+- **Then**: Reduced-motion preferences disable smooth scrolling and replace fading emphasis with temporary static emphasis
+- **Source**: `cli/src/lib/design-highlight.ts`, `cli/src/viewer/sidebar-markdown.tsx`, `cli/src/viewer/markdown-highlights.ts`, `cli/src/viewer/mermaid-frame.ts`, `cli/src/viewer/question-reference.tsx`, `cli/src/viewer/drawer.tsx`, `cli/src/viewer/design-questions.tsx`
+
 ### FR-030: Open an element's mocks in a sandboxed modal
 
 - **Given**: A selected design element has mocks
