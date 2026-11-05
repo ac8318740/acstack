@@ -11,7 +11,7 @@ import { questionScopeForSelection, questionsForScope } from './question-targets
 import { ElementMetadata } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
-import { ExampleContext, ExamplesTab, examplesFor, useExampleCaptures, type ExampleLink } from './examples-modal.js';
+import { MockContext, MocksTab, mocksFor, useMockCaptures, type MockLink } from './mocks-modal.js';
 
 const labelOf = (id: string) => pack.graph.nodes.find(item => item.id === id)?.label ?? id;
 
@@ -287,7 +287,7 @@ export function Comments({ annotations, earlier = [], onSelect, onDelete, onEdit
                 </div>
               </div>
               {annotation.selectedText && <blockquote>{annotation.selectedText}</blockquote>}
-              {annotation.example && <ExampleContext nodeId={annotation.target.id} anchor={annotation.example} />}
+              {annotation.mock && <MockContext nodeId={annotation.target.id} anchor={annotation.mock} />}
               {drafts[annotation.id] !== undefined ? <CommentEditor key={annotation.id} comment={annotation.comment} text={drafts[annotation.id]} onTextChange={text => setDraft(annotation.id, text)} onCancel={() => setDraft(annotation.id, undefined)} onSave={comment => { onEdit(annotation.id, comment); setDraft(annotation.id, undefined); }} /> : <>
                 <p>{annotation.comment}</p>
               </>}
@@ -319,13 +319,13 @@ export function Comments({ annotations, earlier = [], onSelect, onDelete, onEdit
   );
 }
 
-export type DrawerView = 'details' | 'comments' | 'questions' | 'examples';
+export type DrawerView = 'details' | 'comments' | 'questions' | 'mocks';
 export type CommentScope = string;
 
 // A collapsed container stands for everything it hides, as its card's counts do.
 const folded = (selected: string | null, diagram: Diagram) => diagram.nodes.some(node => node.id === selected && node.kind === 'folded-group');
 const shownAt = (selected: string, diagram: Diagram) => (id: string) => reconcileSelection(id, diagram, pack.graph) === selected;
-export const exampleScopeForSelection = (selected: string | null, diagram: Diagram): string => {
+export const mockScopeForSelection = (selected: string | null, diagram: Diagram): string => {
   if (!selected || selected === 'group:design:root') return 'all';
   if (folded(selected, diagram)) return `selection:${selected}`;
   const node = selected.startsWith('item:') ? selected.slice(5) : selected.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId : undefined;
@@ -417,8 +417,8 @@ export function Drawer({
   onSelect,
   onComment,
   onOpenGroup,
-  exampleLink,
-  onOpenExample,
+  mockLink,
+  onOpenMock,
   questionRequest,
 }: {
   open: boolean;
@@ -439,15 +439,15 @@ export function Drawer({
   onSelect: (id: string | null) => void;
   onComment: (target: Annotation['target'], comment: string) => void;
   onOpenGroup: (groupId: string) => void;
-  // Opens the Examples modal on one example and variant; the caller also selects the element and shows the Examples view.
-  exampleLink?: ExampleLink;
-  // Opens a comment's example in the Examples modal; the app owns selection and the drawer view.
-  onOpenExample?: (link: ExampleLink) => void;
+  // Opens the Mocks modal on one mock and variant; the caller also selects the element and shows the Mocks view.
+  mockLink?: MockLink;
+  // Opens a comment's mock in the Mocks modal; the app owns selection and the drawer view.
+  onOpenMock?: (link: MockLink) => void;
   /** A request from outside the drawer, such as an approval blocker, to open and focus one question. */
   questionRequest?: { id: string };
 }) {
   const review = useDesignReview();
-  useExampleCaptures();
+  useMockCaptures();
   const authoredQuestions = pack.designDocument?.questions ?? [];
   const openQuestions = authoredQuestions.filter(question => !(review ? review.answered.includes(question.id) : question.answer !== undefined));
   const scopedQuestions = questionsForScope(authoredQuestions, questionScope, diagram, pack.graph);
@@ -528,27 +528,27 @@ export function Drawer({
     .filter(annotation => commentScope === 'all' || context?.matches(annotation.target));
   const options = commentScopeOptions(annotations);
   const currentLabel = commentScope !== 'all' && context ? scopeLabel(context.target) : 'All targets';
-  const exampleNode = selected?.startsWith('item:') ? selected.slice(5) : selected?.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId ?? null : null;
-  // Examples filter like Comments and Questions: the selected element, or every example with nothing selected.
-  const exampleNodes = pack.graph.nodes.filter(node => node.examples?.length).map(node => node.id);
-  const [exampleScope, setExampleScope] = useState(() => exampleScopeForSelection(selected, diagram));
+  const mockNode = selected?.startsWith('item:') ? selected.slice(5) : selected?.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId ?? null : null;
+  // Mocks filter like Comments and Questions: the selected element, or every mock with nothing selected.
+  const mockNodes = pack.graph.nodes.filter(node => node.mocks?.length).map(node => node.id);
+  const [mockScope, setMockScope] = useState(() => mockScopeForSelection(selected, diagram));
   // One rule for every tab: a filter still on the selection's own scope follows the selection, also when a
   // layout change moves it to a container. A filter the reviewer picked stays.
-  const followed = useRef<{ comment: string; question: string; example: string } | undefined>(undefined);
+  const followed = useRef<{ comment: string; question: string; mock: string } | undefined>(undefined);
   useEffect(() => {
-    const next = { comment: commentScopeForSelection(selected, diagram), question: questionScopeForSelection(selected), example: exampleScopeForSelection(selected, diagram) };
+    const next = { comment: commentScopeForSelection(selected, diagram), question: questionScopeForSelection(selected), mock: mockScopeForSelection(selected, diagram) };
     const before = followed.current;
     followed.current = next;
     if (!before) return;
     if (commentScope === before.comment) setCommentScope(next.comment);
     if (questionScope === before.question) setQuestionScope(next.question);
-    if (exampleScope === before.example) setExampleScope(next.example);
+    if (mockScope === before.mock) setMockScope(next.mock);
   }, [selected, diagram]);
-  const scopedExamples = exampleScope === 'all' ? exampleNodes : exampleScope.startsWith('selection:') ? exampleNodes.filter(id => shownAt(exampleScope.slice(10), diagram)(`item:${id}`)) : [exampleScope.slice(5)];
-  const exampleCount = scopedExamples.reduce((sum, id) => sum + examplesFor(id).length, 0);
-  const exampleOptions = reviewScopeOptions(exampleNodes.flatMap(id => examplesFor(id).map((): Annotation['target'] => ({ type: 'node', id }))));
-  const exampleContext = exampleScope.startsWith('selection:') ? commentContext(exampleScope.slice(10), diagram) : null;
-  const exampleLabel = exampleScope === 'all' ? 'All targets' : exampleContext ? scopeLabel(exampleContext.target) : scopeLabel({ type: 'node', id: exampleScope.slice(5) });
+  const scopedMocks = mockScope === 'all' ? mockNodes : mockScope.startsWith('selection:') ? mockNodes.filter(id => shownAt(mockScope.slice(10), diagram)(`item:${id}`)) : [mockScope.slice(5)];
+  const mockCount = scopedMocks.reduce((sum, id) => sum + mocksFor(id).length, 0);
+  const mockOptions = reviewScopeOptions(mockNodes.flatMap(id => mocksFor(id).map((): Annotation['target'] => ({ type: 'node', id }))));
+  const mockContext = mockScope.startsWith('selection:') ? commentContext(mockScope.slice(10), diagram) : null;
+  const mockLabel = mockScope === 'all' ? 'All targets' : mockContext ? scopeLabel(mockContext.target) : scopeLabel({ type: 'node', id: mockScope.slice(5) });
   const openAllComments = () => { setCommentScope('all'); setView('comments'); setOpen(true); };
   if (!open) {
     return (
@@ -612,7 +612,7 @@ export function Drawer({
             {needsInput > 0 && <span className="tab-count" aria-label={`${needsInput} open`}>{needsInput}</span>}
             {needsInput === 0 && answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
           </button>}
-          {pack.designDocument && <button type="button" aria-pressed={view === 'examples'} onClick={() => { if (view !== 'examples') { setExampleScope(exampleScopeForSelection(selected, diagram)); setView('examples'); } }}>Mocks{exampleCount > 0 && <span className="tab-count" aria-label={`${exampleCount} mock${exampleCount === 1 ? '' : 's'}`}>{exampleCount}</span>}</button>}
+          {pack.designDocument && <button type="button" aria-pressed={view === 'mocks'} onClick={() => { if (view !== 'mocks') { setMockScope(mockScopeForSelection(selected, diagram)); setView('mocks'); } }}>Mocks{mockCount > 0 && <span className="tab-count" aria-label={`${mockCount} mock${mockCount === 1 ? '' : 's'}`}>{mockCount}</span>}</button>}
         </div>
         <div className="row">
           <button type="button" className="icon-btn" data-tooltip="Collapse details panel" aria-label="Collapse details panel" onClick={() => setOpen(false)}>
@@ -624,14 +624,14 @@ export function Drawer({
         {view === 'details' ? (
           selected && selected !== 'group:design:root' ? <Details selected={selected} diagram={diagram} openQuestions={openQuestions} onQuestion={openQuestion} onInspect={selected => setInspection({ selected })} onSelect={onSelect} onOpenGroup={onOpenGroup} /> :
             pack.designDocument ? <DocumentOverview /> : <p className="muted">Select a box or relationship to see its details.</p>
-        ) : view === 'examples' ? <div className="drawer-examples">
-          <div className="review-toolbar"><ReviewScope label="Mock scope" value={exampleScope} currentLabel={exampleLabel} count={exampleCount} options={exampleOptions} onChange={setExampleScope} /></div>
-          <ExamplesTab nodeIds={scopedExamples} empty={exampleNodes.length ? 'No mocks match this filter.' : 'This design has no mocks.'} link={exampleLink} annotations={annotations} setAnnotations={setAnnotations} />
+        ) : view === 'mocks' ? <div className="drawer-mocks">
+          <div className="review-toolbar"><ReviewScope label="Mock scope" value={mockScope} currentLabel={mockLabel} count={mockCount} options={mockOptions} onChange={setMockScope} /></div>
+          <MocksTab nodeIds={scopedMocks} empty={mockNodes.length ? 'No mocks match this filter.' : 'This design has no mocks.'} link={mockLink} annotations={annotations} setAnnotations={setAnnotations} />
         </div> : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}
-            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} earlier={earlierComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment || onOpenExample ? (annotation, element, keyboard) => { if (annotation.example && onOpenExample) onOpenExample({ nodeId: annotation.target.id, path: annotation.example.path, variant: annotation.example.variant, comment: annotation.id }); else onShowComment?.(annotation, element, keyboard); } : undefined} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
+            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} earlier={earlierComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment || onOpenMock ? (annotation, element, keyboard) => { if (annotation.mock && onOpenMock) onOpenMock({ nodeId: annotation.target.id, path: annotation.mock.path, variant: annotation.mock.variant, comment: annotation.id }); else onShowComment?.(annotation, element, keyboard); } : undefined} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
           </div>
         )}
       </div>

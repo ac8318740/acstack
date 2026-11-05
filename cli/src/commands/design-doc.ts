@@ -7,7 +7,7 @@ import { inProject } from '../lib/utils.js';
 import { changedElements, describeChange, loadMapDesign, openDesignLifecycle, reviewHistories } from '../lib/design-lifecycle.js';
 import { createEventHub, createReviewServer, listenForReview, REVIEW_PORT, ReviewHttpError } from '../lib/review-server.js';
 import { designWatchRoots, notifyDesign, watchDesign } from '../lib/design-watch.js';
-import { examplePath, loadExampleContent } from '../lib/design-examples.js';
+import { mockPath, loadMockContent } from '../lib/design-mocks.js';
 import { checkoutRoot } from '../lib/project.js';
 import { DiagramOrientationSchema, type DiagramOrientation } from '../lib/alignment-packs.js';
 import { ANNOTATIONS_PATH } from '../lib/alignment-review-protocol.js';
@@ -55,11 +55,11 @@ export function liveDesignDoc(root: string, map: string, orientation: DiagramOri
     if (body && typeof body === 'object' && 'lock' in body) return lifecycle.lock(body);
     if (body && typeof body === 'object' && 'chooseVariant' in body) return lifecycle.chooseVariant(body);
     return lifecycle.approve(body);
-  } }, get: () => lifecycle.review.get(), post: body => lifecycle.review.post(body), examples: async query => {
-    // Content loads fresh on each request, so a rebuilt page's examples are current without a cache to drop.
-    const entry = lifecycle.doc.items.find(item => item.id === query.get('element'))?.examples.find(example => examplePath(example) === query.get('path'));
-    if (!entry) throw new ReviewHttpError(404, 'Unknown example');
-    return await loadExampleContent(root, map, query.get('element')!, entry, checkoutRoot() ?? process.cwd());
+  } }, get: () => lifecycle.review.get(), post: body => lifecycle.review.post(body), mocks: async query => {
+    // Content loads fresh on each request, so a rebuilt page's mocks are current without a cache to drop.
+    const entry = lifecycle.doc.items.find(item => item.id === query.get('element'))?.mocks.find(mock => mockPath(mock) === query.get('path'));
+    if (!entry) throw new ReviewHttpError(404, 'Unknown mock');
+    return await loadMockContent(root, map, query.get('element')!, entry, checkoutRoot() ?? process.cwd());
   } });
   const unwatch = watchDesign(root, map, reload);
   return { server, events, reload, lifecycle: () => lifecycle, stop: () => { unwatch(); events.close(); server.close(); } };
@@ -68,7 +68,7 @@ export function liveDesignDoc(root: string, map: string, orientation: DiagramOri
 designWatchRoots.push((root, map) => {
   const checkout = checkoutRoot() ?? process.cwd();
   try {
-    const designs = loadMapDesign(root, map, checkout).doc.items.flatMap(item => item.examples.flatMap(example => example.od ? [example.od.design] : []));
+    const designs = loadMapDesign(root, map, checkout).doc.items.flatMap(item => item.mocks.flatMap(mock => mock.od ? [mock.od.design] : []));
     return [...new Set(designs)].map(design => join(checkout, '.open-designer', 'designs', design));
   } catch { return []; }
 });
@@ -85,7 +85,7 @@ export function register(program: Command): void {
     .action(inProject((root, map: string, id: string, options: { variant: string[] }) => {
       const variants = Object.fromEntries(options.variant.map(value => {
         const at = value.lastIndexOf('=');
-        if (at <= 0 || at === value.length - 1) throw new Error(`--variant takes <example path>=<variant id>, not ${value}`);
+        if (at <= 0 || at === value.length - 1) throw new Error(`--variant takes <mock path>=<variant id>, not ${value}`);
         return [value.slice(0, at), value.slice(at + 1)];
       }));
       console.log(JSON.stringify(openDesignLifecycle(root, map).approveElement(id, variants)));

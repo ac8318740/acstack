@@ -43,8 +43,8 @@ export function createReviewServer(options: {
   post: (body: unknown) => unknown;
   recorded?: () => void;
   designReview?: { get: () => unknown; post: (body: unknown) => unknown };
-  // Example content for the page's modal, read-only and behind the token like every API.
-  examples?: (query: URLSearchParams) => Promise<unknown>;
+  // Mock content for the page's modal, read-only and behind the token like every API.
+  mocks?: (query: URLSearchParams) => Promise<unknown>;
 }): Server {
   const token = randomBytes(16).toString('hex');
   const metadata = `<meta name="${REVIEW_TOKEN_META}" content="${token}">${options.mode ? `<meta name="${REVIEW_MODE_META}" content="comments">` : ''}`;
@@ -73,9 +73,9 @@ export function createReviewServer(options: {
       options.events.attach(res);
       return;
     }
-    if (options.examples && req.method === 'GET' && req.url?.startsWith('/api/examples?')) {
+    if (options.mocks && req.method === 'GET' && req.url?.startsWith('/api/mocks?')) {
       if (req.headers[REVIEW_TOKEN_HEADER] !== token) return reply(403, { error: 'This page is from an older review. Reload it.' });
-      void options.examples(new URL(req.url, 'http://localhost').searchParams).then(body => reply(200, body)).catch((error: unknown) => {
+      void options.mocks(new URL(req.url, 'http://localhost').searchParams).then(body => reply(200, body)).catch((error: unknown) => {
         reply(error instanceof ReviewHttpError ? error.status : 500, { error: error instanceof Error ? error.message : String(error) });
       });
       return;

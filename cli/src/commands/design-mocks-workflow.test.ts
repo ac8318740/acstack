@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { stripVTControlCharacters } from 'node:util';
 import { gitBinary, trackProject } from '../test-project.js';
 
-// Black-box contract test of element examples through the shipped CLI; the parent rebuilds cli/dist first.
+// Black-box contract test of element mocks through the shipped CLI; the parent rebuilds cli/dist first.
 const bin = fileURLToPath(new URL('../../bin/acstack.js', import.meta.url));
 const roots: string[] = [];
 const children: ChildProcess[] = [];
@@ -17,15 +17,15 @@ type Status = Tuple & { locked: string[]; warnings: string[]; blockers: Record<s
 
 const element = (yaml: string) => `<details>\n<summary>Design element</summary>\n\n\`\`\`yaml\n${yaml}\n\`\`\`\n</details>`;
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), 'design-examples-'));
+  const root = mkdtempSync(join(tmpdir(), 'design-mocks-'));
   roots.push(root);
   const map = join(root, '.acstack/maps/demo');
   mkdirSync(join(map, 'elements/102'), { recursive: true });
   mkdirSync(join(root, 'bin'));
-  writeFileSync(join(root, '.acstack/project.yaml'), 'name: examples-test\nworkflow:\n  maps:\n    tracker: files\n');
+  writeFileSync(join(root, '.acstack/project.yaml'), 'name: mocks-test\nworkflow:\n  maps:\n    tracker: files\n');
   const node = (id: string, kind: string, body = '', answers = '101') => writeFileSync(join(map, `${id}-node.md`), `---\nstatus: open\nmode: hitl\nkind: ${kind}\nlabel: Node ${id}\n${kind === 'destination' ? '' : `answers: "${answers}"\n`}blocked-by: []\n---\n\n# Node ${id}\n\n${body}\n`);
   node('101', 'destination');
-  node('102', 'element', element('kind: component\nconnections: [{to: 103, direction: one-way, label: Writes}]\nexamples:\n  - {title: Checkout, od: {design: checkout, page: home}}\n  - {fixture: order.json, schema: order.schema.json}'));
+  node('102', 'element', element('kind: component\nconnections: [{to: 103, direction: one-way, label: Writes}]\nmocks:\n  - {title: Checkout, od: {design: checkout, page: home}}\n  - {fixture: order.json, schema: order.schema.json}'));
   node('103', 'element', element('kind: store'));
   writeFileSync(join(map, 'elements/102/order.json'), '{"id": 1}');
   writeFileSync(join(map, 'elements/102/order.schema.json'), '{"type": "object", "required": ["id"]}');
@@ -83,33 +83,33 @@ async function start(root: string) {
     html, url, headers, status, output: () => output,
     post: async (body: Record<string, unknown>) => request(api, { method: 'POST', headers, body: JSON.stringify({ ...body, expected: tuple(await status()) }) }),
     lock: async (id: string, capture?: unknown) => request(api, { method: 'POST', headers, body: JSON.stringify({ lock: id, ...(capture !== undefined && { capture }), expected: tuple(await status()) }) }),
-    example: (path: string, token_ = token) => request(new URL(`/api/examples?element=102&path=${encodeURIComponent(path)}`, url), { headers: { 'x-review-token': token_ } }),
+    mock: (path: string, token_ = token) => request(new URL(`/api/mocks?element=102&path=${encodeURIComponent(path)}`, url), { headers: { 'x-review-token': token_ } }),
   };
 }
 
-it('lists examples in the page, serves their content behind the token, and holds approval until a variant is chosen', async () => {
+it('lists mocks in the page, serves their content behind the token, and holds approval until a variant is chosen', async () => {
   const root = fixture();
   const check = spawnSync(process.execPath, [bin, 'design-doc', 'demo', '--check'], { cwd: root, env: env(root), encoding: 'utf8', timeout: 10_000 });
   expect(check.status, check.stderr).toBe(0);
   const server = await start(root);
   // Summaries ship in the page; content does not.
-  expect(server.html).toMatch(/"examples":\[\{"kind":"od-build","path":"od:checkout\/home","title":"Checkout","variants":\["grid","list"\],"revision":"[a-f0-9]{64}"\}/);
+  expect(server.html).toMatch(/"mocks":\[\{"kind":"od-build","path":"od:checkout\/home","title":"Checkout","variants":\["grid","list"\],"revision":"[a-f0-9]{64}"\}/);
   expect(server.html).not.toContain('<meta name="od-variant" content="grid">');
 
-  expect((await server.example('od:checkout/home', 'wrong')).status).toBe(403);
-  const built = await (await server.example('od:checkout/home')).json() as Record<string, unknown>;
+  expect((await server.mock('od:checkout/home', 'wrong')).status).toBe(403);
+  const built = await (await server.mock('od:checkout/home')).json() as Record<string, unknown>;
   expect(built).toMatchObject({ kind: 'od-build', variants: [{ id: 'grid' }, { id: 'list' }], tokens: {} });
-  expect(await (await server.example('order.json')).json()).toEqual({ kind: 'fixture', format: 'json', data: '{"id": 1}' });
-  expect((await server.example('../103-node.md')).status).toBe(404);
+  expect(await (await server.mock('order.json')).json()).toEqual({ kind: 'fixture', format: 'json', data: '{"id": 1}' });
+  expect((await server.mock('../103-node.md')).status).toBe(404);
 
   const blocked = await server.status();
-  expect(blocked.blockers).toEqual([{ kind: 'variant', targetId: '102', label: 'Node 102: choose a variant of Checkout', nodeId: '102', example: 'od:checkout/home' }]);
+  expect(blocked.blockers).toEqual([{ kind: 'variant', targetId: '102', label: 'Node 102: choose a variant of Checkout', nodeId: '102', mock: 'od:checkout/home' }]);
   expect(blocked.approval.reason).toBe('Choose a variant in each mock that has several');
 
   // Locking chooses the variant on screen, so a lock without one is refused.
   expect((await server.lock('102')).status).toBe(409);
-  expect((await server.lock('102', { examples: { 'od:checkout/home': { variant: 'gone' } } })).status).toBe(409);
-  expect((await server.lock('102', { examples: { 'od:checkout/home': { variant: 'list', tweaks: {}, states: {} } } })).status).toBe(200);
+  expect((await server.lock('102', { mocks: { 'od:checkout/home': { variant: 'gone' } } })).status).toBe(409);
+  expect((await server.lock('102', { mocks: { 'od:checkout/home': { variant: 'list', tweaks: {}, states: {} } } })).status).toBe(200);
   const after = await server.status();
   expect(after.blockers).toEqual([]);
   expect(after.locked).toEqual(['102']);
@@ -140,7 +140,7 @@ it('approves a multi-variant element for the agent only with the variant the use
   expect((JSON.parse(approved.stdout) as Status).locked).toEqual(['102']);
 }, 30_000);
 
-it('unapproves a locked element when a binding example changes, but not an illustrative one', () => {
+it('unapproves a locked element when a binding mock changes, but not an illustrative one', () => {
   const root = fixture();
   const folder = join(root, '.acstack/maps/demo/elements/102');
   writeFileSync(join(folder, 'note.json'), '{"id": 1}');
@@ -163,7 +163,7 @@ it('unapproves a locked element when a binding example changes, but not an illus
   writeFileSync(join(folder, 'order.json'), '{"id": 1}');
   expect(changed()).toEqual([]);
 
-  // An od example binds its OpenDesigner page source, not the build.
+  // An od mock binds its OpenDesigner page source, not the build.
   writeFileSync(join(root, '.open-designer/designs/checkout/list.tsx'), 'export default () => "List";');
   expect(changed()).toEqual([expect.objectContaining({ kind: 'changed', targetId: '102' })]);
 }, 60_000);
@@ -172,7 +172,7 @@ it('settles a variant blocker by choosing in the viewer, and approval locks the 
   const root = fixture();
   const server = await start(root);
   expect((await server.status()).blockers).toHaveLength(1);
-  const choose = (variant: string, element = '102') => server.post({ chooseVariant: { element, example: 'od:checkout/home', variant, tweaks: { radius: '20' } } });
+  const choose = (variant: string, element = '102') => server.post({ chooseVariant: { element, mock: 'od:checkout/home', variant, tweaks: { radius: '20' } } });
   expect((await choose('gone')).status).toBe(400);
   expect((await choose('list', '103')).status).toBe(400);
   expect((await choose('list')).status).toBe(200);
@@ -181,7 +181,7 @@ it('settles a variant blocker by choosing in the viewer, and approval locks the 
   expect(chosen.choices['102']['od:checkout/home'].variant).toBe('list');
   expect((await server.post({ decision: 'approved' })).status).toBe(200);
   const review = JSON.parse(readFileSync(join(root, '.acstack/design-reviews', 'demo', readdirSync(join(root, '.acstack/design-reviews/demo')).find(name => /^[a-f0-9]{16}$/.test(name))!, 'review.json'), 'utf8')) as { lifecycle: { locks: Record<string, { capture?: unknown }> } };
-  expect(review.lifecycle.locks['102'].capture).toEqual({ examples: { 'od:checkout/home': { variant: 'list', tweaks: { radius: '20' }, states: {} } } });
+  expect(review.lifecycle.locks['102'].capture).toEqual({ mocks: { 'od:checkout/home': { variant: 'list', tweaks: { radius: '20' }, states: {} } } });
 }, 30_000);
 
 it('never asks for a variant on an illustrative mock', async () => {

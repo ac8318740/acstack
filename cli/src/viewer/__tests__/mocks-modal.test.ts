@@ -1,9 +1,9 @@
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
-import { FrameStatus } from '../example-frame.js';
-import { componentLabel, describe as describeSelection, ExampleContext, ExamplesModal, ExamplesTab, FixtureView, TweakControls } from '../examples-modal.js';
-import { cacheExample, exampleCapture, setExampleView, type ElementExample } from '../examples.js';
+import { FrameStatus } from '../mock-frame.js';
+import { componentLabel, describe as describeSelection, MockContext, MocksModal, MocksTab, FixtureView, TweakControls } from '../mocks-modal.js';
+import { cacheMock, mockCapture, setMockView, type ElementMock } from '../mocks.js';
 import { pack, type Annotation } from '../pack.js';
 
 vi.mock('../pack.js', () => ({
@@ -12,7 +12,7 @@ vi.mock('../pack.js', () => ({
   pack: { packVersion: 'v1', graph: { nodes: [], edges: [], groups: [] }, source: { references: [] } },
 }));
 
-const examples: ElementExample[] = [
+const mocks: ElementMock[] = [
   { kind: 'html', path: 'checkout.html', title: 'Checkout mock', html: '<button>Pay</button>' },
   {
     kind: 'od-build', path: 'cart', title: 'Cart build',
@@ -26,27 +26,27 @@ const examples: ElementExample[] = [
   { kind: 'markdown', path: 'flow.md', title: 'Checkout flow', markdown: '## Steps\n\n| Step | Who |\n|---|---|\n| Pay | Customer |\n\n```mermaid\nflowchart LR\n  A --> B\n```' },
   { kind: 'fixture', path: 'order.json', title: 'Order fixture', format: 'json', data: '[{"id":1,"note":"<img src=x onerror=alert(1)>"}]', illustrative: true },
 ];
-const comment: Annotation = { id: 'c1', packVersion: 'v1', target: { type: 'node', id: 'checkout' }, example: { path: 'checkout.html', selections: [{ selector: '#pay', rect: { x: 0, y: 0, width: 10, height: 10 }, component: { name: 'PayButton' }, text: '<b>Pay</b>' }, { selector: '#total', rect: { x: 0, y: 20, width: 10, height: 10 } }] }, comment: 'Make it bigger' };
+const comment: Annotation = { id: 'c1', packVersion: 'v1', target: { type: 'node', id: 'checkout' }, mock: { path: 'checkout.html', selections: [{ selector: '#pay', rect: { x: 0, y: 0, width: 10, height: 10 }, component: { name: 'PayButton' }, text: '<b>Pay</b>' }, { selector: '#total', rect: { x: 0, y: 20, width: 10, height: 10 } }] }, comment: 'Make it bigger' };
 
 // The page lists summaries; the content arrives from the review server and is cached.
-const summaries = examples.map(({ kind, path, title, illustrative }) => ({ kind, path, title, ...(illustrative && { illustrative }) }));
-(pack.graph.nodes as unknown[]).push({ id: 'checkout', examples: summaries });
-for (const example of examples) cacheExample('checkout', example);
+const summaries = mocks.map(({ kind, path, title, illustrative }) => ({ kind, path, title, ...(illustrative && { illustrative }) }));
+(pack.graph.nodes as unknown[]).push({ id: 'checkout', mocks: summaries });
+for (const mock of mocks) cacheMock('checkout', mock);
 
-const modal = (path: string, annotations: Annotation[] = []) => renderToStaticMarkup(createElement(ExamplesModal, { nodeId: 'checkout', examples: summaries, path, onPath: vi.fn(), onClose: vi.fn(), annotations, setAnnotations: vi.fn() }));
+const modal = (path: string, annotations: Annotation[] = []) => renderToStaticMarkup(createElement(MocksModal, { nodeId: 'checkout', mocks: summaries, path, onPath: vi.fn(), onClose: vi.fn(), annotations, setAnnotations: vi.fn() }));
 
-it('lists an element\'s examples with their kind in the Examples tab', () => {
-  const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', annotations: [comment], setAnnotations: vi.fn() }));
+it('lists an element\'s mocks with their kind in the Mocks tab', () => {
+  const html = renderToStaticMarkup(createElement(MocksTab, { nodeIds: ['checkout'], empty: 'None.', annotations: [comment], setAnnotations: vi.fn() }));
   for (const text of ['Checkout mock', 'Mock, 1 comment', 'Cart build', 'Document', 'Sample data, illustrative']) expect(html).toContain(text);
   expect(html).toContain('aria-haspopup="dialog"');
-  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['other'], empty: 'No mocks match this filter.', annotations: [], setAnnotations: vi.fn() }))).toContain('No mocks match this filter.');
+  expect(renderToStaticMarkup(createElement(MocksTab, { nodeIds: ['other'], empty: 'No mocks match this filter.', annotations: [], setAnnotations: vi.fn() }))).toContain('No mocks match this filter.');
 });
 
-it('labels each listed example by its element, across the whole design', () => {
-  (pack.graph.nodes as unknown[]).push({ id: 'orders', label: 'Order history', examples: [summaries[0]] });
+it('labels each listed mock by its element, across the whole design', () => {
+  (pack.graph.nodes as unknown[]).push({ id: 'orders', label: 'Order history', mocks: [summaries[0]] });
   try {
-    const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout', 'orders', 'plain'], empty: 'None.', annotations: [], setAnnotations: vi.fn() }));
-    expect(html.match(/class="example-group"/g)).toHaveLength(2);
+    const html = renderToStaticMarkup(createElement(MocksTab, { nodeIds: ['checkout', 'orders', 'plain'], empty: 'None.', annotations: [], setAnnotations: vi.fn() }));
+    expect(html.match(/class="mock-group"/g)).toHaveLength(2);
     expect(html).toContain('>Order history</h3>');
   } finally { (pack.graph.nodes as unknown[]).pop(); }
 });
@@ -56,7 +56,7 @@ it('renders inline HTML in an opaque-origin frame with labelled controls', () =>
   expect(html).toContain('sandbox="allow-scripts"');
   expect(html).not.toContain('allow-same-origin');
   expect(html).toContain('title="Checkout mock"');
-  expect(html).toContain('aria-label="Close examples"');
+  expect(html).toContain('aria-label="Close mocks"');
   expect(html).toContain('aria-pressed="false"');
   expect(html).toMatch(/aria-labelledby="[^"]+"/);
   // The authored mock never lands in the viewer document; the bridge loads it into the frame.
@@ -66,7 +66,7 @@ it('renders inline HTML in an opaque-origin frame with labelled controls', () =>
   expect(html).toContain('<span class="mark-number" aria-hidden="true">1</span>');
   // One composer, no explanatory prose.
   expect(html.match(/<textarea/g)).toHaveLength(1);
-  expect(html).not.toContain('Comments anchor to the whole example');
+  expect(html).not.toContain('Comments anchor to the whole mock');
 });
 
 it('renders an OpenDesigner build in the srcdoc frame with a variant switcher and its tweaks', () => {
@@ -120,17 +120,17 @@ it('renders frame-supplied error text and selections as text only', () => {
   expect(describeSelection({ selector: '#a', text: '', component: { name: 'Card' } })).toBe('Card');
 });
 
-it('opens straight to a linked example and variant', () => {
-  const html = renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'checkout', path: 'cart', variant: 'b' }, annotations: [], setAnnotations: vi.fn() }));
+it('opens straight to a linked mock and variant', () => {
+  const html = renderToStaticMarkup(createElement(MocksTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'checkout', path: 'cart', variant: 'b' }, annotations: [], setAnnotations: vi.fn() }));
   expect(html).toContain('<dialog');
   expect(html).toContain('title="Cart build, List"');
-  // A link for another element or a missing example opens nothing.
-  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'other', path: 'cart' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
-  expect(renderToStaticMarkup(createElement(ExamplesTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'checkout', path: 'gone' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
+  // A link for another element or a missing mock opens nothing.
+  expect(renderToStaticMarkup(createElement(MocksTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'other', path: 'cart' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
+  expect(renderToStaticMarkup(createElement(MocksTab, { nodeIds: ['checkout'], empty: 'None.', link: { nodeId: 'checkout', path: 'gone' }, annotations: [], setAnnotations: vi.fn() }))).not.toContain('<dialog');
 });
 
 it('captures the viewed variant, its tweak values, and all its states for a lock', () => {
-  const loaded: ElementExample[] = [{
+  const loaded: ElementMock[] = [{
     kind: 'od-build', path: 'cart', title: 'Cart', html: '',
     tweaks: [{ id: 'density', label: 'Density', type: 'select', options: ['cozy', 'compact'], discardReason: '' }],
     variants: [
@@ -138,15 +138,15 @@ it('captures the viewed variant, its tweak values, and all its states for a lock
       { id: 'b', tweaks: [{ id: 'phase', label: 'State', type: 'state', options: ['loading', { label: 'Empty', value: 'empty' }] }, { id: 'radius', label: 'Radius', type: 'slider', default: 8 }] },
     ],
   }, { kind: 'html', path: 'x.html', title: 'X', html: '' }];
-  expect(exampleCapture('lock-node', loaded)).toBeUndefined();
-  setExampleView('lock-node', 'cart', { variant: 'b', values: { b: { radius: '12' } } });
-  setExampleView('lock-node', 'x.html', { values: {} });
-  expect(exampleCapture('lock-node', loaded)).toEqual({ examples: { cart: { variant: 'b', tweaks: { density: 'cozy', radius: '12' }, states: { phase: ['loading', 'empty'] } } } });
+  expect(mockCapture('lock-node', loaded)).toBeUndefined();
+  setMockView('lock-node', 'cart', { variant: 'b', values: { b: { radius: '12' } } });
+  setMockView('lock-node', 'x.html', { values: {} });
+  expect(mockCapture('lock-node', loaded)).toEqual({ mocks: { cart: { variant: 'b', tweaks: { density: 'cozy', radius: '12' }, states: { phase: ['loading', 'empty'] } } } });
 });
 
-it('shows a loading state until the example content arrives', () => {
-  const html = renderToStaticMarkup(createElement(ExamplesModal, { nodeId: 'uncached', examples: [{ kind: 'html', path: 'a.html', title: 'A' }], path: 'a.html', onPath: vi.fn(), onClose: vi.fn(), annotations: [], setAnnotations: vi.fn() }));
-  expect(html).toContain('Loading example...');
+it('shows a loading state until the mock content arrives', () => {
+  const html = renderToStaticMarkup(createElement(MocksModal, { nodeId: 'uncached', mocks: [{ kind: 'html', path: 'a.html', title: 'A' }], path: 'a.html', onPath: vi.fn(), onClose: vi.fn(), annotations: [], setAnnotations: vi.fn() }));
+  expect(html).toContain('Loading mock...');
   expect(html).not.toContain('<iframe');
 });
 
@@ -157,8 +157,8 @@ it('labels picked elements in plain words, using a container\'s first line', () 
   expect(describeSelection({ selector: 'span', text: '' })).toBe('Element');
 });
 
-it('names the example, variant, and picked elements for a comment listed outside the modal', () => {
-  const html = renderToStaticMarkup(createElement(ExampleContext, { nodeId: 'checkout', anchor: { path: 'cart', variant: 'b', selections: [{ selector: '#pay', rect: { x: 0, y: 0, width: 1, height: 1 }, component: { name: 'PayButton' }, text: 'Pay' }] } }));
+it('names the mock, variant, and picked elements for a comment listed outside the modal', () => {
+  const html = renderToStaticMarkup(createElement(MockContext, { nodeId: 'checkout', anchor: { path: 'cart', variant: 'b', selections: [{ selector: '#pay', rect: { x: 0, y: 0, width: 1, height: 1 }, component: { name: 'PayButton' }, text: 'Pay' }] } }));
   expect(html).toContain('Cart build · List');
   expect(html).toContain('Pay button: Pay');
 });

@@ -5,21 +5,21 @@ import { designDocToPack, designFromNodes, digest, type DesignDoc } from './desi
 import { designMapInputs, readMapNodes, resolveMapNode, type ApprovalBlocker, type ElementChange } from './design-map.js';
 import { openDesignReview, readDesignReviewHistories, DesignAnswerSchema, LockCaptureSchema, validateDesignAnswer, ReconciliationSchema, RevisionTupleSchema, type ApprovedElement, type DesignAnswer, type StoredDesignReview } from './design-review.js';
 import { ReviewHttpError } from './review-server.js';
-import { checkElementExamples, unchosenMocks, variantCapture, variantDefaults } from './design-examples.js';
+import { checkElementMocks, unchosenMocks, variantCapture, variantDefaults } from './design-mocks.js';
 import { checkoutRoot } from './project.js';
 
 // OpenDesigner keeps its designs in the checkout, beside the code they mock.
 export function loadMapDesign(root: string, map: string, checkout = checkoutRoot() ?? process.cwd()) {
   const nodes = readMapNodes(root, map);
   const { doc, warnings } = designFromNodes(map, nodes);
-  const examples = checkElementExamples(root, map, doc.items, checkout);
+  const mocks = checkElementMocks(root, map, doc.items, checkout);
   for (const item of doc.items) {
-    item.exampleSummaries = examples.summaries.get(item.id);
-    // Binding examples are part of what a lock approves, so editing one unapproves the element.
-    const bound = examples.bindings.get(item.id);
+    item.mockSummaries = mocks.summaries.get(item.id);
+    // Binding mocks are part of what a lock approves, so editing one unapproves the element.
+    const bound = mocks.bindings.get(item.id);
     if (bound) item.configDigest = digest([item.configDigest, bound]);
   }
-  return { nodes, doc, warnings: [...warnings, ...examples.warnings] };
+  return { nodes, doc, warnings: [...warnings, ...mocks.warnings] };
 }
 export const reviewHistories = (root: string, id: string): Map<string, StoredDesignReview> =>
   existsSync(join(root, 'design-reviews', id)) ? readDesignReviewHistories(root, id) : new Map<string, StoredDesignReview>();
@@ -49,7 +49,7 @@ export function approvedElement(item: Item): ApprovedElement {
   return {
     title: item.title, name: item.name, summary: item.summary, ...(item.detailText && { detail: item.detailText }), kind: item.kind, ...(item.parent && { parent: item.parent }), channels: item.channels,
     connections: item.relationships.map(edge => ({ to: edge.to, direction: edge.direction, label: edge.label })),
-    examples: Object.fromEntries((item.exampleSummaries ?? []).filter(example => !example.illustrative && example.revision).map(example => [example.path, example.revision!])),
+    mocks: Object.fromEntries((item.mockSummaries ?? []).filter(mock => !mock.illustrative && mock.revision).map(mock => [mock.path, mock.revision!])),
   };
 }
 /** What changed between an approved element and its current form, in the reviewer's words. */
@@ -72,11 +72,11 @@ export function elementChanges(before: ApprovedElement, after: ApprovedElement):
     else if (old.direction !== edge.direction) changes.push({ label: `Connection '${edge.label}' changed direction` });
   }
   for (const edge of before.connections) if (!after.connections.some(item => key(item) === key(edge))) changes.push({ label: `Connection '${edge.label}' removed` });
-  for (const [path, revision] of Object.entries(after.examples)) {
-    if (!(path in before.examples)) changes.push({ label: `Mock ${path} added` });
-    else if (before.examples[path] !== revision) changes.push({ label: `Mock ${path} changed` });
+  for (const [path, revision] of Object.entries(after.mocks)) {
+    if (!(path in before.mocks)) changes.push({ label: `Mock ${path} added` });
+    else if (before.mocks[path] !== revision) changes.push({ label: `Mock ${path} changed` });
   }
-  for (const path of Object.keys(before.examples)) if (!(path in after.examples)) changes.push({ label: `Mock ${path} removed` });
+  for (const path of Object.keys(before.mocks)) if (!(path in after.mocks)) changes.push({ label: `Mock ${path} removed` });
   return changes;
 }
 const hasRecord = (saved: StoredDesignReview, item: DesignDoc['items'][number]) => saved.lifecycle?.locks[item.id]?.config === item.configDigest;
@@ -127,7 +127,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     // A variant the user chose in the viewer settles that mock's blocker.
     const choices = saved.lifecycle?.choices ?? {};
     const isChosen = (blocker: ApprovalBlocker) => blocker.kind === 'variant'
-      && Boolean(doc.items.find(item => item.id === blocker.targetId)?.exampleSummaries?.find(example => example.path === blocker.example)?.variants?.includes(choices[blocker.targetId]?.[blocker.example]?.variant ?? ''));
+      && Boolean(doc.items.find(item => item.id === blocker.targetId)?.mockSummaries?.find(mock => mock.path === blocker.mock)?.variants?.includes(choices[blocker.targetId]?.[blocker.mock]?.variant ?? ''));
     inputs.blockers = inputs.blockers.filter(blocker => !isChosen(blocker));
     const blockers = [...inputs.blockers, ...doc.items.filter(item => changed.includes(item.id))
       .map((item): ApprovalBlocker => ({ kind: 'changed', targetId: item.id, label: item.name, nodeId: item.id, ...(item.changes && { changes: item.changes }) }))];
@@ -186,8 +186,8 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     // A recorded choice is what the user decided, so it outranks whatever the page happened to show.
     const captures = { ...sent };
     for (const [id, chosen] of Object.entries(saved.lifecycle?.choices ?? {})) {
-      const examples = { ...(captures[id] as { examples?: Record<string, unknown> } | undefined)?.examples, ...Object.fromEntries(Object.entries(chosen).map(([path, choice]) => [path, { variant: choice.variant, tweaks: choice.tweaks, states: choice.states }])) };
-      captures[id] = { ...captures[id], examples };
+      const mocks = { ...(captures[id] as { mocks?: Record<string, unknown> } | undefined)?.mocks, ...Object.fromEntries(Object.entries(chosen).map(([path, choice]) => [path, { variant: choice.variant, tweaks: choice.tweaks, states: choice.states }])) };
+      captures[id] = { ...captures[id], mocks };
     }
     // Locking chooses a variant, so check every element before the tracker resolves any of them.
     for (const item of items) {
@@ -220,16 +220,16 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     }),
     // The user's choice of variant for a mock with several; it settles that mock's blocker until approval locks it in.
     chooseVariant: (body: unknown) => review.transact(saved => {
-      const incoming = z.object({ chooseVariant: z.object({ element: z.string().min(1), example: z.string().min(1), variant: z.string().min(1), tweaks: z.record(z.string().max(1024)).default({}) }).strict(), expected: RevisionTupleSchema }).strict().parse(body);
+      const incoming = z.object({ chooseVariant: z.object({ element: z.string().min(1), mock: z.string().min(1), variant: z.string().min(1), tweaks: z.record(z.string().max(1024)).default({}) }).strict(), expected: RevisionTupleSchema }).strict().parse(body);
       const state = current(saved, incoming.expected);
-      const { element, example, variant, tweaks } = incoming.chooseVariant;
+      const { element, mock, variant, tweaks } = incoming.chooseVariant;
       const item = state.doc.items.find(item => item.id === element);
-      const mock = item?.exampleSummaries?.find(summary => summary.path === example && summary.kind === 'od-build');
-      if (!item || !mock) throw new ReviewHttpError(400, 'Unknown OpenDesigner example');
-      if (!mock.variants?.includes(variant)) throw new ReviewHttpError(400, `Unknown variant ${variant}`);
-      const { states } = variantDefaults(item, example, variant, checkout);
+      const summary = item?.mockSummaries?.find(entry => entry.path === mock && entry.kind === 'od-build');
+      if (!item || !summary) throw new ReviewHttpError(400, 'Unknown OpenDesigner mock');
+      if (!summary.variants?.includes(variant)) throw new ReviewHttpError(400, `Unknown variant ${variant}`);
+      const { states } = variantDefaults(item, mock, variant, checkout);
       saved.lifecycle ??= { reconciliations: [], approvals: [], locks: {}, choices: {} };
-      saved.lifecycle.choices[element] = { ...saved.lifecycle.choices[element], [example]: { variant, tweaks, states, chosenAt: new Date().toISOString() } };
+      saved.lifecycle.choices[element] = { ...saved.lifecycle.choices[element], [mock]: { variant, tweaks, states, chosenAt: new Date().toISOString() } };
       return publicStatus(evaluate(saved));
     }),
     lock: (body: unknown) => review.transact(saved => {

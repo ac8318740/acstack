@@ -10,7 +10,7 @@ type Status = {
   sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string;
   approval: { valid: boolean; reason?: string };
   openQuestions?: string[]; answers?: Record<string, string>; locked?: string[]; blockers?: ApprovalBlocker[]; earlier?: EarlierReview[];
-  // Element id to example path to the variant the user chose.
+  // Element id to mock path to the variant the user chose.
   choices?: Record<string, Record<string, { variant: string }>>;
 };
 /** Comments saved on an earlier revision, tagged with the change that ended it. */
@@ -35,8 +35,8 @@ type ApprovalControls = {
   answered: string[]; answerText: (id: string) => string | undefined; answerable: string[]; locked?: string[]; changed: string[]; changes: (id: string) => ElementChange[]; earlier: EarlierReview[]; canAnswer: boolean;
   saveAnswer: (answer: DesignAnswer) => Promise<void>;
   lock: (id: string) => Promise<void>;
-  chosenVariant: (element: string, example: string) => string | undefined;
-  chooseVariant: (element: string, example: string, variant: string, tweaks: Record<string, string>) => Promise<void>;
+  chosenVariant: (element: string, mock: string) => string | undefined;
+  chooseVariant: (element: string, mock: string, variant: string, tweaks: Record<string, string>) => Promise<void>;
   navigate: MutableRefObject<((blocker: ApprovalBlocker) => void) | undefined>;
   captures: MutableRefObject<Map<string, () => LockCapture | undefined>>;
 };
@@ -128,8 +128,8 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
   };
   const saveAnswer = (answer: DesignAnswer) => write(answer);
   const lock = (id: string) => { const capture = captures.current.get(id)?.(); return write({ lock: id, ...(capture && { capture }) }); };
-  const chooseVariant = (element: string, example: string, variant: string, tweaks: Record<string, string>) => write({ chooseVariant: { element, example, variant, tweaks } });
-  const chosenVariant = (element: string, example: string) => status?.choices?.[element]?.[example]?.variant;
+  const chooseVariant = (element: string, mock: string, variant: string, tweaks: Record<string, string>) => write({ chooseVariant: { element, mock, variant, tweaks } });
+  const chosenVariant = (element: string, mock: string) => status?.choices?.[element]?.[mock]?.variant;
   // Until status arrives, the page's own data says which questions were answered.
   const answered = (pack.designDocument?.questions ?? []).filter(question => status?.openQuestions ? !status.openQuestions.includes(question.id) : question.answer !== undefined).map(question => question.id);
   const answerText = (id: string) => status?.answers?.[id];

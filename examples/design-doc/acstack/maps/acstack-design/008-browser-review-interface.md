@@ -18,13 +18,13 @@ kind: component
 parent: '006'
 channels:
 - web
-examples:
+mocks:
 - title: Order summary
   od:
     design: order-summary
     page: summary
   illustrative: true
-- title: Reviewing an example
+- title: Reviewing a mock
   markdown: review-flow.md
 - title: How a comment anchors
   mermaid: comment-anchor.mmd

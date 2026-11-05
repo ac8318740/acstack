@@ -17,7 +17,7 @@ import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alig
 import { copy, ReviewHandoff } from './review-handoff.js';
 import { useQuestionCounts } from './design-questions.js';
 import { questionScopeForSelection } from './question-targets.js';
-import type { ExampleLink } from './examples-modal.js';
+import type { MockLink } from './mocks-modal.js';
 import { DesignApproval, DesignApprovalProvider, useBlockerNavigation, useDesignReview } from './design-approval.js';
 import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, followLiveUpdates, usePackRevision, useReviewAnnotations } from './pack.js';
 
@@ -238,9 +238,9 @@ function App() {
   // A blocker link opens its element; a question the page can answer also opens and focuses in Questions.
   const [questionRequest, setQuestionRequest] = useState<{ id: string }>();
   const [reveal, setReveal] = useState<{ id: string }>();
-  const [exampleLink, setExampleLink] = useState<ExampleLink>();
+  const [mockLink, setMockLink] = useState<MockLink>();
   const review = useDesignReview();
-  // Open the containers the element sits in, so its card, drawer, and Examples view are the element's own.
+  // Open the containers the element sits in, so its card, drawer, and Mocks view are the element's own.
   const showElement = (id: string) => {
     const { groups, selection } = revealElement(pack.graph, id);
     if (groups.some(id => !expanded.includes(id))) changeExpanded([...new Set([...expanded, ...groups])]);
@@ -248,9 +248,9 @@ function App() {
     setReveal({ id: selection });
     setDrawerOpen(true);
   };
-  const openExample = (link: ExampleLink) => { showElement(link.nodeId); setExampleLink(link); setDrawerView('examples'); };
+  const openMock = (link: MockLink) => { showElement(link.nodeId); setMockLink(link); setDrawerView('mocks'); };
   useBlockerNavigation(blocker => {
-    if (blocker.kind === 'variant') { openExample({ nodeId: blocker.targetId, path: blocker.example }); return; }
+    if (blocker.kind === 'variant') { openMock({ nodeId: blocker.targetId, path: blocker.mock }); return; }
     showElement(blocker.targetId);
     if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });
     else setDrawerView('details');
@@ -343,8 +343,8 @@ function App() {
         open={drawerOpen}
         setOpen={setDrawerOpen}
         view={drawerView}
-        exampleLink={exampleLink}
-        onOpenExample={openExample}
+        mockLink={mockLink}
+        onOpenMock={openMock}
         setView={setDrawerView}
         commentScope={commentScope}
         setCommentScope={setCommentScope}

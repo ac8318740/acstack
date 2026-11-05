@@ -17,7 +17,7 @@ export const LockCaptureSchema = z.record(z.unknown());
 export const ApprovedElementSchema = z.object({
   title: z.string().optional(), name: z.string(), summary: z.string(), detail: z.string().optional(), kind: z.string(), parent: z.string().optional(), channels: z.array(z.string()),
   connections: z.array(z.object({ to: z.string(), direction: z.string(), label: z.string() }).strict()),
-  examples: z.record(z.string()),
+  mocks: z.record(z.string()),
 }).strict();
 export type ApprovedElement = z.infer<typeof ApprovedElementSchema>;
 const RevisionTupleSchema = z.object({
@@ -39,7 +39,7 @@ const EvidenceSchema = z.object({
   // Element id to the config digest the user locked, so a later config edit can be flagged, and what the page showed then.
   // `approved` keeps the element as it was approved, so a later edit can say what changed.
   locks: z.record(z.object({ config: z.string().regex(/^[a-f0-9]{64}$/), capture: LockCaptureSchema.optional(), approved: ApprovedElementSchema.optional(), approvedAt: z.string().optional() }).strict()).default({}),
-  // Element id to example path to the variant the user chose for a mock with several, and its tweak values then.
+  // Element id to mock path to the variant the user chose for a mock with several, and its tweak values then.
   choices: z.record(z.record(VariantChoiceSchema)).default({}),
 }).strict();
 export const DesignAnswerSchema = z.object({

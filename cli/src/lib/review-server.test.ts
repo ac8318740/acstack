@@ -35,17 +35,17 @@ it('rejects a write with a missing, null, or foreign Origin', async () => {
   expect(post).not.toHaveBeenCalled();
 });
 
-it('serves example content only with the page token', async () => {
-  const examples = vi.fn((query: URLSearchParams) => Promise.resolve({ kind: 'html', html: `<p>${query.get('path')}</p>` }));
-  const server = createReviewServer({ html: '<html><head></head></html>', path: '/api/review', post: vi.fn(), examples });
+it('serves mock content only with the page token', async () => {
+  const mocks = vi.fn((query: URLSearchParams) => Promise.resolve({ kind: 'html', html: `<p>${query.get('path')}</p>` }));
+  const server = createReviewServer({ html: '<html><head></head></html>', path: '/api/review', post: vi.fn(), mocks });
   servers.push(server);
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const token = /acstack-review-token" content="([^"]+)"/.exec(await (await fetch(`${base}/`)).text())?.[1] ?? '';
-  expect((await fetch(`${base}/api/examples?element=a&path=x.html`)).status).toBe(403);
-  const response = await fetch(`${base}/api/examples?element=a&path=x.html`, { headers: { 'x-review-token': token } });
+  expect((await fetch(`${base}/api/mocks?element=a&path=x.html`)).status).toBe(403);
+  const response = await fetch(`${base}/api/mocks?element=a&path=x.html`, { headers: { 'x-review-token': token } });
   expect(await response.json()).toEqual({ kind: 'html', html: '<p>x.html</p>' });
-  examples.mockRejectedValueOnce(new Error('OpenDesigner could not build'));
-  const failed = await fetch(`${base}/api/examples?element=a&path=x.html`, { headers: { 'x-review-token': token } });
+  mocks.mockRejectedValueOnce(new Error('OpenDesigner could not build'));
+  const failed = await fetch(`${base}/api/mocks?element=a&path=x.html`, { headers: { 'x-review-token': token } });
   expect([failed.status, await failed.json()]).toEqual([500, { error: 'OpenDesigner could not build' }]);
 });

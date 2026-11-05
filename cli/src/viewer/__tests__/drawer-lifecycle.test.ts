@@ -1,7 +1,7 @@
 import { createElement, act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { Drawer, exampleScopeForSelection } from '../drawer.js';
+import { Drawer, mockScopeForSelection } from '../drawer.js';
 import { DesignApproval, DesignApprovalProvider, ElementLock, useBlockerNavigation, useLockCapture } from '../design-approval.js';
 import { pack, useReviewAnnotations } from '../pack.js';
 import { DesignQuestions, useQuestionCounts } from '../design-questions.js';
@@ -138,7 +138,7 @@ it('moves every selection-scoped filter to the container that a collapse folds t
     expect(props.setCommentScope).toHaveBeenLastCalledWith('selection:group:shell-box');
     expect(props.setQuestionScope).toHaveBeenLastCalledWith('selection:group:shell-box');
     // The container's filter shows what it hides, as its card's count does.
-    expect(exampleScopeForSelection('group:shell-box', folded)).toBe('selection:group:shell-box');
+    expect(mockScopeForSelection('group:shell-box', folded)).toBe('selection:group:shell-box');
     render({ commentScope: 'selection:group:shell-box', annotations: [{ id: 'c1', packVersion: 'v', target: { type: 'node', id: 'app' }, comment: 'Name the app' }] });
     expect(all(container).some(node => node.nodeValue === 'Name the app' || node.textContent === 'Name the app')).toBe(true);
     // A filter the reviewer picked stays put.

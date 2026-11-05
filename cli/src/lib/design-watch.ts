@@ -7,14 +7,14 @@ export type DesignChange = { file: string; elementId?: string };
 
 /**
  * Extra directories a running design doc watches, such as the OpenDesigner
- * designs its examples reference. Node 011 registers one; each call returns
+ * designs its mocks reference. Node 011 registers one; each call returns
  * absolute paths, and missing ones are skipped.
  */
 export const designWatchRoots: Array<(root: string, map: string) => string[]> = [];
 
 /**
  * Called with each settled batch before the server rebuilds the page, so a
- * cache, such as node 011's example loader, can drop what changed.
+ * cache, such as node 011's mock loader, can drop what changed.
  */
 export const designChangeListeners = new Set<(changes: DesignChange[]) => void>();
 

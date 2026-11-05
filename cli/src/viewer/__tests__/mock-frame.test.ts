@@ -1,7 +1,7 @@
 import { act, createElement, createRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ExampleFrame, SNAPSHOT_WAIT_MS, type FrameControl } from '../example-frame.js';
+import { MockFrame, SNAPSHOT_WAIT_MS, type FrameControl } from '../mock-frame.js';
 import { OD_VERSION } from '../od-bridge/protocol.js';
 
 // Minimal host DOM for React's real reconciler, with an iframe that records what the bridge sends and loads.
@@ -43,7 +43,7 @@ class Frame extends Host {
 }
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); log.length = 0; });
 
-it('reloads a rebuilt example through snapshot, then restore keyed to its path', async () => {
+it('reloads a rebuilt mock through snapshot, then restore keyed to its path', async () => {
   const document = new Host('#document');
   document.nodeType = 9;
   document.ownerDocument = document;
@@ -63,7 +63,7 @@ it('reloads a rebuilt example through snapshot, then restore keyed to its path',
   const root = createRoot(container as unknown as HTMLElement);
   const control = createRef<FrameControl>();
   const events = { onPicker: vi.fn(), onSelection: vi.fn(), onMarkClick: vi.fn(), onRevealed: vi.fn(), onEscape: vi.fn() };
-  const render = (html: string) => act(() => root.render(createElement(ExampleFrame, { path: 'home.html', html, title: 'Home', picker: false, marks: [], tweaks: { vars: {}, attrs: {} }, control, events })));
+  const render = (html: string) => act(() => root.render(createElement(MockFrame, { path: 'home.html', html, title: 'Home', picker: false, marks: [], tweaks: { vars: {}, attrs: {} }, control, events })));
   const fromFrame = (data: Record<string, unknown>) => act(() => receive?.({ source: frame!.contentWindow, origin: 'null', data: { od: OD_VERSION, ...data } }));
   const session = () => frame!.sent.at(-1)?.session;
   const load = () => act(() => { for (const listener of frame!.loads) listener(); });
@@ -103,7 +103,7 @@ it('reloads with the last scroll when the old frame never answers the snapshot',
   const container = Object.assign(new Host('div'), { ownerDocument: document });
   const root = createRoot(container as unknown as HTMLElement);
   const events = { onPicker: vi.fn(), onSelection: vi.fn(), onMarkClick: vi.fn(), onRevealed: vi.fn(), onEscape: vi.fn() };
-  const render = (html: string) => act(() => root.render(createElement(ExampleFrame, { path: 'quiet.html', html, title: 'Quiet', picker: false, marks: [], tweaks: { vars: {}, attrs: {} }, control: createRef<FrameControl>(), events })));
+  const render = (html: string) => act(() => root.render(createElement(MockFrame, { path: 'quiet.html', html, title: 'Quiet', picker: false, marks: [], tweaks: { vars: {}, attrs: {} }, control: createRef<FrameControl>(), events })));
   const fromFrame = (data: Record<string, unknown>) => act(() => receive?.({ source: frame!.contentWindow, origin: 'null', data: { od: OD_VERSION, ...data } }));
   const load = () => act(() => { for (const listener of frame!.loads) listener(); });
   try {

@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import { BridgeHost, type FrameLike } from './od-bridge/host.js';
 import type { FrameMessage, Mark, Restore, Selection, TweakPayload } from './od-bridge/protocol.js';
-import { exampleDocument } from './examples.js';
+import { mockDocument } from './mocks.js';
 
 export type FrameStatusValue = { state: 'loading' | 'ready' | 'closed' | 'mismatch' } | { state: 'error'; message: string };
 export type FrameEvents = {
@@ -26,11 +26,11 @@ function liveFrame(element: HTMLIFrameElement, alive: () => boolean): FrameLike 
 
 // Bridge spec, Reload: the host waits at most this long for the old frame's snapshot.
 export const SNAPSHOT_WAIT_MS = 300;
-// App state belongs to one example path; it returns only to a reload of that path.
+// App state belongs to one mock path; it returns only to a reload of that path.
 const snapshots = new Map<string, unknown>();
 
-// Mount with a key per example and variant. A new `html` for the same key reloads in place, restoring the frame's state.
-export function ExampleFrame({ path, html, title, picker, marks, tweaks, control, events }: {
+// Mount with a key per mock and variant. A new `html` for the same key reloads in place, restoring the frame's state.
+export function MockFrame({ path, html, title, picker, marks, tweaks, control, events }: {
   path: string;
   html: string;
   title: string;
@@ -70,7 +70,7 @@ export function ExampleFrame({ path, html, title, picker, marks, tweaks, control
     };
     const receive = (event: MessageEvent) => bridge.receive(event);
     window.addEventListener('message', receive);
-    bridge.load(() => { element.srcdoc = exampleDocument(html); });
+    bridge.load(() => { element.srcdoc = mockDocument(html); });
     return () => { alive = false; host.current = null; control.current = null; window.removeEventListener('message', receive); };
   }, []);
 
@@ -96,7 +96,7 @@ export function ExampleFrame({ path, html, title, picker, marks, tweaks, control
     }
   };
 
-  // A rebuilt example reloads through snapshot then restore, per the bridge spec.
+  // A rebuilt mock reloads through snapshot then restore, per the bridge spec.
   useEffect(() => {
     if (html === loaded.current) return;
     loaded.current = html;
@@ -108,7 +108,7 @@ export function ExampleFrame({ path, html, title, picker, marks, tweaks, control
       if (snapshot?.app !== undefined) snapshots.set(path, snapshot.app); else snapshots.delete(path);
       restore.current = { scroll: snapshot?.scroll ?? scroll.current, selections: selections.current };
       setStatus({ state: 'loading' });
-      bridge.load(() => { element.srcdoc = exampleDocument(html); });
+      bridge.load(() => { element.srcdoc = mockDocument(html); });
     });
     return () => { current = false; };
   }, [html]);
@@ -121,7 +121,7 @@ export function ExampleFrame({ path, html, title, picker, marks, tweaks, control
   useEffect(() => { host.current?.send('tweaks', { ...tweaks }); }, [tweakKey]);
 
   return (
-    <div className="example-frame">
+    <div className="mock-frame">
       <FrameStatus status={status} />
       {/* Never add allow-same-origin: the frame would gain the viewer's origin and its write API. */}
       <iframe ref={frame} title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" className={status.state === 'loading' ? 'loading' : undefined} />

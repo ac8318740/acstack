@@ -1,31 +1,31 @@
 import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 import { Check, ChevronRight, MousePointerClick, SlidersHorizontal, X } from 'lucide-react';
 import { Dropdown } from './dropdown.js';
-import { ExampleFrame, type FrameControl } from './example-frame.js';
+import { MockFrame, type FrameControl } from './mock-frame.js';
 import { useDesignReview } from './design-approval.js';
-import { cacheExample, cachedExample, exampleCapture, isCurrent, exampleView, fixtureTable, setExampleView, valuesOf, withVariant, type ElementExample, type ExampleView } from './examples.js';
-import type { ExampleSummary } from '../lib/alignment-packs.js';
+import { cacheMock, cachedMock, mockCapture, isCurrent, mockView, fixtureTable, setMockView, valuesOf, withVariant, type ElementMock, type MockView } from './mocks.js';
+import type { MockSummary } from '../lib/alignment-packs.js';
 import { REVIEW_TOKEN_HEADER } from '../lib/alignment-review-protocol.js';
 import type { Selection } from './od-bridge/protocol.js';
 import { defaultFor, tweakPayload, type Tweak } from './od-bridge/tweaks.js';
 import { type Annotation, annotationId, pack, token } from './pack.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
 
-const KIND_LABELS: Record<ElementExample['kind'], string> = { html: 'Mock', 'od-build': 'Mock', markdown: 'Document', fixture: 'Sample data' };
+const KIND_LABELS: Record<ElementMock['kind'], string> = { html: 'Mock', 'od-build': 'Mock', markdown: 'Document', fixture: 'Sample data' };
 
-export const examplesFor = (nodeId: string): ExampleSummary[] => pack.graph.nodes.find(node => node.id === nodeId)?.examples ?? [];
+export const mocksFor = (nodeId: string): MockSummary[] => pack.graph.nodes.find(node => node.id === nodeId)?.mocks ?? [];
 
 // Content loads on open, behind the review token, so large builds never sit in the page.
-async function fetchExample(nodeId: string, summary: ExampleSummary): Promise<ElementExample> {
+async function fetchMock(nodeId: string, summary: MockSummary): Promise<ElementMock> {
   if (!token) throw new Error('Mocks open only in the live review that `acstack design-doc` serves.');
-  const response = await fetch(`/api/examples?element=${encodeURIComponent(nodeId)}&path=${encodeURIComponent(summary.path)}`, { headers: { [REVIEW_TOKEN_HEADER]: token } });
+  const response = await fetch(`/api/mocks?element=${encodeURIComponent(nodeId)}&path=${encodeURIComponent(summary.path)}`, { headers: { [REVIEW_TOKEN_HEADER]: token } });
   const body = await response.json() as { error?: string };
   if (!response.ok) throw new Error(body.error ?? 'Cannot load this mock');
-  const example = { ...body, path: summary.path, title: summary.title, ...(summary.illustrative && { illustrative: true }) } as ElementExample;
-  cacheExample(nodeId, example, summary.revision);
-  return example;
+  const mock = { ...body, path: summary.path, title: summary.title, ...(summary.illustrative && { illustrative: true }) } as ElementMock;
+  cacheMock(nodeId, mock, summary.revision);
+  return mock;
 }
-function useExample(nodeId: string, summary: ExampleSummary) {
+function useMock(nodeId: string, summary: MockSummary) {
   const [state, setState] = useState<{ path: string; error?: string }>({ path: summary.path });
   const [, loaded] = useState(0);
   useEffect(() => {
@@ -33,57 +33,57 @@ function useExample(nodeId: string, summary: ExampleSummary) {
     if (isCurrent(nodeId, summary)) return;
     let live = true;
     setState({ path: summary.path });
-    fetchExample(nodeId, summary).then(() => { if (live) loaded(count => count + 1); }, (error: unknown) => { if (live) setState({ path: summary.path, error: error instanceof Error ? error.message : String(error) }); });
+    fetchMock(nodeId, summary).then(() => { if (live) loaded(count => count + 1); }, (error: unknown) => { if (live) setState({ path: summary.path, error: error instanceof Error ? error.message : String(error) }); });
     return () => { live = false; };
   }, [nodeId, summary.path, summary.revision]);
-  return { example: cachedExample(nodeId, summary.path), error: state.path === summary.path ? state.error : undefined };
+  return { mock: cachedMock(nodeId, summary.path), error: state.path === summary.path ? state.error : undefined };
 }
 type Comments = { annotations: Annotation[]; setAnnotations: (annotations: Annotation[]) => void };
 
 const commentsOn = (annotations: Annotation[], nodeId: string, path: string) =>
-  annotations.filter(annotation => annotation.target.type === 'node' && annotation.target.id === nodeId && annotation.example?.path === path);
+  annotations.filter(annotation => annotation.target.type === 'node' && annotation.target.id === nodeId && annotation.mock?.path === path);
 
-// Opens one example, optionally on one variant, from a link such as an approval blocker.
-// `comment` names a comment to reveal once the example has loaded.
-export type ExampleLink = { nodeId: string; path: string; variant?: string; comment?: string };
+// Opens one mock, optionally on one variant, from a link such as an approval blocker.
+// `comment` names a comment to reveal once the mock has loaded.
+export type MockLink = { nodeId: string; path: string; variant?: string; comment?: string };
 
-// Registers every element's example capture once, so Lock and approval record it whichever drawer tab is showing.
-export function useExampleCaptures() {
+// Registers every element's mock capture once, so Lock and approval record it whichever drawer tab is showing.
+export function useMockCaptures() {
   const review = useDesignReview();
   useEffect(() => {
     if (!review) return;
     const captures = review.captures.current;
-    const ids = pack.graph.nodes.map(node => node.id).filter(id => examplesFor(id).some(example => example.kind === 'od-build'));
-    for (const id of ids) captures.set(id, () => exampleCapture(id, examplesFor(id).flatMap(summary => cachedExample(id, summary.path) ?? [])));
+    const ids = pack.graph.nodes.map(node => node.id).filter(id => mocksFor(id).some(mock => mock.kind === 'od-build'));
+    for (const id of ids) captures.set(id, () => mockCapture(id, mocksFor(id).flatMap(summary => cachedMock(id, summary.path) ?? [])));
     return () => { for (const id of ids) captures.delete(id); };
   }, [review]);
 }
 
-/** Lists the examples of each element in `nodeIds`, labelled by element; a click opens that example's modal. */
-export function ExamplesTab({ nodeIds, empty, link, annotations, setAnnotations }: { nodeIds: string[]; empty: string; link?: ExampleLink } & Comments) {
-  const follow = (target?: ExampleLink) => {
+/** Lists the mocks of each element in `nodeIds`, labelled by element; a click opens that mock's modal. */
+export function MocksTab({ nodeIds, empty, link, annotations, setAnnotations }: { nodeIds: string[]; empty: string; link?: MockLink } & Comments) {
+  const follow = (target?: MockLink) => {
     // A link opens even before the filter catches up with the element it selects.
-    if (!target || !examplesFor(target.nodeId).some(example => example.path === target.path)) return null;
-    if (target.variant) setExampleView(target.nodeId, target.path, { ...exampleView(target.nodeId, target.path), variant: target.variant });
+    if (!target || !mocksFor(target.nodeId).some(mock => mock.path === target.path)) return null;
+    if (target.variant) setMockView(target.nodeId, target.path, { ...mockView(target.nodeId, target.path), variant: target.variant });
     return { nodeId: target.nodeId, path: target.path };
   };
   const [open, setOpen] = useState<{ nodeId: string; path: string } | null>(() => follow(link));
   const [revealComment, setRevealComment] = useState(link?.comment);
   useEffect(() => { const target = follow(link); if (target) { setOpen(target); setRevealComment(link?.comment); } }, [link]);
-  const listed = nodeIds.filter(nodeId => examplesFor(nodeId).length);
+  const listed = nodeIds.filter(nodeId => mocksFor(nodeId).length);
   if (!listed.length) return <p className="muted">{empty}</p>;
   return (
     <section className="section">
       {listed.map(nodeId => (
-        <div key={nodeId} className="example-group">
-          <h3 className="example-group-title">{pack.graph.nodes.find(node => node.id === nodeId)?.label ?? nodeId}</h3>
-          <ul className="example-list">
-            {examplesFor(nodeId).map(example => {
-              const count = commentsOn(annotations, nodeId, example.path).length;
+        <div key={nodeId} className="mock-group">
+          <h3 className="mock-group-title">{pack.graph.nodes.find(node => node.id === nodeId)?.label ?? nodeId}</h3>
+          <ul className="mock-list">
+            {mocksFor(nodeId).map(mock => {
+              const count = commentsOn(annotations, nodeId, mock.path).length;
               return (
-                <li key={example.path}>
-                  <button type="button" className="relationship-link example-link" aria-haspopup="dialog" onClick={() => { setRevealComment(undefined); setOpen({ nodeId, path: example.path }); }}>
-                    <span><span className="relationship-label">{example.title}</span><span className="relationship-endpoint">{KIND_LABELS[example.kind]}{example.illustrative ? ', illustrative' : ''}{count ? `, ${count} comment${count === 1 ? '' : 's'}` : ''}</span></span><ChevronRight size={16} aria-hidden="true" />
+                <li key={mock.path}>
+                  <button type="button" className="relationship-link mock-link" aria-haspopup="dialog" onClick={() => { setRevealComment(undefined); setOpen({ nodeId, path: mock.path }); }}>
+                    <span><span className="relationship-label">{mock.title}</span><span className="relationship-endpoint">{KIND_LABELS[mock.kind]}{mock.illustrative ? ', illustrative' : ''}{count ? `, ${count} comment${count === 1 ? '' : 's'}` : ''}</span></span><ChevronRight size={16} aria-hidden="true" />
                   </button>
                 </li>
               );
@@ -91,7 +91,7 @@ export function ExamplesTab({ nodeIds, empty, link, annotations, setAnnotations 
           </ul>
         </div>
       ))}
-      {open && <ExamplesModal key={open.nodeId} nodeId={open.nodeId} examples={examplesFor(open.nodeId)} path={open.path} reveal={revealComment} onPath={path => setOpen({ nodeId: open.nodeId, path })} onClose={() => setOpen(null)} annotations={annotations} setAnnotations={setAnnotations} />}
+      {open && <MocksModal key={open.nodeId} nodeId={open.nodeId} mocks={mocksFor(open.nodeId)} path={open.path} reveal={revealComment} onPath={path => setOpen({ nodeId: open.nodeId, path })} onClose={() => setOpen(null)} annotations={annotations} setAnnotations={setAnnotations} />}
     </section>
   );
 }
@@ -110,7 +110,7 @@ export function FixtureView({ format, data }: { format: 'json' | 'csv'; data: st
 }
 
 // Frame-supplied fields are untrusted: they appear as plain text only.
-type Anchor = NonNullable<Annotation['example']>;
+type Anchor = NonNullable<Annotation['mock']>;
 type AnchorSelection = NonNullable<Anchor['selections']>[number];
 // Labels read as plain words: "PayButton" becomes "Pay button", and a container's run of text
 // gives way to its first line, which is its heading or label. The raw name stays in a tooltip.
@@ -135,7 +135,7 @@ export function TweakControls({ tweaks, values, onChange }: { tweaks: Tweak[]; v
   const fieldId = useId();
   if (!tweaks.length) return null;
   return (
-    <div className="example-tweaks">
+    <div className="mock-tweaks">
       {tweaks.map(tweak => {
         const id = `${fieldId}-${tweak.id}`;
         const value = values[tweak.id] ?? defaultFor(tweak);
@@ -180,7 +180,7 @@ function Composer({ label, placeholder, text, onText, onPost }: { label: string;
   const id = useId();
   const post = () => { if (text.trim()) onPost(text.trim()); };
   return (
-    <div className="example-composer">
+    <div className="mock-composer">
       <label className="visually-hidden" htmlFor={id}>{label}</label>
       <textarea id={id} rows={3} value={text} placeholder={placeholder} onChange={event => onText(event.target.value)}
         onKeyDown={event => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); post(); } }} />
@@ -192,9 +192,9 @@ function Composer({ label, placeholder, text, onText, onPost }: { label: string;
   );
 }
 
-export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose, annotations, setAnnotations }: {
+export function MocksModal({ nodeId, mocks, path, reveal, onPath, onClose, annotations, setAnnotations }: {
   nodeId: string;
-  examples: ExampleSummary[];
+  mocks: MockSummary[];
   path: string;
   reveal?: string;
   onPath: (path: string) => void;
@@ -203,14 +203,14 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
   const dialog = useRef<HTMLDialogElement>(null);
   const frame = useRef<FrameControl | null>(null);
   const titleId = useId();
-  const summary = examples.find(item => item.path === path) ?? examples[0];
-  const { example: content, error } = useExample(nodeId, summary);
-  const example = content ?? summary;
-  const [shown, setShown] = useState(() => ({ path: example.path, view: exampleView(nodeId, example.path) }));
-  const view = shown.path === example.path ? shown.view : exampleView(nodeId, example.path);
-  const updateView = (next: ExampleView) => { setExampleView(nodeId, example.path, next); setShown({ path: example.path, view: next }); };
-  // Opening an example counts as having it on screen, which is what a lock captures.
-  useEffect(() => { setExampleView(nodeId, example.path, exampleView(nodeId, example.path)); }, [example.path]);
+  const summary = mocks.find(item => item.path === path) ?? mocks[0];
+  const { mock: content, error } = useMock(nodeId, summary);
+  const mock = content ?? summary;
+  const [shown, setShown] = useState(() => ({ path: mock.path, view: mockView(nodeId, mock.path) }));
+  const view = shown.path === mock.path ? shown.view : mockView(nodeId, mock.path);
+  const updateView = (next: MockView) => { setMockView(nodeId, mock.path, next); setShown({ path: mock.path, view: next }); };
+  // Opening a mock counts as having it on screen, which is what a lock captures.
+  useEffect(() => { setMockView(nodeId, mock.path, mockView(nodeId, mock.path)); }, [mock.path]);
   const variant = content?.kind === 'od-build' ? content.variants.find(item => item.id === view.variant) ?? content.variants[0] : undefined;
   const html = content?.kind === 'html' ? content.html : content?.kind === 'od-build' && variant ? withVariant(content.html, variant.id) : undefined;
   const tweaks = content?.kind === 'od-build' ? [...content.tweaks ?? [], ...variant?.tweaks ?? []] : [];
@@ -218,15 +218,15 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
   const values = valuesOf(view, variant?.id);
   const setValue = (id: string, value: string) => updateView({ ...view, values: { ...view.values, [variant?.id ?? '']: { ...values, [id]: value } } });
   const review = useDesignReview();
-  const chosen = review?.chosenVariant(nodeId, example.path);
+  const chosen = review?.chosenVariant(nodeId, mock.path);
   const [choosing, setChoosing] = useState<string>();
   const choose = () => {
     if (!variant) return;
     setChoosing(undefined);
-    review?.chooseVariant(nodeId, example.path, variant.id, Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, values[tweak.id] ?? defaultFor(tweak)])))
+    review?.chooseVariant(nodeId, mock.path, variant.id, Object.fromEntries(tweaks.filter(tweak => tweak.type !== 'state').map(tweak => [tweak.id, values[tweak.id] ?? defaultFor(tweak)])))
       .catch((error: unknown) => setChoosing(error instanceof Error ? error.message : String(error)));
   };
-  const comments = commentsOn(annotations, nodeId, example.path);
+  const comments = commentsOn(annotations, nodeId, mock.path);
   const [picker, setPicker] = useState(false);
   const [picked, setPicked] = useState<Selection[]>([]);
   const [unanchored, setUnanchored] = useState<string[]>([]);
@@ -239,17 +239,17 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
     // The first view keeps a linked comment in focus; later switches start clean.
     if (firstView.current) { firstView.current = false; return; }
     setPicker(false); setPicked([]); setFocused(undefined);
-  }, [example.path, variant?.id]);
+  }, [mock.path, variant?.id]);
   // Marks only for comments made on the variant on screen; a comment's number is its place in the list.
   const onScreen = (anchor?: Anchor) => anchor?.variant === variant?.id;
-  const marks = comments.flatMap((comment, index) => onScreen(comment.example) ? (comment.example?.selections ?? []).map((selection, at) => ({ key: `${comment.id}#${at}`, label: index + 1, selector: selection.selector })) : []);
+  const marks = comments.flatMap((comment, index) => onScreen(comment.mock) ? (comment.mock?.selections ?? []).map((selection, at) => ({ key: `${comment.id}#${at}`, label: index + 1, selector: selection.selector })) : []);
   const post = (comment: string) => {
-    const anchor: Anchor = { path: example.path };
+    const anchor: Anchor = { path: mock.path };
     if (variant) anchor.variant = variant.id;
     if (picked.length) anchor.selections = picked.map(anchorSelection);
     if (tweaks.length) anchor.tweaks = Object.fromEntries(tweaks.map(tweak => [tweak.id, values[tweak.id] ?? defaultFor(tweak)]));
-    setAnnotations([...annotations, { id: annotationId(), packVersion: pack.packVersion, target: { type: 'node', id: nodeId }, example: anchor, comment, time: new Date().toISOString() }]);
-    setDrafts(previous => ({ ...previous, [example.path]: '' }));
+    setAnnotations([...annotations, { id: annotationId(), packVersion: pack.packVersion, target: { type: 'node', id: nodeId }, mock: anchor, comment, time: new Date().toISOString() }]);
+    setDrafts(previous => ({ ...previous, [mock.path]: '' }));
     frame.current?.clearSelections();
     setPicked([]);
     setPicker(false);
@@ -263,7 +263,7 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
   const element = pack.graph.nodes.find(node => node.id === nodeId)?.label ?? nodeId;
   const variants = content?.kind === 'od-build' ? content.variants : [];
   const stage = html !== undefined ? (
-    <ExampleFrame key={`${example.path}#${variant?.id ?? ''}`} path={example.path} html={html} title={variant ? `${example.title}, ${variant.label ?? variant.id}` : example.title}
+    <MockFrame key={`${mock.path}#${variant?.id ?? ''}`} path={mock.path} html={html} title={variant ? `${mock.title}, ${variant.label ?? variant.id}` : mock.title}
       picker={picker} marks={marks} tweaks={tweakPayload(tweaks, values, tokens)} control={frame} events={{
         // A comment opened from the drawer flashes its element once the frame has drawn its marks.
         onApplied: () => { const id = pendingReveal.current; pendingReveal.current = undefined; if (id && comments.some(comment => comment.id === id)) frame.current?.reveal(`${id}#0`); },
@@ -273,41 +273,41 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
         onRevealed: (key, found) => setUnanchored(previous => found ? previous.filter(id => id !== key) : [...new Set([...previous, key])]),
         onEscape: close,
       }} />
-  ) : content?.kind === 'markdown' ? <div className="example-doc"><div className="markdown"><SidebarMarkdown hideImages>{content.markdown}</SidebarMarkdown></div></div>
-    : content?.kind === 'fixture' ? <div className="example-doc"><FixtureView format={content.format} data={content.data} /></div>
-      : error ? <div className="example-doc" role="alert"><p>This mock could not load.</p><pre>{error}</pre></div> : <p className="example-loading" role="status">Loading example...</p>;
+  ) : content?.kind === 'markdown' ? <div className="mock-doc"><div className="markdown"><SidebarMarkdown hideImages>{content.markdown}</SidebarMarkdown></div></div>
+    : content?.kind === 'fixture' ? <div className="mock-doc"><FixtureView format={content.format} data={content.data} /></div>
+      : error ? <div className="mock-doc" role="alert"><p>This mock could not load.</p><pre>{error}</pre></div> : <p className="mock-loading" role="status">Loading mock...</p>;
   return (
-    <dialog ref={dialog} className="examples-modal" aria-labelledby={titleId} onClose={onClose}
+    <dialog ref={dialog} className="mocks-modal" aria-labelledby={titleId} onClose={onClose}
       onKeyDown={event => { if (event.key === 'Escape') event.stopPropagation(); }}
       onMouseUp={event => event.stopPropagation()}>
-      <header className="examples-head">
-        <h2 id={titleId}><span className="examples-crumb">{element}</span><span aria-hidden="true"> / </span>Mocks</h2>
-        <button type="button" className="icon-btn" aria-label="Close examples" data-tooltip="Close" autoFocus onClick={close}><X size={18} aria-hidden="true" /></button>
+      <header className="mocks-head">
+        <h2 id={titleId}><span className="mocks-crumb">{element}</span><span aria-hidden="true"> / </span>Mocks</h2>
+        <button type="button" className="icon-btn" aria-label="Close mocks" data-tooltip="Close" autoFocus onClick={close}><X size={18} aria-hidden="true" /></button>
       </header>
-      <div className="examples-toolbar" role="toolbar" aria-label="Example controls">
-        <Dropdown label="Example" value={example.path} currentLabel={<><span className="example-kind">{KIND_LABELS[example.kind]}</span>{example.title}</>} options={examples.map(item => ({ value: item.path, label: `${item.title} (${KIND_LABELS[item.kind]})` }))} onChange={onPath} />
-        {example.illustrative && <span className="example-tag" data-tooltip="Shown for illustration; not a requirement">Illustrative</span>}
+      <div className="mocks-toolbar" role="toolbar" aria-label="Mock controls">
+        <Dropdown label="Mock" value={mock.path} currentLabel={<><span className="mock-kind">{KIND_LABELS[mock.kind]}</span>{mock.title}</>} options={mocks.map(item => ({ value: item.path, label: `${item.title} (${KIND_LABELS[item.kind]})` }))} onChange={onPath} />
+        {mock.illustrative && <span className="mock-tag" data-tooltip="Shown for illustration; not a requirement">Illustrative</span>}
         {variants.length > 1 && variant && (
           <div className="segmented" role="group" aria-label="Variant">
             {variants.map(item => <button key={item.id} type="button" aria-pressed={item.id === variant.id} onClick={() => updateView({ ...view, variant: item.id })}>{item.id === chosen && <Check size={14} aria-label="Chosen" />}{item.label ?? item.id}</button>)}
           </div>
         )}
         {/* Illustrative mocks are not requirements, so there is nothing to choose. */}
-        {review && !example.illustrative && variants.length > 1 && variant && (chosen === variant.id
-          ? <span className="example-chosen" role="status"><Check size={14} aria-hidden="true" />Chosen</span>
+        {review && !mock.illustrative && variants.length > 1 && variant && (chosen === variant.id
+          ? <span className="mock-chosen" role="status"><Check size={14} aria-hidden="true" />Chosen</span>
           : <button type="button" className="btn" disabled={review.pending} onClick={choose}>Choose this variant</button>)}
         {choosing && <span className="error" role="alert">{choosing}</span>}
         <span className="toolbar-spacer" />
         {tweaks.length > 0 && <TweaksPopover tweaks={tweaks} values={values} onChange={setValue} />}
         {html !== undefined && <button type="button" className="btn" aria-pressed={picker} onClick={() => setPicker(!picker)}><MousePointerClick size={16} aria-hidden="true" />{picker ? 'Picking' : 'Pick elements'}</button>}
       </div>
-      <div className="examples-main">
-        <div className="examples-stage">{stage}</div>
-        <aside className="examples-rail" aria-label="Comments on this example">
+      <div className="mocks-main">
+        <div className="mocks-stage">{stage}</div>
+        <aside className="mocks-rail" aria-label="Comments on this mock">
           <h3 className="rail-title">Comments{comments.length > 0 && <span className="rail-count-text">{comments.length}</span>}</h3>
-          {comments.length ? <ol className="example-comment-list">
+          {comments.length ? <ol className="mock-comment-list">
             {comments.map((comment, index) => {
-              const anchor = comment.example!;
+              const anchor = comment.mock!;
               const key = `${comment.id}#0`;
               const variantName = (id?: string) => variants.find(item => item.id === id)?.label ?? id;
               const target = anchor.selections?.length ? anchorLabel(anchor) : variant && anchor.variant !== variant.id ? `On ${variantName(anchor.variant) ?? 'another variant'}` : 'Whole mock';
@@ -327,15 +327,15 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
             })}
           </ol> : <p className="rail-empty">No comments on this mock yet.</p>}
           <div className="rail-composer">
-            {picked.length > 0 && <div className="example-picks">
+            {picked.length > 0 && <div className="mock-picks">
               <p className="picks-count">{picked.length} element{picked.length === 1 ? '' : 's'} picked</p>
               <ul aria-label="Picked elements">
                 {picked.map(item => <li key={item.id} className="chip" data-tooltip={rawName(item)}><span>{describe(item)}</span><button type="button" aria-label={`Remove ${describe(item)}`} onClick={() => unpick(item.id)}><X size={12} aria-hidden="true" /></button></li>)}
               </ul>
             </div>}
-            <Composer key={example.path} label={picked.length ? `Comment on ${picked.length} picked element${picked.length === 1 ? '' : 's'}` : 'Comment on this mock'}
+            <Composer key={mock.path} label={picked.length ? `Comment on ${picked.length} picked element${picked.length === 1 ? '' : 's'}` : 'Comment on this mock'}
               placeholder={picked.length ? `Comment on ${picked.length === 1 ? 'this element' : `these ${picked.length} elements`}` : picker ? 'Click elements in the mock to pick them' : 'Comment on this mock'}
-              text={drafts[example.path] ?? ''} onText={text => setDrafts(previous => ({ ...previous, [example.path]: text }))} onPost={post} />
+              text={drafts[mock.path] ?? ''} onText={text => setDrafts(previous => ({ ...previous, [mock.path]: text }))} onPost={post} />
           </div>
         </aside>
       </div>
@@ -343,15 +343,15 @@ export function ExamplesModal({ nodeId, examples, path, reveal, onPath, onClose,
   );
 }
 
-// Where a comment on an example sits, for lists outside the modal: the example, its variant, and the picked elements.
-export function ExampleContext({ nodeId, anchor }: { nodeId: string; anchor: Anchor }) {
-  const summary = examplesFor(nodeId).find(item => item.path === anchor.path);
-  const content = cachedExample(nodeId, anchor.path);
+// Where a comment on a mock sits, for lists outside the modal: the mock, its variant, and the picked elements.
+export function MockContext({ nodeId, anchor }: { nodeId: string; anchor: Anchor }) {
+  const summary = mocksFor(nodeId).find(item => item.path === anchor.path);
+  const content = cachedMock(nodeId, anchor.path);
   const variant = anchor.variant && (content?.kind === 'od-build' ? content.variants.find(item => item.id === anchor.variant)?.label : undefined) || anchor.variant;
   return (
-    <p className="comment-example">
+    <p className="comment-mock">
       <span>{[summary?.title ?? anchor.path, variant].filter(Boolean).join(' · ')}</span>
-      {anchor.selections?.length ? <span className="comment-example-picks" data-tooltip={anchor.selections.map(rawName).join('; ')}>{anchorLabel(anchor)}</span> : null}
+      {anchor.selections?.length ? <span className="comment-mock-picks" data-tooltip={anchor.selections.map(rawName).join('; ')}>{anchorLabel(anchor)}</span> : null}
     </p>
   );
 }

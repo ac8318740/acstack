@@ -180,10 +180,10 @@ describe('describing a design change for carried comments', () => {
 });
 
 describe('describing what changed since approval', () => {
-  it('names text, connection, and example changes in the reviewer words', async () => {
+  it('names text, connection, and mock changes in the reviewer words', async () => {
     const { elementChanges } = await import('./design-lifecycle.js');
-    const before = { name: 'App', summary: 'Runs commands', kind: 'component', channels: ['cli'], connections: [{ to: '003', direction: 'one-way', label: 'Reads' }], examples: { 'orders.json': 'a'.repeat(64) } };
-    const after = { ...before, summary: 'Runs every command', channels: ['cli', 'web'], connections: [{ to: '003', direction: 'bidirectional', label: 'Reads' }, { to: '004', direction: 'one-way', label: 'Writes' }], examples: { 'orders.json': 'b'.repeat(64) } };
+    const before = { name: 'App', summary: 'Runs commands', kind: 'component', channels: ['cli'], connections: [{ to: '003', direction: 'one-way', label: 'Reads' }], mocks: { 'orders.json': 'a'.repeat(64) } };
+    const after = { ...before, summary: 'Runs every command', channels: ['cli', 'web'], connections: [{ to: '003', direction: 'bidirectional', label: 'Reads' }, { to: '004', direction: 'one-way', label: 'Writes' }], mocks: { 'orders.json': 'b'.repeat(64) } };
     expect(elementChanges(before, after)).toEqual([
       { label: 'Summary changed', before: 'Runs commands', after: 'Runs every command' },
       { label: 'Interfaces changed', before: 'cli', after: 'cli, web' },

@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
 import { parse } from 'yaml';
 import { z } from 'zod';
-import { AlignmentPackSchema, type AlignmentPack, type DiagramOrientation, type ExampleSummary, type MapQuestion } from './alignment-packs.js';
+import { AlignmentPackSchema, type AlignmentPack, type DiagramOrientation, type MockSummary, type MapQuestion } from './alignment-packs.js';
 import { DIAGRAM_END, DIAGRAM_START } from './diagram.js';
-import { ExampleEntrySchema, type ExampleEntry } from './design-examples.js';
+import { MockEntrySchema, type MockEntry } from './design-mocks.js';
 import { bareId, isSettled, normalizeId, type GraphNode } from './nodes.js';
 
 const text = z.string().trim().min(1).max(16000);
@@ -15,8 +15,8 @@ export const DesignChannelSchema = z.enum(['web', 'mobile', 'desktop', 'cli', 'a
 const ElementConfigSchema = z.object({
   kind: DesignKindSchema, parent: reference.optional(), channels: z.array(DesignChannelSchema).max(8).default([]),
   connections: z.array(z.object({ to: reference, direction: z.enum(['one-way', 'bidirectional']), label: text }).strict()).max(200).default([]),
-  // Files in the element folder, `<project folder>/maps/<map>/elements/<id>/`; see design-examples.ts.
-  examples: z.array(ExampleEntrySchema).max(50).default([]),
+  // Files in the element folder, `<project folder>/maps/<map>/elements/<id>/`; see design-mocks.ts.
+  mocks: z.array(MockEntrySchema).max(50).default([]),
 }).strict();
 const RootConfigSchema = z.object({
   concerns: z.array(z.object({
@@ -42,8 +42,8 @@ type Relationship = { id: string; from: string; to: string; direction: 'one-way'
 type Element = {
   id: string; title: string; name: string; summary: string; kind: z.infer<typeof DesignKindSchema>; parent?: string;
   channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; source?: string; resolved: boolean; locked: boolean; configDigest: string;
-  // `exampleSummaries` is filled once the files are checked, by loadMapDesign.
-  examples: ExampleEntry[]; exampleSummaries?: ExampleSummary[];
+  // `mockSummaries` is filled once the files are checked, by loadMapDesign.
+  mocks: MockEntry[]; mockSummaries?: MockSummary[];
   // Set by changedElements when the element no longer matches its approval.
   changes?: import('./design-map.js').ElementChange[];
 };
@@ -123,7 +123,7 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
         return { id: `${node.id}-${to}`, from: node.id, to, direction: edge.direction, label: edge.label };
       }),
       detailText: rest || undefined, source: node.url ?? (node.file && `maps/${map}/${node.file}`), resolved: node.status === 'resolved', locked: node.status === 'resolved', // Approval covers the requirement prose too; `rest` already leaves out regenerated diagrams.
-      configDigest: digest({ config, title: node.title, name: node.label, summary: node.summary ?? node.title, detail: rest }), examples: value.examples,
+      configDigest: digest({ config, title: node.title, name: node.label, summary: node.summary ?? node.title, detail: rest }), mocks: value.mocks,
     };
   });
   const byElement = new Map(items.map(item => [item.id, item]));
@@ -224,7 +224,7 @@ export function designDocToPack(doc: DesignDoc, orientation: DiagramOrientation 
       nodes: doc.items.map(item => ({
         id: item.id, groupId: containers.has(item.id) ? `design:container:${item.id}` : item.parent ? `design:container:${item.parent}` : 'design:root', label: item.name, summary: item.summary,
         elementKind: item.kind, channels: item.channels, locked: item.locked, technicalSummary: itemDetail(doc, item) || undefined, sourceRefs: [item.id],
-        ...(item.exampleSummaries?.length && { examples: item.exampleSummaries }),
+        ...(item.mockSummaries?.length && { mocks: item.mockSummaries }),
       })),
       edges: edges.map(edge => ({ id: edge.id, fromNodeId: edge.from, toNodeId: edge.to, direction: edge.direction, relationship: 'design', label: edge.label, summary: edge.label, sourceRefs: [edge.from, edge.to] })), aggregateEdges: [],
     },
