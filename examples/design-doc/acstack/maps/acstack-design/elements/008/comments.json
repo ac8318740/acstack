@@ -1,0 +1,4 @@
+[
+  { "element": "008", "path": "od:order-summary/summary", "selections": 2, "comment": "Make the Pay button match the line item weight" },
+  { "element": "008", "path": "review-flow.md", "selections": 0, "comment": "Name the token gate in step 2" }
+]

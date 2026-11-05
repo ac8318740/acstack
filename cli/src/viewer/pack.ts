@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import type { AlignmentPack, ReviewAnnotation } from '../lib/alignment-packs.js';
-import { PACK_DATA_ID, REVIEW_HANDOFF_ID, REVIEW_MODE_META, REVIEW_TOKEN_META } from '../lib/alignment-review-protocol.js';
+import { PACK_DATA_ID, REVIEW_HANDOFF_ID, REVIEW_MODE_META, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alignment-review-protocol.js';
 import { createReviewSync, type ReviewSyncCache } from './review-sync.js';
 
-export const pack = JSON.parse(document.getElementById(PACK_DATA_ID)?.textContent ?? '{}') as AlignmentPack;
+// A live design doc replaces the pack when the map changes; ES live bindings show every reader the new one.
+export let pack = JSON.parse(document.getElementById(PACK_DATA_ID)?.textContent ?? '{}') as AlignmentPack;
 
 // Local metadata never goes to the CLI; null marks a quote outside eligible source text.
 export type Annotation = ReviewAnnotation & { id: string; quoteAnchor?: import('./quote-anchors.js').QuoteAnchor | null };
@@ -51,42 +52,100 @@ export function useStored<T>(name: string, initial: T, enabled = true): [T, (val
 
 export const token = document.querySelector<HTMLMetaElement>(`meta[name="${REVIEW_TOKEN_META}"]`)?.content;
 export const liveComments = Boolean(token && document.querySelector<HTMLMetaElement>(`meta[name="${REVIEW_MODE_META}"]`)?.content === 'comments');
-export const handoffPrompt = (() => {
+export let handoffPrompt = (() => {
   if (!liveComments) return null;
   try {
     const prompt: unknown = JSON.parse(document.getElementById(REVIEW_HANDOFF_ID)?.textContent ?? 'null');
     return typeof prompt === 'string' ? prompt : null;
   } catch { return null; }
 })();
-const annotationKey = `alignment-pack:${pack.packVersion}:annotations`;
-const syncKey = `${annotationKey}:sync`;
-const initialCache = (): ReviewSyncCache => {
-  try {
-    const saved = localStorage.getItem(syncKey);
-    if (saved) return JSON.parse(saved) as ReviewSyncCache;
-    const annotations = JSON.parse(localStorage.getItem(annotationKey) ?? '[]') as Annotation[];
-    return { annotations, pending: annotations.length > 0 };
-  } catch { return { annotations: [], pending: false }; }
-};
-const sync = liveComments ? createReviewSync({
-  packVersion: pack.packVersion, token: token ?? '', initial: initialCache(), id: annotationId,
-  persist: cache => {
+// Comments belong to one design version, so each pack version gets its own sync and local cache.
+function createSync(packVersion: string) {
+  if (!liveComments) return null;
+  const annotationKey = `alignment-pack:${packVersion}:annotations`;
+  const syncKey = `${annotationKey}:sync`;
+  const initialCache = (): ReviewSyncCache => {
     try {
-      localStorage.setItem(syncKey, JSON.stringify(cache));
-      localStorage.setItem(annotationKey, JSON.stringify(cache.annotations));
-    } catch { /* The in-memory draft remains editable when storage is unavailable. */ }
-  },
-}) : null;
+      const saved = localStorage.getItem(syncKey);
+      if (saved) return JSON.parse(saved) as ReviewSyncCache;
+      const annotations = JSON.parse(localStorage.getItem(annotationKey) ?? '[]') as Annotation[];
+      return { annotations, pending: annotations.length > 0 };
+    } catch { return { annotations: [], pending: false }; }
+  };
+  return createReviewSync({
+    packVersion, token: token ?? '', initial: initialCache(), id: annotationId,
+    persist: cache => {
+      try {
+        localStorage.setItem(syncKey, JSON.stringify(cache));
+        localStorage.setItem(annotationKey, JSON.stringify(cache.annotations));
+      } catch { /* The in-memory draft remains editable when storage is unavailable. */ }
+    },
+  });
+}
+let sync = createSync(pack.packVersion);
+let revision = 0;
+const packListeners = new Set<() => void>();
+/** Swap in a rebuilt pack. Components re-render through usePackRevision and keep their own state. */
+export function replacePack(next: AlignmentPack, prompt?: string | null) {
+  if (next.packVersion !== pack.packVersion) sync = createSync(next.packVersion);
+  pack = next;
+  if (prompt !== undefined) handoffPrompt = prompt;
+  revision += 1;
+  for (const listener of packListeners) listener();
+}
+const subscribePack = (listener: () => void) => { packListeners.add(listener); return () => { packListeners.delete(listener); }; };
+export const usePackRevision = () => useSyncExternalStore(subscribePack, () => revision, () => revision);
 
 export function useReviewAnnotations() {
   const [local, setLocal] = useStored<Annotation[]>('annotations', [], !liveComments);
-  const [state, setState] = useState(sync?.getSnapshot());
+  const current = useSyncExternalStore(subscribePack, () => sync, () => sync);
+  const [state, setState] = useState(current?.getSnapshot());
   useEffect(() => {
-    if (!sync) return;
-    const unsubscribe = sync.subscribe(() => setState(sync.getSnapshot()));
-    setState(sync.getSnapshot());
-    sync.start();
+    if (!current) return;
+    const unsubscribe = current.subscribe(() => setState(current.getSnapshot()));
+    setState(current.getSnapshot());
+    current.start();
     return unsubscribe;
-  }, []);
-  return { annotations: state?.annotations ?? local, setAnnotations: sync?.setAnnotations ?? setLocal, syncState: state, flush: sync?.flush, retry: () => sync?.retry() };
+  }, [current]);
+  return { annotations: state?.annotations ?? local, setAnnotations: current?.setAnnotations ?? setLocal, syncState: state, flush: current?.flush, retry: () => current?.retry() };
+}
+
+export type LiveEvent = { type: 'design'; pack: AlignmentPack; handoffPrompt?: string } | { type: 'error'; message: string };
+/**
+ * Follow the server's event stream and apply each rebuilt pack. Reconnects
+ * after a drop; returns a stop function. `onError` reports a build the map
+ * could not produce, while the last good page stays.
+ */
+export function followLiveUpdates(onError: (message: string | null) => void, request: typeof fetch = fetch): () => void {
+  let stopped = false;
+  let controller: AbortController | undefined;
+  const connect = async () => {
+    while (!stopped) {
+      controller = new AbortController();
+      try {
+        const response = await request('/api/events', { headers: { [REVIEW_TOKEN_HEADER]: token ?? '' }, signal: controller.signal });
+        if (!response.ok || !response.body) throw new Error(`Live updates unavailable (${response.status})`);
+        const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+        let buffer = '';
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += value;
+          let end: number;
+          while ((end = buffer.indexOf('\n\n')) !== -1) {
+            const frame = buffer.slice(0, end);
+            buffer = buffer.slice(end + 2);
+            const data = frame.split('\n').filter(line => line.startsWith('data: ')).map(line => line.slice(6)).join('\n');
+            if (!data) continue;
+            const event = JSON.parse(data) as LiveEvent;
+            if (event.type === 'design') { replacePack(event.pack, event.handoffPrompt ?? handoffPrompt); onError(null); }
+            else onError(event.message);
+          }
+        }
+      } catch { /* Reconnect below; a closed review page simply stops. */ }
+      if (!stopped) await new Promise(resolve => setTimeout(resolve, 1000));
+    }
+  };
+  void connect();
+  return () => { stopped = true; controller?.abort(); };
 }

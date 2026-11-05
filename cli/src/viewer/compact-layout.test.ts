@@ -1,21 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import { designDocToPack, loadDesignDoc } from '../lib/design-doc.js';
+import { designDocToPack } from '../lib/design-doc.js';
+import { EX, exampleDesign } from '../example-design.js';
 import { AlignmentPackSchema, type AlignmentGraph } from '../lib/alignment-packs.js';
 import { buildDiagram, projectDiagram, type Box, type Diagram, type DiagramEdge, type MeasuredGeometry } from './alignment-graph.js';
 
-const authoredGraph = () => designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)).graph;
+const authoredGraph = () => designDocToPack(exampleDesign()).graph;
 
 // Browser-measured content sizes, in diagram pixels; no saved positions or layout settings.
 const contentHeights: Record<string, number> = {
-  'group:design:container:acstack': 106,
-  'group:design:container:cli': 107,
-  'item:user': 94,
-  'item:design-source': 94,
-  'item:github': 94,
-  'item:skills': 94,
-  'item:host': 136,
-  'item:review-runtime': 136,
-  'item:viewer': 117,
+  [`group:design:container:${EX['acstack']}`]: 106,
+  [`group:design:container:${EX['cli']}`]: 107,
+  [`item:${EX['user']}`]: 94,
+  [`item:${EX['design-source']}`]: 94,
+  [`item:${EX['github']}`]: 94,
+  [`item:${EX['skills']}`]: 94,
+  [`item:${EX['host']}`]: 136,
+  [`item:${EX['review-runtime']}`]: 136,
+  [`item:${EX['viewer']}`]: 117,
 };
 
 function measuredGeometry(graph: AlignmentGraph, expanded: string[]): MeasuredGeometry {
@@ -27,7 +28,7 @@ function measuredGeometry(graph: AlignmentGraph, expanded: string[]): MeasuredGe
     }])),
     labels: Object.fromEntries(projection.edges.map(edge => [edge.id, {
       width: 196,
-      height: edge.childEdgeIds.some(id => ['publish-companion', 'review-session'].includes(id)) ? 44 : 28,
+      height: edge.childEdgeIds.some(id => ['002-010', '007-008'].includes(id)) ? 44 : 28,
     }])),
   };
 }
@@ -169,7 +170,7 @@ describe('measured compact design layout', () => {
     const graph = authoredGraph();
     const expanded = graph.groups.map(group => group.id);
     const diagram = await buildDiagram(graph, expanded, measuredGeometry(graph, expanded));
-    const actor = diagram.nodes.find(node => node.id === 'item:user')!;
+    const actor = diagram.nodes.find(node => node.id === `item:${EX['user']}`)!;
     const destinations = diagram.edges.filter(edge => edge.source === actor.id)
       .map(edge => diagram.nodes.find(node => node.id === edge.target)!);
     expect(destinations).toHaveLength(2);
@@ -200,8 +201,8 @@ describe('measured compact design layout', () => {
       }
     }
     // The actor's boundary ingress stays left of the host's local approach despite its source being farther right.
-    const actor = diagram.edges.find(edge => edge.childEdgeIds.includes('author-design'))!;
-    const host = diagram.edges.find(edge => edge.childEdgeIds.includes('load-skills'))!;
+    const actor = diagram.edges.find(edge => edge.childEdgeIds.includes('002-004'))!;
+    const host = diagram.edges.find(edge => edge.childEdgeIds.includes('005-004'))!;
     expect(actor.points.at(-1)!.x).toBeLessThan(host.points.at(-1)!.x);
     expectReadable(diagram, graph, measured);
   });
@@ -212,8 +213,8 @@ describe('measured compact design layout', () => {
     const expanded = graph.groups.map(group => group.id);
     const measured = measuredGeometry(graph, expanded);
     const diagram = await buildDiagram(graph, expanded, measured);
-    const left = diagram.edges.find(edge => edge.childEdgeIds.includes('author-design'))!;
-    const right = diagram.edges.find(edge => edge.childEdgeIds.includes('publish-companion'))!;
+    const left = diagram.edges.find(edge => edge.childEdgeIds.includes('002-004'))!;
+    const right = diagram.edges.find(edge => edge.childEdgeIds.includes('002-010'))!;
     for (const [edge, direction] of [[left, -1], [right, 1]] as const) {
       const departure = segments(edge).find(({ start, end }) => start.y === end.y && Math.abs(end.x - start.x) >= 12)!;
       expect.soft(Math.sign(departure.end.x - departure.start.x), edge.id).toBe(direction);
@@ -254,9 +255,9 @@ describe('measured compact design layout', () => {
     const expanded = graph.groups.map(group => group.id);
     const measured = measuredGeometry(graph, expanded);
     const diagram = await buildDiagram(graph, expanded, measured);
-    expect(diagram.nodes.find(node => node.id === 'item:viewer')?.parentId).toBe('group:design:container:cli');
-    expect(diagram.nodes.find(node => node.id === 'group:design:container:cli')?.parentId).toBe('group:design:container:acstack');
-    expect(diagram.edges.find(edge => edge.childEdgeIds.includes('review-session'))?.bidirectional).toBe(true);
+    expect(diagram.nodes.find(node => node.id === `item:${EX['viewer']}`)?.parentId).toBe(`group:design:container:${EX['cli']}`);
+    expect(diagram.nodes.find(node => node.id === `group:design:container:${EX['cli']}`)?.parentId).toBe(`group:design:container:${EX['acstack']}`);
+    expect(diagram.edges.find(edge => edge.childEdgeIds.includes('007-008'))?.bidirectional).toBe(true);
     expectReadable(diagram, graph, measured);
   });
 

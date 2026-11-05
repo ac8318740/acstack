@@ -1,16 +1,17 @@
 import { useEffect, useId, useRef, useState } from 'react';
-import type { DesignQuestion } from '../lib/alignment-packs.js';
-import { ChevronRight, ListFilter, ListTodo, Maximize2, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
+import type { MapQuestion, ReviewAnnotation } from '../lib/alignment-packs.js';
+import { Check, ChevronRight, ListFilter, ListTodo, Maximize2, MessageSquare, PanelRightClose, PanelRightOpen, Pencil, Trash2 } from 'lucide-react';
 import { revealHighlights } from './markdown-highlights.js';
 import { SidebarMarkdown } from './sidebar-markdown.js';
-import type { Diagram } from './alignment-graph.js';
+import { reconcileSelection, type Diagram } from './alignment-graph.js';
 import { type Annotation, diagramId, pack, targetLabel } from './pack.js';
-import { DesignApproval, useDesignReview } from './design-approval.js';
+import { DesignApproval, ElementLock, useDesignReview } from './design-approval.js';
 import { DesignQuestions, type AnswerDraft } from './design-questions.js';
 import { questionScopeForSelection, questionsForScope } from './question-targets.js';
 import { ElementMetadata } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
+import { MockContext, MocksTab, mocksFor, useMockCaptures, type MockLink } from './mocks-modal.js';
 
 const labelOf = (id: string) => pack.graph.nodes.find(item => item.id === id)?.label ?? id;
 
@@ -97,8 +98,8 @@ export function Details({
 }: {
   onInspect?: (selected: string) => void;
   expanded?: boolean;
-  openQuestions?: DesignQuestion[];
-  highlightQuestion?: DesignQuestion;
+  openQuestions?: MapQuestion[];
+  highlightQuestion?: MapQuestion;
   onQuestion?: (id: string) => void;
   selected: string;
   diagram: Diagram;
@@ -156,8 +157,9 @@ export function Details({
   const linkedQuestions = openQuestions.filter(question => highlights.some(highlight => highlight.questionId === question.id));
   return (
     <section className="section">
-      <ElementMetadata kind={node.elementKind} channels={node.channels} />
       <h2>{node.label}</h2>
+      <ElementMetadata kind={node.elementKind} channels={node.channels} />
+      <ElementLock id={node.id} locked={node.locked} />
       <p data-annotate-type="node" data-annotate-id={node.id}>
         {node.summary}
       </p>
@@ -201,9 +203,9 @@ export function Details({
   );
 }
 
-type DetailInspection = { selected: string; question?: DesignQuestion };
+type DetailInspection = { selected: string; question?: MapQuestion };
 
-function TargetDetailsDialog({ inspection, diagram, onClose, onQuestion, openQuestions }: { inspection: DetailInspection; diagram: Diagram; onClose: () => void; onQuestion: (id: string) => void; openQuestions: DesignQuestion[] }) {
+function TargetDetailsDialog({ inspection, diagram, onClose, onQuestion, openQuestions }: { inspection: DetailInspection; diagram: Diagram; onClose: () => void; onQuestion: (id: string) => void; openQuestions: MapQuestion[] }) {
   const { question } = inspection;
   const dialog = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -253,7 +255,7 @@ export function DocumentOverview() {
 
 type ShowComment = (annotation: Annotation, element: HTMLElement, keyboard: boolean) => void;
 
-export function Comments({ annotations, onSelect, onDelete, onEdit, onShowComment, editDrafts, onEditDraft }: { editDrafts?: Record<string, string>; onEditDraft?: (id: string, text: string | undefined) => void; annotations: Annotation[]; onSelect: (id: string) => void; onDelete: (id: string) => void; onEdit: (id: string, comment: string) => void; onShowComment?: ShowComment }) {
+export function Comments({ annotations, earlier = [], onSelect, onDelete, onEdit, onShowComment, editDrafts, onEditDraft }: { editDrafts?: Record<string, string>; onEditDraft?: (id: string, text: string | undefined) => void; annotations: Annotation[]; earlier?: Array<ReviewAnnotation & { label: string }>; onSelect: (id: string) => void; onDelete: (id: string) => void; onEdit: (id: string, comment: string) => void; onShowComment?: ShowComment }) {
   const [localDrafts, setLocalDrafts] = useState<Record<string, string>>({});
   const drafts = editDrafts ?? localDrafts;
   const setDraft = onEditDraft ?? ((id: string, text: string | undefined) => {
@@ -267,7 +269,7 @@ export function Comments({ annotations, onSelect, onDelete, onEdit, onShowCommen
   const titleId = useId();
   return (
     <section className="section">
-      {annotations.length === 0 ? (
+      {annotations.length === 0 && !earlier.length ? (
         <p className="muted">No comments yet.</p>
       ) : (
         <ul className="comments">
@@ -285,10 +287,22 @@ export function Comments({ annotations, onSelect, onDelete, onEdit, onShowCommen
                 </div>
               </div>
               {annotation.selectedText && <blockquote>{annotation.selectedText}</blockquote>}
+              {annotation.mock && <MockContext nodeId={annotation.target.id} anchor={annotation.mock} />}
               {drafts[annotation.id] !== undefined ? <CommentEditor key={annotation.id} comment={annotation.comment} text={drafts[annotation.id]} onTextChange={text => setDraft(annotation.id, text)} onCancel={() => setDraft(annotation.id, undefined)} onSave={comment => { onEdit(annotation.id, comment); setDraft(annotation.id, undefined); }} /> : <>
                 <p>{annotation.comment}</p>
               </>}
               {onShowComment && <button type="button" className="btn ghost" onClick={event => onShowComment(annotation, event.currentTarget, event.detail === 0)}>Show comment</button>}
+            </li>
+          ))}
+          {/* Read-only: these belong to an earlier revision and wait for the agent to reconcile them. */}
+          {earlier.map((annotation, index) => (
+            <li key={`earlier:${index}`} className="earlier-comment">
+              <div className="row between">
+                <button type="button" className="link strong" onClick={() => onSelect(diagramId(annotation.target))}>{targetLabel(annotation.target)}</button>
+              </div>
+              <span className="type-pill" data-earlier>{`On an earlier version, ${annotation.label}`}</span>
+              {annotation.selectedText && <blockquote>{annotation.selectedText}</blockquote>}
+              <p>{annotation.comment}</p>
             </li>
           ))}
         </ul>
@@ -305,11 +319,22 @@ export function Comments({ annotations, onSelect, onDelete, onEdit, onShowCommen
   );
 }
 
-export type DrawerView = 'details' | 'comments' | 'questions';
+export type DrawerView = 'details' | 'comments' | 'questions' | 'mocks';
 export type CommentScope = string;
+
+// A collapsed container stands for everything it hides, as its card's counts do.
+const folded = (selected: string | null, diagram: Diagram) => diagram.nodes.some(node => node.id === selected && node.kind === 'folded-group');
+const shownAt = (selected: string, diagram: Diagram) => (id: string) => reconcileSelection(id, diagram, pack.graph) === selected;
+export const mockScopeForSelection = (selected: string | null, diagram: Diagram): string => {
+  if (!selected || selected === 'group:design:root') return 'all';
+  if (folded(selected, diagram)) return `selection:${selected}`;
+  const node = selected.startsWith('item:') ? selected.slice(5) : selected.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId : undefined;
+  return node ? `item:${node}` : 'all';
+};
 
 export function commentScopeForSelection(selected: string | null, diagram: Diagram): CommentScope {
   if (!selected) return pack.designDocument ? 'group:design:root' : 'all';
+  if (folded(selected, diagram)) return `selection:${selected}`;
   if (selected.startsWith('edge:')) {
     const edge = diagram.edges.find(edge => edge.id === selected || edge.childEdgeIds.includes(selected.slice(5)));
     return edge && edge.childEdgeIds.length > 1 ? `selection:${selected}` : selected;
@@ -392,6 +417,9 @@ export function Drawer({
   onSelect,
   onComment,
   onOpenGroup,
+  mockLink,
+  onOpenMock,
+  questionRequest,
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -411,10 +439,17 @@ export function Drawer({
   onSelect: (id: string | null) => void;
   onComment: (target: Annotation['target'], comment: string) => void;
   onOpenGroup: (groupId: string) => void;
+  // Opens the Mocks modal on one mock and variant; the caller also selects the element and shows the Mocks view.
+  mockLink?: MockLink;
+  // Opens a comment's mock in the Mocks modal; the app owns selection and the drawer view.
+  onOpenMock?: (link: MockLink) => void;
+  /** A request from outside the drawer, such as an approval blocker, to open and focus one question. */
+  questionRequest?: { id: string };
 }) {
   const review = useDesignReview();
+  useMockCaptures();
   const authoredQuestions = pack.designDocument?.questions ?? [];
-  const openQuestions = authoredQuestions.filter(question => !review?.answers.some(answer => answer.questionId === question.id));
+  const openQuestions = authoredQuestions.filter(question => !(review ? review.answered.includes(question.id) : question.answer !== undefined));
   const scopedQuestions = questionsForScope(authoredQuestions, questionScope, diagram, pack.graph);
   const questionOptions = reviewScopeOptions(authoredQuestions.map(question => question.target));
   const questionTarget = questionScope.startsWith('selection:') ? questionScope.slice(10) : questionScope;
@@ -423,6 +458,28 @@ export function Drawer({
   const activeQuestionScope = exactQuestionScope && questionScope.startsWith('selection:') && scopedQuestions.every(question => scopeIdFor(question.target) === exactQuestionScope) ? exactQuestionScope : questionScope;
   const questionLabel = questionContext ? scopeLabel(questionContext.target) : 'All targets';
   const needsInput = openQuestions.length;
+  // The tab strip scrolls when its tabs outgrow the drawer; fades mark the hidden side.
+  const tabStrip = useRef<HTMLDivElement>(null);
+  const [tabFade, setTabFade] = useState({ start: false, end: false });
+  const measureTabs = () => {
+    const strip = tabStrip.current;
+    if (!strip) return;
+    const next = { start: strip.scrollLeft > 1, end: strip.scrollLeft + strip.clientWidth < strip.scrollWidth - 1 };
+    setTabFade(previous => previous.start === next.start && previous.end === next.end ? previous : next);
+  };
+  useEffect(() => {
+    const strip = tabStrip.current;
+    if (!strip || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measureTabs);
+    observer.observe(strip);
+    return () => observer.disconnect();
+  }, [open]);
+  // Tabs come and go with the selection, so check the fit after every render; the state only changes when it does.
+  useEffect(measureTabs);
+  useEffect(() => {
+    tabStrip.current?.querySelector?.<HTMLElement>('[aria-pressed="true"]')?.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+  }, [view]);
+  const answeredCount = authoredQuestions.length - needsInput;
   const [inspection, setInspection] = useState<DetailInspection | null>(null);
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, AnswerDraft>>({});
   const setAnswerDraft = (id: string, draft?: AnswerDraft) => setAnswerDrafts(previous => {
@@ -436,6 +493,7 @@ export function Drawer({
     if (!question) return;
     setInspection(null); setQuestionScope(diagramId(question.target)); setQuestionFocus({ id }); setView('questions'); setOpen(true);
   };
+  useEffect(() => { if (questionRequest) openQuestion(questionRequest.id); }, [questionRequest]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [editDrafts, setEditDrafts] = useState<Record<string, string>>({});
   const setEditDraft = (id: string, text: string | undefined) => setEditDrafts(previous => {
@@ -444,7 +502,7 @@ export function Drawer({
     else next[id] = text;
     return next;
   });
-  const [width, setWidth] = useState(360);
+  const [width, setWidth] = useState(440);
   const [viewportWidth, setViewportWidth] = useState(() => typeof window === 'undefined' ? 1360 : window.innerWidth);
   const drag = useRef<{ x: number; width: number; pointer: number; handle: HTMLDivElement } | null>(null);
   useEffect(() => {
@@ -460,10 +518,37 @@ export function Drawer({
   const visibleWidth = clampDrawerWidth(width, viewportWidth);
   const documentContext = commentContext(null, diagram);
   // Canvas clicks retain grouped-edge context; menu choices always address exactly one commented target.
-  const context = commentScope === 'all' ? documentContext : commentScope.startsWith('selection:') ? commentContext(commentScope.slice(10), diagram) : commentContext(commentScope, { ...diagram, edges: [] });
+  const selectionContext = (scope: string) => {
+    const context = commentContext(scope, diagram);
+    return context && folded(scope, diagram) ? { ...context, matches: (target: Annotation['target']) => shownAt(scope, diagram)(diagramId(target)) } : context;
+  };
+  const context = commentScope === 'all' ? documentContext : commentScope.startsWith('selection:') ? selectionContext(commentScope.slice(10)) : commentContext(commentScope, { ...diagram, edges: [] });
   const visibleComments = commentScope === 'all' ? annotations : annotations.filter(annotation => context?.matches(annotation.target));
+  const earlierComments = (review?.earlier ?? []).flatMap(entry => entry.annotations.map(annotation => ({ ...annotation, label: entry.label })))
+    .filter(annotation => commentScope === 'all' || context?.matches(annotation.target));
   const options = commentScopeOptions(annotations);
   const currentLabel = commentScope !== 'all' && context ? scopeLabel(context.target) : 'All targets';
+  const mockNode = selected?.startsWith('item:') ? selected.slice(5) : selected?.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId ?? null : null;
+  // Mocks filter like Comments and Questions: the selected element, or every mock with nothing selected.
+  const mockNodes = pack.graph.nodes.filter(node => node.mocks?.length).map(node => node.id);
+  const [mockScope, setMockScope] = useState(() => mockScopeForSelection(selected, diagram));
+  // One rule for every tab: a filter still on the selection's own scope follows the selection, also when a
+  // layout change moves it to a container. A filter the reviewer picked stays.
+  const followed = useRef<{ comment: string; question: string; mock: string } | undefined>(undefined);
+  useEffect(() => {
+    const next = { comment: commentScopeForSelection(selected, diagram), question: questionScopeForSelection(selected), mock: mockScopeForSelection(selected, diagram) };
+    const before = followed.current;
+    followed.current = next;
+    if (!before) return;
+    if (commentScope === before.comment) setCommentScope(next.comment);
+    if (questionScope === before.question) setQuestionScope(next.question);
+    if (mockScope === before.mock) setMockScope(next.mock);
+  }, [selected, diagram]);
+  const scopedMocks = mockScope === 'all' ? mockNodes : mockScope.startsWith('selection:') ? mockNodes.filter(id => shownAt(mockScope.slice(10), diagram)(`item:${id}`)) : [mockScope.slice(5)];
+  const mockCount = scopedMocks.reduce((sum, id) => sum + mocksFor(id).length, 0);
+  const mockOptions = reviewScopeOptions(mockNodes.flatMap(id => mocksFor(id).map((): Annotation['target'] => ({ type: 'node', id }))));
+  const mockContext = mockScope.startsWith('selection:') ? commentContext(mockScope.slice(10), diagram) : null;
+  const mockLabel = mockScope === 'all' ? 'All targets' : mockContext ? scopeLabel(mockContext.target) : scopeLabel({ type: 'node', id: mockScope.slice(5) });
   const openAllComments = () => { setCommentScope('all'); setView('comments'); setOpen(true); };
   if (!open) {
     return (
@@ -475,7 +560,7 @@ export function Drawer({
           <MessageSquare size={18} />
           {annotations.length > 0 && <span className="badge">{annotations.length}</span>}
         </button>
-        {pack.designDocument && <button type="button" className="icon-btn rail-count" data-tooltip="Design questions" aria-label={`Questions (${needsInput} need input)`} onClick={() => { setQuestionScope('all'); setView('questions'); setOpen(true); }}><ListTodo size={18} aria-hidden="true" />{needsInput > 0 && <span className="badge">{needsInput}</span>}</button>}
+        {pack.designDocument && <button type="button" className="icon-btn rail-count" data-tooltip="Design questions" aria-label={`Questions (${needsInput} ${needsInput === 1 ? 'needs' : 'need'} input)`} onClick={() => { setQuestionScope('all'); setView('questions'); setOpen(true); }}><ListTodo size={18} aria-hidden="true" />{needsInput > 0 && <span className="badge">{needsInput}</span>}</button>}
       </aside>
     );
   }
@@ -520,10 +605,14 @@ export function Drawer({
         onLostPointerCapture={() => { drag.current = null; }}
       />
       <header className="drawer-head">
-        <div className="drawer-tabs" aria-label="Panel view">
+        <div ref={tabStrip} className="drawer-tabs" aria-label="Panel view" data-fade-start={tabFade.start || undefined} data-fade-end={tabFade.end || undefined} onScroll={measureTabs}>
           <button type="button" aria-pressed={view === 'details'} onClick={() => setView('details')}>Details</button>
           <button type="button" aria-pressed={view === 'comments'} onClick={() => { if (view !== 'comments') { setCommentScope(commentScopeForSelection(selected, diagram)); setView('comments'); } }}>Comments</button>
-          {pack.designDocument && <button type="button" aria-pressed={view === 'questions'} onClick={() => { if (view !== 'questions') { setQuestionScope(questionScopeForSelection(selected)); setView('questions'); } }}>Questions{needsInput > 0 ? ` (${needsInput})` : ''}</button>}
+          {pack.designDocument && <button type="button" aria-pressed={view === 'questions'} onClick={() => { if (view !== 'questions') { setQuestionScope(questionScopeForSelection(selected)); setView('questions'); } }}>Questions
+            {needsInput > 0 && <span className="tab-count" aria-label={`${needsInput} open`}>{needsInput}</span>}
+            {needsInput === 0 && answeredCount > 0 && <span className="tab-count" data-answered aria-label={`${answeredCount} answered`}><Check size={12} aria-hidden="true" />{answeredCount}</span>}
+          </button>}
+          {pack.designDocument && <button type="button" aria-pressed={view === 'mocks'} onClick={() => { if (view !== 'mocks') { setMockScope(mockScopeForSelection(selected, diagram)); setView('mocks'); } }}>Mocks{mockCount > 0 && <span className="tab-count" aria-label={`${mockCount} mock${mockCount === 1 ? '' : 's'}`}>{mockCount}</span>}</button>}
         </div>
         <div className="row">
           <button type="button" className="icon-btn" data-tooltip="Collapse details panel" aria-label="Collapse details panel" onClick={() => setOpen(false)}>
@@ -535,11 +624,14 @@ export function Drawer({
         {view === 'details' ? (
           selected && selected !== 'group:design:root' ? <Details selected={selected} diagram={diagram} openQuestions={openQuestions} onQuestion={openQuestion} onInspect={selected => setInspection({ selected })} onSelect={onSelect} onOpenGroup={onOpenGroup} /> :
             pack.designDocument ? <DocumentOverview /> : <p className="muted">Select a box or relationship to see its details.</p>
-        ) : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
+        ) : view === 'mocks' ? <div className="drawer-mocks">
+          <div className="review-toolbar"><ReviewScope label="Mock scope" value={mockScope} currentLabel={mockLabel} count={mockCount} options={mockOptions} onChange={setMockScope} /></div>
+          <MocksTab nodeIds={scopedMocks} empty={mockNodes.length ? 'No mocks match this filter.' : 'This design has no mocks.'} link={mockLink} annotations={annotations} setAnnotations={setAnnotations} />
+        </div> : view === 'questions' ? <DesignQuestions questions={scopedQuestions} scopeControl={<ReviewScope label="Question scope" value={activeQuestionScope} currentLabel={questionLabel} count={scopedQuestions.length} options={questionOptions} onChange={setQuestionScope} />} selected={selected} diagram={diagram} focusQuestion={questionFocus} drafts={answerDrafts} onDraft={setAnswerDraft} onDetails={question => setInspection({ selected: diagramId(question.target), question })} /> : (
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}
-            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
+            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} earlier={earlierComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment || onOpenMock ? (annotation, element, keyboard) => { if (annotation.mock && onOpenMock) onOpenMock({ nodeId: annotation.target.id, path: annotation.mock.path, variant: annotation.mock.variant, comment: annotation.id }); else onShowComment?.(annotation, element, keyboard); } : undefined} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
           </div>
         )}
       </div>

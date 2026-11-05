@@ -1,10 +1,10 @@
 import { createContext, createElement, useContext, type HTMLAttributes } from 'react';
 import { ListTodo } from 'lucide-react';
 import type { Components, ExtraProps } from 'react-markdown';
-import type { DesignQuestion } from '../lib/alignment-packs.js';
+import type { MapQuestion } from '../lib/alignment-packs.js';
 import { Dropdown } from './dropdown.js';
 
-export const QuestionReferenceContext = createContext<{ questions: DesignQuestion[]; onQuestion: (id: string) => void } | null>(null);
+export const QuestionReferenceContext = createContext<{ questions: MapQuestion[]; onQuestion: (id: string) => void } | null>(null);
 
 function Reference({ ids }: { ids: string[] }) {
   const navigation = useContext(QuestionReferenceContext);

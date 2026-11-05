@@ -1,9 +1,9 @@
 import { createElement, act, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { Drawer } from '../drawer.js';
-import { DesignApproval, DesignApprovalProvider } from '../design-approval.js';
-import { pack } from '../pack.js';
+import { Drawer, mockScopeForSelection } from '../drawer.js';
+import { DesignApproval, DesignApprovalProvider, ElementLock, useBlockerNavigation, useLockCapture } from '../design-approval.js';
+import { pack, useReviewAnnotations } from '../pack.js';
 import { DesignQuestions, useQuestionCounts } from '../design-questions.js';
 import type { DesignAnswer } from '../../lib/design-review.js';
 import { MermaidDiagram } from '../sidebar-markdown.js';
@@ -16,6 +16,7 @@ vi.mock('../pack.js', () => {
     pack: { documentKind: 'design', graph: { nodes: [], edges: [], groups: [] }, source: { references: [] } },
     liveComments: true,
     token: 'test-token',
+    usePackRevision: () => 0,
     useReviewAnnotations: () => ({ syncState, flush: () => Promise.resolve() }),
   };
 });
@@ -80,7 +81,7 @@ it('filters questions by scope without discarding drafts or expansion, and scope
   const container = create('div');
   const root = createRoot(container as unknown as HTMLElement);
   const original = pack.designDocument;
-  pack.designDocument = { id: 'scope', name: 'Design', summary: 'Design summary', questions: ['first', 'second'].map(id => ({ id, target: { type: 'node', id }, question: `Question ${id}`, proposal: 'Proposed behavior', recommendation: 'Recommended behavior' })) };
+  pack.designDocument = { id: 'scope', name: 'Design', summary: 'Design summary', questions: ['first', 'second'].map(id => ({ id, target: { type: 'node', id }, question: `Question ${id}` })) };
   let props: ComponentProps<typeof Drawer> = {
     open: true, setOpen: vi.fn(), view: 'questions', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), questionScope: 'selection:item:first', setQuestionScope: vi.fn(),
     selected: 'item:first', diagram: { nodes: [], edges: [], nodeToVisible: { first: 'item:first', second: 'item:second' } }, focusKey: 0,
@@ -110,6 +111,43 @@ it('filters questions by scope without discarding drafts or expansion, and scope
   } finally { act(() => root.unmount()); if (original) pack.designDocument = original; else delete pack.designDocument; }
 });
 
+it('moves every selection-scoped filter to the container that a collapse folds the selection into', () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const container = create('div');
+  const root = createRoot(container as unknown as HTMLElement);
+  const { nodes, groups } = pack.graph;
+  pack.graph.nodes = [{ id: 'shell', groupId: 'design:root', label: 'Shell', summary: '', sourceRefs: [] }, { id: 'app', groupId: 'shell-box', label: 'Application', summary: '', sourceRefs: [] }];
+  pack.graph.groups = [{ id: 'shell-box', label: 'Shell', ownerNodeId: 'shell', parentGroupId: 'design:root' }] as typeof pack.graph.groups;
+  const open = { nodes: [], edges: [], nodeToVisible: { shell: 'group:shell-box', app: 'item:app' } };
+  const folded = { nodes: [{ id: 'group:shell-box', kind: 'folded-group', refId: 'shell-box', ownerNodeId: 'shell', label: 'Shell', x: 0, y: 0, width: 300, height: 120 }], edges: [], nodeToVisible: { shell: 'group:shell-box', app: 'group:shell-box' } } as unknown as ComponentProps<typeof Drawer>['diagram'];
+  let props: ComponentProps<typeof Drawer> = {
+    open: true, setOpen: vi.fn(), view: 'comments', setView: vi.fn(), commentScope: 'item:app', setCommentScope: vi.fn(), questionScope: 'selection:item:app', setQuestionScope: vi.fn(),
+    selected: 'item:app', diagram: open, focusKey: 0, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn(),
+  };
+  const render = (next: Partial<ComponentProps<typeof Drawer>> = {}) => { props = { ...props, ...next }; act(() => root.render(createElement(Drawer, props))); };
+  try {
+    render();
+    render({ selected: 'group:shell-box', diagram: folded });
+    expect(props.setCommentScope).toHaveBeenLastCalledWith('selection:group:shell-box');
+    expect(props.setQuestionScope).toHaveBeenLastCalledWith('selection:group:shell-box');
+    // The container's filter shows what it hides, as its card's count does.
+    expect(mockScopeForSelection('group:shell-box', folded)).toBe('selection:group:shell-box');
+    render({ commentScope: 'selection:group:shell-box', annotations: [{ id: 'c1', packVersion: 'v', target: { type: 'node', id: 'app' }, comment: 'Name the app' }] });
+    expect(all(container).some(node => node.nodeValue === 'Name the app' || node.textContent === 'Name the app')).toBe(true);
+    // A filter the reviewer picked stays put.
+    render({ commentScope: 'all', questionScope: 'all', selected: 'item:app', diagram: open, annotations: [] });
+    expect(props.setCommentScope).toHaveBeenCalledTimes(1);
+    expect(props.setQuestionScope).toHaveBeenCalledTimes(1);
+  } finally { act(() => root.unmount()); pack.graph.nodes = nodes; pack.graph.groups = groups; }
+});
+
 it.each([false, true])('scrolls, focuses, and briefly emphasizes each navigation request without changing drafts (reduced motion=%s)', reduced => {
   const document = new Host('#document');
   document.nodeType = 9;
@@ -120,7 +158,7 @@ it.each([false, true])('scrolls, focuses, and briefly emphasizes each navigation
   vi.stubGlobal('window', { document, HTMLIFrameElement: class {} });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const original = pack.designDocument;
-  pack.designDocument = { id: 'test', name: 'Test', summary: 'Test', questions: ['first', 'second'].map(id => ({ id, question: id, target: { type: 'node', id: 'app' }, proposal: 'Proposal', recommendation: 'Recommendation' })) };
+  pack.designDocument = { id: 'test', name: 'Test', summary: 'Test', questions: ['first', 'second'].map(id => ({ id, question: id, target: { type: 'node', id: 'app' } })) };
   const container = create('div'), root = createRoot(container as unknown as HTMLElement);
   const onDraft = vi.fn();
   Object.assign(window, { matchMedia: vi.fn(() => ({ matches: reduced })) });
@@ -159,7 +197,9 @@ it('defers Mermaid execution until its enclosing disclosure is visible and clean
   const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
   Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
   vi.stubGlobal('document', document);
-  vi.stubGlobal('window', { document, HTMLIFrameElement: class {} });
+  // The diagram listens for its frame's height report, and must stop listening on unmount.
+  const addEventListener = vi.fn(), removeEventListener = vi.fn();
+  vi.stubGlobal('window', { document, HTMLIFrameElement: class {}, addEventListener, removeEventListener });
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   let notify: (width: number) => void = () => {};
   const observe = vi.fn(), disconnect = vi.fn();
@@ -182,6 +222,7 @@ it('defers Mermaid execution until its enclosing disclosure is visible and clean
     expect(disconnect).toHaveBeenCalledOnce();
   } finally { act(() => root.unmount()); }
   expect(disconnect).toHaveBeenCalledTimes(2);
+  expect(removeEventListener).toHaveBeenCalledWith('message', addEventListener.mock.calls.find(([type]) => type === 'message')?.[1]);
 });
 
 it('retains composer and posted-comment edits through actual child unmounts, scoped navigation, save, and cancel', () => {
@@ -316,7 +357,7 @@ it('keeps question drafts through tab and drawer unmounts, saves exact-input ans
       if (typeof options.body !== 'string') throw new Error('Answer must send JSON');
       answer = (JSON.parse(options.body) as { answer: string }).answer;
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, commentsDigest: answer ? 'after' : 'before', answers: answer ? [{ questionId: 'retry', answer }] : [], approval: { valid: false } }) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, mapInputsDigest: answer ? 'map-2' : 'map-1', openQuestions: answer ? [] : ['retry'], approval: { valid: false } }) });
   });
   vi.stubGlobal('fetch', fetch);
   const container = create('div');
@@ -334,7 +375,7 @@ it('keeps question drafts through tab and drawer unmounts, saves exact-input ans
   const field = () => all(container).find(node => node.tagName === 'TEXTAREA')!;
   const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === label)!;
   const type = (text: string) => act(() => handlers(field()).onChange!({ target: { value: text } }));
-  pack.designDocument = { id: 'document', name: 'Design', summary: 'Design summary', questions: [{ id: 'retry', target: { type: 'node', id: 'first' }, question: 'Retry after a conflict?', proposal: 'Show a new preview.', recommendation: 'Yes, to avoid overwriting edits.' }] };
+  pack.designDocument = { id: 'document', name: 'Design', summary: 'Design summary', questions: [{ id: 'retry', target: { type: 'node', id: 'first' }, question: 'Retry after a conflict?' }] };
   try {
     await render();
     expect(field()).toBeUndefined();
@@ -349,16 +390,9 @@ it('keeps question drafts through tab and drawer unmounts, saves exact-input ans
     await render({ open: true });
     act(() => handlers(button('Expand all')).onClick!());
     expect(field().value).toBe('Keep my pending answer.');
-    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
-    const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
-    const body = posts[0][1].body;
-    if (typeof body !== 'string') throw new Error('Answer must send JSON');
-    expect(JSON.parse(body)).toEqual({ questionId: 'retry', answer: 'Keep my pending answer.', expected });
-    expect(field().value).toBe('Keep my pending answer.');
-    expect(button('Update answer').attributes).toHaveProperty('disabled');
     conflict = true;
     type('Never discard this conflicting draft.');
-    await act(() => Promise.resolve(handlers(button('Update answer')).onClick!()));
+    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
     expect(all(container).some(node => node.attributes.role === 'alert')).toBe(true);
     expect(field().value).toBe('Never discard this conflicting draft.');
     expect(button('View target details').attributes['aria-haspopup']).toBe('dialog');
@@ -374,6 +408,15 @@ it('keeps question drafts through tab and drawer unmounts, saves exact-input ans
     act(() => { handlers(button('Close')).onClick!(); handlers(dialog).onClose!(); });
     expect(all(container).some(node => node.attributes.class?.includes('target-details-modal'))).toBe(false);
     expect(field().value).toBe('Never discard this conflicting draft.');
+    conflict = false;
+    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
+    const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
+    const body = posts.at(-1)![1].body;
+    if (typeof body !== 'string') throw new Error('Answer must send JSON');
+    expect(JSON.parse(body)).toEqual({ questionId: 'retry', answer: 'Never discard this conflicting draft.', expected });
+    // An answer resolves the node, so the question closes rather than offering an update.
+    expect(field()).toBeUndefined();
+    expect(button('Save answer')).toBeUndefined();
     expect(button('Collapse all')).toBeDefined();
   } finally { act(() => root.unmount()); delete pack.designDocument; }
 });
@@ -434,7 +477,7 @@ it.each([false, true])('saves choice selections and Other through collapsed rows
       const body = JSON.parse(options.body) as DesignAnswer;
       saved = { questionId: body.questionId, answer: body.answer, choices: body.choices };
     }
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, answers: saved ? [saved] : [], approval: { valid: false } }) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: saved ? [] : ['retry'], approval: { valid: false } }) });
   });
   vi.stubGlobal('fetch', fetch);
   const container = create('div');
@@ -450,7 +493,7 @@ it.each([false, true])('saves choice selections and Other through collapsed rows
   const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === label)!;
   const inputs = () => all(container).filter(node => node.tagName === 'INPUT');
   const select = (index: number) => act(() => handlers(inputs()[index]).onChange!({ target: { value: '', checked: true } }));
-  pack.designDocument = { id: 'document', name: 'Design', summary: 'Design summary', questions: [{ id: 'retry', target: { type: 'node', id: 'first' }, question: 'How should retry work?', proposal: 'Require a fresh preview.', recommendation: 'Preserve drafts.', choices: ['Yes', 'No'], multiple }] };
+  pack.designDocument = { id: 'document', name: 'Design', summary: 'Design summary', questions: [{ id: 'retry', target: { type: 'node', id: 'first' }, question: 'How should retry work?', choices: ['Yes', 'No'], multiple }] };
   try {
     await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(CountsProbe), createElement(Drawer, props)) }))));
     expect(countsSeen.length).toBeGreaterThan(1);
@@ -459,24 +502,27 @@ it.each([false, true])('saves choice selections and Other through collapsed rows
     act(() => handlers(button('Expand all')).onClick!());
     expect(inputs().map(input => handlers(input).type)).toEqual(Array<string>(3).fill(multiple ? 'checkbox' : 'radio'));
     expect(button('Save answer').attributes).toHaveProperty('disabled');
+    // A hot reload's resync reads Saving for a moment; answering must stay clickable through it.
+    const sync = useReviewAnnotations().syncState as { status: string };
+    sync.status = 'Saving';
     select(0);
-    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
-    expect(saved).toEqual({ questionId: 'retry', answer: '', choices: ['Yes'] });
-    expect(countsSeen.at(-1)?.size).toBe(0);
     select(1);
     expect(handlers(inputs()[0]).checked).toBe(multiple);
     select(2);
-    expect(button('Update answer').attributes).toHaveProperty('disabled');
     act(() => handlers(all(container).find(node => node.tagName === 'TEXTAREA')!).onChange!({ target: { value: 'Keep the draft and ask again.' } }));
     act(() => handlers(button('Collapse all')).onClick!());
     expect(inputs()).toHaveLength(0);
     act(() => handlers(button('Expand all')).onClick!());
     expect(all(container).find(node => node.tagName === 'TEXTAREA')?.value).toBe('Keep the draft and ask again.');
-    await act(() => Promise.resolve(handlers(button('Update answer')).onClick!()));
+    expect(button('Save answer').attributes).not.toHaveProperty('disabled');
+    await act(() => Promise.resolve(handlers(button('Save answer')).onClick!()));
+    sync.status = 'Saved';
     expect(saved).toEqual({ questionId: 'retry', answer: 'Keep the draft and ask again.', choices: multiple ? ['Yes', 'No'] : [] });
+    expect(countsSeen.at(-1)?.size).toBe(0);
+    expect(inputs()).toHaveLength(0);
     const firstPost = fetch.mock.calls.find(([, options]) => options.method === 'POST')?.[1].body;
     if (typeof firstPost !== 'string') throw new Error('Missing answer request');
-    expect(JSON.parse(firstPost)).toEqual({ questionId: 'retry', answer: '', choices: ['Yes'], expected });
+    expect(JSON.parse(firstPost)).toEqual({ questionId: 'retry', answer: 'Keep the draft and ask again.', choices: multiple ? ['Yes', 'No'] : [], expected });
   } finally { act(() => root.unmount()); delete pack.designDocument; }
 });
 
@@ -515,7 +561,7 @@ it('shares one confirmation and approval result between header and document cont
     act(() => handlers(button(dialog, 'Cancel')).onClick!());
     expect(dialog.attributes.open).toBeUndefined();
     act(() => handlers(button(details, 'Approve this version')).onClick!());
-    expect(all(container).filter(node => node.tagName === 'DIALOG')).toHaveLength(1);
+    expect(all(container).filter(node => node.tagName === 'DIALOG' && node.attributes['aria-labelledby'] === 'design-approval-title')).toHaveLength(1);
     expect(dialog.attributes.open).toBe('');
     await act(() => Promise.resolve(handlers(button(dialog, 'Approve this version')).onClick!()));
     const posts = fetch.mock.calls.filter(([, options]) => options.method === 'POST');
@@ -529,4 +575,224 @@ it('shares one confirmation and approval result between header and document cont
   } finally {
     act(() => root.unmount());
   }
+});
+
+it('shows no per-element state or lock control until an element changes after approval', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
+  let locked: string[] = [];
+  const fetch = vi.fn((_url: string, options: RequestInit) => {
+    if (options.method === 'POST' && typeof options.body === 'string') locked = [(JSON.parse(options.body) as { lock: string }).lock];
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: [], locked, approval: { valid: false } }) });
+  });
+  vi.stubGlobal('fetch', fetch);
+  const nodes = pack.graph.nodes;
+  pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const props: ComponentProps<typeof Drawer> = { questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'details', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: 'item:app', diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
+  const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
+  try {
+    await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement(Drawer, props) }))));
+    // Approving the design approves every element, so a single element offers no Lock, Loose, or Locked state.
+    expect(all(container).some(node => node.attributes.class === 'element-lock')).toBe(false);
+    expect(text()).not.toMatch(/\bLock(ed)?\b|\bLoose\b/);
+    expect(fetch.mock.calls.some(([, options]) => options.method === 'POST')).toBe(false);
+    expect(locked).toEqual([]);
+  } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
+});
+
+it('lists approval blockers in a modal that links to each one, and sends captures with re-approval and approval', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
+  const blocker = { kind: 'question', targetId: 'app', label: 'Retry after a conflict?', nodeId: '104' };
+  let blockers = [blocker, { kind: 'changed', targetId: 'app', label: 'Application', nodeId: 'app' }];
+  const posts: unknown[] = [];
+  const fetch = vi.fn((_url: string, options: RequestInit) => {
+    if (options.method === 'POST' && typeof options.body === 'string') posts.push(JSON.parse(options.body));
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: ['104'], locked: [], blockers, approval: { valid: false, reason: blockers.length ? 'Open questions target this design' : 'This revision is not approved' } }) });
+  });
+  vi.stubGlobal('fetch', fetch);
+  const nodes = pack.graph.nodes;
+  pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
+  const navigated: unknown[] = [];
+  const capture = () => ({ variant: 'compact' });
+  function Probe() { useBlockerNavigation(target => navigated.push(target)); useLockCapture('app', capture); return null; }
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === label);
+  const dialog = () => all(container).find(node => node.tagName === 'DIALOG' && node.attributes['aria-labelledby'] === 'design-blockers-title')!;
+  const render = () => act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(Probe), createElement(DesignApproval), createElement(ElementLock, { id: 'app', locked: false })) }))));
+  try {
+    await render();
+    act(() => handlers(button('Approve this version')!).onClick!());
+    expect(dialog().attributes.open).toBe('');
+    act(() => handlers(all(container).find(node => node.attributes.class === 'blocker-link')!).onClick!());
+    expect(navigated).toEqual([blocker]);
+    expect(dialog().attributes).not.toHaveProperty('open');
+    await act(() => Promise.resolve(handlers(button('Re-approve')!).onClick!()));
+    expect(posts.at(-1)).toEqual({ lock: 'app', capture: { variant: 'compact' }, expected });
+    blockers = [];
+    await render();
+    await act(() => Promise.resolve(handlers(all(container).filter(node => node.tagName === 'BUTTON' && handlers(node).children === 'Approve this version').at(-1)!).onClick!()));
+    expect(posts.at(-1)).toEqual({ decision: 'approved', captures: { app: { variant: 'compact' } }, expected });
+  } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
+});
+
+it('offers one-click re-approval for an element changed since approval', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
+  let blockers = [{ kind: 'changed', targetId: 'app', label: 'Application', nodeId: 'app', changes: [{ label: 'Summary changed', before: 'Old summary', after: 'App summary' }, { label: 'Mock orders.json changed' }] }];
+  const posts: unknown[] = [];
+  vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
+    if (options.method === 'POST' && typeof options.body === 'string') { posts.push(JSON.parse(options.body)); blockers = []; }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: [], locked: blockers.length ? [] : ['app'], blockers, approval: { valid: false } }) });
+  }));
+  const nodes = pack.graph.nodes;
+  pack.graph.nodes = [{ id: 'app', groupId: 'root', label: 'Application', summary: 'App summary', sourceRefs: [], locked: false }];
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const buttons = (label: string) => all(container).filter(node => node.tagName === 'BUTTON' && handlers(node).children === label);
+  const pill = () => all(container).find(node => node.attributes.class === 'element-changes-title');
+  try {
+    await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(DesignApproval), createElement(ElementLock, { id: 'app', locked: false })) }))));
+    expect(handlers(pill()!).children).toBe('Changed since approval');
+    // The drawer says what changed, with before and after for short text.
+    const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
+    expect(text()).toContain('Summary changed');
+    expect(text()).toContain('Old summary');
+    expect(text()).toContain('Mock orders.json changed');
+    act(() => handlers(buttons('Approve this version')[0]).onClick!());
+    expect(text()).toContain('1 item to settle before approving');
+    expect(text()).toContain('Summary changed, and 1 more');
+    // One Re-approve in the blocker modal and one in the element's drawer.
+    expect(buttons('Re-approve')).toHaveLength(2);
+    await act(() => Promise.resolve(handlers(buttons('Re-approve')[0]).onClick!()));
+    expect(posts).toEqual([{ lock: 'app', expected }]);
+    expect(pill()).toBeUndefined();
+    expect(buttons('Re-approve')).toHaveLength(0);
+  } finally { act(() => root.unmount()); pack.graph.nodes = nodes; }
+});
+
+it('keeps the drawer view, expanded rows, and drafts when a rebuilt pack swaps in', () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const container = create('div');
+  const root = createRoot(container as unknown as HTMLElement);
+  const original = pack.designDocument;
+  pack.designDocument = { id: 'live', name: 'Design', summary: 'Design summary', questions: [{ id: 'first', target: { type: 'node', id: 'first' }, question: 'Question first' }] };
+  const props: ComponentProps<typeof Drawer> = {
+    open: true, setOpen: vi.fn(), view: 'questions', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), questionScope: 'all', setQuestionScope: vi.fn(),
+    selected: 'item:first', diagram: { nodes: [], edges: [], nodeToVisible: { first: 'item:first', second: 'item:second' } }, focusKey: 0,
+    annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn(),
+  };
+  const render = () => act(() => root.render(createElement(Drawer, props)));
+  const summary = (id: string) => all(container).find(node => node.tagName === 'BUTTON' && node.attributes['aria-label'] === `Question ${id}`);
+  try {
+    render();
+    act(() => handlers(summary('first')!).onClick?.());
+    act(() => handlers(all(container).find(node => node.tagName === 'TEXTAREA')!).onChange?.({ target: { value: 'Unsent answer' } }));
+    // The swap replaces the data and re-renders; nothing remounts.
+    pack.designDocument = { ...pack.designDocument, questions: [...pack.designDocument.questions!, { id: 'second', target: { type: 'node', id: 'second' }, question: 'Question second' }] };
+    render();
+    expect(summary('second')).toBeDefined();
+    expect(summary('first')!.attributes['aria-expanded']).toBe('true');
+    expect(all(container).find(node => node.tagName === 'TEXTAREA')!.value).toBe('Unsent answer');
+  } finally { act(() => root.unmount()); pack.designDocument = original; }
+});
+
+it('lists comments from an earlier version, tagged with the change, beside the current ones', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const earlier = [{ reviewPath: '/reviews/v1/review.json', packVersion: 'design@v1', label: 'before Application changed', annotations: [{ packVersion: 'design@v1', target: { type: 'node', id: 'app' }, comment: 'Name the command' }] }];
+  vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ sourceRevision: 's', reviewRevision: 0, commentsDigest: 'c', mapInputsDigest: 'm', openQuestions: [], locked: [], blockers: [], earlier, approval: { valid: false } }) })));
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const current = { id: 'now', packVersion: 'design@v2', target: { type: 'node' as const, id: 'app' }, comment: 'Current note' };
+  const props: ComponentProps<typeof Drawer> = { questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'comments', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: null, diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [current], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
+  const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
+  try {
+    await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement(Drawer, props) }))));
+    expect(text()).toContain('Current note');
+    expect(text()).toContain('Name the command');
+    expect(text()).toContain('On an earlier version, before Application changed');
+    // Earlier comments are read-only: only the current comment can be edited or deleted.
+    expect(all(container).filter(node => node.attributes['aria-label'] === 'Delete comment')).toHaveLength(1);
+  } finally { act(() => root.unmount()); }
+});
+
+it('keeps answered questions under Answered with the answer, counts both in the tab, and changes an answer', async () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const expected = { sourceRevision: 's', reviewRevision: 0, commentsDigest: 'c', mapInputsDigest: 'm' };
+  let answers: Record<string, string> = { done: '- Refresh' };
+  const posts: Array<Record<string, unknown>> = [];
+  vi.stubGlobal('fetch', vi.fn((_url: string, options: RequestInit) => {
+    if (options.method === 'POST' && typeof options.body === 'string') { const body = JSON.parse(options.body) as { choices: string[] }; posts.push(body); answers = { done: body.choices.map(choice => `- ${choice}`).join('\n') }; }
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({ ...expected, openQuestions: ['open'], answers, blockers: [], approval: { valid: false } }) });
+  }));
+  const original = pack.designDocument;
+  pack.designDocument = { id: 'q', name: 'Design', summary: 'Design summary', questions: [
+    { id: 'open', target: { type: 'node', id: 'app' }, question: 'Name the command?' },
+    { id: 'done', target: { type: 'node', id: 'app' }, question: 'Retry on conflict?', choices: ['Refresh', 'Wait'], answer: '- Refresh' },
+  ] };
+  const container = create('div'), root = createRoot(container as unknown as HTMLElement);
+  const props: ComponentProps<typeof Drawer> = { questionScope: 'all', setQuestionScope: vi.fn(), open: true, setOpen: vi.fn(), view: 'questions', setView: vi.fn(), commentScope: 'all', setCommentScope: vi.fn(), selected: null, diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [], setAnnotations: vi.fn(), onEdit: vi.fn(), onSelect: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn() };
+  const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
+  const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && (handlers(node).children === label || node.attributes['aria-label'] === label));
+  try {
+    await act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement(Drawer, props) }))));
+    expect(text()).toContain('Answered');
+    expect(text()).not.toContain('No questions');
+    expect(text()).not.toContain('resolves the question on the map');
+    expect(all(container).some(node => node.attributes['aria-label'] === '1 open')).toBe(true);
+    expect(all(container).some(node => node.attributes['aria-label'] === '1 answered')).toBe(false); // One chip at a time keeps the tab compact; answered shows once nothing is open.
+    act(() => handlers(button('Retry on conflict?')!).onClick!());
+    expect(text()).toContain('Your answer');
+    expect(text()).toContain('Refresh');
+    act(() => handlers(button('Change answer')!).onClick!());
+    // The form opens on the saved answer.
+    const radios = all(container).filter(node => node.tagName === 'INPUT');
+    expect(radios.map(radio => handlers(radio).checked)).toEqual([true, false, false]);
+    act(() => handlers(radios[1]).onChange!({ target: { value: '', checked: true } }));
+    await act(() => Promise.resolve(handlers(button('Save new answer')!).onClick!()));
+    expect(posts.at(-1)).toEqual({ questionId: 'done', answer: '', choices: ['Wait'], expected });
+    expect(button('Change answer')).toBeDefined();
+    expect(text()).toContain('Wait');
+  } finally { act(() => root.unmount()); pack.designDocument = original; }
 });

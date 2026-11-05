@@ -1,16 +1,24 @@
 import { Command } from 'commander';
 import type { Server } from 'node:http';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { register } from './design-doc.js';
 import { createReviewServer } from '../lib/review-server.js';
 import { REVIEW_HANDOFF_ID } from '../lib/alignment-review-protocol.js';
+import { createNode } from '../lib/nodes.js';
+import { EXAMPLE_MAP, EXAMPLE_ROOT } from '../example-design.js';
 
 const context = vi.hoisted(() => ({ root: '', server: undefined as Server | undefined }));
-vi.mock('../lib/utils.js', () => ({
+vi.mock('../lib/utils.js', async original => ({
+  ...await original<typeof import('../lib/utils.js')>(),
   inProject: (action: (root: string, ...args: unknown[]) => Promise<void>) => (...args: unknown[]) => action(context.root, ...args),
+}));
+// The worked example's mock lives in its own OpenDesigner folder, copied beside each fixture's map.
+vi.mock('../lib/project.js', async original => ({
+  ...await original<typeof import('../lib/project.js')>(),
+  checkoutRoot: () => context.root,
 }));
 vi.mock('../lib/review-server.js', async original => ({
   ...await original<typeof import('../lib/review-server.js')>(),
@@ -39,16 +47,13 @@ function embeddedPrompt(html: string): string | undefined {
 it('serves exact quoted review and authored paths separately from unchanged annotation snapshots', async () => {
   const root = mkdtempSync(join(tmpdir(), 'handoff-'));
   roots.push(root);
-  const directory = join(root, '<script>"&', 'design');
-  mkdirSync(directory, { recursive: true });
-  const entry = join(directory, 'entry"<.yaml');
-  writeFileSync(entry, 'id: example\nname: Example\nsummary: Review this design\nelements: [app.yaml]\n');
-  writeFileSync(join(directory, 'app.yaml'), 'id: app\nname: App\nsummary: Runs commands\nkind: component\n');
+  createNode(root, 'example', { title: 'Example', kind: 'destination', label: 'Example', summary: 'Review this design' });
+  createNode(root, 'example', { title: 'App', kind: 'element', label: 'App', summary: 'Runs commands', answers: '001', body: '<details>\n<summary>Design element</summary>\n\n```yaml\nkind: component\n```\n</details>' });
   context.root = root;
   vi.spyOn(console, 'log').mockImplementation(() => {});
   const command = new Command();
   register(command);
-  await command.parseAsync(['design-doc', entry], { from: 'user' });
+  await command.parseAsync(['design-doc', 'example'], { from: 'user' });
   const server = context.server!;
   const { html, url } = await page(server);
   const version = readdirSync(join(root, 'design-reviews/example'))[0];
@@ -56,11 +61,10 @@ it('serves exact quoted review and authored paths separately from unchanged anno
   expect(html).toContain('"orientation":"top-to-bottom"');
   const prompt = embeddedPrompt(html)!;
   expect(prompt).toContain(JSON.stringify(reviewPath));
-  expect(prompt).toContain(JSON.stringify(entry));
+  expect(prompt).toContain('map "example"');
   expect(prompt).not.toMatch(/untrusted|prompt injection|tool instructions/i);
-  expect(prompt).toMatch(/update the authored source/);
-  expect(prompt).toMatch(/unresolved decisions.*reopen the review/);
-  expect(html).not.toContain(entry);
+  expect(prompt).toMatch(/update the map's element nodes/);
+  expect(prompt).toMatch(/Never lock an element yourself/);
   const token = html.match(/name="acstack-review-token" content="([^"]+)"/)![1];
   const snapshot = await (await fetch(new URL('/api/annotations', url), { headers: { 'x-review-token': token } })).json() as Record<string, unknown>;
   expect(Object.keys(snapshot).sort()).toEqual(['annotations', 'packVersion', 'revision']);
@@ -88,7 +92,9 @@ it('does not expose a live handoff on legacy pages', async () => {
 it.each(['top-to-bottom', 'left-to-right'] as const)('passes %s through live HTML and Markdown', async orientation => {
   const root = mkdtempSync(join(tmpdir(), 'orientation-'));
   roots.push(root);
-  const entry = new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname;
+  cpSync(join(EXAMPLE_ROOT, 'maps'), join(root, 'maps'), { recursive: true });
+  cpSync(join(EXAMPLE_ROOT, '.open-designer'), join(root, '.open-designer'), { recursive: true });
+  const entry = EXAMPLE_MAP;
   context.root = root;
   vi.spyOn(console, 'log').mockImplementation(() => {});
   const command = new Command();
@@ -106,6 +112,6 @@ it('rejects invalid orientation before any filesystem side effects', async () =>
   context.root = root;
   const command = new Command().exitOverride().configureOutput({ writeErr: () => {} });
   register(command);
-  await expect(command.parseAsync(['design-doc', new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname, '--markdown', join(root, 'README.md'), '--orientation', 'diagonal'], { from: 'user' })).rejects.toThrow(/Allowed choices/);
+  await expect(command.parseAsync(['design-doc', EXAMPLE_MAP, '--markdown', join(root, 'README.md'), '--orientation', 'diagonal'], { from: 'user' })).rejects.toThrow(/Allowed choices/);
   expect(readdirSync(root)).toEqual([]);
 });

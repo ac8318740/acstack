@@ -1,0 +1,9 @@
+sequenceDiagram
+  participant R as Reviewer
+  participant M as Mocks modal
+  participant F as Sandboxed frame
+  R->>M: Pick elements
+  M->>F: picker on
+  F->>M: selection
+  R->>M: Post comment
+  M->>F: marks (numbers only)

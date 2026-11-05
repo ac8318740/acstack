@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { AlignmentPackSchema, type DesignQuestion } from '../lib/alignment-packs.js';
+import { AlignmentPackSchema, type MapQuestion } from '../lib/alignment-packs.js';
 import { projectDiagram } from './alignment-graph.js';
 import { questionLocation, questionScopeForSelection, questionsForScope } from './question-targets.js';
 
@@ -12,7 +12,7 @@ it('projects and filters questions across folded nodes, hidden internal edges, a
       edges: [['internal', 'a', 'b'], ['first', 'a', 'c'], ['second', 'b', 'c']].map(([id, fromNodeId, toNodeId]) => ({ id, fromNodeId, toNodeId, label: 'uses', relationship: 'uses', summary: 'uses' })),
     },
   }).graph;
-  const question = (type: 'node' | 'edge', id: string): DesignQuestion => ({ id: `question-${id}`, target: { type, id }, question: 'Proceed?', proposal: 'Proceed.', recommendation: 'Yes.' });
+  const question = (type: 'node' | 'edge', id: string): MapQuestion => ({ id: `question-${id}`, target: { type, id }, question: 'Proceed?' });
   const folded = projectDiagram(graph, []);
   expect(questionLocation(question('node', 'a'), folded, graph)).toBe(folded.nodeToVisible.a);
   expect(questionLocation(question('edge', 'internal'), folded, graph)).toBe(folded.nodeToVisible.a);

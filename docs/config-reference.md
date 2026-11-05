@@ -107,11 +107,10 @@ Every part keeps its name inside the project folder.
 | Domain map | `<project folder>/domain-map.yaml` |
 | Living specs | `<project folder>/specs/` |
 | Maps | `<project folder>/maps/` |
-| Authored design sources | `<project folder>/designs/` |
 | Archives | `<project folder>/archive/` |
 | Legacy change records | `<project folder>/changes/` |
-| Legacy review artifacts (retained for explicit import) | `<project folder>/alignment-packs/` |
-| Canonical design reviews and imported history | `<project folder>/design-reviews/` |
+| Legacy review artifacts | `<project folder>/alignment-packs/` |
+| Canonical design reviews | `<project folder>/design-reviews/` |
 | Architecture decisions | `<project folder>/decisions/` |
 | Cross-domain glossary | `<project folder>/CONTEXT.md` |
 | Browser connection | `<project folder>/agent-browser.json` |
@@ -124,7 +123,7 @@ Every part keeps its name inside the project folder.
 - ACStack retires `workflow.alignment_packs` auto-generation, approval, and tracking settings; existing fields have no effect
     - This includes `approval_gate` and `commit_generated_packs`
     - Setup and config writes no longer offer them; ACStack never silently rewrites or deletes existing files
-- Map-linked design approval uses the exact source, saved comments, and contribution inputs, without a new workflow flag
+- Design approval covers a map's element nodes, saved comments, and the open nodes targeting those elements, without a new workflow flag
 - `workflow.design_review` still controls only the frontend design pass
 - Installed tools under `~/.claude/acstack/bin/` and host-owned `.claude/` settings keep their existing locations
 - Helper programs and user code under `frontend.helpers_dir` stay where they are
@@ -190,24 +189,12 @@ What migration does:
 - It preflights every move and aborts on a collision, such as an existing project folder, without overwriting anything
 - Never migrate a repository silently, or work around legacy data by creating a partial project folder
 
-### Explicit import from retired map reviews
+### Design docs
 
 - ACStack removes legacy `map --map` and `align-viewer` without aliases
-- Use `design-doc <entry>` for authored design review
+- Use `design-doc <map>` to review a map's design doc; its elements are `element` nodes on that map
 - Use `node walk`, `node frontier`, and `node diagram` for map planning
-- Author the new design before importing legacy feedback
-
-```sh
-~/.claude/acstack/bin/acstack design-review migrate <entry> \
-  --legacy-dir <path> --mapping <json-file> [--feedback <json-file>]
-```
-
-- Choose a nonsymlink directory under `<project folder>/alignment-packs/`
-- Supply explicit target mappings; see the `design-doc` skill for mapping and reconciliation instructions
-- Migration preserves source artifacts and decision logs unchanged
-- Canonical `review.json` keeps imported feedback and approval history; historical approval never authorizes the current design
-- Startup and archive never import automatically
-- Design source, review evidence, imported history, and decision logs outlive temporary map nodes regardless of `workflow.maps.persist`
+- Review evidence in `design-reviews/` outlives temporary map nodes regardless of `workflow.maps.persist`
 
 ### 1.1. Which file a write lands in
 

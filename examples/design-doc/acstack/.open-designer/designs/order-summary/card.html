@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Order summary: card</title>
+<style>
+  :root { --accent: #3b5bdb; --radius: 12px; --ink: #1c2130; --muted: #667085; --line: #e6e8ee; }
+  * { box-sizing: border-box; }
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 48px 24px; background: #f3f4f7; font: 15px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: var(--ink); }
+  .card { width: min(420px, 100%); padding: 28px; border-radius: var(--radius); background: #fff; box-shadow: 0 1px 2px rgb(16 24 40 / 0.06), 0 12px 32px rgb(16 24 40 / 0.08); }
+  h1 { margin: 0 0 4px; font-size: 20px; }
+  .meta { margin: 0 0 20px; color: var(--muted); font-size: 13px; }
+  .item { display: grid; grid-template-columns: 48px 1fr auto; gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+  .thumb { width: 48px; height: 48px; border-radius: calc(var(--radius) / 2); background: linear-gradient(135deg, #dbe4ff, #edf2ff); }
+  .thumb.b { background: linear-gradient(135deg, #d3f9d8, #ebfbee); }
+  .name { font-weight: 600; }
+  .qty { color: var(--muted); font-size: 13px; }
+  .promo { display: flex; gap: 8px; margin: 16px 0 4px; }
+  .promo input { flex: 1; padding: 10px 12px; border: 1px solid var(--line); border-radius: calc(var(--radius) / 2); font: inherit; }
+  .promo button { padding: 10px 14px; border: 1px solid var(--line); border-radius: calc(var(--radius) / 2); background: #fff; font: inherit; font-weight: 600; }
+  :root[data-promo="0"] .promo { display: none; }
+  dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 0; margin: 16px 0 20px; }
+  dt { color: var(--muted); } dd { margin: 0; text-align: right; }
+  .total { padding-top: 10px; border-top: 1px solid var(--line); color: var(--ink); font-weight: 700; font-size: 17px; }
+  .pay { width: 100%; padding: 14px; border: 0; border-radius: calc(var(--radius) / 1.5); background: var(--accent); color: #fff; font: inherit; font-weight: 700; }
+  .secure { margin: 12px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+</style>
+</head>
+<body>
+  <section class="card" data-od-component="OrderSummaryCard">
+    <h1>Order summary</h1>
+    <p class="meta">Order #4821 · 2 items · Arrives Thu 12 Nov</p>
+    <div class="item" data-od-component="LineItem"><div class="thumb"></div><div><div class="name">Linen weekender bag</div><div class="qty">Sand · Qty 1</div></div><div>£89.00</div></div>
+    <div class="item" data-od-component="LineItem"><div class="thumb b"></div><div><div class="name">Travel bottle set</div><div class="qty">Clear · Qty 2</div></div><div>£24.00</div></div>
+    <form class="promo" data-od-component="PromoCode"><input aria-label="Promo code" placeholder="Promo code"><button type="button">Apply</button></form>
+    <dl data-od-component="Totals">
+      <dt>Subtotal</dt><dd>£113.00</dd>
+      <dt>Delivery</dt><dd>Free</dd>
+      <dt>VAT included</dt><dd>£18.83</dd>
+      <dt class="total">Total</dt><dd class="total">£113.00</dd>
+    </dl>
+    <button class="pay" type="button" data-od-component="PayButton">Pay £113.00</button>
+    <p class="secure">Secure checkout · Free returns within 30 days</p>
+  </section>
+</body>
+</html>

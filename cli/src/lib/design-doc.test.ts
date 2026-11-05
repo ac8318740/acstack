@@ -1,290 +1,209 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, rmSync, writeFileSync, symlinkSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { createElement } from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
-import ReactMarkdown from 'react-markdown';
-import { stringify } from 'yaml';
-import { loadDesignDoc, designDocToPack, renderDesignDocMarkdown } from './design-doc.js';
+import { join } from 'node:path';
+import { designDocToPack, designFromNodes, renderDesignDocMarkdown, targetingNodes } from './design-doc.js';
 import { generateDesignDoc } from '../commands/design-doc.js';
-import { readFileSync } from 'node:fs';
+import { createNode, type GraphNode } from './nodes.js';
 import { buildDiagram, initialExpandedGroups } from '../viewer/alignment-graph.js';
+import { EX, EXAMPLE_ROOT, exampleDesign } from '../example-design.js';
 
-const dirs: string[] = [];
-function fixture() {
-  const dir = mkdtempSync(join(tmpdir(), 'design-doc-'));
-  dirs.push(dir);
-  const edge = { id: 'reads', from: 'app', to: 'data', direction: 'bidirectional', label: 'Reads and writes' };
-  const entry = { id: 'example', name: 'Example', summary: 'A reviewable design', elements: ['app.yaml', 'data.yaml'], concerns: [{ id: 'privacy', name: 'Privacy', elements: ['app', 'data'], requirement: 'Keep records local', response: 'Both components use local files' }] };
-  const app = { id: 'app', name: 'App', summary: 'Runs commands', kind: 'component', channels: ['cli', 'agent'], relationships: [edge] };
-  const data = { id: 'data', name: 'Data', summary: 'Keeps records', kind: 'store', relationships: [edge] };
-  const save = (file: string, value: unknown) => writeFileSync(join(dir, file), stringify(value));
-  save('design.yaml', entry); save('app.yaml', app); save('data.yaml', data);
-  return { dir, entry, app, data, save, load: () => loadDesignDoc(join(dir, 'design.yaml')) };
+const block = (summary: string, yaml: string) => `<details>\n<summary>${summary}</summary>\n\n\`\`\`yaml\n${yaml}\n\`\`\`\n</details>`;
+const node = (id: string, fields: Partial<GraphNode> = {}): GraphNode => ({
+  id, title: `Node ${id}`, status: 'open', mode: 'hitl', kind: 'element', label: `Node ${id}`, answers: '001', blockedBy: [], pinned: false, ...fields,
+});
+function fixture(): GraphNode[] {
+  return [
+    node('001', { kind: 'destination', answers: undefined, title: 'Example', summary: 'A reviewable design', body: `Overview\n\n${block('Design doc', 'concerns:\n  - {id: privacy, name: Privacy, elements: [002, "003"], requirement: Keep records local, response: Both components use local files}')}` }),
+    node('002', { label: 'App', summary: 'Runs commands', body: `App detail\n\n${block('Design element', 'kind: component\nchannels: [cli, agent]\nconnections:\n  - {to: 003, direction: bidirectional, label: Reads and writes}')}\n\n<!-- acstack:diagram -->\nmap diagram\n<!-- /acstack:diagram -->` }),
+    node('003', { label: 'Data', summary: 'Keeps records', status: 'resolved', body: block('Design element', 'kind: store') }),
+  ];
 }
+const build = (nodes: GraphNode[]) => designFromNodes('example', nodes);
+const dirs: string[] = [];
 afterEach(() => { for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true }); });
-describe('authored design documents', () => {
-  it('changes presentation orientation without changing source or review identities', () => {
-    const f = fixture();
-    const doc = f.load();
-    const original = JSON.stringify(doc);
-    const vertical = designDocToPack(doc, 'top-to-bottom');
+
+describe('design docs built from map nodes', () => {
+  it('turns element nodes into a pack with kinds, channels, concerns, edges, and lock state', () => {
+    const { doc, warnings } = build(fixture());
+    expect(warnings).toEqual([]);
+    const pack = designDocToPack(doc);
+    expect(pack.designDocument).toMatchObject({ id: 'example', name: 'Example', summary: 'A reviewable design', detail: 'Overview' });
+    expect(pack.graph.edges).toEqual([expect.objectContaining({ id: '002-003', fromNodeId: '002', toNodeId: '003', direction: 'bidirectional', label: 'Reads and writes' })]);
+    expect(pack.graph.nodes.find(n => n.id === '002')).toMatchObject({ label: 'App', summary: 'Runs commands', elementKind: 'component', channels: ['cli', 'agent'], locked: false });
+    expect(pack.graph.nodes.find(n => n.id === '003')).toMatchObject({ elementKind: 'store', locked: true });
+    const detail = pack.graph.nodes.find(n => n.id === '002')!.technicalSummary!;
+    expect(detail).toContain('App detail');
+    expect(detail).toContain('Keep records local');
+    expect(detail).not.toContain('Design element');
+    expect(detail).not.toContain('map diagram');
+  });
+  it('nests children in their parent and counts nesting as a connection', () => {
+    const nodes = [...fixture(), node('004', { body: block('Design element', 'kind: component\nparent: "002"') })];
+    const pack = designDocToPack(build(nodes).doc);
+    expect(pack.graph.groups.find(group => group.id === 'design:container:002')).toMatchObject({ ownerNodeId: '002', parentGroupId: 'design:root' });
+    expect(pack.graph.nodes.find(n => n.id === '004')?.groupId).toBe('design:container:002');
+    expect(renderDesignDocMarkdown(build(nodes).doc)).toContain('subgraph element_002["App"]');
+  });
+  it('keeps source identity when locking or answering, and changes it when the design text changes', () => {
+    const base = build(fixture()).doc.sourceRevision;
+    const locked = fixture().map(n => n.id === '002' ? { ...n, status: 'resolved' as const } : n);
+    expect(build(locked).doc.sourceRevision).toBe(base);
+    const edited = fixture().map(n => n.id === '002' ? { ...n, body: n.body!.replace('App detail', 'Changed') } : n);
+    expect(build(edited).doc.sourceRevision).not.toBe(base);
+  });
+  it('changes orientation without changing source identity', () => {
+    const { doc } = build(fixture());
+    const vertical = designDocToPack(doc);
     const horizontal = designDocToPack(doc, 'left-to-right');
-    expect(designDocToPack(doc)).toEqual(vertical);
-    expect(vertical.viewState.orientation).toBe('top-to-bottom');
     expect(horizontal.viewState.orientation).toBe('left-to-right');
     expect({ ...horizontal, viewState: vertical.viewState }).toEqual(vertical);
-    expect(JSON.stringify(doc)).toBe(original);
-    expect(renderDesignDocMarkdown(doc)).toBe(renderDesignDocMarkdown(doc, 'top-to-bottom'));
     expect(renderDesignDocMarkdown(doc, 'left-to-right')).toBe(renderDesignDocMarkdown(doc).replace('flowchart TD', 'flowchart LR'));
-    generateDesignDoc(join(f.dir, 'design.yaml'), join(f.dir, 'horizontal.html'), join(f.dir, 'horizontal.md'), 'left-to-right');
-    expect(readFileSync(join(f.dir, 'horizontal.html'), 'utf8')).toContain('"orientation":"left-to-right"');
-    expect(readFileSync(join(f.dir, 'horizontal.md'), 'utf8')).toBe(renderDesignDocMarkdown(doc, 'left-to-right'));
   });
-  it('generates safe offline HTML and the same-source Markdown through the helper', () => {
-    const f = fixture();
-    writeFileSync(join(f.dir, 'detail.md'), '# Worked journey\n\n- Review </script><script>alert(1)</script>');
-    f.save('design.yaml', { ...f.entry, detail: 'detail.md' });
-    generateDesignDoc(join(f.dir, 'design.yaml'), join(f.dir, 'review.html'), join(f.dir, 'README.md'));
-    const html = readFileSync(join(f.dir, 'review.html'), 'utf8');
+  it('shows hitl questions that target an element, with choices and highlights, and holds approval on every open targeting node', () => {
+    const nodes = [...fixture(),
+      node('010', { kind: 'decision', answers: '002', title: 'Retry a conflict?', body: `Recommend yes.\n\n${block('Design question', 'choices: [Yes, No]\nhighlights: [App detail]')}` }),
+      node('011', { kind: 'research', mode: 'afk', answers: '002' }),
+      node('012', { kind: 'decision', status: 'fog', answers: '002' }),
+      node('013', { kind: 'decision', status: 'resolved', answers: '002', title: 'Keep drafts?', body: 'Asked once.\n\n## Answer\n\nYes\n\n## Answer (changed 2026-11-04)\n\nOnly unsent ones' }),
+      node('014', { kind: 'decision', answers: '001' }),
+    ];
+    const { doc } = build(nodes);
+    expect(doc.questions).toEqual([{ id: '010', target: { type: 'node', id: '002' }, question: 'Retry a conflict?', detail: 'Recommend yes.', choices: ['Yes', 'No'],
+      highlights: [{ element: '002', start: { line: 1, column: 1 }, end: { line: 1, column: 11 } }] },
+    // Answered questions stay listed, with the latest of their dated answers and without the answers in their prose.
+    { id: '013', target: { type: 'node', id: '002' }, question: 'Keep drafts?', detail: 'Asked once.', answer: 'Only unsent ones' }]);
+    expect(targetingNodes(nodes).map(n => n.id)).toEqual(['010', '011', '012']);
+    expect(designDocToPack(doc).designDocument?.questions).toHaveLength(2);
+  });
+  it.each([
+    ['no design elements', (nodes: GraphNode[]) => nodes.filter(n => n.kind !== 'element'), /no design elements/],
+    ['an element without config', (nodes: GraphNode[]) => nodes.map(n => n.id === '003' ? { ...n, body: 'prose only' } : n), /needs a Design element block/],
+    ['a config block on another kind', (nodes: GraphNode[]) => [...nodes, node('009', { kind: 'work', body: block('Design element', 'kind: store') })], /needs kind element/],
+    ['two config blocks', (nodes: GraphNode[]) => nodes.map(n => n.id === '003' ? { ...n, body: `${n.body}\n\n${n.body}` } : n), /more than one/],
+    ['a malformed block', (nodes: GraphNode[]) => nodes.map(n => n.id === '003' ? { ...n, body: '<details><summary>Design element</summary>kind: store</details>' } : n), /malformed/],
+    ['an invalid kind', (nodes: GraphNode[]) => nodes.map(n => n.id === '003' ? { ...n, body: block('Design element', 'kind: database') } : n), /invalid Design element/],
+    ['an unknown connection', (nodes: GraphNode[]) => nodes.map(n => n.id === '003' ? { ...n, body: block('Design element', 'kind: store\nconnections: [{to: 099, direction: one-way, label: X}]') } : n), /not a design element/],
+    ['a connection to itself', (nodes: GraphNode[]) => nodes.map(n => n.id === '003' ? { ...n, body: block('Design element', 'kind: store\nconnections: [{to: 003, direction: one-way, label: X}]') } : n), /itself/],
+    ['a duplicate connection', (nodes: GraphNode[]) => nodes.map(n => n.id === '002' ? { ...n, body: block('Design element', 'kind: component\nconnections: [{to: 003, direction: one-way, label: X}, {to: 003, direction: one-way, label: Y}]') } : n), /declared twice/],
+    ['a connection to an out-of-scope element', (nodes: GraphNode[]) => nodes.map(n => n.id === '003' ? { ...n, status: 'out-of-scope' as const } : n), /out of scope/],
+    ['an isolated element', (nodes: GraphNode[]) => [...nodes, node('004', { body: block('Design element', 'kind: actor') })], /no connection or parent/],
+    ['a containment cycle', (nodes: GraphNode[]) => [...nodes, node('004', { body: block('Design element', 'kind: actor\nparent: "005"') }), node('005', { body: block('Design element', 'kind: actor\nparent: "004"') })], /cycle/],
+    ['an edge to a descendant', (nodes: GraphNode[]) => nodes.map(n => n.id === '003' ? { ...n, body: block('Design element', 'kind: store\nparent: "002"') } : n), /ancestor/],
+    ['a concern naming a non-element', (nodes: GraphNode[]) => nodes.map(n => n.id === '001' ? { ...n, body: block('Design doc', 'concerns: [{id: c, name: C, elements: [002, 001], requirement: R, response: S}]') } : n), /not a design element/],
+    ['a highlight missing from the target', (nodes: GraphNode[]) => [...nodes, node('010', { kind: 'decision', answers: '002', body: block('Design question', 'highlights: [Nowhere]') })], /highlight not found/],
+    ['multiple without choices', (nodes: GraphNode[]) => [...nodes, node('010', { kind: 'decision', answers: '002', body: block('Design question', 'multiple: true') })], /requires choices/],
+  ])('fails on %s', (_name, mutate, error) => {
+    expect(() => build(mutate(fixture()))).toThrow(error);
+  });
+  it('allows a lone element with no connection', () => {
+    expect(build(fixture().filter(n => n.id !== '002').map(n => n.id === '001' ? { ...n, body: '' } : n)).doc.items).toHaveLength(1);
+  });
+  it('warns on fog elements, locked elements inside loose ones, and open questions on locked elements', () => {
+    const [root] = fixture();
+    const nodes = [root,
+      node('002', { body: block('Design element', 'kind: component') }),
+      node('003', { status: 'resolved', body: block('Design element', 'kind: store\nparent: "002"') }),
+      node('004', { status: 'fog', body: block('Design element', 'kind: actor\nconnections: [{to: 002, direction: one-way, label: Uses}]') }),
+      node('010', { kind: 'decision', answers: '003' }),
+    ];
+    expect(build(nodes).warnings).toEqual([
+      'Element 004 is fog; it shows as loose',
+      'Locked element 003 sits inside loose element 002',
+      'Node 010 is open on locked element 003',
+    ]);
+  });
+  it('writes safe offline HTML and the same-source Markdown from a files map', () => {
+    const root = mkdtempSync(join(tmpdir(), 'design-doc-'));
+    dirs.push(root);
+    for (const n of fixture()) {
+      createNode(root, 'example', { title: n.id === '002' ? 'App </script><script>alert(1)</script>' : n.title, kind: n.kind, label: n.label, summary: n.summary, answers: n.answers, status: n.status, body: n.body });
+    }
+    generateDesignDoc(root, 'example', join(root, 'review.html'), join(root, 'README.md'));
+    const html = readFileSync(join(root, 'review.html'), 'utf8');
     expect(html).toContain('Example · Design document');
-    expect(html).toContain('Worked journey');
     expect(html).toContain('Keep records local');
     expect(html).not.toContain('</script><script>alert(1)');
     expect(html).not.toMatch(/<script[^>]+src=/);
-    expect(readFileSync(join(f.dir, 'README.md'), 'utf8')).toBe(renderDesignDocMarkdown(f.load()));
-    expect(() => generateDesignDoc(join(f.dir, 'design.yaml'), join(f.dir, 'app.yaml'))).toThrow(/EEXIST/);
+    expect(readFileSync(join(root, 'README.md'), 'utf8')).toContain('flowchart TD');
+    expect(() => generateDesignDoc(root, 'example', join(root, 'review.html'))).toThrow(/EEXIST/);
   });
-  it('keeps punctuation-bearing source filenames local in rendered Markdown', () => {
-    const f = fixture();
-    const file = 'x](https://attacker.example)![track](https://attacker.example/pixel).yaml';
-    mkdirSync(dirname(join(f.dir, file)), { recursive: true });
-    f.save(file, f.app);
-    f.save('design.yaml', { ...f.entry, name: 'Design ![track](https://attacker.example/pixel)', elements: [file, 'data.yaml'] });
-    const markdown = renderDesignDocMarkdown(f.load());
-    const html = renderToStaticMarkup(createElement(ReactMarkdown, { children: markdown }));
-    expect(html).not.toContain('<img');
-    expect(html).not.toMatch(/href="https:\/\/attacker/);
-    expect(html).toContain('href="x%5D%28https%3A//attacker.example%29%21%5Btrack%5D%28https%3A//attacker.example/pixel%29.yaml"');
-    expect(html).toContain('x](https://attacker.example)![track](https://attacker.example/pixel).yaml');
-  });
-  it('keeps distinct visible design relationships and only aggregates collapsed endpoints', async () => {
-    const f = fixture();
-    const extra = { id: 'audits', from: 'app', to: 'data', direction: 'bidirectional', label: 'Audits records' };
-    f.save('app.yaml', { ...f.app, relationships: [...f.app.relationships, extra] });
-    f.save('data.yaml', { ...f.data, parent: undefined, relationships: [...f.data.relationships, extra] });
-    const pack = designDocToPack(f.load());
-    expect(pack.graph.edges).toHaveLength(2);
-    const visible = await buildDiagram(pack.graph, initialExpandedGroups(pack));
-    expect(visible.edges.map(edge => edge.label).sort()).toEqual(['Audits records', 'Reads and writes']);
-    expect(visible.edges.every(edge => edge.childEdgeIds.length === 1)).toBe(true);
-    expect(visible.edges[0].labelBox).not.toEqual(visible.edges[1].labelBox);
-    const legacy = await buildDiagram({ ...pack.graph, edges: pack.graph.edges.map(edge => ({ ...edge, relationship: 'data' })) }, initialExpandedGroups(pack));
-    expect(legacy.edges).toHaveLength(1);
-    pack.graph.groups.push({ id: 'fold', label: 'Folded', summary: 'Folded group', sourceRefs: [] });
-    pack.graph.nodes.find(node => node.id === 'app')!.groupId = 'fold';
-    const collapsed = await buildDiagram(pack.graph, ['design:root']);
-    expect(collapsed.edges).toHaveLength(1);
-    expect(collapsed.edges[0].label).toBe('2 links');
-  });
-  it('preserves one-way and bidirectional route arrows without merging their meanings', async () => {
-    const f = fixture(); const doc = f.load();
-    const pack = designDocToPack(doc);
-    pack.graph.edges.push({ ...pack.graph.edges[0], id: 'one-way', direction: 'one-way' });
-    const diagram = await buildDiagram(pack.graph, pack.graph.groups.map(group => group.id));
-    expect(diagram.edges).toHaveLength(2);
-    expect(diagram.edges.find(edge => edge.childEdgeIds.includes('reads'))?.bidirectional).toBe(true);
-    expect(diagram.edges.find(edge => edge.childEdgeIds.includes('one-way'))?.bidirectional).toBe(false);
-  });
-  it('validates mirrored links once and keeps kinds, channels, concerns, and nesting', () => {
-    const f = fixture();
-    f.save('child.yaml', { ...f.data, id: 'child', parent: 'app', relationships: [] });
-    f.save('design.yaml', { ...f.entry, elements: [...f.entry.elements, 'child.yaml'] });
-    const doc = f.load(); const pack = designDocToPack(doc);
-    expect(pack.graph.edges).toHaveLength(1);
-    expect(pack.graph.edges[0].direction).toBe('bidirectional');
-    expect(pack.graph.nodes.find(n => n.id === 'app')?.technicalSummary).toContain('Keep records local');
-    expect(pack.graph.nodes.find(n => n.id === 'app')?.elementKind).toBe('component');
-    expect(pack.graph.nodes.find(n => n.id === 'app')?.channels).toEqual(['cli', 'agent']);
-    expect(pack.graph.groups.find(group => group.id === 'design:container:app')).toMatchObject({ label: 'App', ownerNodeId: 'app', parentGroupId: 'design:root' });
-    expect(pack.graph.nodes.find(node => node.id === 'app')).toMatchObject({ label: 'App', groupId: 'design:container:app' });
-    expect(pack.graph.nodes.find(node => node.id === 'child')?.groupId).toBe('design:container:app');
-    expect(pack.graph.nodes.find(node => node.id === 'data')?.groupId).toBe('design:root');
-    expect(pack.graph.edges.map(edge => edge.id)).toEqual(['reads']);
-    expect(renderDesignDocMarkdown(doc)).toContain('subgraph element_app["App"]');
-  });
-  it('renders each Mermaid entity once while preserving containment and every relationship endpoint', () => {
-    const f = fixture();
-    f.save('child.yaml', { ...f.data, id: 'child', name: 'Child', parent: 'app', relationships: [] });
-    f.save('design.yaml', { ...f.entry, elements: [...f.entry.elements, 'child.yaml'] });
-    const documents = [f.load(), loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname)];
-    for (const doc of documents) {
-      const mermaid = renderDesignDocMarkdown(doc).match(/```mermaid\n([\s\S]*?)```/)?.[1];
-      expect(mermaid).toBeTypeOf('string');
-      const entities: Array<{ id: string; name: string; parents: string[] }> = [];
-      const parents: string[] = [];
-      const edges: Array<{ from: string; to: string; label: string; arrow: string }> = [];
-      for (const line of mermaid!.split('\n').map(line => line.trim())) {
-        const declaration = line.match(/^(subgraph\s+)?([\w:-]+)\["([^"\n]+)"\]/);
-        if (declaration) {
-          const name = declaration[3].split('<br/>')[0];
-          entities.push({ id: declaration[2], name, parents: [...parents] });
-          if (declaration[1]) parents.push(name);
-        } else if (line === 'end') parents.pop();
-        const edge = line.match(/^([\w:-]+)\s+(-->|<-->)\|"([^"]+)"\|\s+([\w:-]+)/);
-        if (edge) edges.push({ from: edge[1], to: edge[4], label: edge[3], arrow: edge[2] });
-      }
-      for (const item of doc.items) {
-        const representations = entities.filter(entity => entity.name === item.name);
-        expect.soft(representations, `${item.id} must have exactly one visible identity`).toHaveLength(1);
-        if (item.parent) {
-          const parent = doc.items.find(candidate => candidate.id === item.parent)!;
-          expect(representations.every(entity => entity.parents.includes(parent.name)), `${item.id} containment`).toBe(true);
-        }
-      }
-      const relationships = [...new Map(doc.items.flatMap(item => item.relationships).map(edge => [edge.id, edge])).values()];
-      expect(edges).toHaveLength(relationships.length);
-      for (const relationship of relationships) {
-        const from = doc.items.find(item => item.id === relationship.from)!;
-        const to = doc.items.find(item => item.id === relationship.to)!;
-        expect(edges.map(edge => ({
-          from: entities.find(entity => entity.id === edge.from)?.name,
-          to: entities.find(entity => entity.id === edge.to)?.name,
-          label: edge.label, arrow: edge.arrow,
-        }))).toContainEqual({ from: from.name, to: to.name, label: relationship.label, arrow: relationship.direction === 'bidirectional' ? '<-->' : '-->' });
-      }
-    }
-  });
-  it.each(['missing', 'mismatch', 'duplicate'] as const)('rejects %s endpoint declarations', mode => {
-    const f = fixture();
-    if (mode === 'missing') f.data.relationships = [];
-    if (mode === 'mismatch') f.data.relationships[0].label = 'Different';
-    if (mode === 'duplicate') f.data.relationships.push(f.data.relationships[0]);
-    f.save('data.yaml', f.data);
-    expect(f.load).toThrow(/reads.*(data.yaml|app.yaml)/);
-  });
-  it.each(['kind', 'channels', 'unknown'] as const)('rejects invalid schema field %s with its file', field => {
-    const f = fixture(); f.save('app.yaml', { ...f.app, [field]: field === 'channels' ? ['fax'] : 'invalid' });
-    expect(f.load).toThrow(/app.yaml/);
-  });
-  it('rejects duplicate identities, unknown parents, and cycles', () => {
-    const f = fixture(); f.data.id = 'app'; f.save('data.yaml', f.data); expect(f.load).toThrow(/duplicate.*app/i);
-    f.data.id = 'data'; f.save('data.yaml', { ...f.data, parent: 'missing' }); expect(f.load).toThrow(/parent.*missing/);
-    f.save('data.yaml', { ...f.data, parent: 'app' }); f.save('app.yaml', { ...f.app, parent: 'data' }); expect(f.load).toThrow(/cycle/);
-  });
-  it.each([
-    ['direct', false], ['direct', true], ['nested', false], ['nested', true],
-  ] as const)('rejects %s ancestor-descendant relationships with reversed endpoints: %s', (depth, reversed) => {
-    const f = fixture();
-    const edge = { ...f.app.relationships[0], from: reversed ? 'data' : 'app', to: reversed ? 'app' : 'data' };
-    f.save('app.yaml', { ...f.app, relationships: [edge] });
-    f.save('data.yaml', { ...f.data, parent: depth === 'direct' ? 'app' : 'middle', relationships: [edge] });
-    if (depth === 'nested') {
-      f.save('middle.yaml', { ...f.app, id: 'middle', parent: 'app', relationships: [] });
-      f.save('design.yaml', { ...f.entry, elements: [...f.entry.elements, 'middle.yaml'] });
-    }
-    expect(f.load).toThrow(/reads.*app.*data.*nesting/);
-  });
-  it('rejects traversal and symlink escapes', () => {
-    const f = fixture(); f.entry.elements = ['../outside.yaml']; f.save('design.yaml', f.entry); expect(f.load).toThrow(/path/);
-    symlinkSync('/etc/passwd', join(f.dir, 'escape.yaml')); f.entry.elements = ['escape.yaml']; f.save('design.yaml', f.entry); expect(f.load).toThrow(/escape/);
-  });
-  it('loads the representative example and keeps its companion derived from source', () => {
-    const entry = new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url);
-    const doc = loadDesignDoc(entry.pathname);
+  it('loads the worked example and keeps its companion derived from the map', () => {
+    const doc = exampleDesign();
     const pack = designDocToPack(doc);
     expect(doc.items).toHaveLength(9);
-    expect(pack.graph.edges).toHaveLength(6);
-    expect(pack.graph.edges.map(edge => edge.id).sort()).toEqual(['author-design', 'export-design', 'load-skills', 'publish-companion', 'read-source', 'review-session']);
+    expect(pack.graph.edges.map(edge => edge.id).sort()).toEqual(['002-004', '002-010', '004-007', '005-004', '007-008', '007-009']);
     expect(doc.items.filter(item => item.parent).map(item => [item.id, item.parent]).sort()).toEqual([
-      ['cli', 'acstack'], ['host', 'acstack'], ['review-runtime', 'cli'], ['skills', 'acstack'], ['viewer', 'cli'],
+      [EX.skills, EX.acstack], [EX.host, EX.acstack], [EX.cli, EX.acstack], [EX['review-runtime'], EX.cli], [EX.viewer, EX.cli],
     ]);
-    const cli = doc.items.find(item => item.id === 'cli')!;
-    expect(cli.name).toBe('CLI package');
-    expect(cli.channels).toEqual([]);
-    expect(cli.relationships).toEqual([]);
-    expect(doc.items.find(item => item.id === 'review-runtime')).toMatchObject({ name: 'Review command and server', kind: 'component', channels: ['cli', 'web'] });
-    expect(doc.items.find(item => item.id === 'viewer')).toMatchObject({ name: 'Browser review interface', channels: ['web'] });
-    for (const relationship of [
-      { id: 'export-design', from: 'skills', to: 'review-runtime', direction: 'one-way', label: 'Guides the agent to run' },
-      { id: 'read-source', from: 'review-runtime', to: 'design-source', direction: 'one-way', label: 'Reads design source' },
-      { id: 'review-session', from: 'review-runtime', to: 'viewer', direction: 'bidirectional', label: 'Exchanges the design and comments with' },
-    ]) {
-      expect(doc.items.filter(item => item.relationships.some(edge => edge.id === relationship.id)).map(item => item.id).sort()).toEqual([relationship.from, relationship.to].sort());
-      for (const endpoint of [relationship.from, relationship.to]) {
-        expect(doc.items.find(item => item.id === endpoint)?.relationships.find(edge => edge.id === relationship.id)).toEqual(relationship);
-      }
-    }
-    expect(doc.concerns.find(concern => concern.id === 'offline-review')?.elements).toEqual(['review-runtime', 'viewer', 'design-source']);
-    expect(doc.concerns.find(concern => concern.id === 'honest-scope')?.elements).toEqual(['skills', 'review-runtime', 'viewer']);
-    expect(pack.graph.nodes.some(node => node.id === doc.id)).toBe(false);
-    expect(pack.designDocument?.detail).toContain(readFileSync(new URL('../../../examples/design-doc/acstack/journey.md', import.meta.url), 'utf8').trim());
-    expect(pack.graph.nodes.find(node => node.id === 'viewer')?.technicalSummary).toContain('Design response:');
-    expect(renderDesignDocMarkdown(doc)).toBe(readFileSync(new URL('../../../examples/design-doc/acstack/README.md', import.meta.url), 'utf8'));
+    expect(doc.concerns.find(concern => concern.id === 'offline-review')?.elements).toEqual([EX['review-runtime'], EX.viewer, EX['design-source']]);
+    expect(pack.graph.nodes.find(node => node.id === EX.viewer)?.technicalSummary).toContain('Design response:');
+    expect(renderDesignDocMarkdown(doc)).toBe(readFileSync(join(EXAMPLE_ROOT, 'README.md'), 'utf8'));
   });
-  it('lays out the actual authored example at useful initial depth and every component expansion', async () => {
-    const doc = loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname);
+  it('lays out the worked example at useful initial depth and every component expansion', async () => {
+    const doc = exampleDesign();
     const pack = designDocToPack(doc);
     const initial = initialExpandedGroups(pack);
-    expect(initial).toContain('design:root');
     expect(initial).toEqual(['design:root']);
-    expect(initial).not.toContain('design:container:cli');
     const { projectDiagram } = await import('../viewer/alignment-graph.js');
-    for (const [expanded, edgeCount] of [[initial, 3], [pack.graph.groups.map(group => group.id), 6], [['design:root', 'design:container:acstack'], 5]] as const) {
+    for (const [expanded, edgeCount] of [[initial, 3], [pack.graph.groups.map(group => group.id), 6], [['design:root', `design:container:${EX.acstack}`], 5]] as const) {
       const projection = projectDiagram(pack.graph, [...expanded]);
       const measured = { nodes: Object.fromEntries(projection.nodes.map(node => [node.id, { width: 300, height: node.kind === 'group' ? 140 : 164 }])), labels: Object.fromEntries(projection.edges.map(edge => [edge.id, { width: 196, height: 72 }])) };
       const diagram = await buildDiagram(pack.graph, [...expanded], measured);
       expect(diagram.edges).toHaveLength(edgeCount);
-      expect(diagram.nodes.some(node => node.id === 'group:design:root')).toBe(false);
-      expect(diagram.nodes.some(node => node.id === 'item:acstack')).toBe(false);
       if (expanded === initial) {
-        expect(diagram.nodes.map(node => node.id).sort()).toEqual(['group:design:container:acstack', 'item:design-source', 'item:github', 'item:user']);
-        expect(diagram.nodes.find(node => node.ownerNodeId === 'acstack')).toMatchObject({ kind: 'folded-group', summary: doc.items.find(item => item.id === 'acstack')!.summary });
+        expect(diagram.nodes.map(node => node.id).sort()).toEqual([`group:design:container:${EX.acstack}`, `item:${EX.user}`, `item:${EX['design-source']}`, `item:${EX.github}`].sort());
         const width = Math.max(...diagram.nodes.map(node => node.x + node.width), ...diagram.edges.map(edge => edge.labelBox!.x + edge.labelBox!.width));
         const height = Math.max(...diagram.nodes.map(node => node.y + node.height), ...diagram.edges.map(edge => edge.labelBox!.y + edge.labelBox!.height));
         // A normal desktop canvas fits the overview at native text size, including labels.
         expect(width).toBeLessThan(1000);
         expect(height).toBeLessThan(800);
       }
-      for (const route of diagram.edges) {
-        expect(route.points.length).toBeGreaterThanOrEqual(2);
-        expect(route.path.match(/M /g)).toHaveLength(2);
-        const label = route.labelBox!;
-        for (const other of diagram.edges) {
-          const hits = other.points.slice(1).filter((b, index) => {
-            const a = other.points[index];
-            return Math.min(a.x, b.x) < label.x + label.width + 7 && Math.max(a.x, b.x) > label.x - 7
-              && Math.min(a.y, b.y) < label.y + label.height + 7 && Math.max(a.y, b.y) > label.y - 7;
-          });
-          expect(hits.length).toBe(other === route ? 1 : 0);
-        }
-        for (const box of diagram.nodes) {
-          const obstacle = box.kind === 'group' ? { ...box, height: box.headerHeight! } : box;
-          expect(route.labelBox!.x + route.labelBox!.width <= obstacle.x - 7 || route.labelBox!.x >= obstacle.x + obstacle.width + 7 || route.labelBox!.y + route.labelBox!.height <= obstacle.y - 7 || route.labelBox!.y >= obstacle.y + obstacle.height + 7).toBe(true);
-        }
-      }
     }
   });
-  it('rejects a relationship identity reused across separate endpoint pairs', () => {
-    const f = fixture();
-    const edge = { ...f.app.relationships[0], from: 'extra', to: 'other' };
-    f.save('extra.yaml', { ...f.app, id: 'extra', relationships: [edge] });
-    f.save('other.yaml', { ...f.data, id: 'other', relationships: [edge] });
-    f.save('design.yaml', { ...f.entry, elements: [...f.entry.elements, 'extra.yaml', 'other.yaml'] });
-    expect(f.load).toThrow(/reads.*duplicate identity.*app.yaml.*extra.yaml/);
+});
+
+describe('describing a design change for carried comments', () => {
+  it('names changed, added, and removed elements, and falls back to the overview', async () => {
+    const { describeChange } = await import('./design-lifecycle.js');
+    const before = build(fixture()).doc;
+    const edited = build(fixture().map(n => n.id === '002' ? { ...n, summary: 'Runs more' } : n)).doc;
+    expect(describeChange(before, edited)).toBe('before App changed');
+    const grown = build([...fixture(), node('004', { label: 'Cache', body: block('Design element', 'kind: store\nparent: "002"') })]).doc;
+    expect(describeChange(before, grown)).toBe('before Cache was added');
+    expect(describeChange(grown, before)).toBe('before Cache was removed');
+    const overview = build(fixture().map(n => n.id === '001' ? { ...n, body: n.body!.replace('Overview', 'New overview') } : n)).doc;
+    expect(describeChange(before, overview)).toBe('before the design overview changed');
+    // Locking alone is not a design change.
+    expect(describeChange(before, build(fixture().map(n => n.id === '002' ? { ...n, status: 'resolved' as const } : n)).doc)).toBe('before the design overview changed');
   });
-  it('bounds the aggregate source size before reading every detail', () => {
-    const f = fixture();
-    writeFileSync(join(f.dir, 'detail.md'), 'x'.repeat(250000));
-    const elements = Array.from({ length: 18 }, (_, index) => `element-${index}.yaml`);
-    for (const [index, file] of elements.entries()) f.save(file, { id: `element-${index}`, name: 'Element', summary: 'A bounded element', kind: 'component', detail: 'detail.md' });
-    f.save('design.yaml', { ...f.entry, elements, concerns: [] });
-    expect(f.load).toThrow(/4 MiB/);
+});
+
+describe('describing what changed since approval', () => {
+  it('names text, connection, and mock changes in the reviewer words', async () => {
+    const { elementChanges } = await import('./design-lifecycle.js');
+    const before = { name: 'App', summary: 'Runs commands', kind: 'component', channels: ['cli'], connections: [{ to: '003', direction: 'one-way', label: 'Reads' }], mocks: { 'orders.json': 'a'.repeat(64) } };
+    const after = { ...before, summary: 'Runs every command', channels: ['cli', 'web'], connections: [{ to: '003', direction: 'bidirectional', label: 'Reads' }, { to: '004', direction: 'one-way', label: 'Writes' }], mocks: { 'orders.json': 'b'.repeat(64) } };
+    expect(elementChanges(before, after)).toEqual([
+      { label: 'Summary changed', before: 'Runs commands', after: 'Runs every command' },
+      { label: 'Interfaces changed', before: 'cli', after: 'cli, web' },
+      { label: "Connection 'Reads' changed direction" },
+      { label: "Connection 'Writes' added" },
+      { label: 'Mock orders.json changed' },
+    ]);
+    expect(elementChanges(before, before)).toEqual([]);
   });
-  it('rejects duplicate YAML keys, unknown endpoints, and oversized files', () => {
-    const f = fixture(); writeFileSync(join(f.dir, 'app.yaml'), 'id: app\nid: other\n'); expect(f.load).toThrow(/app.yaml/);
-    f.app.relationships[0].to = 'missing'; f.save('app.yaml', f.app); expect(f.load).toThrow(/endpoint.*missing/);
-    writeFileSync(join(f.dir, 'app.yaml'), 'x'.repeat(262145)); expect(f.load).toThrow(/size/);
+});
+
+describe('what an approval covers', () => {
+  it('covers the title, name, summary, and detail prose, but not regenerated diagrams', () => {
+    const digestOf = (nodes: GraphNode[]) => build(nodes).doc.items.find(item => item.id === '002')!.configDigest;
+    const base = digestOf(fixture());
+    const edit = (fields: Partial<GraphNode>) => digestOf(fixture().map(n => n.id === '002' ? { ...n, ...fields } : n));
+    expect(edit({ summary: 'Runs every command' })).not.toBe(base);
+    expect(edit({ label: 'Runner' })).not.toBe(base);
+    expect(edit({ title: 'The runner' })).not.toBe(base);
+    expect(edit({ body: fixture()[1].body!.replace('App detail', 'App detail, revised') })).not.toBe(base);
+    expect(edit({ body: fixture()[1].body!.replace('map diagram', 'a regenerated map diagram') })).toBe(base);
   });
 });

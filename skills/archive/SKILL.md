@@ -63,19 +63,18 @@ If anything remains, stop and list the fog, open questions, or claims.
 Ask the user to resolve them or explicitly mark dropped scope out of scope before retrying.
 Do not dispose of an uncleared map.
 
-For a bound design, read the root's `Design entry` reference and run:
+For a map with `element` nodes, run:
 
 ```bash
-~/.claude/acstack/bin/acstack design-review status <entry>
+~/.claude/acstack/bin/acstack design-review status <map>
 ```
 
-- Require returned `planning.tracker` and `planning.map` to match the map being archived
-- Stop on a missing or different binding; another map's approval does not authorize this archive
 - Require `approval.valid: true` for the current exact revision tuple
-- Require completed reconciliation of saved feedback and current map contributions
+- Require completed reconciliation of saved feedback
+- Approval locks every element, so a loose element means the design was never approved
 - Return invalid approval or unresolved reconciliation to `/acstack:design-doc`
-- Recheck after source, saved comments, or contribution inputs change
-- Never promote historical approval or migrate legacy data during archive
+- Recheck after element nodes, saved comments, or questions targeting them change
+- Never promote historical approval during archive
 
 ## Step 3: Extract the residue
 

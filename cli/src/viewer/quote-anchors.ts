@@ -4,8 +4,8 @@ import type { Annotation } from './pack.js';
 export type QuoteAnchor = { prefix: string; suffix: string };
 
 export function toReviewAnnotation(annotation: Annotation): ReviewAnnotation {
-  const { packVersion, target, selectedText, sourceRef, comment, author, time } = annotation;
-  return { packVersion, target: { type: target.type, id: target.id }, selectedText, sourceRef, comment, author, time };
+  const { packVersion, target, selectedText, sourceRef, mock, comment, author, time } = annotation;
+  return { packVersion, target: { type: target.type, id: target.id }, selectedText, sourceRef, mock, comment, author, time };
 }
 
 export function quoteOffsets(text: string, quote: string, anchor?: unknown): number[] {

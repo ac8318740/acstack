@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { AlignmentPackSchema } from '../lib/alignment-packs.js';
-import { designDocToPack, loadDesignDoc } from '../lib/design-doc.js';
+import { designDocToPack } from '../lib/design-doc.js';
+import { EX, exampleDesign } from '../example-design.js';
 import { buildDiagram, edgePath, initialExpandedGroups, projectDiagram, reconcileSelection, placeLabels, wrapLabel } from './alignment-graph.js';
 
 const node = (id: string, groupId: string) => ({ id, groupId, label: `Item ${id}`, summary: `Summary ${id}` });
@@ -153,7 +154,7 @@ describe('alignment diagram', () => {
   });
 
   it.each([140, 246])('keeps actual compound routes outside measured %ipx headers', async headerHeight => {
-    const pack = designDocToPack(loadDesignDoc(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url).pathname));
+    const pack = designDocToPack(exampleDesign());
     const expanded = pack.graph.groups.map(group => group.id);
     const projection = projectDiagram(pack.graph, expanded);
     const measured = {
@@ -162,9 +163,9 @@ describe('alignment diagram', () => {
     };
     const diagram = await buildDiagram(pack.graph, expanded, measured);
     expect(diagram.edges.some(edge => edge.childEdgeIds.includes('render-design'))).toBe(false);
-    expect(diagram.nodes.find(node => node.id === 'item:viewer')?.parentId).toBe('group:design:container:cli');
-    const developer = diagram.edges.find(edge => edge.childEdgeIds.includes('author-design'))!;
-    const host = diagram.edges.find(edge => edge.childEdgeIds.includes('load-skills'))!;
+    expect(diagram.nodes.find(node => node.id === `item:${EX.viewer}`)?.parentId).toBe(`group:design:container:${EX.cli}`);
+    const developer = diagram.edges.find(edge => edge.childEdgeIds.includes('002-004'))!;
+    const host = diagram.edges.find(edge => edge.childEdgeIds.includes('005-004'))!;
     const source = diagram.nodes.find(node => node.id === host.source)!;
     const target = diagram.nodes.find(node => node.id === host.target)!;
     expect(host.points[0].y).toBe(source.y + source.height);

@@ -6,8 +6,10 @@ afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); });
 it.each([false, true])('shows source only when rendering fails (failure=%s)', async failed => {
   const source = 'flowchart LR\nA --> B </pre><script>bad()</script>';
   const output = { innerHTML: '', textContent: '', setAttribute: vi.fn(), after: vi.fn() };
-  const createElement = (tag: string) => ({ tag, textContent: '', append: vi.fn() });
-  vi.stubGlobal('document', { getElementById: (id: string) => id === 'source' ? { textContent: JSON.stringify(source) } : output, createElement });
+  const createElement = (tag: string) => ({ tag, textContent: '', append: vi.fn(), addEventListener: vi.fn() });
+  const postMessage = vi.fn();
+  vi.stubGlobal('parent', { postMessage });
+  vi.stubGlobal('document', { getElementById: (id: string) => id === 'source' ? { textContent: JSON.stringify(source) } : output, createElement, body: { getBoundingClientRect: () => ({ height: 305 }) } });
   render.mockImplementation(() => failed ? Promise.reject(new Error('Invalid diagram')) : Promise.resolve({ svg: '<svg>diagram</svg>' }));
   await import('./mermaid-frame.js');
   await vi.dynamicImportSettled();
@@ -23,4 +25,6 @@ it.each([false, true])('shows source only when rendering fails (failure=%s)', as
     expect(output.innerHTML).toBe('<svg>diagram</svg>');
     expect(output.after).not.toHaveBeenCalled();
   }
+  // The host sizes the frame to whatever rendered.
+  expect(postMessage).toHaveBeenCalledWith({ mermaidHeight: 321 }, '*');
 });

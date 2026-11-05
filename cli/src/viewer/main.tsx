@@ -4,7 +4,7 @@ import { ReactFlowProvider } from '@xyflow/react';
 import { Check, CircleCheck, Copy } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import './viewer.css';
-import { buildDiagram, type Diagram as DiagramModel, initialExpandedGroups, projectDiagram, reconcileSelection, type MeasuredGeometry } from './alignment-graph.js';
+import { buildDiagram, type Diagram as DiagramModel, initialExpandedGroups, projectDiagram, reconcileSelection, revealElement, type MeasuredGeometry } from './alignment-graph.js';
 import { Diagram, MeasureDiagram, type MeasureDiagramHandle, type ViewportAnchor, type Zoom } from './diagram.js';
 import { CommentForm, Drawer, commentScopeForSelection, type CommentScope, type DrawerView } from './drawer.js';
 import { commentPosition } from './comment-position.js';
@@ -17,8 +17,9 @@ import { REVIEW_PATH, REVIEW_TOKEN_HEADER, REVIEW_TOKEN_META } from '../lib/alig
 import { copy, ReviewHandoff } from './review-handoff.js';
 import { useQuestionCounts } from './design-questions.js';
 import { questionScopeForSelection } from './question-targets.js';
-import { DesignApproval, DesignApprovalProvider } from './design-approval.js';
-import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, useReviewAnnotations } from './pack.js';
+import type { MockLink } from './mocks-modal.js';
+import { DesignApproval, DesignApprovalProvider, useBlockerNavigation, useDesignReview } from './design-approval.js';
+import { type Annotation, type Draft, annotationId, diagramId, pack, liveComments, handoffPrompt, followLiveUpdates, usePackRevision, useReviewAnnotations } from './pack.js';
 
 const orientation = pack.viewState.orientation ?? (pack.documentKind === 'design' ? 'top-to-bottom' : 'left-to-right');
 
@@ -44,6 +45,9 @@ function useTextSelection(popover: React.RefObject<HTMLDivElement | null>, onDra
 }
 
 function App() {
+  // A rebuilt pack re-renders the app in place, so selection, drawer, viewport, drafts, and modals all stay.
+  const packRevision = usePackRevision();
+  const [liveError, setLiveError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(() => initialExpandedGroups(pack));
   const [zoom, setZoom] = useState<Zoom>(pack.viewState.semanticZoom === 'technical' ? 'technical' : 'business');
   const [selected, setSelected] = useState<string | null>(null);
@@ -68,6 +72,9 @@ function App() {
   const requestedKey = `${[...expanded].sort().join('|')}:${zoom}`;
   const previousLayout = useRef<{ key: string; diagram: DiagramModel } | null>(null);
   const acceptedLayout = useRef<DiagramModel | undefined>(undefined);
+  const acceptedExpanded = useRef<string[] | undefined>(undefined);
+  // Shown when an expansion cannot be drawn; the view returns to the last one that could.
+  const [layoutNotice, setLayoutNotice] = useState<string | null>(null);
   const viewportAnchor = useRef<ViewportAnchor | null>(null);
   const changeExpanded = (ids: string[], anchorId?: string) => {
     generation.current += 1;
@@ -75,14 +82,15 @@ function App() {
     const node = diagram.nodes.find(node => node.id === anchorId);
     previousLayout.current = { key, diagram };
     viewportAnchor.current = node ? { key, before: diagram, node: { id: node.id, x: node.x, y: node.y } } : null;
+    setLayoutNotice(null);
     setExpanded(ids);
   };
-  const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded]);
+  const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded, packRevision]);
   const questionCounts = useQuestionCounts(projection);
-  const [measurement, setMeasurement] = useState<{ key: string; geometry: MeasuredGeometry } | null>(null);
+  const [measurement, setMeasurement] = useState<{ key: string; revision: number; geometry: MeasuredGeometry } | null>(null);
   const onMeasured = useCallback((geometry: MeasuredGeometry) => {
-    setMeasurement(previous => previous?.key === requestedKey && JSON.stringify(previous.geometry) === JSON.stringify(geometry) ? previous : { key: requestedKey, geometry });
-  }, [requestedKey]);
+    setMeasurement(previous => previous?.key === requestedKey && previous.revision === packRevision && JSON.stringify(previous.geometry) === JSON.stringify(geometry) ? previous : { key: requestedKey, revision: packRevision, geometry });
+  }, [requestedKey, packRevision]);
   const generation = useRef(0);
   const measurementTree = useRef<MeasureDiagramHandle>(null);
   const popover = useRef<HTMLDivElement>(null);
@@ -139,7 +147,8 @@ function App() {
   }, [annotations]);
   useEffect(() => {
     const request = ++generation.current;
-    if (measurement?.key !== requestedKey) return;
+    // A swapped pack waits for its own measurement, so new cards never lay out with stale sizes.
+    if (measurement?.key !== requestedKey || measurement.revision !== packRevision) return;
     const previous = previousLayout.current?.key === requestedKey ? previousLayout.current.diagram : acceptedLayout.current;
     const measurer = measurementTree.current;
     void buildDiagram(pack.graph, expanded, measurement.geometry, previous, orientation, nodes => {
@@ -150,6 +159,7 @@ function App() {
       if (measurementTree.current !== measurer) return;
       previousLayout.current = null;
       acceptedLayout.current = next;
+      acceptedExpanded.current = expanded;
       setDiagram(next);
       setLayoutKey(requestedKey);
       setLayoutZoom(zoom);
@@ -157,10 +167,19 @@ function App() {
       setLayoutError(null);
     }).catch((error: unknown) => {
       if (measurementTree.current !== measurer) return;
-      if (request === generation.current) setLayoutError(error instanceof Error ? error.message : String(error));
+      if (request !== generation.current) return;
+      const message = error instanceof Error ? error.message : String(error);
+      const last = acceptedExpanded.current;
+      // An expansion the layout cannot draw falls back to the last drawn view, so the canvas never breaks.
+      if (last && [...last].sort().join('|') !== [...expanded].sort().join('|')) {
+        previousLayout.current = null;
+        setLayoutNotice(message);
+        setExpanded(last);
+      } else setLayoutError(message);
     });
     return () => { generation.current += 1; };
-  }, [expanded, measurement, requestedKey, zoom, commentCounts, questionCounts]);
+  }, [expanded, measurement, requestedKey, zoom, commentCounts, questionCounts, packRevision]);
+  useEffect(() => liveComments && pack.documentKind === 'design' ? followLiveUpdates(setLiveError) : undefined, []);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => event.key === 'Escape' && !(event.target as Element | null)?.closest?.('[data-review-handoff]') && !event.defaultPrevented && !(event.target instanceof HTMLTextAreaElement) && setSelected(null);
     document.addEventListener('keydown', onKey);
@@ -216,6 +235,26 @@ function App() {
       if (drawerView !== 'details') setCommentScope(commentScopeForSelection(id, diagram));
     }
   };
+  // A blocker link opens its element; a question the page can answer also opens and focuses in Questions.
+  const [questionRequest, setQuestionRequest] = useState<{ id: string }>();
+  const [reveal, setReveal] = useState<{ id: string }>();
+  const [mockLink, setMockLink] = useState<MockLink>();
+  const review = useDesignReview();
+  // Open the containers the element sits in, so its card, drawer, and Mocks view are the element's own.
+  const showElement = (id: string) => {
+    const { groups, selection } = revealElement(pack.graph, id);
+    if (groups.some(id => !expanded.includes(id))) changeExpanded([...new Set([...expanded, ...groups])]);
+    setSelected(selection);
+    setReveal({ id: selection });
+    setDrawerOpen(true);
+  };
+  const openMock = (link: MockLink) => { showElement(link.nodeId); setMockLink(link); setDrawerView('mocks'); };
+  useBlockerNavigation(blocker => {
+    if (blocker.kind === 'variant') { openMock({ nodeId: blocker.targetId, path: blocker.mock }); return; }
+    showElement(blocker.targetId);
+    if (blocker.kind === 'question' && review?.answerable.includes(blocker.nodeId)) setQuestionRequest({ id: blocker.nodeId });
+    else setDrawerView('details');
+  });
 
   return (
     <div className="app">
@@ -231,12 +270,9 @@ function App() {
           </span>
         )}
         <div className="row review-controls">
-          <span className="version" tabIndex={0} data-tooltip={`Pack version: ${pack.packVersion}. Comments apply to this version.`}>
-            {pack.packVersion.slice(-8)}
-          </span>
           {liveComments ? (
             <div className="actions">
-              <span className="hint" role="status">{syncState?.status ?? 'Saving'}</span>
+              <span className="hint" role="status" tabIndex={0} data-tooltip={`Comments apply to version ${pack.packVersion.slice(-8)} of this design.`}>{syncState?.status ?? 'Saving'}</span>
               {syncState?.status === 'Not synced' && <button type="button" className="btn" onClick={retry}>Retry</button>}
               <DesignApproval compact />
               {handoffPrompt && flush && <ReviewHandoff prompt={handoffPrompt} flush={flush} />}
@@ -261,14 +297,20 @@ function App() {
           ) : (
             <span className="hint">{pack.documentKind === 'design' ? 'Comments stay in this browser. Approval is not recorded.' : 'Read-only legacy copy. Use design-review migrate with an authored entry and explicit mapping, then open design-doc.'}</span>
           )}
-          {liveComments && syncState?.error && <span className="error" role="alert">{syncState.error}</span>}
         </div>
       </header>
       <main className="canvas">
         <MeasureDiagram ref={measurementTree} diagram={projection} zoom={zoom} commentCounts={commentCounts} onMeasured={onMeasured} />
-        {layoutError && <div className="layout-error" role="alert">{layoutError} The previous valid diagram remains visible.</div>}
+        {layoutError && <div className="layout-error" role="alert" data-tooltip={layoutError}>This version cannot be drawn without overlapping arrows, so the previous layout stays.</div>}
+        {layoutNotice && <div className="layout-notice" role="status" data-tooltip={layoutNotice}>
+          <span>Those groups cannot all be open at once without overlapping arrows, so the previous view stays. Open fewer groups together.</span>
+          <button type="button" className="btn" onClick={() => setLayoutNotice(null)}>Dismiss</button>
+        </div>}
+        {liveComments && syncState?.error && <div className="layout-error" role="alert">{syncState.error}</div>}
+        {liveError && <div className="layout-error" role="alert">The map has a problem, so this page stopped updating: {liveError}</div>}
         <ReactFlowProvider>
           <Diagram
+            reveal={reveal}
             diagram={diagram}
             orientation={orientation}
             layoutKey={layoutKey}
@@ -301,6 +343,8 @@ function App() {
         open={drawerOpen}
         setOpen={setDrawerOpen}
         view={drawerView}
+        mockLink={mockLink}
+        onOpenMock={openMock}
         setView={setDrawerView}
         commentScope={commentScope}
         setCommentScope={setCommentScope}
@@ -313,6 +357,7 @@ function App() {
         setAnnotations={setAnnotations}
         onEdit={editComment}
         onShowComment={postedComments.show}
+        questionRequest={questionRequest}
         onSelect={id => {
           setDrawerView('details');
           if (id === 'group:design:root') setSelected(null);

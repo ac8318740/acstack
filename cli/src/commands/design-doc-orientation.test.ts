@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +10,7 @@ import { stripVTControlCharacters } from 'node:util';
 import { gitOnlyDir, trackProject } from '../test-project.js';
 
 const bin = fileURLToPath(new URL('../../bin/acstack.js', import.meta.url));
-const entry = fileURLToPath(new URL('../../../examples/design-doc/acstack/design.yaml', import.meta.url));
+import { EXAMPLE_MAP as entry, EXAMPLE_ROOT } from '../example-design.js';
 const roots: string[] = [];
 const children: ChildProcess[] = [];
 function fixture() {
@@ -19,6 +19,8 @@ function fixture() {
   mkdirSync(join(root, '.acstack'));
   mkdirSync(join(root, 'empty-path'));
   writeFileSync(join(root, '.acstack/project.yaml'), 'name: orientation-test\n');
+  cpSync(join(EXAMPLE_ROOT, 'maps'), join(root, '.acstack/maps'), { recursive: true });
+  cpSync(join(EXAMPLE_ROOT, '.open-designer'), join(root, '.open-designer'), { recursive: true });
   return trackProject(root);
 }
 afterEach(async () => {
@@ -66,6 +68,6 @@ it('rejects invalid orientation before shipped CLI Markdown or lifecycle writes'
   const result = spawnSync(process.execPath, [bin, 'design-doc', entry, '--orientation', 'diagonal', '--markdown', 'README.md'], { cwd: root, encoding: 'utf8', timeout: 10_000 });
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain('Allowed choices');
-  expect(readdirSync(root).sort()).toEqual(['.acstack', '.git', 'empty-path']);
-  expect(readdirSync(join(root, '.acstack'))).toEqual(['project.yaml']);
+  expect(readdirSync(root).sort()).toEqual(['.acstack', '.git', '.open-designer', 'empty-path']);
+  expect(readdirSync(join(root, '.acstack')).sort()).toEqual(['maps', 'project.yaml']);
 });

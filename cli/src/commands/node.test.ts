@@ -678,8 +678,8 @@ describe('node frontier', () => {
 // and its order are the contract that loop consumes, so both are pinned here.
 // ---------------------------------------------------------------------------
 
-/** The five kinds, in the order NODE_KINDS declares them. */
-const KINDS = ['destination', 'notes', 'decision', 'research', 'work'];
+/** The kinds, in the order NODE_KINDS declares them. */
+const KINDS = ['destination', 'notes', 'decision', 'research', 'work', 'element'];
 
 describe('node kinds', () => {
   it('prints the five kinds, one per line, in declaration order', () => {
@@ -688,9 +688,9 @@ describe('node kinds', () => {
     expect(result.stdout.trimEnd().split('\n')).toEqual(KINDS);
   });
 
-  it('prints the same five kinds the code declares', () => {
-    // A sixth kind added to NODE_KINDS has to reach the shell loop, and this is
-    // what says so before the loop silently keeps creating five labels.
+  it('prints the same kinds the code declares', () => {
+    // A kind added to NODE_KINDS has to reach the shell loop, and this is
+    // what says so before the loop silently keeps creating the old labels.
     expect([...NODE_KINDS]).toEqual(KINDS);
   });
 

@@ -45,7 +45,7 @@ off the root.
 Before claiming one, check whether the map is ready to build from:
 
 - If any `fog` node changes the design, stop and point the user at `/acstack:map`
-- For a bound design, require `approval.valid: true` from `acstack design-review status <entry>`
+- For a map with `element` nodes, require `approval.valid: true` from `acstack design-review status <map>`
 - If approval is invalid, return to `/acstack:design-doc` for reconciliation and exact-revision approval
 - If a `fog` node needs later evidence without changing the design, leave it with its reopening trigger
 
@@ -109,13 +109,11 @@ Nodes describe behaviour, not paths. **Resolve paths at claim time**.
 Investigate relevant source, callers, tests, and docs directly or through useful delegation.
 Pass discovered paths and requirements to any delegated agents to avoid repeated searches.
 
-- Before implementation, read the root node's `Design entry` reference when present
-- Run `acstack design-review status <entry>`
-- Require its `planning.tracker` and `planning.map` to match the active map before trusting its approval
-- Stop on a missing or different binding; an approval for another map does not authorize this work
-- Require `approval.valid: true`
-- Reconcile feedback and contributions through `/acstack:design-doc` when approval is invalid
-- Reopen review after source, saved comments, or contribution inputs change
+- Before implementation, check whether the active map has `element` nodes
+- If it does, run `acstack design-review status <map>` and require `approval.valid: true`
+- Reconcile feedback through `/acstack:design-doc` when approval is invalid
+- Never lock an element; only the user locks
+- Reopen review after element nodes, saved comments, or questions targeting them change
 - Keep unsettled requirements in design/map records; living specs describe verified implementation
 
 ### 5. Execute within the claim
@@ -162,7 +160,7 @@ decision landed. With a map, then:
     - Agent-clearable fog gets research, tests, or a throwaway prototype.
     - Design-changing fog becomes a `hitl` node and returns to `/acstack:map`.
     - Local fog that does not change the design stays inside the claim notes.
-- Reopen design review when source, saved comments, or contribution inputs change.
+- Reopen design review when element nodes, saved comments, or questions targeting them change.
 - Recompute the frontier – resolutions unblock nodes.
 
 ### 7. Completion verification

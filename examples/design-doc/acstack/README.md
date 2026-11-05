@@ -1,125 +1,83 @@
 # ACStack design review
 
-ACStack guides design authoring, saves browser feedback, reconciles optional map contributions, and records exact-revision approval with retained evidence.
+ACStack draws a design doc from a map, saves browser feedback, answers questions on the map, and records exact-revision approval.
 
-<!-- Generated from the entry YAML and its element files; regenerate with design-doc --markdown -->
+<!-- Generated from the map's element nodes; regenerate with design-doc --markdown -->
 
 ```mermaid
 flowchart TD
-    element_user["Project developer<br/>actor"]
-    subgraph element_acstack["ACStack plugin"]
-        element_skills["Agent skills<br/>component · agent"]
-        element_host["Agent session setup<br/>component · agent"]
-        subgraph element_cli["CLI package"]
-            element_review-runtime["Review command and server<br/>component · cli, web"]
-            element_viewer["Browser review interface<br/>component · web"]
+    element_002["Project developer<br/>actor"]
+    subgraph element_003["ACStack plugin"]
+        element_004["Agent skills<br/>component · agent"]
+        element_005["Agent session setup<br/>component · agent"]
+        subgraph element_006["CLI package"]
+            element_007["Review command and server<br/>component · cli, web"]
+            element_008["Browser review interface<br/>component · web"]
         end
     end
-    element_design-source["Authored design files<br/>store"]
-    element_github["GitHub<br/>external-system · web"]
-    element_user -->|"Requests design guidance from"| element_skills
-    element_user -->|"Optionally publishes the Markdown companion to"| element_github
-    element_skills -->|"Guides the agent to run"| element_review-runtime
-    element_host -->|"Registers"| element_skills
-    element_review-runtime -->|"Reads design source"| element_design-source
-    element_review-runtime <-->|"Exchanges the design and comments with"| element_viewer
+    element_009["Map nodes<br/>store"]
+    element_010["GitHub<br/>external-system · web"]
+    element_002 -->|"Requests design guidance from"| element_004
+    element_002 -->|"Optionally publishes the Markdown companion to"| element_010
+    element_004 -->|"Guides the agent to run"| element_007
+    element_005 -->|"Registers"| element_004
+    element_007 -->|"Reads and resolves nodes in"| element_009
+    element_007 <-->|"Exchanges the design and comments with"| element_008
 ```
 
 ## Review the design before implementation
 
-ACStack saves design feedback, reconciles comments and optional map contributions, and records human approval of the exact reviewed inputs.
+ACStack draws a design doc from a map, saves review comments, writes the reviewer's answers back to the map, and records human approval of the exact reviewed inputs.
 
-This example keeps the existing architecture: Agent skills guide the agent; the Review command and server validate source and save review evidence. The Browser review interface shows the design and collects feedback and approval. Review the responsibilities, containment, and labeled arrows before implementation.
+This example keeps the existing architecture: Agent skills guide the agent; the Review command and server read the map and save review evidence. The Browser review interface shows the design and collects comments, answers, and approval. Review the responsibilities, containment, and labeled arrows before implementation.
 
 ### Author, review, reconcile, and approve
 
 1. The developer asks the agent to prepare a design through the Agent skills registered by Agent session setup
-2. The agent writes the entry, element YAML, and supporting Markdown in one bounded directory tree
-3. The agent runs `acstack design-doc design.yaml --markdown /tmp/acstack-design-review.md` with an unused output path and keeps the server running
-4. The server validates source and serves the prepared graph with bundled browser assets; the browser never reads YAML directly
-5. The developer saves comments, chooses Send to agent, and pastes the copied prompt into the agent session
-6. The agent reads the saved review, revises source, and uses `acstack design-review status design.yaml` to inspect feedback and optional map contributions
-7. The agent explicitly reconciles each selected comment and current contribution, then resolves blocking human questions or marks dropped scope out of scope
-8. The agent reopens changed source for review; the human chooses Approve this revision once reconciliation is current
-9. The agent requires `approval.valid: true` from status before implementation, then runs the separate implementation checks
+2. The agent writes one `element` node per design element, each with a collapsed `Design element` block, and hangs questions off the elements they target
+3. The agent runs `acstack design-doc <map> --check`, then `acstack design-doc <map>` and keeps the server running
+4. The server reads the map through its tracker and serves the prepared graph with bundled browser assets
+5. The developer answers questions beside their elements; each answer writes `## Answer` and resolves the question node
+6. The developer saves comments, chooses Send to agent, and pastes the copied prompt into the agent session
+7. The agent revises element nodes, picks up answer follow-ups at its next frontier recompute, and reconciles each comment
+8. The developer approves the revision, which approves every element
+9. The agent requires `approval.valid: true` from `acstack design-review status <map>` before implementation
 10. At map closeout, archive verifies implemented functional requirements in living specs, architecture decision records (ADRs), and agreed glossary terms before disposing of temporary nodes
-
-The developer can manually publish the generated Markdown companion to GitHub. Publication does not transfer browser comments or approval, and ACStack does not track that publication automatically.
 
 ### Approval belongs to exact inputs
 
 - Approval binds `sourceRevision`, `reviewRevision`, `commentsDigest`, and `mapInputsDigest`, not the rendered page alone
-- Each selected comment and current contribution needs one explicit disposition: `applied`, `retained`, or `needs-human`, with a rationale
-- Unresolved blocking decisions or a `needs-human` disposition prevent approval; comments alone never authorize implementation
-- Source, saved feedback, or meaningful contribution changes reopen the gate; presentation regeneration alone preserves approval
-
-- Use `design-review status` for the current tuple and contribution keys
-- Follow `skills/design-doc/SKILL.md` for the reconciliation schema and `design-review reconcile <entry> --input <json-file>`
-- Select earlier feedback with `--review-file <canonical-review.json>` when reconciling that history
-    - Original comments stay with their original version
-    - Previously selected histories remain review obligations after later source changes
-
-This revised example is a new draft requiring fresh human approval.
-
-### Map binding is optional
-
-This portable example has no map binding. A project can add `planning: {tracker: files | github, map: <name>}` and put `Design entry: <repository-relative-path>` in its map root. Node bodies supply explicit design contributions; the map does not become the architecture graph.
-
-Bundled browser assets require no external fetch or design upload. Agent-side reads of a GitHub-bound map still need GitHub access. The diagram's GitHub arrow describes manual Markdown publication, not tracker synchronization.
-
-### Archive preserves evidence; legacy import is explicit
-
-- Archive checks current approval and reconciliation before closing a bound map
-- Archive verifies implemented requirements against source and verification evidence
-- Archive records qualifying ADRs and glossary terms
-- Archive retains design sources, canonical reviews, import history, original legacy artifacts, and decision logs independently of node disposal
-
-- Use `node walk`, `node frontier`, and `node diagram` for planning; ACStack retires `map --map` and `align-viewer` without aliases
-- Import legacy feedback only through `design-review migrate` with an explicit target mapping
-- Treat imported approval as historical; imported comments require reconciliation and fresh exact-revision approval
-- Startup and archive never migrate automatically
-
-### Local source and optional GitHub publication
-
-- Authored design files are the local YAML and supporting Markdown read by the Review command and server
-- GitHub hosts a published copy of the generated companion only when the Project developer chooses to share it
-- Git ignore rules control ordinary tracking; they neither publish files nor prevent local browser review
-- Both the Authored design files and GitHub drawers explain source ownership, published copies, and ignore rules
+- Each comment needs one explicit disposition: `applied`, `retained`, or `needs-human`, with a rationale
+- Any open node targeting an element, or a `needs-human` disposition, prevents approval
+- Changed element nodes, saved feedback, or targeting nodes reopen the gate; presentation regeneration alone preserves approval
+- Only the developer approves; an agent approves an element only on the developer's explicit instruction
 
 ### Containment and arrows keep their existing meaning
 
-The ACStack plugin contains Agent skills, Agent session setup, and the CLI package. The CLI package contains the Review command and server and the Browser review interface. The Project developer, Authored design files, and GitHub remain outside the plugin.
+The ACStack plugin contains Agent skills, Agent session setup, and the CLI package. The CLI package contains the Review command and server and the Browser review interface. The Project developer, the Map, and GitHub remain outside the plugin.
 
 - Each component is one entity, shown collapsed or expanded
 - Nesting means containment; arrows connect responsible entities, never ancestors to descendants
-- Read one-way arrows as actor, action, and target: the server reads source, and the developer optionally publishes Markdown
-- The bidirectional review-session arrow covers the prepared graph, posted comments, and retrieved comments
+- Read one-way arrows as actor, action, and target: the server reads the map, and the developer optionally publishes Markdown
+- The bidirectional review-session arrow covers the prepared graph, posted comments, and answers
 - Concerns describe shared requirements without changing containment
 
 ### Optional repository context
 
-- Authoring, reconciliation, approval, and migration guidance: `skills/design-doc/SKILL.md`
+- Authoring, reconciliation, and approval guidance: `skills/design-doc/SKILL.md`
 - Local review and lifecycle commands: `cli/src/commands/design-doc.ts`
-- Bounded source validation, graph, and Markdown generation: `cli/src/lib/design-doc.ts`
-- Contributions and exact-input approval: `cli/src/lib/design-map.ts`, `cli/src/lib/design-lifecycle.ts`
-- Saved review history and legacy imports: `cli/src/lib/design-review.ts`, `cli/src/lib/design-migration.ts`
+- Building the design from map nodes: `cli/src/lib/design-doc.ts`
+- Tracker reads and writes, and exact-input approval: `cli/src/lib/design-map.ts`, `cli/src/lib/design-lifecycle.ts`
 - Closeout and evidence retention: `skills/archive/SKILL.md`
-
-- Run the review command from this example directory with a built CLI
-- Choose `--port <port>` if another review uses the default port
-- Use an unused path for each Markdown export
-- Keep the companion beside source when its relative links must work on GitHub
-- New designs default to `designs/` in the project folder, outside the repository unless the project uses tracked mode; this repository intentionally tracks this public example
-
 
 ## Project developer
 
 *Authors the design and reviews the exported artifact locally.*
 
-- Identity: `user`
+- Node: `002`
 - Kind: actor
+- State: awaiting approval
 - Channels: none
-- Source: [user.yaml](user.yaml)
 
 
 
@@ -127,10 +85,10 @@ The ACStack plugin contains Agent skills, Agent session setup, and the CLI packa
 
 *Ships agent skills, session setup, and a bundled CLI.*
 
-- Identity: `acstack`
+- Node: `003`
 - Kind: component
+- State: awaiting approval
 - Channels: none
-- Source: [acstack.yaml](acstack.yaml)
 
 
 
@@ -138,25 +96,25 @@ The ACStack plugin contains Agent skills, Agent session setup, and the CLI packa
 
 *Guide the agent through authoring and exporting a design for review.*
 
-- Identity: `skills`
+- Node: `004`
 - Kind: component
+- State: awaiting approval
 - Channels: agent
-- Source: [skills.yaml](skills.yaml)
 
 ## Honest review status
 
 - Requirement: An exported review artifact must not imply that a reviewer approved a map or implementation.
-- Design response: Comments and exports are not approval. Approval requires reconciled feedback and contributions, resolved blocking questions, and the exact source, review, comments, and map-input tuple. Implementation checks remain separate.
-- Applies to: skills, review-runtime, viewer
+- Design response: Comments and exports are not approval. Approval requires reconciled comments, no open questions on the design, and the exact source, review, comments, and map-input tuple. Implementation checks remain separate.
+- Applies to: 004, 007, 008
 
 ## Agent session setup
 
 *Registers ACStack skill commands and adds rules for planning, coding, and checking changes to the agent's session.*
 
-- Identity: `host`
+- Node: `005`
 - Kind: component
+- State: awaiting approval
 - Channels: agent
-- Source: [host.yaml](host.yaml)
 
 
 
@@ -164,110 +122,95 @@ The ACStack plugin contains Agent skills, Agent session setup, and the CLI packa
 
 *Ships the review command, local server, and browser review interface.*
 
-- Identity: `cli`
+- Node: `006`
 - Kind: component
+- State: awaiting approval
 - Channels: none
-- Source: [cli.yaml](cli.yaml)
 
 
 
 ## Review command and server
 
-*Reads and validates authored YAML, serves the browser review interface, saves comments, and exports Markdown.*
+*Reads and validates the map, serves the browser review interface, saves comments, writes answers and approval to the map, and exports Markdown.*
 
-- Identity: `review-runtime`
+- Node: `007`
 - Kind: component
+- State: awaiting approval
 - Channels: cli, web
-- Source: [review-runtime.yaml](review-runtime.yaml)
 
 ## Offline review
 
 - Requirement: Reviewers can inspect the design without uploading project details or fetching browser assets.
-- Design response: The review command and server read bounded local source files and embed validated graph data with bundled browser assets, without uploading the design. Agent-side reads of GitHub-bound maps still require network access.
-- Applies to: review-runtime, viewer, design-source
+- Design response: The review command and server read the map and embed validated graph data with bundled browser assets, without uploading the design. Reading and answering a GitHub map still needs network access.
+- Applies to: 007, 008, 009
 
 ## Honest review status
 
 - Requirement: An exported review artifact must not imply that a reviewer approved a map or implementation.
-- Design response: Comments and exports are not approval. Approval requires reconciled feedback and contributions, resolved blocking questions, and the exact source, review, comments, and map-input tuple. Implementation checks remain separate.
-- Applies to: skills, review-runtime, viewer
+- Design response: Comments and exports are not approval. Approval requires reconciled comments, no open questions on the design, and the exact source, review, comments, and map-input tuple. Implementation checks remain separate.
+- Applies to: 004, 007, 008
 
 ## Browser review interface
 
 *Receives the prepared design graph and syncs comments with the local server.*
 
-- Identity: `viewer`
+- Node: `008`
 - Kind: component
+- State: awaiting approval
 - Channels: web
-- Source: [viewer.yaml](viewer.yaml)
 
 ## Offline review
 
 - Requirement: Reviewers can inspect the design without uploading project details or fetching browser assets.
-- Design response: The review command and server read bounded local source files and embed validated graph data with bundled browser assets, without uploading the design. Agent-side reads of GitHub-bound maps still require network access.
-- Applies to: review-runtime, viewer, design-source
+- Design response: The review command and server read the map and embed validated graph data with bundled browser assets, without uploading the design. Reading and answering a GitHub map still needs network access.
+- Applies to: 007, 008, 009
 
 ## Honest review status
 
 - Requirement: An exported review artifact must not imply that a reviewer approved a map or implementation.
-- Design response: Comments and exports are not approval. Approval requires reconciled feedback and contributions, resolved blocking questions, and the exact source, review, comments, and map-input tuple. Implementation checks remain separate.
-- Applies to: skills, review-runtime, viewer
+- Design response: Comments and exports are not approval. Approval requires reconciled comments, no open questions on the design, and the exact source, review, comments, and map-input tuple. Implementation checks remain separate.
+- Applies to: 004, 007, 008
 
-## Authored design files
+## Map nodes
 
-*Holds the local YAML and supporting Markdown that the review server reads.*
+*Holds the design as element nodes and the questions that target them.*
 
-- Identity: `design-source`
+- Node: `009`
 - Kind: store
+- State: awaiting approval
 - Channels: none
-- Source: [store.yaml](store.yaml)
 
-Authored design files define the design in the local checkout; GitHub hosts a published copy only if the developer chooses to share it.
+Map nodes define the design; GitHub hosts a published copy of the Markdown companion only if the developer chooses to share it.
 
-- Local files drive the review
-    - The Review command and server read the local YAML and supporting Markdown to generate the browser view and Markdown companion
-    - Revise these source files when the design changes
-    - Local browser review and saved comments work without publishing design files to GitHub
+- The map drives the review
+    - The Review command and server read the element nodes through the map's tracker to generate the browser view and Markdown companion
+    - Revise element nodes when the design changes
+    - Answers and approval from the browser resolve map nodes through the same tracker
 - GitHub hosts a published copy
     - The Project developer can commit and push the generated companion for others to read on GitHub
-    - The developer can publish the companion alone or include the authored source files
-    - GitHub does not replace the local files read by the review server or automatically receive its saved comments
-    - This diagram's publication arrow is separate from using GitHub issues as a map tracker
-- Git ignore rules control tracking, not publication
-    - Ignore rules exclude matching untracked files from ordinary staging
-    - Removing an ignore rule does not stage, commit, or push anything
-    - Already tracked files remain tracked even if an ignore rule later matches them
-    - New project designs in the project folder stay outside the repository by default; this public example is tracked separately
-
+    - On the GitHub tracker the map itself lives in issues; this diagram's publication arrow is separate from that
 
 ## Offline review
 
 - Requirement: Reviewers can inspect the design without uploading project details or fetching browser assets.
-- Design response: The review command and server read bounded local source files and embed validated graph data with bundled browser assets, without uploading the design. Agent-side reads of GitHub-bound maps still require network access.
-- Applies to: review-runtime, viewer, design-source
+- Design response: The review command and server read the map and embed validated graph data with bundled browser assets, without uploading the design. Reading and answering a GitHub map still needs network access.
+- Applies to: 007, 008, 009
 
 ## GitHub
 
 *Hosts a published copy of the Markdown companion when the developer chooses to share it.*
 
-- Identity: `github`
+- Node: `010`
 - Kind: external-system
+- State: awaiting approval
 - Channels: web
-- Source: [github.yaml](github.yaml)
 
-Authored design files define the design in the local checkout; GitHub hosts a published copy only if the developer chooses to share it.
+Map nodes define the design; GitHub hosts a published copy of the Markdown companion only if the developer chooses to share it.
 
-- Local files drive the review
-    - The Review command and server read the local YAML and supporting Markdown to generate the browser view and Markdown companion
-    - Revise these source files when the design changes
-    - Local browser review and saved comments work without publishing design files to GitHub
+- The map drives the review
+    - The Review command and server read the element nodes through the map's tracker to generate the browser view and Markdown companion
+    - Revise element nodes when the design changes
+    - Answers and approval from the browser resolve map nodes through the same tracker
 - GitHub hosts a published copy
     - The Project developer can commit and push the generated companion for others to read on GitHub
-    - The developer can publish the companion alone or include the authored source files
-    - GitHub does not replace the local files read by the review server or automatically receive its saved comments
-    - This diagram's publication arrow is separate from using GitHub issues as a map tracker
-- Git ignore rules control tracking, not publication
-    - Ignore rules exclude matching untracked files from ordinary staging
-    - Removing an ignore rule does not stage, commit, or push anything
-    - Already tracked files remain tracked even if an ignore rule later matches them
-    - New project designs in the project folder stay outside the repository by default; this public example is tracked separately
+    - On the GitHub tracker the map itself lives in issues; this diagram's publication arrow is separate from that

@@ -1,78 +1,78 @@
 import { execFileSync } from 'node:child_process';
-import { realpathSync } from 'node:fs';
-import { isAbsolute, relative, resolve, win32 } from 'node:path';
-import { z } from 'zod';
-import type { DesignDoc } from './design-doc.js';
-import { deriveDepths, isSettled, loadNodes, mapDir, rootCountError, type GraphNode } from './nodes.js';
+import { existsSync } from 'node:fs';
+import { projectFile } from './constants.js';
+import { digest, targetingNodes, type DesignDoc } from './design-doc.js';
+import { unchosenMocks } from './design-mocks.js';
 import { nodesFromIssues } from './github-issues.js';
-import { createHash } from 'node:crypto';
-import { checkoutRoot } from './project.js';
+import { loadNodes, mapDir, updateNode, type GraphNode } from './nodes.js';
+import { getProjectKey } from './project-config.js';
 
-export const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
-const ContributionSchema = z.object({
-  id: z.string().min(1), designId: z.string().min(1),
-  targets: z.array(z.string().min(1)), statement: z.string().trim().min(1).max(16000),
-}).strict();
+/** One reviewer-facing difference since approval; `before` and `after` are set for short text fields. */
+export type ElementChange = { label: string; before?: string; after?: string };
+/**
+ * One thing holding approval, as the viewer lists it. `targetId` is the element
+ * the reviewer opens to settle it; `nodeId` is the map node to settle.
+ */
+export type ApprovalBlocker = { kind: 'question' | 'changed'; targetId: string; label: string; nodeId: string; changes?: ElementChange[] }
+  // A loose element whose mock has several variants: locking it chooses the one on screen.
+  | { kind: 'variant'; targetId: string; label: string; nodeId: string; mock: string };
 
-export function designMapInputs(root: string, doc: DesignDoc, entry: string) {
-  let nodes: GraphNode[] = [];
-  if (doc.planning) {
-    const { tracker, map } = doc.planning;
-    if (tracker === 'files') {
-      const base = realpathSync(mapDir(root, '.'));
-      const path = realpathSync(mapDir(root, map));
-      const rel = relative(base, path);
-      if (!rel || isAbsolute(rel) || rel.split(/[\\/]/).includes('..')) throw new Error('Invalid bound map path');
-      nodes = loadNodes(root, map);
-    } else {
-      const raw = execFileSync('gh', ['issue', 'list', '--state', 'all', '--limit', '1000', '--json', 'number,title,body,state,stateReason,labels,url'], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
-      try {
-        const issues: unknown = JSON.parse(raw);
-        if (Array.isArray(issues) && issues.length >= 1000) throw new Error('GitHub issue list may be truncated at the 1000-issue limit; map completeness cannot be verified');
-        nodes = nodesFromIssues(raw, map);
-      } catch (error) { throw new Error(`Invalid GitHub map response: ${error instanceof Error ? error.message : String(error)}`); }
-    }
-    if (!nodes.length) throw new Error(`Bound map unavailable: ${map}`);
-    deriveDepths(nodes);
-    const roots = nodes.filter(node => !node.answers);
-    if (roots.length !== 1) throw new Error(rootCountError(roots.length));
-    const references = [...(roots[0].body ?? '').matchAll(/^Design entry:[ \t]*(.*)\r?$/gm)];
-    if (references.length !== 1) throw new Error('Bound map root needs exactly one Design entry reference');
-    const reference = references[0][1].trim();
-    if (!reference || isAbsolute(reference) || win32.isAbsolute(reference)) throw new Error('Invalid bound map Design entry path');
-    // The entry may live in the project folder or in the current checkout; resolve against each.
-    const bases = [root, checkoutRoot()].filter((base): base is string => base !== null).map(base => realpathSync(base));
-    const within = bases.some(base => {
-      let target: string;
-      try { target = realpathSync(resolve(base, reference)); } catch { return false; }
-      const rel = relative(base, target);
-      return Boolean(rel) && !isAbsolute(rel) && !rel.split(/[\\/]/).includes('..') && target === realpathSync(entry);
-    });
-    if (!within) throw new Error('Bound map Design entry does not match the authored entry');
+const gh = (args: string[], input?: string): string => execFileSync('gh', args, { encoding: 'utf8', input, maxBuffer: 16 * 1024 * 1024 });
+const onGithub = (root: string): boolean => {
+  const tracked = getProjectKey(projectFile(root), 'workflow.maps.tracker');
+  return tracked.status === 'set' && tracked.value === 'github';
+};
+
+/** The map's nodes from whichever tracker the project uses. */
+export function readMapNodes(root: string, map: string): GraphNode[] {
+  if (!onGithub(root)) {
+    if (!existsSync(mapDir(root, map))) throw new Error(`Map '${map}' does not exist - there is no ${mapDir(root, map)} directory.`);
+    return loadNodes(root, map);
   }
-  const byId = new Map(nodes.map(node => [node.id, node]));
-  const targets = new Set([doc.id, ...doc.items.map(item => item.id), ...doc.items.flatMap(item => item.relationships.map(edge => edge.id)), ...doc.concerns.map(concern => concern.id)]);
-  const contributions: Array<z.infer<typeof ContributionSchema> & { key: string; nodeId: string; provenance: string[] }> = [];
-  for (const node of nodes) {
-    const sections = [...(node.body ?? '').matchAll(/^## Design contributions\s*\r?\n([\s\S]*?)(?=^#{1,2} |$(?![\s\S]))/gm)];
-    const ids = new Set<string>();
-    for (const section of sections) {
-      const block = /^\s*```json\s*\r?\n([\s\S]*?)\r?\n```\s*$/.exec(section[1]);
-      if (!block) throw new Error(`Node ${node.id}: malformed Design contributions`);
-      let values: z.infer<typeof ContributionSchema>[];
-      try { values = z.array(ContributionSchema).parse(JSON.parse(block[1]) as unknown); }
-      catch (error) { throw new Error(`Node ${node.id}: invalid Design contributions: ${error instanceof Error ? error.message : String(error)}`); }
-      for (const value of values) {
-        if (ids.has(value.id)) throw new Error(`Node ${node.id}: duplicate contribution ${value.id}`);
-        ids.add(value.id);
-        if (value.designId !== doc.id) continue;
-        for (const target of value.targets) if (!targets.has(target)) throw new Error(`Unknown design target: ${target}`);
-        const provenance: string[] = [];
-        for (let parent = node.answers; parent; parent = byId.get(parent)?.answers) provenance.push(parent);
-        contributions.push({ ...value, key: `${node.id}/${value.id}`, nodeId: node.id, provenance });
-      }
-    }
+  const raw = gh(['issue', 'list', '--label', `map:${map}`, '--state', 'all', '--limit', '1000', '--json', 'number,title,body,state,stateReason,labels,url']);
+  try {
+    const issues: unknown = JSON.parse(raw);
+    if (Array.isArray(issues) && issues.length >= 1000) throw new Error('GitHub issue list may be truncated at the 1000-issue limit; map completeness cannot be verified');
+    return nodesFromIssues(raw, map);
+  } catch (error) { throw new Error(`Invalid GitHub map response: ${error instanceof Error ? error.message : String(error)}`); }
+}
+
+/**
+ * Resolve a node through its tracker, appending `## Answer` when one is given.
+ * On GitHub a retry after a failed close skips the edit, since the answer is already in the body.
+ */
+export function resolveMapNode(root: string, map: string, id: string, answer?: string, changed?: string): void {
+  // A changed answer appends a dated section, so the node keeps every answer the reviewer gave.
+  const section = answer === undefined ? undefined : `## Answer${changed ? ` (changed ${changed})` : ''}\n\n${answer}`;
+  if (!onGithub(root)) {
+    updateNode(root, map, id, { status: 'resolved', ...(section && { appendBody: section }) });
+    return;
   }
-  contributions.sort((a, b) => a.key.localeCompare(b.key));
-  return { contributions, mapInputsDigest: digest({ planning: doc.planning, contributions }), blockingQuestions: nodes.filter(node => node.kind === 'decision' && !isSettled(node.status)).map(node => ({ id: node.id, title: node.title })) };
+  if (section) {
+    const { body } = JSON.parse(gh(['issue', 'view', id, '--json', 'body'])) as { body: string };
+    // Only a retry repeats the last section; an earlier match is a changed answer that must still append.
+    if (!body.trimEnd().endsWith(section.trimEnd())) gh(['issue', 'edit', id, '--body-file', '-'], `${body.trimEnd()}\n\n${section}\n`);
+  }
+  if (!changed) gh(['issue', 'close', id, '--reason', 'completed']);
+}
+
+/** What approval covers from the map beyond the design's own text: every node targeting an element. Lock state is not an input; approval itself locks. */
+export function designMapInputs(nodes: readonly GraphNode[], doc: DesignDoc) {
+  const targeting = targetingNodes(nodes);
+  const open = new Set(targeting.map(node => node.id));
+  return {
+    mapInputsDigest: digest(targeting.map(node => [node.id, node.status, node.title, node.body ?? ''])),
+    blockers: [
+      ...targeting.map((node): ApprovalBlocker => ({ kind: 'question', targetId: node.answers as string, label: node.title, nodeId: node.id })),
+      ...unchosenVariants(doc),
+    ],
+    openQuestions: doc.questions.filter(question => open.has(question.id)).map(question => question.id),
+    locked: doc.items.filter(item => item.locked).map(item => item.id),
+  };
+}
+
+/** Each multi-variant mock on a loose element; approval waits until the reviewer locks the element on a chosen variant. */
+export function unchosenVariants(doc: DesignDoc): ApprovalBlocker[] {
+  return doc.items.flatMap(item => item.locked ? [] : unchosenMocks(item)
+    .map((mock): ApprovalBlocker => ({ kind: 'variant', targetId: item.id, label: `${item.name}: choose a variant of ${mock.title}`, nodeId: item.id, mock: mock.path })));
 }

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": ["element", "path", "selections", "comment"],
+    "additionalProperties": false,
+    "properties": {
+      "element": { "type": "string" },
+      "path": { "type": "string" },
+      "selections": { "type": "integer", "minimum": 0, "maximum": 20 },
+      "comment": { "type": "string", "minLength": 1 }
+    }
+  }
+}

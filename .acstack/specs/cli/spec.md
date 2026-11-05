@@ -9,9 +9,9 @@ This spec covers the bundled `acstack` command-line interface.
 ### FR-001: Retire generated map review commands without aliases
 
 - **Given**: A user reads the CLI help
-- **Then**: The CLI offers authored `design-doc` and `design-review` commands instead of `map` and `align-viewer`
+- **Then**: The CLI offers `design-doc` and `design-review` commands instead of `map` and `align-viewer`
 - **When**: A user invokes either retired command
-- **Then**: ACStack rejects it with the authored review and explicit migration replacements
+- **Then**: ACStack rejects it and names `design-doc` as the replacement
 - **Then**: ACStack never dispatches an external executable under either reserved name
 - **Source**: `cli/src/index.ts`, `cli/src/commands/design-doc.ts`
 
@@ -38,42 +38,27 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: A drawer shows the selected item's business definition, its collapsed technical definition, its links, and its source
 - **Then**: A reviewer can comment on a box, a link, or highlighted text, and the viewer keeps the comments in browser storage per pack version
 - **Given**: A reviewer opens a legacy alignment pack directly
-- **Then**: The viewer cannot submit legacy approval and points to explicit migration and authored design review
+- **Then**: The viewer cannot submit legacy approval
 - **Source**: `cli/src/lib/alignment-pack-renderer.ts`, `cli/src/viewer/`, `cli/scripts/build-viewer.mjs`, `.acstack/decisions/0018-alignment-packs-use-local-viewers.md`
-
-### FR-004: Explicitly migrate legacy feedback into an authored design
-
-- **Given**: A user has an authored design, a legacy pack directory, and explicit target mappings
-- **When**: The user runs `design-review migrate <entry> --legacy-dir <directory> --mapping <json-file>`
-- **Then**: ACStack validates embedded pack JSON without evaluating HTML scripts
-- **Then**: ACStack imports persisted annotations and an optional `--feedback <json-file>` export
-- **Then**: Every imported comment targets an existing authored element through an explicit, type-correct mapping
-- **Then**: ACStack rejects conflicting pack versions, foreign annotations, missing mappings, malformed inputs, symlinks, and size-limit violations before publication
-- **Then**: Input errors identify the affected artifact
-- **Source**: `cli/src/commands/design-doc.ts`, `cli/src/lib/design-migration.ts`
-
-### FR-005: Preserve original feedback while appending mapped comments
-
-- **Given**: A valid legacy import contains comments, pack review state, and decision records
-- **When**: ACStack imports that history
-- **Then**: ACStack appends mapped comments without replacing current comments
-- **Then**: Canonical `review.json` retains the original packs, annotation metadata, mappings, source fingerprints, and exact decision-log content
-- **Then**: Original legacy artifacts and decision logs remain unchanged
-- **Then**: Repeating the same import, including after moving the checkout, does not duplicate comments or receipts
-- **Then**: Historical approval remains evidence and never approves the authored design
-- **Then**: Imported comments invalidate current approval
-- **Source**: `cli/src/lib/design-migration.ts`, `cli/src/lib/design-review.ts`
 
 ### FR-006: Retain review evidence independently of temporary map nodes
 
 - **Given**: Archive runs for a cleared map
-- **Then**: Removing temporary nodes never authorizes deletion of authored designs, canonical review history, imported feedback, or decision logs
+- **Then**: Removing temporary nodes never authorizes deletion of canonical review history or decision logs
 - **Given**: Legacy pack state exists
 - **When**: An archive helper runs after residue extraction
-- **Then**: The helper retains the legacy source for explicit migration
+- **Then**: The helper retains the legacy source
 - **Source**: `cli/src/lib/alignment-pack-lifecycle.ts`, `skills/archive/SKILL.md`
 
 ## Map nodes
+
+### FR-031: Mark design elements with their own node kind
+
+- **Given**: A node carries `kind: element` on either tracker
+- **Then**: `acstack node kinds` lists `element`, and the diagram draws it as a parallelogram
+- **Then**: `node frontier` never returns an element node, in either mode
+- **Then**: An open element is loose and a resolved one is locked
+- **Source**: `cli/src/lib/nodes.ts`, `cli/src/lib/diagram.ts`, `.acstack/decisions/0022-design-elements-are-a-sixth-node-kind.md`
 
 ### FR-007: Carry a business summary on a node
 
@@ -100,14 +85,20 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: Unrelated config writes do not insert or remove either key
 - **Source**: `cli/src/lib/project-config.ts`
 
-## Authored design documents
+## Design docs
 
-### FR-009: Serve an authored design with optional Markdown export
+### FR-009: Serve a map's design doc with optional Markdown export
 
-- **Description**: The CLI serves a live design review and optionally exports Markdown from the same validated source
-- **Given**: A YAML entry references one YAML file per architecture element and optional supporting Markdown
-- **When**: A user runs `acstack design-doc <entry> --markdown <new.md>`
-- **Then**: ACStack validates the complete source before serving the design or writing Markdown
+- **Description**: The CLI builds a design doc from a map's element nodes, serves a live review, and optionally exports Markdown from the same nodes
+- **Given**: A map has `element` nodes, each with a collapsed `Design element` YAML block
+- **When**: A user runs `acstack design-doc <map> --markdown <new.md>`
+- **Then**: ACStack reads the map through `workflow.maps.tracker`, files or GitHub, and validates it before serving or writing Markdown
+- **Then**: `--check` validates and prints warnings without serving
+- **When**: The map, an element folder, or a fixture changes while the review runs, or `design-review refresh <map>` is called
+- **Then**: The server rebuilds the page and pushes it over a token-gated event stream; the viewer keeps selection, drawer state, viewport, drafts, and open modals
+- **Then**: Mock frames reload through `snapshot-request`, waiting at most 300 ms, then `init.restore` with scroll, selections, and app state for the same path
+- **Then**: A contradiction keeps the last good page and shows the error
+- **Then**: Comments on an earlier revision stay listed read-only in Comments, tagged "On an earlier version, before <element> changed"; the new review records them, so they stay approval obligations and appear in the handoff prompt across restarts
 - **Then**: The browser uses the shared viewer and the Markdown names the same elements, relationships, and concerns
 - **Then**: Each Mermaid container has one identity shared by its subgraph and relationship endpoints
 - **Then**: Markdown creation refuses existing files, including symlinks
@@ -116,21 +107,22 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: `--orientation` accepts `top-to-bottom` or `left-to-right`, defaulting to `top-to-bottom`
 - **Then**: The browser and Mermaid follow the selected orientation without changing source identity, comment scope, or approval
 - **Then**: The CLI rejects invalid orientations before creating review or Markdown files
-- **Source**: `cli/src/commands/design-doc.ts`, `cli/src/lib/design-doc.ts`, `cli/src/lib/alignment-pack-renderer.ts`
+- **Source**: `cli/src/commands/design-doc.ts`, `cli/src/lib/design-doc.ts`, `cli/src/lib/design-map.ts`, `cli/src/lib/alignment-pack-renderer.ts`
 
-### FR-010: Validate architecture identities and mirrored relationships
+### FR-010: Fail on design contradictions and warn on oddities
 
-- **Description**: Design validation rejects inconsistent architecture records and references outside the entry directory
-- **Given**: An authored design declares elements, containment, relationships, and cross-element concerns
-- **When**: ACStack loads the design
+- **Description**: Building a design doc rejects inconsistent element nodes and warns about suspicious ones
+- **Given**: A map's element nodes declare kind, containment, channels, and connections; its root may declare concerns in a `Design doc` block
+- **When**: ACStack builds the design doc
 - **Then**: Element kinds are `actor`, `component`, `store`, or `external-system`
 - **Then**: Optional channels are `web`, `mobile`, `desktop`, `cli`, `agent`, `email`, `sms`, or `voice`
-- **Then**: Relationship declarations match at both endpoints, including identity, direction, and label
-- **Then**: ACStack rejects relationships between an ancestor and any descendant, in either direction, and asks the author to use nesting
-- **Then**: Concerns name affected elements and explain their requirement and design response
-- **Then**: ACStack rejects duplicate identities, missing references, containment cycles, and escaped paths, including resolved symlink escapes with Windows or POSIX separators
-- **Then**: ACStack limits each file to 256 KiB, the document to 4 MiB, elements to 200, concerns to 100, and relationships per element to 200
-- **Source**: `cli/src/lib/design-doc.ts`, `cli/src/lib/alignment-packs.ts`
+- **Then**: Each connection is declared once, on its source element, and takes the id `<from>-<to>`
+- **Then**: ACStack fails on a missing or malformed config block, a config block on another kind, an unknown, out-of-scope, or self connection, a duplicate connection, a containment cycle, an ancestor-descendant connection, and an unknown concern element
+- **Then**: ACStack fails on an element with no connection or parent unless it is the only element
+- **Then**: ACStack warns on a fog element, a locked element inside a loose one, and an open question on a locked element
+- **Then**: `--check` fails while any element's config matches no digest the user approved
+- **Then**: Out-of-scope elements leave the design doc; the map holds at most 200 elements and 100 concerns
+- **Source**: `cli/src/lib/design-doc.ts`, `cli/src/lib/design-lifecycle.ts`, `cli/src/lib/alignment-packs.ts`
 
 ### FR-011: Review architecture separately from document context
 
@@ -285,6 +277,7 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: Earlier feedback remains associated with its original version
 - **Then**: Stale revisions cannot overwrite a newer saved snapshot
 - **Then**: The server binds to loopback and requires its page token for feedback access
+- **Then**: Writes also require an `Origin` equal to the review page's own; a missing, `null`, or foreign `Origin` is rejected
 - **Then**: Invalid hosts, oversized bodies, malformed comments, unknown targets, and mismatched versions cannot mutate feedback
 - **Source**: `cli/src/lib/review-server.ts`, `cli/src/lib/design-review.ts`, `cli/src/commands/design-doc.ts`, `cli/src/viewer/main.tsx`
 
@@ -293,8 +286,8 @@ This spec covers the bundled `acstack` command-line interface.
 - **Given**: A reviewer opens a live design review
 - **When**: The reviewer chooses Send to agent
 - **Then**: The viewer waits for pending comments to save before copying the feedback prompt
-- **Then**: The prompt identifies the exact `review.json` and authored design entry paths on the agent's device
-- **Then**: The prompt requests source revisions and explanations of unresolved decisions without a prompt-injection warning
+- **Then**: The prompt identifies the exact `review.json` path and the map on the agent's device
+- **Then**: The prompt asks the agent to revise element nodes, reconcile comments, and never lock an element, without a prompt-injection warning
 - **When**: Saving fails or the saved revision conflicts
 - **Then**: The viewer preserves local comments and reports the error without copying a success prompt
 - **When**: Clipboard access is unavailable or denied
@@ -414,33 +407,119 @@ This spec covers the bundled `acstack` command-line interface.
 - **Then**: Route clearance, label placement, and expand/collapse anchor checks still apply
 - **Source**: `cli/src/viewer/alignment-graph.ts`, `cli/src/viewer/compact-layout.test.ts`, `cli/src/viewer/crossing-layout.test.ts`
 
-### FR-026: Trace authored design contributions to map nodes
+### FR-026: Answer and lock through the map's tracker
 
-- **Given**: An authored design names a files or GitHub map
-- **When**: `design-review status` gathers its structured contributions
-- **Then**: Each contribution identifies its node, design elements, statement, and answer-chain provenance
-- **Then**: The map root has exactly one repository-relative design reference resolving to the bound entry
-- **Then**: Missing, mismatched, ambiguous, or unsafe root references fail before review storage opens
-- **Then**: Status reports the validated planning binding so consumers can compare it with the active map
-- **Then**: Invalid references, duplicate contribution identities, malformed proposals, and unavailable maps fail explicitly
-- **Then**: Unresolved design decisions block approval; unfinished implementation work does not
-- **Then**: Claims and implementation status changes leave the contribution digest unchanged
-- **Source**: `cli/src/lib/design-map.ts`, `cli/src/lib/github-issues.ts`, `cli/src/commands/design-lifecycle-workflow.test.ts`
+- **Given**: A hitl node targets an element, meaning its `answers` parent is an element node
+- **When**: The reviewer saves an answer in the viewer
+- **Then**: The server checks the exact revision tuple and that the question is still open, then appends `## Answer` and resolves the node through its tracker
+- **Then**: On GitHub the server edits the issue body and closes it with `gh`; a retry after a failed close does not append the answer twice
+- **When**: The reviewer re-approves an element changed since approval, from its drawer or the blocker modal
+- **Then**: The server records a fresh config digest and any capture the page supplies; the viewer shows no per-element Lock, Loose, or Locked state otherwise
+- **When**: The reviewer changes an answer
+- **Then**: The server appends a dated `## Answer (changed YYYY-MM-DD)` section; on GitHub it edits the closed issue's body without reopening it
+- **Then**: Answers and locks stay behind the review server's token and host checks
+- **Then**: Questions answering the root, and research (afk) or fog nodes, stay off the page
+- **Source**: `cli/src/lib/design-map.ts`, `cli/src/lib/design-lifecycle.ts`, `cli/src/viewer/design-approval.tsx`, `cli/src/commands/design-lifecycle-workflow.test.ts`
 
 ### FR-027: Reconcile feedback before exact-input approval
 
-- **Given**: A design has posted comments or map contributions
-- **When**: The agent submits `design-review reconcile` decisions
-- **Then**: Every comment and contribution receives one explicit disposition with a rationale
+- **Given**: A design has posted comments
+- **When**: The agent submits `design-review reconcile <map>` decisions
+- **Then**: Every comment receives one explicit disposition with a rationale
 - **Then**: Historical feedback remains unchanged; reconciliation and approval records reside in the current canonical `review.json`
-- **Then**: Previously selected histories and unresolved historical reconciliations remain obligations across later source revisions
-- **Then**: Only a fresh reconciliation in the current source version can settle those obligations
+- **Then**: Previously selected histories and unresolved historical reconciliations remain obligations across later revisions
+- **Then**: Only a fresh reconciliation in the current version can settle those obligations
 - **Then**: History discovery fails closed on invalid canonical evidence or its 1,024-entry and 16 MiB aggregate limits
-- **Then**: Approval binds the exact authored file bytes and paths, selected feedback histories, comment revision and digest, and contribution digest
+- **Then**: Approval binds the element nodes' content, selected feedback histories, comment revision, and the digest of open nodes targeting elements
+- **Then**: Lock state is not an approval input, so locking never invalidates approval
 - **Then**: Changes to those inputs invalidate effective approval; regenerating presentation leaves it unchanged
-- **Then**: Stale requests and unresolved human decisions cannot approve the revision
+- **Then**: Any unsettled node targeting an element, in any mode and including fog, blocks approval; other open nodes do not
+- **Then**: Approval locks every loose element through the tracker, recording what the page captured for each
+- **Then**: A re-run after an approval that failed midway records the already-resolved elements without resolving them again
+- **Given**: An agent edits a locked element's config
+- **Then**: The element is unapproved: shown loose, listed as a `changed` blocker with Re-approve, and its tracker node stays resolved
+- **Then**: Re-approving in the viewer, or `design-review approve-element <map> <id>` on the user's instruction, records a fresh digest
+- **When**: The developer tries to approve while blockers remain
+- **Then**: The viewer lists every blocker as `{kind, targetId, label, nodeId}`, and each item opens its element's drawer and, for an answerable question, focuses that question
 - **When**: The developer chooses approval in the header or document details
 - **Then**: Both controls open one shared confirmation modal without approving until confirmation
 - **Then**: Both controls use the same saved-comment and exact-input checks and show `Approved` after success
 - **Then**: A temporary approval-request failure permits retry with a fresh input check without reloading or changing comments
 - **Source**: `cli/src/lib/design-doc.ts`, `cli/src/lib/design-lifecycle.ts`, `cli/src/lib/design-review.ts`, `cli/src/viewer/design-approval.tsx`, `cli/src/commands/design-lifecycle-workflow.test.ts`, `cli/src/viewer/__tests__/drawer-lifecycle.test.ts`
+
+### FR-028: Answer questions beside the elements they target
+
+- **Given**: An open hitl node targets an element, optionally with a `Design question` block of choices, `multiple`, and quoted highlights
+- **When**: The developer opens Questions
+- **Then**: Collapsed rows expose the node's title, body, and target details without adding inline question cards to the diagram
+- **Then**: Questions without choices accept text; choices default to single selection, and `multiple: true` permits multiple selections
+- **Then**: Choice inputs include an automatic Other write-in; reserved, duplicate, or unknown choices fail validation
+- **Then**: A saved answer resolves the node; the question moves under Answered with the latest answer and a Change answer action
+- **Then**: The Questions tab counts open and answered questions
+- **Then**: Stale saves preserve local drafts
+- **Then**: Unanswered counts project through folded nodes and merged relationships using the diagram's visible-target mapping
+- **Then**: Questions support whole-design and target scopes; comments distinguish All targets from Document overview
+- **Then**: Scope changes, drawer tabs, and collapsed rails preserve drafts
+- **Then**: Answered cards show a soft green background and border, with a check by the title
+- **Then**: A Questions, Comments, or Mocks filter still on the selection's scope follows the selection, also into the container a collapse folds it into; that container's scope covers everything it hides, and a filter the reviewer picked stays
+- **Then**: Save answer stays enabled while a hot reload refreshes status, and the answer goes against the refreshed revision
+- **Source**: `cli/src/lib/alignment-packs.ts`, `cli/src/lib/design-doc.ts`, `cli/src/lib/design-review.ts`, `cli/src/lib/design-lifecycle.ts`, `cli/src/viewer/design-questions.tsx`, `cli/src/viewer/question-targets.ts`, `cli/src/viewer/drawer.tsx`
+
+### FR-029: Inspect rich design detail and linked questions
+
+- **Given**: An element node carries Markdown detail in its body
+- **When**: Details or the shared inspection modal renders it
+- **Then**: Tables and nested disclosures render through sanitized Markdown
+- **Then**: Mermaid renders offline in an opaque-origin sandbox with a restrictive content security policy, after its frame becomes visible
+- **Then**: Successful diagrams hide source; rendering failures expose safe source diagnostics
+- **Then**: Details and question links open the same modal, retaining drawer drafts, selection, disclosure state, and focus on close
+- **Given**: A question quotes passages from its target element's prose
+- **When**: The loader finds each passage exactly once and converts it to positions, and the viewer renders the detail
+- **Then**: Positions use one-based lines and UTF-16 columns with an exclusive end; invalid, reversed, or split-surrogate ranges fail
+- **Then**: Prose and table text receive semantic highlights without highlighting Mermaid source or reviving unsafe HTML
+- **Then**: Inspection opens containing disclosures and scrolls to the selected question's first rendered highlight
+- **Then**: Unanswered passages reserve a nonoverlapping gutter with hover, focus, and touch controls; shared passages use the existing styled dropdown
+- **Then**: A passage link scopes Questions to its exact target, expands and focuses the requested row, scrolls it into view, and briefly emphasizes it
+- **Then**: Reduced-motion preferences disable smooth scrolling and replace fading emphasis with temporary static emphasis
+- **Source**: `cli/src/lib/design-highlight.ts`, `cli/src/viewer/sidebar-markdown.tsx`, `cli/src/viewer/markdown-highlights.ts`, `cli/src/viewer/mermaid-frame.ts`, `cli/src/viewer/question-reference.tsx`, `cli/src/viewer/drawer.tsx`, `cli/src/viewer/design-questions.tsx`
+
+### FR-030: Open an element's mocks in a sandboxed modal
+
+- **Given**: A selected design element has mocks
+- **When**: The reviewer opens the drawer's Mocks tab and picks one
+- **Then**: A near full-screen modal opens with a one-line header, one toolbar (mock switcher, an Illustrative tag, a variant segmented control, a Tweaks popover, and Pick elements, each only when it applies), a stage that fills the remaining space, and a comment rail with one composer; it traps focus, closes on Escape, and labels its controls
+- **Then**: Mermaid frames size themselves to the rendered diagram, so no mock is cut off at a fixed height
+- **Then**: Inline HTML loads in a `sandbox="allow-scripts"` `srcdoc` frame whose content security policy comes first in its head and allows only HTTPS connections
+- **Then**: OpenDesigner builds are self-contained HTML in the same srcdoc frame; ACStack adds its bridge only when the build carries none
+- **Then**: An OpenDesigner mock switches between its variants and draws its tweaks as ACStack controls, sending OpenDesigner-computed `tweaks` payloads without reloading the frame
+- **Then**: Markdown and Mermaid use the existing sanitized renderer; JSON and CSV fixtures render as text-only tables
+- **Then**: The viewer talks to frames only through a vendored copy of OpenDesigner's bridge, which enforces the protocol's trust checks, load tracking, and rate limit
+- **Then**: Frame-supplied fields render as text only
+- **When**: The reviewer comments on a mock, optionally after picking one or more elements in it
+- **Then**: The comment targets the element and stores the mock path, the variant, the current tweak values, and each picked element's selector, bounding box, text, and component with its props and fixture
+- **Then**: The frame receives numbered marks only, never comment text; clicking a comment reveals its element or flags it as unanchored
+- **When**: The reviewer locks the element or approves the design
+- **Then**: The lock records, for each OpenDesigner mock the reviewer viewed, the variant shown, its tweak values, and every state that variant offers
+- **When**: A link names an element's mock and variant
+- **Then**: The Mocks modal opens directly on that mock and variant
+- **Source**: `cli/src/viewer/mocks.ts`, `cli/src/viewer/mocks-modal.tsx`, `cli/src/viewer/mock-frame.tsx`, `cli/src/viewer/od-bridge/`, `cli/src/lib/alignment-packs.ts`
+
+### FR-032: Attach checked mocks to design elements
+
+- **Given**: An element node's `Design element` block lists `mocks:` entries, each naming one of `od`, `html`, `markdown`, `mermaid`, or `fixture`
+- **When**: The design doc loads
+- **Then**: File paths resolve inside `<project folder>/maps/<map>/elements/<element-id>/`; absolute paths, `..` segments, missing files, and symlinks out of the folder fail the build
+- **Then**: JSON and CSV fixtures over 20 KB, or not matching their optional JSON Schema, fail the build
+- **Then**: A lock's digest covers each binding mock's file contents (a fixture with its schema) and, for `od`, the OpenDesigner page entry and variant source files, so editing one unapproves a locked element; illustrative mocks and built output stay out
+- **Then**: An `od` entry must name an OpenDesigner design and page that exist in the checkout's `.open-designer/`
+- **Then**: The build warns on a loose element's mock with fewer than two variants, a locked element with only illustrative mocks, inline HTML while OpenDesigner is installed, and a mock file over 5 MB
+- **Then**: The page carries only mock summaries; content loads when the modal opens, from a token-gated `GET /api/mocks` that builds `od` mocks with `open-designer build`
+- **Then**: OpenDesigner mocks return their variants, tweak definitions, and design-system token map, so `add` and `scale` tweaks compute against real token values
+- **Then**: Each summary carries a revision digest of the mock's sources; a running review watches referenced OpenDesigner design folders, and the viewer refetches a mock when its revision changes, keeping the old content on screen until the new one arrives
+- **When**: A loose element has a mock with several variants
+- **Then**: Approval lists a `variant` blocker whose link opens that mock in the element's Mocks view
+- **Then**: Locking the element is refused unless its capture names one of that mock's variants
+- **When**: An agent runs `design-review approve-element <map> <id>` on the user's instruction
+- **Then**: Each multi-variant mock needs `--variant <mock path>=<variant id>`; the error names the mocks and their variants, and the capture keeps the variant's tweak defaults and every state
+- **Source**: `cli/src/lib/design-mocks.ts`, `cli/src/lib/design-doc.ts`, `cli/src/lib/design-map.ts`, `cli/src/lib/design-lifecycle.ts`, `cli/src/lib/review-server.ts`, `cli/src/commands/design-doc.ts`, `cli/src/viewer/mocks-modal.tsx`
+

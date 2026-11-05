@@ -106,6 +106,8 @@ the dependencies API nor a GraphQL parent query.
 
 **update**
 
+After any write while a design doc review is open, run `~/.claude/acstack/bin/acstack design-review refresh <map>` so the open page rebuilds. The server never polls GitHub.
+
 - Fields: `gh issue edit <n> --add-label / --remove-label / --title / --body`
 - Claim: `gh issue edit <n> --add-label claimed`. Release removes it.
 - Resolve: append the answer to the body. Then run `gh issue close <n> --reason completed`
@@ -142,7 +144,7 @@ REST call for the blockers, per issue, on every round.
 
 - **Frontier**: from `list`, keep open issues without `fog` or `claimed`
   labels. Drop any whose header `blocked-by` names an open issue, and drop
-  the issue labelled `root-node`.
+  the issue labelled `root-node` and every issue labelled `kind:element`.
   Order by provenance depth (follow header `answers` up to the root), issue
   number as the final tiebreak.
 

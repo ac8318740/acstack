@@ -1,26 +1,32 @@
 import { z } from 'zod';
 
+// What the page lists; the content loads from the review server when the modal opens.
+export const MockSummarySchema = z.object({
+  kind: z.enum(['html', 'od-build', 'markdown', 'fixture']), path: z.string().min(1), title: z.string().min(1),
+  illustrative: z.boolean().optional(), variants: z.array(z.string().min(1)).optional(),
+  // A digest of the mock's sources; the viewer refetches content when it changes.
+  revision: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+}).strict();
+export type MockSummary = z.infer<typeof MockSummarySchema>;
+
 const sourcePoint = z.object({ line: z.number().int().min(1).max(262145), column: z.number().int().min(1).max(262145) }).strict();
 export const DesignHighlightSchema = z.object({
-  element: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/), start: sourcePoint, end: sourcePoint,
+  element: z.string().min(1).max(80), start: sourcePoint, end: sourcePoint,
 }).strict().refine(({ start, end }) => end.line > start.line || (end.line === start.line && end.column > start.column), 'Highlight end must follow start');
 export type DesignHighlight = z.infer<typeof DesignHighlightSchema>;
 
-const questionText = z.string().trim().min(1).max(16000);
-export const DesignQuestionSchema = z.object({
-  id: z.string().regex(/^[a-zA-Z][a-zA-Z0-9_-]{0,79}$/),
+// A hitl map node that targets a design element, as the built page shows it. Authored in the map, never here.
+export const MapQuestionSchema = z.object({
+  id: z.string().min(1),
   target: z.object({ type: z.enum(['node', 'edge']), id: z.string().min(1).max(80) }).strict(),
-  question: questionText, proposal: questionText, recommendation: questionText,
+  question: z.string().trim().min(1).max(16000), detail: z.string().optional(),
+  // Set once the reviewer answered: the latest answer, as Markdown.
+  answer: z.string().max(16000).optional(),
   choices: z.array(z.string().trim().min(1).max(500)).min(2).max(12).optional(),
   multiple: z.boolean().optional(),
   highlights: z.array(DesignHighlightSchema).min(1).max(20).optional(),
-}).strict().superRefine((question, context) => {
-  if (question.multiple && !question.choices) context.addIssue({ code: 'custom', message: 'Multiple selection requires choices' });
-  if (question.choices && (new Set(question.choices).size !== question.choices.length || question.choices.some(choice => choice.toLowerCase() === 'other'))) {
-    context.addIssue({ code: 'custom', message: 'Choices must be unique; Other is provided automatically' });
-  }
-});
-export type DesignQuestion = z.infer<typeof DesignQuestionSchema>;
+}).strict();
+export type MapQuestion = z.infer<typeof MapQuestionSchema>;
 
 const SourceReferenceSchema = z
   .object({
@@ -50,6 +56,9 @@ const AlignmentNodeSchema = z
     technicalLabel: z.string().min(1).optional(),
     elementKind: z.enum(['actor', 'component', 'store', 'external-system']).optional(),
     channels: z.array(z.enum(['web', 'mobile', 'desktop', 'cli', 'agent', 'email', 'sms', 'voice'])).optional(),
+    // A design element's map node is resolved: the user locked it, so it is a requirement.
+    locked: z.boolean().optional(),
+    mocks: z.array(MockSummarySchema).max(50).optional(),
     summary: z.string().min(1),
     // The full technical definition, as markdown; `summary` is the plain-language one.
     technicalSummary: z.string().min(1).optional(),
@@ -131,6 +140,17 @@ export const ReviewAnnotationSchema = z
     target: z.object({ type: z.enum(['node', 'group', 'edge', 'aggregateEdge']), id: z.string().min(1) }).strict(),
     selectedText: z.string().min(1).optional(),
     sourceRef: z.string().min(1).optional(),
+    // A comment on an element's mock anchors here (bridge spec, comment targets). No selections means the whole mock.
+    mock: z.object({
+      path: z.string().min(1),
+      variant: z.string().min(1).max(1024).optional(),
+      selections: z.array(z.object({
+        selector: z.string().min(1).max(1024), text: z.string().max(200).optional(),
+        rect: z.object({ x: z.number(), y: z.number(), width: z.number(), height: z.number() }).strict(),
+        component: z.object({ name: z.string().min(1).max(200), source: z.string().max(1024).optional(), props: z.record(z.unknown()).optional(), fixture: z.string().max(1024).optional() }).strict().optional(),
+      }).strict()).max(20).optional(),
+      tweaks: z.record(z.string().max(1024)).optional(),
+    }).strict().optional(),
     comment: z.string().min(1),
     author: z.string().min(1).optional(),
     time: z.string().min(1).optional(),
@@ -144,7 +164,7 @@ export const AlignmentPackSchema = z
     documentKind: z.literal('design').optional(),
     designDocument: z.object({
       id: z.string().min(1), name: z.string().min(1), summary: z.string().min(1), detail: z.string().optional(),
-      questions: z.array(DesignQuestionSchema).max(100).optional(),
+      questions: z.array(MapQuestionSchema).max(100).optional(),
     }).strict().optional(),
     packVersion: z.string().min(1),
     source: z

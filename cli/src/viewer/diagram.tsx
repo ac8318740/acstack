@@ -6,7 +6,7 @@ import {
 import { ChevronDown, ListTodo, MessageSquarePlus, Minus, Plus } from 'lucide-react';
 import { useQuestionCounts } from './design-questions.js';
 import { ElementMetadata } from './element-metadata.js';
-import { CARD_WIDTH, LABEL_WIDTH, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
+import { CARD_WIDTH, commentsOn, LABEL_WIDTH, revealViewport, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
 import type { DiagramOrientation } from '../lib/alignment-packs.js';
 import { pack } from './pack.js';
 
@@ -18,6 +18,7 @@ type RouteData = DiagramEdge & Actions & { state: 'idle' | 'active' | 'dimmed'; 
 const ACCENT = 'oklch(42% 0.14 262)';
 const EDGE = 'oklch(55% 0.035 262)';
 const itemsText = (count = 0) => `${count} item${count === 1 ? '' : 's'}`;
+const commentsText = (count: number) => `${count} comment${count === 1 ? '' : 's'}`;
 const noActions: Actions = { onToggle: () => {}, onSelect: () => {}, onAnnotate: () => {}, onQuestions: () => {} };
 
 function sourceFile(nodeId: string): string | undefined {
@@ -31,7 +32,7 @@ function AnnotateButton({ onClick, label }: { onClick: () => void; label: string
 }
 
 function QuestionBadge({ count, onClick }: { count: number; onClick: () => void }) {
-  return count > 0 ? <button type="button" className="question-badge nodrag nopan" aria-label={`${count} design question${count === 1 ? '' : 's'} need input`} data-tooltip={`${count} question${count === 1 ? '' : 's'} need input`} onClick={event => { event.stopPropagation(); onClick(); }}><ListTodo size={14} aria-hidden="true" /><span>{count}</span></button> : null;
+  return count > 0 ? <button type="button" className="question-badge nodrag nopan" aria-label={`${count} design question${count === 1 ? ' needs' : 's need'} input`} data-tooltip={`${count} question${count === 1 ? ' needs' : 's need'} input`} onClick={event => { event.stopPropagation(); onClick(); }}><ListTodo size={14} aria-hidden="true" /><span>{count}</span></button> : null;
 }
 
 // Both the live canvas and the inert measuring tree use this exact content and constrained width.
@@ -58,7 +59,7 @@ function BoxContent({ data }: { data: BoxData }) {
         {framed && <ChevronDown size={14} />} {framed ? 'Collapse' : 'Expand'}
       </button>}
       {(folded || framed) && <span className="box-kind">{itemsText(data.itemCount)}</span>}
-      {data.comments > 0 && <span className="count-pill">{data.comments} comments</span>}
+      {data.comments > 0 && <span className="count-pill">{commentsText(data.comments)}</span>}
     </div>}
   </div>;
 }
@@ -160,7 +161,7 @@ export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }
     return () => { current = false; };
   }, [diagram, zoom, onMeasured, commentCounts, questionCounts]);
   return <div ref={tree} className="measurement" aria-hidden="true" inert>
-    {diagram.nodes.map(node => <div key={node.id} data-measure="node" data-key={node.id} className={node.kind === 'group' ? 'measure-header' : 'box'} style={{ width: CARD_WIDTH }}><BoxContent data={{ ...node, ...noActions, zoom, dimmed: false, questions: questionCounts.get(node.id) ?? 0, comments: commentCounts?.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0 }} /></div>)}
+    {diagram.nodes.map(node => <div key={node.id} data-measure="node" data-key={node.id} className={node.kind === 'group' ? 'measure-header' : 'box'} style={{ width: CARD_WIDTH }}><BoxContent data={{ ...node, ...noActions, zoom, dimmed: false, questions: questionCounts.get(node.id) ?? 0, comments: commentsOn(node, commentCounts, diagram, pack.graph) }} /></div>)}
     {diagram.edges.map(edge => <div key={edge.id} data-measure="label" data-key={edge.id} className="edge-label" style={{ width: LABEL_WIDTH }}><LabelContent edge={edge} questions={questionCounts.get(`edge:${edge.childEdgeIds[0]}`) ?? 0} comments={edge.childEdgeIds.reduce((sum, id) => sum + (commentCounts?.get(`edge:${id}`) ?? 0), 0)} /></div>)}
   </div>;
 }
@@ -217,21 +218,57 @@ function RestoreToggleFocus({ diagram, layoutKey, requestedKey, expanded, pendin
   return null;
 }
 
-export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selected, onSelect, onAnnotate, onQuestions = () => {}, commentCounts, layoutKey = '', anchor, contentZoom = zoom, orientation = 'top-to-bottom' }: {
+export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selected, onSelect, onAnnotate, onQuestions = () => {}, commentCounts, layoutKey = '', anchor, contentZoom = zoom, orientation = 'top-to-bottom', reveal }: {
+  /** A card to bring into view once the layout holds it, such as an approval blocker's element. */
+  reveal?: { id: string };
   diagram: DiagramModel; expanded: string[]; setExpanded: (ids: string[], anchorId?: string) => void; zoom: Zoom; setZoom: (zoom: Zoom) => void; anchor?: ViewportAnchor | null;
   selected: string | null; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; onQuestions?: (id: string | null) => void; commentCounts: Map<string, number>; layoutKey?: string; contentZoom?: Zoom; orientation?: DiagramOrientation;
 }) {
   const questionCounts = useQuestionCounts(diagram);
   const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
+  const revealed = useRef<{ id: string } | undefined>(undefined);
+  const revealedIn = useRef<DiagramModel | undefined>(undefined);
   const fitted = useRef(false);
   const appliedAnchor = useRef<ViewportAnchor | null>(null);
   const pending = useRef<ToggleFocus | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
-  const fit = () => {
-    pending.current = null;
-    const toolbar = canvas.current?.querySelector<HTMLElement>('.toolbar');
-    void fitView({ padding: { top: `${(toolbar?.offsetHeight ?? 0) + 30}px`, bottom: '80px', x: '30px' }, minZoom: 0.15, maxZoom: 1, duration: reducedMotion() ? 0 : 200 });
+  useEffect(() => {
+    if (!reveal || revealed.current === reveal) return;
+    const node = diagram.nodes.find(item => item.id === reveal.id);
+    if (!node) return;
+    revealed.current = reveal;
+    revealedIn.current = diagram;
+    const { top, bottom, x } = fitPadding();
+    const area = { x, y: top, width: (canvas.current?.clientWidth ?? 0) - 2 * x, height: (canvas.current?.clientHeight ?? 0) - top - bottom };
+    const view = revealViewport(node, diagram.nodes, area);
+    if (view === 'fit') fit(true, true);
+    else void setViewport(view, { duration: reducedMotion() ? 0 : 200 });
+  }, [reveal, diagram, setViewport]);
+  // The view keeps clear of the toolbar above and the zoom controls below.
+  const fitPadding = () => ({ top: (canvas.current?.querySelector<HTMLElement>('.toolbar')?.offsetHeight ?? 0) + 30, bottom: 80, x: 30 });
+  // Refitting on resize stops once the reviewer pans or zooms; Fit diagram hands control back.
+  const userMoved = useRef(false);
+  const fit = (animate = true, keepFocus = false) => {
+    if (!keepFocus) pending.current = null;
+    userMoved.current = false;
+    const { top, bottom, x } = fitPadding();
+    void fitView({ padding: { top: `${top}px`, bottom: `${bottom}px`, x: `${x}px` }, minZoom: 0.15, maxZoom: 1.25, duration: animate && !reducedMotion() ? 200 : 0 });
   };
+  // The canvas narrows when the drawer opens and with the window, so the fitted view follows it.
+  useEffect(() => {
+    const element = canvas.current;
+    if (!element || typeof ResizeObserver === 'undefined') return;
+    let size = '';
+    const observer = new ResizeObserver(([entry]) => {
+      const next = `${Math.round(entry.contentRect.width)}x${Math.round(entry.contentRect.height)}`;
+      if (next === size) return;
+      const first = !size;
+      size = next;
+      if (!first && fitted.current && !userMoved.current) fit(false);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [fitView]);
   useEffect(() => {
     if (!diagram.nodes.length || fitted.current) return;
     let second = 0;
@@ -240,6 +277,14 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
       fit();
     }); });
     return () => { cancelAnimationFrame(first); cancelAnimationFrame(second); };
+  }, [diagram, fitView]);
+  // Expanding or collapsing changes the layout, so the view refits unless the reviewer has moved it.
+  const laidOut = useRef(diagram);
+  useEffect(() => {
+    if (laidOut.current === diagram) return;
+    laidOut.current = diagram;
+    // A revealed element keeps its centring for the layout that brought it into view.
+    if (fitted.current && !userMoved.current && revealedIn.current !== diagram) fit(true, true);
   }, [diagram, fitView]);
   useLayoutEffect(() => {
     if (!anchor || anchor === appliedAnchor.current || anchor.key !== layoutKey || diagram === anchor.before) return;
@@ -262,12 +307,14 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
   const byId = new Map(diagram.nodes.map(node => [node.id, node]));
   const nodes: Node<BoxData>[] = diagram.nodes.map(node => {
     const parent = node.parentId ? byId.get(node.parentId) : undefined;
-    const comments = commentCounts.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0;
+    const comments = commentsOn(node, commentCounts, diagram, pack.graph);
     let depth = 0;
     for (let ancestor = parent; ancestor; ancestor = ancestor.parentId ? byId.get(ancestor.parentId) : undefined) depth++;
     // ReactFlow puts children above their parents; keep every frame below routes at z-index 0.
     const zIndex = node.kind === 'group' ? depth - diagram.nodes.length : 1;
-    return { id: node.id, type: node.kind, parentId: node.parentId, position: { x: node.x - (parent?.x ?? 0), y: node.y - (parent?.y ?? 0) }, initialWidth: node.width, initialHeight: node.height, style: { width: node.width, height: node.height }, selectable: true, draggable: false, selected: node.id === selected, zIndex, data: { ...node, ...actions, orientation, zoom: contentZoom, dimmed: Boolean(selected) && !linked.has(node.id), comments, questions: questionCounts.get(node.id) ?? 0 } };
+    return { id: node.id, type: node.kind, parentId: node.parentId, position: { x: node.x - (parent?.x ?? 0), y: node.y - (parent?.y ?? 0) }, initialWidth: node.width, initialHeight: node.height,
+      // Every render passes new node objects; without `measured`, ReactFlow drops each node's handle bounds and hides its edges until that node happens to resize.
+      measured: { width: node.width, height: node.height }, style: { width: node.width, height: node.height }, selectable: true, draggable: false, selected: node.id === selected, zIndex, data: { ...node, ...actions, orientation, zoom: contentZoom, dimmed: Boolean(selected) && !linked.has(node.id), comments, questions: questionCounts.get(node.id) ?? 0 } };
   });
   const edges: Edge<RouteData>[] = diagram.edges.map(edge => {
     const state = !selected ? 'idle' : edge === selectedEdge || edge.source === selected || edge.target === selected ? 'active' : 'dimmed';
@@ -275,7 +322,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     const name = (id: string) => byId.get(id)?.label ?? id;
     return { id: edge.id, source: edge.source, target: edge.target, type: 'routed', ariaLabel: `${name(edge.source)} ${edge.label} ${name(edge.target)} (${edge.bidirectional ? 'both directions' : 'source to target'})`, data: { ...edge, ...actions, state, selectId: `edge:${edge.childEdgeIds[0]}`, comments, questions: questionCounts.get(`edge:${edge.childEdgeIds[0]}`) ?? 0, selected: edge === selectedEdge }, markerStart: edge.bidirectional ? { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE } : undefined, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE }, zIndex: state === 'active' ? 2 : 0 };
   });
-  return <div ref={canvas} className="diagram-canvas"><ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="light" zIndexMode="manual" elevateNodesOnSelect={false} nodesConnectable={false} minZoom={0.15} maxZoom={2} panOnScroll={true} zoomOnScroll={false} zoomOnPinch={true} panOnDrag={true}
+  return <div ref={canvas} className="diagram-canvas"><ReactFlow onMoveStart={event => { if (event) userMoved.current = true; }} nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="light" zIndexMode="manual" elevateNodesOnSelect={false} nodesConnectable={false} minZoom={0.15} maxZoom={2} panOnScroll={true} zoomOnScroll={false} zoomOnPinch={true} panOnDrag={true}
     onNodeClick={(_, node) => onSelect(node.id)} onEdgeClick={(_, edge) => edge.data && onSelect(edge.data.selectId)}
     onKeyDown={event => {
       if (event.key.toLowerCase() === 'f' && event.target instanceof Element && !event.target.closest('input,textarea,button')) { event.preventDefault(); fit(); return; }
@@ -294,6 +341,6 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
       <div className="segmented"><button type="button" onClick={() => { pending.current = null; setExpanded(pack.graph.groups.map(group => group.id)); }}>Expand all</button><button type="button" onClick={() => { pending.current = null; setExpanded(pack.documentKind === 'design' ? ['design:root'] : []); }}>Collapse all</button></div>
     </Panel>
     {pack.designDocument?.questions?.length ? <Panel position="bottom-right" className="question-legend"><button type="button" className="btn" onClick={() => onQuestions(null)}><ListTodo size={14} aria-hidden="true" /> Design questions</button></Panel> : null}
-    <Panel position="bottom-left" className="zoom-controls"><div role="group" aria-label="Diagram viewport"><button type="button" className="icon-btn" aria-label="Zoom out" data-tooltip="Zoom out" onClick={() => void zoomOut()}><Minus size={18} /></button><button type="button" className="icon-btn" aria-label="Zoom in" data-tooltip="Zoom in" onClick={() => void zoomIn()}><Plus size={18} /></button><button type="button" className="btn" onClick={fit} data-tooltip="Fit the complete diagram (F)">Fit diagram</button></div></Panel>
+    <Panel position="bottom-left" className="zoom-controls"><div role="group" aria-label="Diagram viewport"><button type="button" className="icon-btn" aria-label="Zoom out" data-tooltip="Zoom out" onClick={() => { userMoved.current = true; void zoomOut(); }}><Minus size={18} /></button><button type="button" className="icon-btn" aria-label="Zoom in" data-tooltip="Zoom in" onClick={() => { userMoved.current = true; void zoomIn(); }}><Plus size={18} /></button><button type="button" className="btn" onClick={() => fit()} data-tooltip="Fit the complete diagram (F)">Fit diagram</button></div></Panel>
   </ReactFlow></div>;
 }

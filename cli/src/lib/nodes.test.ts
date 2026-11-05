@@ -17,7 +17,7 @@ import type { CreateNodeInput, UpdateNodeInput } from './nodes.js';
 let root: string;
 
 /** The closed set a kind must come from. Held here so the tests state it, rather than mirror it. */
-const KINDS = ['destination', 'notes', 'decision', 'research', 'work'] as const;
+const KINDS = ['destination', 'notes', 'decision', 'research', 'work', 'element'] as const;
 
 /** Slips a deliberately invalid input past the compile-time type, so the runtime check is what the test exercises. */
 function invalid<T>(input: Record<string, unknown>): T {
@@ -613,6 +613,14 @@ describe('frontier', () => {
     });
     const ready = frontier(loadNodes(root, 'demo'));
     expect(ready.map(n => n.id)).toEqual(['008']);
+  });
+
+  it('never puts a design element on the frontier, in any mode', () => {
+    createNode(root, 'demo', { title: 'Root', kind: 'destination', label: 'Root' });
+    createNode(root, 'demo', { title: 'Loose element', kind: 'element', label: 'Loose', answers: '001' });
+    createNode(root, 'demo', { title: 'Agent element', kind: 'element', label: 'Agent', answers: '001', mode: 'afk' });
+    createNode(root, 'demo', { title: 'Question', kind: 'decision', label: 'Question', answers: '002' });
+    expect(frontier(loadNodes(root, 'demo')).map(n => n.id)).toEqual(['004']);
   });
 
   it('orders ids numerically past 999', () => {

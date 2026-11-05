@@ -35,6 +35,7 @@ find it.
 | `decision` | the option space, often a `quadrantChart` | you |
 | `research` | the region of the system the question touches | you |
 | `work` | the flow the change alters, before and after | you |
+| `element` | exempt; the design doc draws it | none |
 
 Four rules sit on top of that table:
 
@@ -93,7 +94,7 @@ A node body has five parts, in this order:
 
 | Channel | Carries | Values |
 | --- | --- | --- |
-| shape | `kind` | `{{destination}}`, `[[notes]]`, `{decision}`, `([research])`, `[work]` |
+| shape | `kind` | `{{destination}}`, `[[notes]]`, `{decision}`, `([research])`, `[work]`, `[/element/]` |
 | fill | `status` | fog `#f6f8fa`, open `#ddf4ff`, claimed `#fff8c5`, resolved `#dafbe1`, out-of-scope `#ffebe9` |
 | stroke | the frontier and `hitl` | see the precedence below |
 | label text | id, kind, status, and the node's `label` | `#14 decision - open<br/>Cache the token?` |

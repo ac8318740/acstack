@@ -200,3 +200,24 @@ it.each(['top-to-bottom', 'left-to-right'] as const)('places card and frame hand
     expect(html).toContain(`data-handle="source" data-position="${orientation === 'left-to-right' ? 'right' : 'bottom'}"`);
   }
 });
+it('keeps each node measured across re-renders, so ReactFlow keeps handle bounds and edges', () => {
+  const diagram = { nodeToVisible: {}, nodes: [
+    { id: 'item:app', kind: 'item' as const, refId: 'app', label: 'App', summary: 'Runs commands', x: 0, y: 0, width: 300, height: 94 },
+    { id: 'item:data', kind: 'item' as const, refId: 'data', label: 'Data', summary: 'Keeps records', x: 0, y: 200, width: 300, height: 94 },
+  ], edges: [] };
+  const render = (selected: string | null) => {
+    renderToStaticMarkup(createElement(ReactFlowProvider, null, createElement(Diagram, { diagram, expanded: [], setExpanded: vi.fn(), zoom: 'business', setZoom: vi.fn(), selected, onSelect: vi.fn(), onAnnotate: vi.fn(), commentCounts: new Map() })));
+    return flowProps.nodes ?? [];
+  };
+  const lookup: Parameters<typeof adoptUserNodes>[1] = new Map();
+  const parents: Parameters<typeof adoptUserNodes>[2] = new Map();
+  adoptUserNodes(render(null), lookup, parents);
+  const bounds = { source: [], target: [] };
+  for (const node of lookup.values()) node.internals.handleBounds = bounds;
+  // A hot-reload swap or a status update hands ReactFlow fresh node objects for the same cards.
+  adoptUserNodes(render('item:app'), lookup, parents);
+  for (const node of lookup.values()) {
+    expect(node.measured).toEqual({ width: 300, height: 94 });
+    expect(node.internals.handleBounds).toBe(bounds);
+  }
+});

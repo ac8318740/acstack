@@ -698,6 +698,8 @@ function preferStraightRoutes(nodes: DiagramNode[], edges: DiagramEdge[], horizo
   }
 }
 
+// How far inside a slid label its own run stays, so the break in the line still reads as passing under the text.
+const LABEL_RUN_INSET = 18;
 // ELK misplaces labels on edges that cross group borders, so each label tries spots along its own straight runs,
 // longest first, and takes the first that clears every box, group header, and earlier label.
 export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLabels: DiagramEdge[] = [], headers: Record<string, HeaderGeometry> = {}): string[] {
@@ -718,15 +720,19 @@ export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLa
       .map((end, index) => [edge.points[index], end] as const)
       .sort(([a, b], [c, d]) => Math.hypot(d.x - c.x, d.y - c.y) - Math.hypot(b.x - a.x, b.y - a.y));
     // A spot must sit wholly inside one straight run, clear of its rounded corners, or the line cannot break around it.
-    const spots = runs.flatMap(([a, b]) => {
+    const centred = runs.flatMap(([a, b]) => {
       const length = Math.hypot(b.x - a.x, b.y - a.y);
       const half = (a.y === b.y ? label.width : label.height) / 2 + CORNER_RADIUS + 2;
       if (length < half * 2) return [];
       return [0.5, 0.3, 0.7, 0.15, 0.85].map(t => {
         const along = Math.min(Math.max(length * t, half), length - half) / length;
-        return { x: a.x + (b.x - a.x) * along - label.width / 2, y: a.y + (b.y - a.y) * along - label.height / 2, width: label.width, height: label.height };
+        return { x: a.x + (b.x - a.x) * along - label.width / 2, y: a.y + (b.y - a.y) * along - label.height / 2, width: label.width, height: label.height, vertical: a.x === b.x };
       });
     });
+    // A label wider than the gap between two routes leaving one card cannot sit centred on either. Sliding it
+    // sideways keeps its own run passing through it, which is all the line break needs, and clears the neighbour.
+    const slide = label.width / 2 - LABEL_RUN_INSET;
+    const spots = [...centred, ...centred.filter(spot => spot.vertical).flatMap(spot => [{ ...spot, x: spot.x - slide }, { ...spot, x: spot.x + slide }])];
     const intersects = (box: Box, a: Point, b: Point) =>
       Math.min(a.x, b.x) < box.x + box.width + pad && Math.max(a.x, b.x) > box.x - pad
       && Math.min(a.y, b.y) < box.y + box.height + pad && Math.max(a.y, b.y) > box.y - pad;
@@ -736,7 +742,7 @@ export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLa
     });
     const spot = spots.find(box => clear(box) && !crossesOtherRoute(box));
     if (!spot) { failedLabels.push(edge); unresolved.push(`${nodes.find(node => node.id === edge.source)?.label ?? edge.source} ${edge.label} ${nodes.find(node => node.id === edge.target)?.label ?? edge.target}`); continue; }
-    Object.assign(label, spot);
+    Object.assign(label, { x: spot.x, y: spot.y, width: spot.width, height: spot.height });
     taken.push(label);
   }
   return unresolved;
@@ -822,4 +828,34 @@ export function edgePath(points: Point[], hops: Point[], gap?: Box, additionalGa
     previousRadius = radius;
   }
   return parts.join(' ');
+}
+
+/**
+ * The groups to open so an element shows as its own card or frame, and the selection id for it.
+ * A container element opens its ancestors but not itself; its frame is the selection.
+ */
+export function revealElement(graph: AlignmentGraph, nodeId: string): { groups: string[]; selection: string } {
+  const node = graph.nodes.find(item => item.id === nodeId);
+  const groupOf = (id?: string) => graph.groups.find(group => group.id === id);
+  const owns = Boolean(node) && groupOf(node?.groupId)?.ownerNodeId === node?.id;
+  const groups: string[] = [];
+  for (let id = owns ? groupOf(node?.groupId)?.parentGroupId : node?.groupId; id && id !== 'design:root'; id = groupOf(id)?.parentGroupId) groups.push(id);
+  return { groups, selection: owns ? `group:${node!.groupId}` : `item:${nodeId}` };
+}
+
+// A collapsed container counts every comment it hides, on its descendants and their relationships.
+export function commentsOn(node: DiagramNode, counts: Map<string, number> | undefined, diagram: Diagram, graph: AlignmentGraph): number {
+  if (node.kind !== 'folded-group') return counts?.get(node.ownerNodeId ? `item:${node.ownerNodeId}` : node.id) ?? 0;
+  return [...counts ?? []].reduce((sum, [id, count]) => sum + (reconcileSelection(id, diagram, graph) === node.id ? count : 0), 0);
+}
+
+/**
+ * Where to look after revealing a blocker's element: the whole diagram when it reads at 0.75 or more,
+ * otherwise the element centred at full size. `area` is the canvas part clear of the toolbar and bottom controls.
+ */
+export function revealViewport(target: Box, nodes: Box[], area: Box): 'fit' | { x: number; y: number; zoom: number } {
+  const left = Math.min(...nodes.map(node => node.x)), top = Math.min(...nodes.map(node => node.y));
+  const width = Math.max(...nodes.map(node => node.x + node.width)) - left, height = Math.max(...nodes.map(node => node.y + node.height)) - top;
+  if (Math.min(area.width / width, area.height / height) >= 0.75) return 'fit';
+  return { x: area.x + area.width / 2 - (target.x + target.width / 2), y: area.y + area.height / 2 - (target.y + target.height / 2), zoom: 1 };
 }

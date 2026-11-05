@@ -18,6 +18,7 @@ vi.mock('react', async original => ({
   useCallback: (callback: unknown) => callback,
   useEffect: vi.fn(),
   useLayoutEffect: vi.fn(),
+  useSyncExternalStore: (_subscribe: unknown, snapshot: () => unknown) => snapshot(),
 }));
 vi.mock('react-dom/client', () => ({ createRoot: () => root }));
 vi.mock('../diagram.js', () => ({ Diagram: () => null, MeasureDiagram: () => null }));

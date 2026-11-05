@@ -38,7 +38,7 @@ program.addHelpText(
 // acstack-md --preview runs on every cursor move in a file manager, and
 // paying Node's startup for it would make previews noticeably slower.
 const first = process.argv[2];
-if (first === 'map' || first === 'align-viewer') fail('This command is retired. Use design-doc, or design-review migrate for explicit legacy imports.');
+if (first === 'map' || first === 'align-viewer') fail('This command is retired. Use design-doc.');
 const known = new Set(
   program.commands.flatMap((c) => [c.name(), ...c.aliases()])
 );

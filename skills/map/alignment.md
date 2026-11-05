@@ -1,6 +1,6 @@
 # Design review
 
-Use an authored design for shared behavior, component boundaries, and data-flow decisions; map nodes track questions and work.
+Use a design doc for shared behavior, component boundaries, and data-flow decisions. Its elements are `element` nodes on the same map as the questions and work.
 
 ## Fog classes
 
@@ -12,18 +12,16 @@ Use an authored design for shared behavior, component boundaries, and data-flow 
 
 ## Review gate
 
-- Follow `/acstack:design-doc` to author the design, bind the map, and record node contributions
-- Run `~/.claude/acstack/bin/acstack design-doc <entry>` for live review
-- Reconcile saved feedback and current contributions through `design-review reconcile`
-- Require `approval.valid: true` from `~/.claude/acstack/bin/acstack design-review status <entry>` before implementation
-- Approval covers the exact source, saved comments, and map contribution inputs
+- Follow `/acstack:design-doc` to write element nodes and the questions that target them
+- Run `~/.claude/acstack/bin/acstack design-doc <map>` for live review
+- Reconcile saved comments through `design-review reconcile`
+- Require `approval.valid: true` from `~/.claude/acstack/bin/acstack design-review status <map>` before implementation
+- Approval covers the element nodes, saved comments, and every open node targeting an element
 - Reopen review when those inputs change; regenerating presentation alone preserves approval
 - Use `node walk`, `node frontier`, and `node diagram` for planning views, not architecture generation
-- ACStack removes legacy `map --map` and `align-viewer` without aliases
-- Use explicit `design-review migrate` for legacy feedback (see `/acstack:design-doc`)
 
 ## New fog during implementation
 
 - Return design-changing fog to `/acstack:map`
 - Keep other fog with its reopening trigger
-- Revise the authored design and repeat reconciliation and approval when review inputs change
+- Revise the element nodes and repeat reconciliation and approval when review inputs change
