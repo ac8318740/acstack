@@ -169,11 +169,19 @@ bash tests/test-terminal-workspace.sh
 - esbuild inlines every runtime dependency into it: commander, chalk, fast-glob, yaml, and zod
 - Claude Code clones and runs a marketplace plugin directly, with no `npm install` step downstream
 
-After any change in `cli/src/`:
+Install CLI dependencies explicitly in each fresh clone or worktree before checks:
+
+```sh
+npm --prefix cli ci
+```
+
+Use `npm --prefix cli install` when deliberately changing dependencies. Test and
+build commands do not install packages for you.
+
+After any change in `cli/src/`, from the repository root:
 
 ```
 cd cli
-npm install     # only needed when package.json changed
 npm run build   # rebuilds dist/index.js via esbuild (see build.mjs)
 npm run typecheck  # tsc --noEmit, catches type errors the bundler skips
 npm run lint    # eslint, type-aware rules over src/ (see eslint.config.js)
@@ -338,7 +346,8 @@ node scripts/gen-pi-agents.mjs
     - To run one file: `cd cli && npm test -- src/lib/diagram.test.ts`
     - If a test needs isolation, use `--pool=vmThreads`
 - Run `bash tests/run-all.sh` for the hook suites
-    - `tests/test-terminal-workspace.sh` takes a few minutes; allow at least five
+    - Run `bash tests/test-terminal-workspace.sh` for terminal workspace and docs checks; allow at least five minutes
+    - Run `bash tests/test-terminal-workspace-pi.sh` for the pi component alone
 
 ## 6. Releasing
 
