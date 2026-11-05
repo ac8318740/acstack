@@ -243,6 +243,21 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     const body = (JSON.parse(readFileSync(join(root, 'issues.json'), 'utf8')) as Array<{ number: number; body: string }>).find(item => item.number === 104)!.body;
     expect(body.split('## Answer').length).toBe(2);
     expect(ghCalls(root).filter(args => args[1] === 'edit')).toHaveLength(1);
+    // Same-day changes append even when the new section repeats an earlier one, or an earlier one starts with it.
+    for (const answer of ['Keep it please', 'Keep it', 'Keep it please', 'Keep it']) {
+      expect((await server.answer(await server.get(), { questionId: '104', answer })).ok).toBe(true);
+      expect((await server.get()).answers['104']).toBe(answer);
+    }
+    expect(ghCalls(root).filter(args => args[1] === 'edit')).toHaveLength(5);
+  }, 30_000);
+
+  it('keeps an answer whole when it contains a level-two heading line', async () => {
+    const root = fixture('files', [...base(), { id: '104', kind: 'decision', status: 'open', answers: '102', body: question('{}') }]);
+    const server = await start(root);
+    const answer = 'Keep it\n## Answer (changed 2026-01-01)\n\nNot a real section\n## Notes';
+    expect((await server.answer(await server.get(), { questionId: '104', answer })).ok).toBe(true);
+    expect((await server.get()).answers['104']).toBe(answer);
+    expect(fileNode(root, '104').match(/^## Answer/gm)).toHaveLength(1);
   }, 30_000);
 
   it('holds approval on every open node targeting an element, in any mode, and on nothing else', async () => {

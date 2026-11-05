@@ -81,8 +81,9 @@ export function elementChanges(before: ApprovedElement, after: ApprovedElement):
 }
 const hasRecord = (saved: StoredDesignReview, item: DesignDoc['items'][number]) => saved.lifecycle?.locks[item.id]?.config === item.configDigest;
 function answerMarkdown(answer: DesignAnswer): string {
-  if (answer.choices === undefined) return answer.answer;
-  return [...answer.choices.map(choice => `- ${choice}`), ...(answer.answer ? [`- Other: ${answer.answer}`] : [])].join('\n');
+  const text = answer.choices === undefined ? answer.answer : [...answer.choices.map(choice => `- ${choice}`), ...(answer.answer ? [`- Other: ${answer.answer}`] : [])].join('\n');
+  // A `## ` line would start or cut an answer section; splitAnswers removes the escape again.
+  return text.replace(/^## /gm, '\\## ');
 }
 
 /** Which elements a design change touched, as the tag on comments from before it: "before App changed". */

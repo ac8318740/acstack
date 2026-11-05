@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { checkElementMocks, elementFolder, MockEntrySchema, loadMockContent, tokenMap, unchosenMocks, variantCapture, type MockEntry } from './design-mocks.js';
@@ -116,6 +116,22 @@ describe('mock content', () => {
     });
     writeFileSync(join(checkout, 'fail'), '');
     await expect(loadMockContent(root, 'demo', '002', MockEntrySchema.parse({ od: { design: 'checkout', page: 'home' } }), checkout)).rejects.toThrow('variant a: Unexpected token');
+  });
+
+  it('refuses a design folder or build output that resolves outside the checkout', async () => {
+    const { base, root, checkout } = setup();
+    openDesigner(checkout, ['a', 'b'], '<p>built</p>');
+    const od = MockEntrySchema.parse({ od: { design: 'checkout', page: 'home' } });
+    // The build OpenDesigner reports is a symlink to a file outside the checkout.
+    writeFileSync(join(base, 'outside.html'), '<p>secret</p>');
+    rmSync(join(checkout, 'built.html'));
+    symlinkSync(join(base, 'outside.html'), join(checkout, 'built.html'));
+    await expect(loadMockContent(root, 'demo', '002', od, checkout)).rejects.toThrow('resolves outside the checkout');
+    // The design folder itself is a symlink out of the checkout.
+    const designs = join(checkout, '.open-designer/designs');
+    renameSync(join(designs, 'checkout'), join(base, 'design'));
+    symlinkSync(join(base, 'design'), join(designs, 'checkout'));
+    expect(() => check(root, checkout, [od])).toThrow('resolves outside the checkout');
   });
 
   it('returns file mocks, wrapping Mermaid in a fence longer than any in its source', async () => {

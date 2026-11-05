@@ -50,7 +50,8 @@ export function resolveMapNode(root: string, map: string, id: string, answer?: s
   }
   if (section) {
     const { body } = JSON.parse(gh(['issue', 'view', id, '--json', 'body'])) as { body: string };
-    if (!body.includes(section)) gh(['issue', 'edit', id, '--body-file', '-'], `${body.trimEnd()}\n\n${section}\n`);
+    // Only a retry repeats the last section; an earlier match is a changed answer that must still append.
+    if (!body.trimEnd().endsWith(section.trimEnd())) gh(['issue', 'edit', id, '--body-file', '-'], `${body.trimEnd()}\n\n${section}\n`);
   }
   if (!changed) gh(['issue', 'close', id, '--reason', 'completed']);
 }

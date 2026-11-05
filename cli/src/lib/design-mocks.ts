@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
-import { isAbsolute, join, sep } from 'node:path';
+import { isAbsolute, join, resolve, sep } from 'node:path';
 import { promisify } from 'node:util';
 import Ajv from 'ajv';
 import Ajv2020 from 'ajv/dist/2020.js';
@@ -69,8 +69,18 @@ export function validateFixture(owner: string, fixture: string, schema?: string)
 }
 
 type OdIndex = { tweaks?: Tweak[]; pages?: { id: string; tweaks?: Tweak[]; variants?: { id: string; file?: string; tweaks?: Tweak[] }[] }[] };
+// A symlinked design folder, or a build path OpenDesigner reports, must not lead out of the checkout.
+function insideCheckout(checkout: string, path: string, what: string): string {
+  const real = realpathSync(path), base = realpathSync(checkout);
+  if (!real.startsWith(base + sep)) throw new Error(`${what} ${path} resolves outside the checkout`);
+  return real;
+}
+function odFolder(checkout: string, owner: string, design: string): string {
+  const folder = join(checkout, OD_DIR, 'designs', design);
+  return existsSync(folder) ? insideCheckout(checkout, folder, `Element ${owner}: OpenDesigner design`) : folder;
+}
 function odPage(checkout: string, owner: string, od: { design: string; page: string }) {
-  const index = join(checkout, OD_DIR, 'designs', od.design, 'index.json');
+  const index = join(odFolder(checkout, owner, od.design), 'index.json');
   let parsed: OdIndex;
   try { parsed = JSON.parse(readFileSync(index, 'utf8')) as OdIndex; } catch { throw new Error(`Element ${owner}: OpenDesigner design ${od.design} has no readable ${index}`); }
   const page = parsed.pages?.find(item => item.id === od.page);
@@ -115,7 +125,7 @@ const fileDigest = (path: string) => createHash('sha256').update(readFileSync(pa
 // What an od mock defines: its page entry and the source of each variant file. Built output is not deterministic, so it stays out.
 function odSourceDigest(checkout: string, owner: string, od: { design: string; page: string }): unknown {
   const { page } = odPage(checkout, owner, od);
-  const folder = join(checkout, OD_DIR, 'designs', od.design);
+  const folder = odFolder(checkout, owner, od.design);
   return [page, (page.variants ?? []).map(variant => variant.file ? fileDigest(insideFolder(folder, variant.file, owner)) : null)];
 }
 
@@ -193,7 +203,7 @@ export async function loadMockContent(root: string, map: string, elementId: stri
     catch (error) { throw new Error(`OpenDesigner could not build ${path}: ${((error as { stderr?: string }).stderr ?? (error as Error).message).trim().slice(0, 2000)}`); }
     const built = JSON.parse(stdout) as { path: string; size: number };
     if (built.size > LARGE_MOCK) log(`warning: Element ${elementId}: OpenDesigner build of ${path} is ${(built.size / 1024 / 1024).toFixed(1)} MB`);
-    const html = readFileSync(built.path, 'utf8');
+    const html = readFileSync(insideCheckout(checkout, resolve(checkout, built.path), `OpenDesigner build of ${path}`), 'utf8');
     const meta = /<script type="application\/json" id="od-page">([\s\S]*?)<\/script>/.exec(html);
     if (!meta) throw new Error(`OpenDesigner build of ${path} has no od-page metadata`);
     const page = JSON.parse(meta[1]) as OdPage;

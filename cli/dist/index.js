@@ -18606,14 +18606,14 @@ function runCommand(binary, args) {
   return { exitedZero: result.status === 0, stdout: result.stdout ?? "" };
 }
 function cdpPortAnswers(port, host = "127.0.0.1") {
-  return new Promise((resolve10) => {
+  return new Promise((resolve11) => {
     let settled = false;
     const finish = (answered) => {
       if (settled) return;
       settled = true;
       clearTimeout(deadline);
       req.destroy();
-      resolve10(answered);
+      resolve11(answered);
     };
     const req = request(
       { host, port, path: "/json/version", method: "GET", timeout: CDP_TIMEOUT_MS },
@@ -22574,7 +22574,7 @@ var require_compile = __commonJS({
       const schOrFunc = root.refs[ref];
       if (schOrFunc)
         return schOrFunc;
-      let _sch = resolve10.call(this, root, ref);
+      let _sch = resolve11.call(this, root, ref);
       if (_sch === void 0) {
         const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
         const { schemaId } = this.opts;
@@ -22601,7 +22601,7 @@ var require_compile = __commonJS({
     function sameSchemaEnv(s1, s2) {
       return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
     }
-    function resolve10(root, ref) {
+    function resolve11(root, ref) {
       let sch;
       while (typeof (sch = this.refs[ref]) == "string")
         ref = sch;
@@ -23465,7 +23465,7 @@ var require_fast_uri = __commonJS({
       }
       return uri;
     }
-    function resolve10(baseURI, relativeURI, options) {
+    function resolve11(baseURI, relativeURI, options) {
       const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
       const {
         parsed: baseParsed,
@@ -23856,7 +23856,7 @@ var require_fast_uri = __commonJS({
     var fastUri = {
       SCHEMES,
       normalize,
-      resolve: resolve10,
+      resolve: resolve11,
       resolveComponent,
       equal,
       serialize,
@@ -27418,7 +27418,7 @@ var init_tweaks = __esm({
 import { execFile } from "node:child_process";
 import { createHash as createHash2 } from "node:crypto";
 import { existsSync as existsSync14, readFileSync as readFileSync12, realpathSync as realpathSync5, statSync as statSync4 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join16, sep } from "node:path";
+import { isAbsolute as isAbsolute2, join as join16, resolve as resolve3, sep } from "node:path";
 import { promisify } from "node:util";
 function insideFolder(folder, path, owner) {
   if (isAbsolute2(path) || path.includes("\\") || path.split("/").includes("..")) throw new Error(`Element ${owner}: mock path ${path} must be relative and stay inside ${folder}`);
@@ -27458,8 +27458,17 @@ function validateFixture(owner, fixture, schema) {
   }
   if (!check(value)) throw new Error(`Element ${owner}: fixture ${fixture} does not match ${schema}: ${ajv.errorsText(check.errors, { separator: "; " })}`);
 }
+function insideCheckout(checkout, path, what) {
+  const real = realpathSync5(path), base = realpathSync5(checkout);
+  if (!real.startsWith(base + sep)) throw new Error(`${what} ${path} resolves outside the checkout`);
+  return real;
+}
+function odFolder(checkout, owner, design) {
+  const folder = join16(checkout, OD_DIR, "designs", design);
+  return existsSync14(folder) ? insideCheckout(checkout, folder, `Element ${owner}: OpenDesigner design`) : folder;
+}
 function odPage(checkout, owner, od) {
-  const index = join16(checkout, OD_DIR, "designs", od.design, "index.json");
+  const index = join16(odFolder(checkout, owner, od.design), "index.json");
   let parsed2;
   try {
     parsed2 = JSON.parse(readFileSync12(index, "utf8"));
@@ -27493,7 +27502,7 @@ function variantCapture(item, chosen, checkout) {
 }
 function odSourceDigest(checkout, owner, od) {
   const { page } = odPage(checkout, owner, od);
-  const folder = join16(checkout, OD_DIR, "designs", od.design);
+  const folder = odFolder(checkout, owner, od.design);
   return [page, (page.variants ?? []).map((variant) => variant.file ? fileDigest(insideFolder(folder, variant.file, owner)) : null)];
 }
 function checkElementMocks(root, map, items, checkout) {
@@ -27561,7 +27570,7 @@ async function loadMockContent(root, map, elementId, entry, checkout, log = cons
     }
     const built = JSON.parse(stdout);
     if (built.size > LARGE_MOCK) log(`warning: Element ${elementId}: OpenDesigner build of ${path} is ${(built.size / 1024 / 1024).toFixed(1)} MB`);
-    const html = readFileSync12(built.path, "utf8");
+    const html = readFileSync12(insideCheckout(checkout, resolve3(checkout, built.path), `OpenDesigner build of ${path}`), "utf8");
     const meta = /<script type="application\/json" id="od-page">([\s\S]*?)<\/script>/.exec(html);
     if (!meta) throw new Error(`OpenDesigner build of ${path} has no od-page metadata`);
     const page = JSON.parse(meta[1]);
@@ -27658,10 +27667,10 @@ function designFromNodes(map, nodes) {
   if (included.length > 200) throw new Error(`Map ${map} has more than 200 design elements`);
   const excluded = new Set(nodes.filter((node) => node.kind === "element" && node.status === "out-of-scope").map((node) => node.id));
   const byId = new Map(nodes.map((node) => [node.id, node]));
-  const resolve10 = (value) => byId.has(value) ? value : normalizeId(value);
+  const resolve11 = (value) => byId.has(value) ? value : normalizeId(value);
   const ids = new Set(included.map((node) => node.id));
   const element = (owner, value, role) => {
-    const id = resolve10(value);
+    const id = resolve11(value);
     if (excluded.has(id)) throw new Error(`Node ${owner.id}: ${role} ${id} is out of scope`);
     if (!ids.has(id)) throw new Error(`Node ${owner.id}: ${role} ${id} is not a design element on this map`);
     return id;
@@ -27763,7 +27772,7 @@ function splitAnswers(body) {
   const at = body.search(ANSWER_HEADING);
   if (at === -1) return { rest: body };
   const sections = body.slice(at).split(new RegExp(ANSWER_HEADING.source, "m")).slice(1);
-  const latest = sections.at(-1)?.split(/^## /m)[0].trim();
+  const latest = sections.at(-1)?.split(/^## /m)[0].trim().replace(/^\\## /gm, "## ");
   return { rest: body.slice(0, at).trim(), answer: latest };
 }
 function markdownText(value) {
@@ -27987,7 +27996,7 @@ ${answer}`;
   }
   if (section) {
     const { body } = JSON.parse(gh(["issue", "view", id, "--json", "body"]));
-    if (!body.includes(section)) gh(["issue", "edit", id, "--body-file", "-"], `${body.trimEnd()}
+    if (!body.trimEnd().endsWith(section.trimEnd())) gh(["issue", "edit", id, "--body-file", "-"], `${body.trimEnd()}
 
 ${section}
 `);
@@ -28124,9 +28133,9 @@ function createReviewServer(options) {
   });
 }
 function listenForReview(server, port, label, onListening) {
-  return new Promise((resolve10, reject) => {
+  return new Promise((resolve11, reject) => {
     server.on("error", (error) => reject(error.code === "EADDRINUSE" ? new Error(`Port ${port} is busy. Close the other review, or choose another port.`) : error));
-    server.on("close", resolve10);
+    server.on("close", resolve11);
     server.listen(port, "127.0.0.1", () => {
       const address = server.address();
       const actualPort = typeof address === "object" && address ? address.port : port;
@@ -28161,8 +28170,8 @@ var init_review_server = __esm({
 
 // src/lib/design-review.ts
 import { randomBytes as randomBytes3 } from "node:crypto";
-import { existsSync as existsSync16, lstatSync as lstatSync3, mkdirSync as mkdirSync5, opendirSync, readFileSync as readFileSync13, renameSync as renameSync3, rmSync as rmSync4, writeFileSync as writeFileSync4 } from "node:fs";
-import { join as join17, resolve as resolve3, dirname as dirname6, basename as basename4 } from "node:path";
+import { closeSync, existsSync as existsSync16, fsyncSync, lstatSync as lstatSync3, mkdirSync as mkdirSync5, openSync, opendirSync, readFileSync as readFileSync13, renameSync as renameSync3, rmSync as rmSync4, writeFileSync as writeFileSync4 } from "node:fs";
+import { join as join17, resolve as resolve4, dirname as dirname6, basename as basename4 } from "node:path";
 function validateDesignAnswer(question, answer) {
   if (!question.choices) {
     if (answer.choices !== void 0 || !answer.answer) throw new Error("Text questions require a nonempty text answer without choices");
@@ -28179,7 +28188,7 @@ function reviewFileError(path, error) {
   return Object.assign(new ReviewHttpError(409, `Cannot read review file ${path}: ${problem}. Fix or remove the file; the review stays read-only until then.`), { cause: error });
 }
 function readDesignReviewHistory(root, identity2, path) {
-  const canonical = resolve3(path);
+  const canonical = resolve4(path);
   const base = join17(root, "design-reviews", identity2);
   if (basename4(canonical) !== "review.json" || !/^[a-f0-9]{16}$/.test(basename4(dirname6(canonical))) || dirname6(dirname6(canonical)) !== base) throw new Error("Not canonical history for this design");
   for (const directory of [root, join17(root, "design-reviews"), base, dirname6(canonical)]) {
@@ -28220,9 +28229,24 @@ function atomicWrite(path, text2) {
   const temporary = `${path}.${randomBytes3(16).toString("hex")}.tmp`;
   let created = false;
   try {
-    writeFileSync4(temporary, text2, { flag: "wx", mode: 384 });
+    const file2 = openSync(temporary, "wx", 384);
     created = true;
+    try {
+      writeFileSync4(file2, text2);
+      fsyncSync(file2);
+    } finally {
+      closeSync(file2);
+    }
     renameSync3(temporary, path);
+    try {
+      const directory = openSync(dirname6(path), "r");
+      try {
+        fsyncSync(directory);
+      } finally {
+        closeSync(directory);
+      }
+    } catch {
+    }
   } finally {
     if (created) rmSync4(temporary, { force: true });
   }
@@ -28405,7 +28429,7 @@ var init_design_review = __esm({
 
 // src/lib/design-lifecycle.ts
 import { existsSync as existsSync17 } from "node:fs";
-import { join as join18, relative as relative2, resolve as resolve4, sep as sep2 } from "node:path";
+import { join as join18, relative as relative2, resolve as resolve5, sep as sep2 } from "node:path";
 function loadMapDesign(root, map, checkout = checkoutRoot() ?? process.cwd()) {
   const nodes = readMapNodes(root, map);
   const { doc, warnings } = designFromNodes(map, nodes);
@@ -28472,8 +28496,8 @@ function elementChanges(before, after) {
   return changes;
 }
 function answerMarkdown(answer) {
-  if (answer.choices === void 0) return answer.answer;
-  return [...answer.choices.map((choice) => `- ${choice}`), ...answer.answer ? [`- Other: ${answer.answer}`] : []].join("\n");
+  const text2 = answer.choices === void 0 ? answer.answer : [...answer.choices.map((choice) => `- ${choice}`), ...answer.answer ? [`- Other: ${answer.answer}`] : []].join("\n");
+  return text2.replace(/^## /gm, "\\## ");
 }
 function describeChange(before, after) {
   const content = (item) => JSON.stringify({ ...item, locked: void 0, resolved: void 0 });
@@ -28489,7 +28513,7 @@ function describeChange(before, after) {
   return `before ${changes.length > 3 ? `${changes.length} elements changed` : changes.join(", ")}`;
 }
 function openDesignLifecycle(root, map, reviewFile, carried = [], checkout = checkoutRoot() ?? process.cwd()) {
-  root = resolve4(root);
+  root = resolve5(root);
   const opened = loadMapDesign(root, map, checkout);
   const rendered = opened.doc;
   try {
@@ -28501,16 +28525,16 @@ function openDesignLifecycle(root, map, reviewFile, carried = [], checkout = che
   const toRelative = (path) => relative2(root, path).split(sep2).join("/");
   const carry = (entries) => review.transact((saved) => {
     const kept = new Map((saved.carried ?? []).map((entry) => [entry.reviewPath, entry]));
-    for (const entry of entries) if (resolve4(entry.path) !== review.reviewPath) kept.set(toRelative(entry.path), { reviewPath: toRelative(entry.path), label: entry.label });
+    for (const entry of entries) if (resolve5(entry.path) !== review.reviewPath) kept.set(toRelative(entry.path), { reviewPath: toRelative(entry.path), label: entry.label });
     if (kept.size) saved.carried = [...kept.values()];
   });
   if (carried.length) carry(carried);
-  const carriedReviews = (saved) => (saved.carried ?? []).map((entry) => ({ path: resolve4(root, entry.reviewPath), label: entry.label }));
+  const carriedReviews = (saved) => (saved.carried ?? []).map((entry) => ({ path: resolve5(root, entry.reviewPath), label: entry.label }));
   const evaluate = (saved) => {
     const { nodes, doc, warnings } = loadMapDesign(root, map, checkout);
     const staleRendered = doc.sourceRevision !== rendered.sourceRevision;
-    const feedbackPath = reviewFile ? resolve4(reviewFile) : review.reviewPath;
-    const latestReceipts = new Map(saved.lifecycle?.reconciliations.map((receipt) => [resolve4(root, receipt.reviewPath), receipt]));
+    const feedbackPath = reviewFile ? resolve5(reviewFile) : review.reviewPath;
+    const latestReceipts = new Map(saved.lifecycle?.reconciliations.map((receipt) => [resolve5(root, receipt.reviewPath), receipt]));
     const histories = readDesignReviewHistories(root, doc.id);
     histories.set(review.reviewPath, saved);
     const changed = changedElements(doc, histories.values());
@@ -28525,7 +28549,7 @@ function openDesignLifecycle(root, map, reviewFile, carried = [], checkout = che
     });
     const obligations = new Set(earlier.map((entry) => entry.reviewPath));
     for (const [path, snapshot] of histories) {
-      const receipts = new Map(snapshot.lifecycle?.reconciliations.map((receipt) => [resolve4(root, receipt.reviewPath), receipt]));
+      const receipts = new Map(snapshot.lifecycle?.reconciliations.map((receipt) => [resolve5(root, receipt.reviewPath), receipt]));
       for (const [selected, receipt] of receipts) {
         if (selected !== path || snapshot.annotations.length || receipt.decisions.some((decision) => decision.outcome === "needs-human")) obligations.add(selected);
       }
@@ -28715,7 +28739,7 @@ var init_design_lifecycle = __esm({
 
 // src/lib/design-watch.ts
 import { existsSync as existsSync18, readdirSync as readdirSync8, statSync as statSync5, watch, writeFileSync as writeFileSync5 } from "node:fs";
-import { join as join19, relative as relative3, resolve as resolve5, sep as sep3 } from "node:path";
+import { join as join19, relative as relative3, resolve as resolve6, sep as sep3 } from "node:path";
 function notifyDesign(root, map) {
   const dir = reviewsDir(root, map);
   if (!existsSync18(dir)) return false;
@@ -28744,7 +28768,7 @@ function watchDesign(root, map, onChange, settleMs = 100) {
     if (watchers.has(dir) || !existsSync18(dir)) return;
     watchers.set(dir, watch(dir, (event, name2) => {
       if (!name2 || !keep(name2)) return;
-      const file2 = resolve5(dir, name2);
+      const file2 = resolve6(dir, name2);
       if (recursive && event === "rename") scan(file2);
       report(file2);
     }));
@@ -28786,12 +28810,12 @@ __export(design_doc_exports, {
   register: () => register7
 });
 import { readFileSync as readFileSync14, statSync as statSync6, writeFileSync as writeFileSync6 } from "node:fs";
-import { join as join20, resolve as resolve6 } from "node:path";
+import { join as join20, resolve as resolve7 } from "node:path";
 function generateDesignDoc(root, map, output, markdown, orientation = "top-to-bottom") {
   const { doc } = loadMapDesign(root, map);
   const html = renderAlignmentPackHtml(designDocToPack(doc, orientation));
-  writeFileSync6(resolve6(output), html, { flag: "wx" });
-  if (markdown) writeFileSync6(resolve6(markdown), renderDesignDocMarkdown(doc, orientation), { flag: "wx" });
+  writeFileSync6(resolve7(output), html, { flag: "wx" });
+  if (markdown) writeFileSync6(resolve7(markdown), renderDesignDocMarkdown(doc, orientation), { flag: "wx" });
 }
 function liveDesignDoc(root, map, orientation = "top-to-bottom") {
   let lifecycle = openDesignLifecycle(root, map);
@@ -28886,7 +28910,7 @@ function register7(program3) {
     const live = liveDesignDoc(root, map, options.orientation);
     const doc = live.lifecycle().doc;
     warn(live.lifecycle().warnings);
-    if (options.markdown) writeFileSync6(resolve6(options.markdown), renderDesignDocMarkdown(doc, options.orientation), { flag: "wx" });
+    if (options.markdown) writeFileSync6(resolve7(options.markdown), renderDesignDocMarkdown(doc, options.orientation), { flag: "wx" });
     const server = live.server;
     console.log(`Agent feedback: ${live.lifecycle().review.reviewPath}`);
     await listenForReview(server, port, doc.name);
@@ -29330,8 +29354,8 @@ function stampTranscript(path) {
   }
 }
 function sleep(ms) {
-  return new Promise((resolve10) => {
-    setTimeout(resolve10, ms);
+  return new Promise((resolve11) => {
+    setTimeout(resolve11, ms);
   });
 }
 async function watch2(path, options = {}) {
@@ -29386,7 +29410,7 @@ var handoff_exports = {};
 __export(handoff_exports, {
   register: () => register10
 });
-import { isAbsolute as isAbsolute3, resolve as resolve7 } from "node:path";
+import { isAbsolute as isAbsolute3, resolve as resolve8 } from "node:path";
 function parseIntAtLeast(name2, min) {
   return (value) => {
     const parsed2 = value.trim() === "" ? NaN : Number(value);
@@ -29476,7 +29500,7 @@ function register10(program3) {
         // The receiver types this in the directory it is working in, so a
         // relative path is the natural thing to write. Resolving it here is
         // what puts the sidecar beside the real handoff file.
-        file: resolve7(opts.file),
+        file: resolve8(opts.file),
         decision,
         reason: reason.join(" ")
       });
@@ -33788,41 +33812,41 @@ var require_queue = __commonJS({
       queue.drained = drained;
       return queue;
       function push(value) {
-        var p = new Promise(function(resolve10, reject) {
+        var p = new Promise(function(resolve11, reject) {
           pushCb(value, function(err, result) {
             if (err) {
               reject(err);
               return;
             }
-            resolve10(result);
+            resolve11(result);
           });
         });
         p.catch(noop);
         return p;
       }
       function unshift(value) {
-        var p = new Promise(function(resolve10, reject) {
+        var p = new Promise(function(resolve11, reject) {
           unshiftCb(value, function(err, result) {
             if (err) {
               reject(err);
               return;
             }
-            resolve10(result);
+            resolve11(result);
           });
         });
         p.catch(noop);
         return p;
       }
       function drained() {
-        var p = new Promise(function(resolve10) {
+        var p = new Promise(function(resolve11) {
           process.nextTick(function() {
             if (queue.idle()) {
-              resolve10();
+              resolve11();
             } else {
               var previousDrain = queue.drain;
               queue.drain = function() {
                 if (typeof previousDrain === "function") previousDrain();
-                resolve10();
+                resolve11();
                 queue.drain = previousDrain;
               };
             }
@@ -34308,9 +34332,9 @@ var require_stream3 = __commonJS({
         });
       }
       _getStat(filepath) {
-        return new Promise((resolve10, reject) => {
+        return new Promise((resolve11, reject) => {
           this._stat(filepath, this._fsStatSettings, (error, stats) => {
-            return error === null ? resolve10(stats) : reject(error);
+            return error === null ? resolve11(stats) : reject(error);
           });
         });
       }
@@ -34334,10 +34358,10 @@ var require_async5 = __commonJS({
         this._readerStream = new stream_1.default(this._settings);
       }
       dynamic(root, options) {
-        return new Promise((resolve10, reject) => {
+        return new Promise((resolve11, reject) => {
           this._walkAsync(root, options, (error, entries) => {
             if (error === null) {
-              resolve10(entries);
+              resolve11(entries);
             } else {
               reject(error);
             }
@@ -34347,10 +34371,10 @@ var require_async5 = __commonJS({
       async static(patterns, options) {
         const entries = [];
         const stream = this._readerStream.static(patterns, options);
-        return new Promise((resolve10, reject) => {
+        return new Promise((resolve11, reject) => {
           stream.once("error", reject);
           stream.on("data", (entry) => entries.push(entry));
-          stream.once("end", () => resolve10(entries));
+          stream.once("end", () => resolve11(entries));
         });
       }
     };
@@ -35008,7 +35032,7 @@ var require_out4 = __commonJS({
 });
 
 // src/lib/prose.ts
-import { resolve as resolve8 } from "node:path";
+import { resolve as resolve9 } from "node:path";
 function splitCells(body) {
   const cells = [];
   let current = "";
@@ -35482,7 +35506,7 @@ function lintProse(text2, vocabulary) {
   return findings.sort((a, b) => a.line - b.line || a.column - b.column);
 }
 function isVocabularyFile(filePath, vocabularyPath) {
-  return resolve8(filePath) === resolve8(vocabularyPath);
+  return resolve9(filePath) === resolve9(vocabularyPath);
 }
 var RULES, SENTENCE_LIMIT_PROSE, SENTENCE_LIMIT_INSTRUCTION, PARAGRAPH_LIMIT, VOCABULARY_COLUMNS, DELETE_SENTINEL, BLOCKQUOTE_PREFIX, LIST_MARKER, ORDERED_MARKER, HEADING, FENCE_OPEN, FENCE_CLOSE, EMOJI_PART, EMOJI, LEGAL_MARKS, BE_FORMS, IRREGULAR_PARTICIPLES, NOT_PARTICIPLES, PASSIVE_MODIFIER, PASSIVE, ABBREVIATIONS;
 var init_prose = __esm({
@@ -35667,7 +35691,7 @@ __export(lint_prose_exports, {
   summarize: () => summarize
 });
 import { existsSync as existsSync20, readFileSync as readFileSync17, statSync as statSync8 } from "node:fs";
-import { join as join22, relative as relative4, resolve as resolve9 } from "node:path";
+import { join as join22, relative as relative4, resolve as resolve10 } from "node:path";
 function loadVocabulary() {
   const pluginRoot = findPluginRoot();
   if (!pluginRoot) {
@@ -35703,7 +35727,7 @@ function collectFiles(paths, opts) {
   const missing = [];
   if (opts.all) files.push(...markdownIn(opts.root));
   for (const path of paths) {
-    const full = resolve9(path);
+    const full = resolve10(path);
     if (!existsSync20(full)) {
       missing.push(path);
       continue;

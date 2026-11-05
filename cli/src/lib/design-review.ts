@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, opendirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, opendirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve, dirname, basename } from 'node:path';
 import { z } from 'zod';
 import { type AlignmentPack, type MapQuestion, ReviewAnnotationSchema } from './alignment-packs.js';
@@ -113,9 +113,15 @@ function atomicWrite(path: string, text: string): void {
   const temporary = `${path}.${randomBytes(16).toString('hex')}.tmp`;
   let created = false;
   try {
-    writeFileSync(temporary, text, { flag: 'wx', mode: 0o600 });
+    // Flush the bytes before the rename and the rename itself, so a power loss never leaves an empty review.
+    const file = openSync(temporary, 'wx', 0o600);
     created = true;
+    try { writeFileSync(file, text); fsyncSync(file); } finally { closeSync(file); }
     renameSync(temporary, path);
+    try {
+      const directory = openSync(dirname(path), 'r');
+      try { fsyncSync(directory); } finally { closeSync(directory); }
+    } catch { /* Some platforms, such as Windows, cannot fsync a directory; the file itself is already durable. */ }
   } finally { if (created) rmSync(temporary, { force: true }); }
 }
 

@@ -199,7 +199,7 @@ export function splitAnswers(body: string): { rest: string; answer?: string } {
   if (at === -1) return { rest: body };
   const sections = body.slice(at).split(new RegExp(ANSWER_HEADING.source, 'm')).slice(1);
   // Each answer runs to the next level-two heading.
-  const latest = sections.at(-1)?.split(/^## /m)[0].trim();
+  const latest = sections.at(-1)?.split(/^## /m)[0].trim().replace(/^\\## /gm, '## ');
   return { rest: body.slice(0, at).trim(), answer: latest };
 }
 
