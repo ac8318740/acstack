@@ -358,9 +358,10 @@ function App() {
         onEdit={editComment}
         onShowComment={postedComments.show}
         questionRequest={questionRequest}
-        onSelect={id => {
+        onSelect={(id, reveal) => {
           setDrawerView('details');
-          if (id === 'group:design:root') setSelected(null);
+          if (reveal && id?.startsWith('item:')) showElement(id.slice(5));
+          else if (id === 'group:design:root') setSelected(null);
           else if (id?.startsWith('edge:')) setSelected(id);
           else setSelected(reconcileSelection(id, diagram, pack.graph));
           setDrawerOpen(true);

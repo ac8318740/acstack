@@ -20,6 +20,8 @@ Read the file even when your host does not inject it; a reference alone does not
 ## Make the artifact stand alone
 
 - State the current behavior, decision, or requested action before its supporting detail
+    - For proposals, apply the shared standard's ten-second synthesis to the whole proposal
+    - Put supporting explanations under nested, literal Markdown headings that name their contents; each level summarizes its children without repeating them
 - Include the context a future reader cannot recover from the conversation
     - Name relevant files, commands, actors, and constraints
     - Explain unfamiliar project terms before relying on them
@@ -30,14 +32,19 @@ Read the file even when your host does not inject it; a reference alone does not
 
 ## Review for meaning before mechanics
 
-- Read the artifact as someone unfamiliar with this repository
+- Read the opening and headings as an adult with no project context: can they say what is proposed, what each section covers, and what still needs deciding?
+- Reject headings that need interpretation; name the actual contents in ordinary words
+- Remove rhetorical framing and "X, not Y" contrast formulas as required by the shared standard
+- Keep consequential limits as separate direct facts; preserve safety instructions and negative facts that affect action
+- Turn separate responsibilities or options into a list; bold labels inside a paragraph do not make it scannable
+- Give a design reviewer the guarantees and choices needed for approval; keep validation checklists in implementation records
 - Cut words only when the reader loses no necessary information
 - Check that terms, identifiers, and links match the source being described
 - Read `vocabulary.md` for common simpler alternatives and punctuation conventions
     - Treat word suggestions in context; a technical term or quotation can need the original wording
 - Run `~/.claude/acstack/bin/acstack lint-prose <paths>` when available
     - The command warns and never blocks
-    - Its sentence, paragraph, passive-voice, and vocabulary checks are heuristics, not proof of unclear or incorrect writing
+    - Its sentence, paragraph, passive-voice, and vocabulary checks identify wording to review
     - Review each warning; preserve wording when changing it would lose meaning or accuracy
 
-ACStack draws on ASD-STE100 (Simplified Technical English) for plain-language techniques, not its licensed dictionary or mandatory length limits.
+ACStack uses plain-language techniques from ASD-STE100 (Simplified Technical English). Its licensed dictionary and mandatory length limits are outside this standard.

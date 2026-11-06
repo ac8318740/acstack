@@ -20,6 +20,9 @@ Use the fewest clear words that preserve all necessary information.
     - A headline or three-word answer is enough when it fully answers the question
     - Use fragments freely; skip introductions, recaps, and supporting detail the user does not need
     - Shorten wording, not meaning; keep conditions and ownership clear
+- Give proposals a ten-second synthesis before supporting detail: what changes, how it works, what matters, and what needs deciding
+    - Make the opening a standalone account of the whole proposal, not a teaser or a contents list
+    - Put supporting explanations under nested Markdown headings; each level summarizes its children
 - Match completeness to the audience, not a length target
     - An agent handoff needs every detail required to continue correctly, without padding
     - A durable document needs enough context and precise wording to stand alone for its intended reader; chat's grammar shortcuts do not apply
@@ -59,6 +62,9 @@ Use the fewest clear words that preserve all necessary information.
     - Keep necessary technical terms and define unfamiliar abbreviations
     - Cut grand claims, filler, repeated points, and metaphors the reader must decode
     - Use examples when they explain a point faster than an abstract description
+- Use literal headings an adult without project context can understand; name the contents rather than asking the reader to decode a slogan
+- State the fact directly; remove rhetorical framing and "X, not Y" contrast formulas
+    - Keep consequential limits as separate direct facts; preserve negative facts and safety instructions that affect action
 - Keep sentences focused and paragraphs easy to scan
     - Split a sentence when its clauses compete for attention
     - Keep a cause, condition, contrast, or consequence together when splitting would obscure the relationship

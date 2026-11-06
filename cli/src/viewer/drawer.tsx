@@ -174,7 +174,7 @@ export function Details({
           {node.technicalLabel && <p className="technical-title">{node.technicalLabel}</p>}
           {node.technicalSummary && (
             <div className="markdown" data-annotate-type="node" data-annotate-id={node.id}>
-              <SidebarMarkdown hideImages={pack.documentKind === 'design'} highlights={highlights} navigation={onQuestion && linkedQuestions.length ? { questions: linkedQuestions, onQuestion } : null}>{node.technicalSummary}</SidebarMarkdown>
+              <SidebarMarkdown hideImages={pack.documentKind === 'design'} foldHeadings={pack.documentKind === 'design'} highlights={highlights} navigation={onQuestion && linkedQuestions.length ? { questions: linkedQuestions, onQuestion } : null}>{node.technicalSummary}</SidebarMarkdown>
             </div>
           )}
         </details>
@@ -245,7 +245,7 @@ export function DocumentOverview() {
       <div className="section document-overview" data-annotate-type="group" data-annotate-id="design:root">
         <h2>{document.name}</h2>
         <p>{document.summary}</p>
-        {document.detail && <div className="markdown"><SidebarMarkdown hideImages>{document.detail}</SidebarMarkdown></div>}
+        {document.detail && <div className="markdown"><SidebarMarkdown hideImages foldHeadings>{document.detail}</SidebarMarkdown></div>}
       </div>
       <DesignApproval />
       <p className="muted">Select a component or relationship to inspect its responsibilities and concerns.</p>
@@ -436,7 +436,8 @@ export function Drawer({
   setAnnotations: (annotations: Annotation[]) => void;
   onEdit: (id: string, comment: string) => void;
   onShowComment?: ShowComment;
-  onSelect: (id: string | null) => void;
+  // Quoted comments reveal the real element even when its graph ancestors are collapsed.
+  onSelect: (id: string | null, reveal?: boolean) => void;
   onComment: (target: Annotation['target'], comment: string) => void;
   onOpenGroup: (groupId: string) => void;
   // Opens the Mocks modal on one mock and variant; the caller also selects the element and shows the Mocks view.
@@ -481,6 +482,14 @@ export function Drawer({
   }, [view]);
   const answeredCount = authoredQuestions.length - needsInput;
   const [inspection, setInspection] = useState<DetailInspection | null>(null);
+  const [commentReveal, setCommentReveal] = useState<{ annotation: Annotation; element: HTMLElement; keyboard: boolean }>();
+  useEffect(() => {
+    if (!commentReveal) return;
+    // The Comments tab unmounts the prose. Reveal only after Details mounts it again.
+    const anchor = tabStrip.current?.querySelector<HTMLButtonElement>('button[aria-pressed="true"]') ?? commentReveal.element;
+    onShowComment?.(commentReveal.annotation, anchor, commentReveal.keyboard);
+    setCommentReveal(undefined);
+  }, [commentReveal, onShowComment]);
   const [answerDrafts, setAnswerDrafts] = useState<Record<string, AnswerDraft>>({});
   const setAnswerDraft = (id: string, draft?: AnswerDraft) => setAnswerDrafts(previous => {
     const next = { ...previous };
@@ -631,7 +640,10 @@ export function Drawer({
           <div className="drawer-comments">
             <div className="review-toolbar"><ReviewScope label="Comment scope" value={commentScope} currentLabel={currentLabel} count={visibleComments.length} options={options} onChange={setCommentScope} /></div>
             {context ? <CommentForm text={drafts[scopeIdFor(context.target)] ?? ''} onTextChange={text => setDrafts(previous => ({ ...previous, [scopeIdFor(context.target)]: text }))} draftKey={scopeIdFor(context.target)} label={context.target.type === 'group' && context.target.id === 'design:root' ? 'Comment on document' : `Comment on ${scopeLabel(context.target)}`} focusKey={focusKey} onSave={comment => onComment(context.target, comment)} /> : <p className="muted">Select a box or relationship to comment on it.</p>}
-            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} earlier={earlierComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment || onOpenMock ? (annotation, element, keyboard) => { if (annotation.mock && onOpenMock) onOpenMock({ nodeId: annotation.target.id, path: annotation.mock.path, variant: annotation.mock.variant, comment: annotation.id }); else onShowComment?.(annotation, element, keyboard); } : undefined} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
+            <Comments editDrafts={editDrafts} onEditDraft={setEditDraft} annotations={visibleComments} earlier={earlierComments} onSelect={id => { setView('details'); onSelect(id); }} onEdit={onEdit} onShowComment={onShowComment || onOpenMock ? (annotation, element, keyboard) => { if (annotation.mock && onOpenMock) onOpenMock({ nodeId: annotation.target.id, path: annotation.mock.path, variant: annotation.mock.variant, comment: annotation.id }); else if (annotation.selectedText) {
+              setInspection(null); setView('details'); setOpen(true); onSelect(diagramId(annotation.target), true);
+              setCommentReveal({ annotation, element, keyboard });
+            } else onShowComment?.(annotation, element, keyboard); } : undefined} onDelete={id => setAnnotations(annotations.filter(item => item.id !== id))} />
           </div>
         )}
       </div>

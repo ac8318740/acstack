@@ -11,11 +11,12 @@ vi.mock('../pack.js', () => ({
   targetLabel: () => 'Project developer',
   diagramId: () => 'item:author',
   pack: {
-    designDocument: { name: 'Checkout design', summary: 'Customers place an order', detail: '## Customer journey\n\nReview the **basket**, then pay.' },
+    documentKind: 'design',
+    designDocument: { name: 'Checkout design', summary: 'Customers place an order', detail: '## Customer journey\n\nReview the **basket**, then pay.\n\n| Decision | Status |\n| --- | --- |\n| Native conversion | **Blocked** |\n\n<script>alert(1)</script>' },
     graph: {
       groups: [{ id: 'owned', ownerNodeId: 'author', label: 'Owned group' }, { id: 'legacy', label: 'Legacy group' }],
       nodes: [
-        { id: 'author', label: 'Project developer', summary: 'Authors designs', sourceRefs: [] },
+        { id: 'author', label: 'Project developer', summary: 'Authors designs', technicalSummary: '## Write boundary\n\n| Decision | Status |\n| --- | --- |\n| Native conversion | **Blocked** |\n\n<script>alert(1)</script>', sourceRefs: [] },
         { id: 'github', label: 'GitHub', summary: 'Displays Markdown', sourceRefs: [] },
       ],
       edges: [
@@ -63,6 +64,29 @@ it('makes the overview summary and Markdown annotatable without including commen
     expect(renderToStaticMarkup(host)).not.toContain('<textarea');
     expect(renderToStaticMarkup(host)).not.toContain('Select a component');
   }
+});
+
+it('renders Markdown tables in overview and component details without enabling raw HTML', () => {
+  for (const content of [DocumentOverview(), details('node:author', vi.fn())]) {
+    const html = renderToStaticMarkup(content);
+    expect(html).toContain('role="region" aria-label="Scrollable table" tabindex="0"');
+    expect(html).toContain('<table>');
+    expect(html).toContain('<th>Decision</th>');
+    expect(html).toContain('<td>Native conversion</td>');
+    expect(html).toContain('<strong>Blocked</strong>');
+    expect(html).not.toContain('| --- |');
+    expect(html).not.toContain('<script>');
+  }
+});
+
+it('folds headings in both design overview and component detail while keeping summaries outside', () => {
+  const overview = renderToStaticMarkup(DocumentOverview());
+  expect(overview).toContain('<summary><h2>Customer journey</h2></summary>');
+  const component = renderToStaticMarkup(details('node:author', vi.fn()));
+  expect(component).toContain('<summary><h2>Write boundary</h2></summary>');
+  expect(component.indexOf('Authors designs')).toBeLessThan(component.indexOf('class="markdown-section"'));
+  expect(overview).not.toContain(' open=');
+  expect(component).not.toContain(' open=');
 });
 
 it('keeps document feedback associated with the structural root rather than arbitrary nodes', () => {
