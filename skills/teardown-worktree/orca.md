@@ -35,7 +35,7 @@ Orca has no command that moves a running terminal into another worktree. The `he
 
 That is not enough for the checkout this session stands in. The Orca terminal keeps its shell inside that directory, and Orca keeps a row bound to it. Removing it breaks both.
 
-So leave that one checkout in place. Name it to the user, and say why it stayed. Suggest they run the teardown again from a different Orca terminal.
+Leave that checkout and its branches in place. Report the terminal-move limitation and continue with other approved candidates in this session.
 
 Every other worktree in the plan goes as normal. This session stands outside them, so nothing has to move.
 
