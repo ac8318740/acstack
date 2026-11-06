@@ -198,8 +198,9 @@ Keep these suggestions separate from delivery-blocking findings. Neither review 
 authorizes adjacent edits by default, including `--auto-fix`.
 
 If cleanup is worth doing, ask the user whether to add it to scope. Approved work may
-run in parallel on non-overlapping files or isolated worktrees; do not make it a
-dependency of the main change. Never run conflicting writers in the same checkout.
+run in parallel with coordinated shared-file regions or isolated worktrees under
+the shared Implementation discipline; do not make it a dependency of the main
+change. Serialize actual conflicting edits and integration steps.
 
 A defect that prevents requested behavior or exposes a consequential risk is not
 merely cleanup. Classify it by impact and fix it within scope or report the blocker.

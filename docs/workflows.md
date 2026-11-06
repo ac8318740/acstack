@@ -177,6 +177,11 @@ flowchart LR
 
 - The authoritative policy lives in `orchestrator/AGENTS.md`, under Implementation discipline
 - One agent can investigate, test, implement, and verify straightforward work
+- Publish usable intermediate outputs with their revision, uncertainty, and change impact so related work can proceed
+    - Distinguish start prerequisites from completion prerequisites; pause only work needing a concrete missing input
+    - Coordinate shared-file regions and reread latest changes; serialize actual conflicts and integration steps
+    - Reconcile accepted upstream outputs and run integrated checks before final acceptance
+    - See [Concurrent work](concurrent-work.md) for military planning, JPL Team X, and film-editing precedents
 - Practical tests-first work remains preferred
 - Another agent adds independent interpretation or review when useful or required by the shared policy
 - Choosing separate test ownership prevents the implementer from weakening those tests

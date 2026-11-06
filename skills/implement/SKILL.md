@@ -136,8 +136,11 @@ unit verified, a revert, or a blocker.
 Read `decision-log.md` before the first row. It holds where the log lives and
 the columns.
 
-**Parallelism**: use teams when independent nodes benefit from parallel work.
-Assign non-overlapping files, and schedule shared-file changes sequentially.
+**Parallelism**: follow the shared policy's usable intermediate outputs and
+start-versus-completion prerequisites. Coordinate responsibilities and shared-file
+regions; reread latest contents before editing. Serialize actual conflicts and
+integration steps. Resolve only after required inputs are accepted and integrated
+checks pass.
 
 ### 6. Resolve
 

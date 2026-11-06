@@ -20,11 +20,11 @@ A continuation – what would have been a new tab – is a plain `--bg` session.
 starts in the CURRENT directory, which is the checkout this session is already
 in. That is exactly what a continuation wants.
 
-Genuinely separate or parallel work still needs its own checkout, and `--bg`
-will not make one – launched as-is it would quietly share this one. So create
-the worktree first with the `new-worktree` skill, which falls back to a plain
-git worktree when herdr is absent. Then launch the `--bg` session from inside
-that worktree.
+Parallel work can share this checkout when agents coordinate their regions,
+reread latest contents, and serialize actual conflicting edits under the shared
+Implementation discipline. When isolation helps, create a worktree first with
+`new-worktree`, which falls back to plain git without herdr, then launch `--bg`
+from that worktree. `--bg` does not create a checkout itself.
 
 Everything else is identical, because both paths produce a real session with a
 transcript.

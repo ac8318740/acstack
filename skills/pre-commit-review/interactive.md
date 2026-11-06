@@ -7,8 +7,8 @@ Present in-scope findings in **waves of up to 4** using the question tool (AskUs
 Keep adjacent suggestions in a separate advisory list, not the required fix waves.
 If one is worth pursuing, ask for explicit approval to add it to scope. "Fix all"
 for the main review does not include that advisory list. Approved cleanup may run
-in parallel with non-overlapping ownership or isolated worktrees, without delaying
-the main change.
+in parallel with coordinated shared-file regions or isolated worktrees under the
+shared policy, without delaying the main change.
 
 Format each wave like:
 
