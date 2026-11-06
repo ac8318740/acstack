@@ -1,6 +1,6 @@
 {
   "name": "acstack",
-  "version": "0.57.4",
+  "version": "0.57.5",
   "private": false,
   "description": "Agentic coding stack with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
   "license": "MIT",

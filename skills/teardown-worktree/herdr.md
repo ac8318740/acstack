@@ -77,7 +77,9 @@ herdr workspace create --cwd <main-root> --label <repo-name> --no-focus
 
 Read the move result, then refresh `herdr pane list --workspace <main-workspace-id>` and `herdr pane process-info --pane <new-pane-id>`. A move can change the pane identifier; verify the same session or terminal at its destination and use its new identifier for subsequent checks. Stop if that match is ambiguous. Do not keep trusting the old `$HERDR_PANE_ID` after a move.
 
-A pane move changes workspace membership. Verify the persistent harness cwd separately as `SKILL.md` step 2 requires, then continue teardown in this session. Keep the old checkout if either move cannot be verified.
+The verified pane move is sufficient for this session's approved checkout removal, whether the pane runs Pi, Codex, or Claude Code. It changes workspace membership and preserves the running process; it does not change the agent's or parent shell's cwd. Warn before plan approval that later tools or exiting the agent may report a deleted-directory error.
+
+Keep the old checkout if the pane move cannot be verified. Otherwise follow `SKILL.md` step 2's final-shell-invocation rule so cleanup completes before a stale cwd can block later tools.
 
 ## Step 3 – Owner: herdr
 
