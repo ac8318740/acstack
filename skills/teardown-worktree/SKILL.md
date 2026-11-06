@@ -89,13 +89,15 @@ git -C <path> status --porcelain --ignore-submodules=all
 
 `--ignore-submodules=all` is not optional. Without it, a submodule checked out ahead of its committed pointer reads as uncommitted work. Then every worktree in a repo with submodules looks dirty, and you never remove any of them.
 
-Report pointer drift in the plan anyway, from `git -C <path> submodule status`. That way a real pending bump stays visible, and the ignore flag does not hide it.
+Report pointer drift from `git -C <path> submodule status --recursive`. Inspect each initialized submodule recursively for uncommitted work and ignored preserve data under the same rules below, including before removal. A clean parent status cannot establish that its submodules are disposable; keep the checkout if a child check is incomplete.
 
-Any output from the status check means skip. Do not remove it. Do not force it. List it at the end with what it holds.
+Any output means keep by default. For a known stopped worker whose contributions shipped elsewhere, follow `workers.md` to account for every change, verify recovery, and obtain explicit discard approval. Otherwise skip and report; a merged branch tip does not prove dirty content was integrated.
 
 ### Ignored data
 
 Removal deletes every file git ignores, forced or not, and the status check cannot see them. Follow `artifacts.md` step 1. Any preserve path, such as `.env` or Terraform state, means skip unless the user approves losing that named path.
+
+Before any removal or build-output clean, check whether kept worktrees depend on the target (for example, through dependency symlinks). Keep it until any repair is approved and verified; deleting the target breaks those links. Recheck immediately before deletion.
 
 ### Merged
 
@@ -145,22 +147,21 @@ Do this before removing anything, and only after approval.
 
 `EnterWorktree` cannot do this. It rejects the main checkout outright, "is the main working tree, not a linked worktree".
 
-So no tool call walks the session cwd back. `ExitWorktree` only unwinds a worktree this session entered with `EnterWorktree`. It is a no-op for a session that launched inside one.
+`ExitWorktree` only unwinds a worktree this session entered with `EnterWorktree`. In that case, call it with `action: "keep"`; step 3 owns removal. For a session launched inside a worktree, use a supported persistent harness cwd change, or hand off to a new session launched at the main checkout and leave the old checkout until the old session exits.
 
-The removal itself is what moves the session. Run it from the main checkout against an absolute path. The harness then resets the session cwd to the main checkout on its own. Confirm with `pwd` afterwards.
+For Pi, a fresh session at main is the portable route. Where the installed Pi documents `--fork`, capture the absolute session file with `/session`, then launch `pi --fork <absolute-session-file>` from main. `--session` and `--resume` retain the saved cwd.
 
-- Entered with `EnterWorktree`: call `ExitWorktree` with `action: "keep"` first. Keep, not remove: step 3 owns the removal, and `remove` refuses on a worktree entered by path.
-- Launched inside the worktree: no call needed.
+Verify the harness/tool cwd before removal with a fresh shell call running `pwd` without `cd`, and a relative file read in the main checkout. A shell `cd`, `git -C`, or pane move does not prove the harness cwd changed. Never rely on removal to reset it: Pi can retain a missing cwd and fail subsequent tool calls.
 
-    Take the pane with you below. Remove the worktree in step 3. Confirm the new cwd after.
+Run removals from the main checkout against absolute paths. If a persistent move cannot be verified, keep this session's checkout; other approved candidates can still go. Do not recreate a removed directory to pretend the session moved.
 
-That much is the same everywhere. What follows depends on the branch `active` names. This step is the one place `active` still decides anything: how this session moves itself.
+The branch `active` names decides the pane move below; pane location and harness cwd are separate checks.
 
 When `active` is `herdr`, follow `herdr.md` step 2 before you remove anything. When `active` is `orca`, follow `orca.md` step 2. It leaves this session's own checkout in place.
 
 ### Host: none
 
-There is no pane and no workspace, so the cwd move described above is the whole step. No other tool needs to know where this session went.
+There is no pane or workspace to move. The verified harness cwd change or handoff above is still required.
 
 ## 3. Remove the worktrees
 
@@ -168,7 +169,7 @@ Every removal through herdr or plain git passes `--force`. Orca is the exception
 
 Plain `git worktree remove` refuses on any worktree containing submodules with "working trees containing submodules cannot be moved or removed". That refusal hits every worktree in a repo that has them.
 
-Forcing is safe only because step 1 already proved the tree clean and its ignored data rebuildable or approved for loss. It is never a way past uncommitted changes.
+Use force only after step 1 proved the tree clean, or completed the explicit integrated-worker exception in `workers.md`, with ignored data rebuildable or approved for loss. Recheck status and ignored data immediately before removal; changes invalidate the plan.
 
 The hard rule: never run `worktree remove --force` on a workspace that still holds a pane other than this session's own. Forcing waives herdr's own check, so the pane enumeration is the only guard left. Enumerate the panes again immediately before the call. Refuse the removal while any other pane remains.
 
@@ -223,10 +224,10 @@ State what went and what stayed:
 - Remove a worktree this session is standing in. Move out first.
 - Remove a worktree whose herdr workspace reports a `working`, `blocked`, `idle` or `done` agent. `idle` means present and waiting, not absent.
 - Decide on the workspace `agent_status` alone. List the panes and read `herdr pane process-info` for each one before removing.
-- Read the workspace `agent_status` as this session's own verdict. Exclude your own pane by `$HERDR_PANE_ID` instead.
+- Read the workspace `agent_status` as this session's own verdict. Exclude only your verified current pane id (`herdr.md`), refreshed after any move.
 - Remove a workspace that still holds a pane other than your own.
 - Reach for `EnterWorktree` to get back to the main checkout. It rejects the main working tree.
-- Force past uncommitted changes. Skip and report instead.
+- Force past unaccounted uncommitted changes or bypass the recovery and explicit approval required by `workers.md`.
 - Read a clean status as proof the checkout holds nothing. It hides ignored files, and removal deletes them.
 - Clean build outputs in a worktree with a live agent or process. Report the size instead.
 - Remove a worktree, stop an agent, or delete a Docker volume only to reclaim disk space.
