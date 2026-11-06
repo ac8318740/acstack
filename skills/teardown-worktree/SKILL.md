@@ -1,14 +1,14 @@
 ---
 name: teardown-worktree
-description: "Retire finished git worktrees – move this session back to the main checkout, move the orchestrator's pane back to the main repo workspace, remove the checkouts, delete the merged local and remote branches, and offer to clean rebuildable build outputs in worktrees that stay. Scans the whole repo, not just the current worktree. Use whenever the user says \"tear down the worktree\", \"clean up worktrees\", \"remove this worktree\", \"delete the worktree and branch\", \"clean up stale worktrees\", \"free disk space from old sessions\", or otherwise wants finished worktrees and their branches gone."
+description: "Retire finished git worktrees – move the orchestrator's pane back to the main repo workspace, remove the checkouts, delete the merged local and remote branches, and offer to clean rebuildable build outputs in worktrees that stay. Scans the whole repo, not just the current worktree. Use whenever the user says \"tear down the worktree\", \"clean up worktrees\", \"remove this worktree\", \"delete the worktree and branch\", \"clean up stale worktrees\", \"free disk space from old sessions\", or otherwise wants finished worktrees and their branches gone."
 argument-hint: "[worktree name, or nothing to scan the whole repo]"
 ---
 
 # Teardown worktree
 
-Retire finished worktrees in this repository. After the user approves the plan, move this session to the main checkout, remove the approved worktrees, and delete their merged branches.
+Retire finished worktrees in this repository. After the user approves the plan, move this session's herdr pane to the main repo workspace, remove the approved worktrees, and delete their merged branches.
 
-Keep this session running throughout. Verify its move before deleting its old checkout, and preserve any checkout that still holds another session or terminal.
+Keep this session running throughout. A verified herdr pane move permits removing its old checkout even when the agent's working directory (cwd) stays there. Warn before approval: later tools or exiting the agent may report a deleted-directory error. Preserve any checkout that still holds another session or terminal.
 
 ## When to use
 
@@ -119,7 +119,7 @@ Merged by either test counts as merged. Merged by neither means skip. Report it.
 
 ### Live agent
 
-Include this session's worktree in the plan if it passes the other checks. Mark its removal as conditional on the verified move in step 2. This session's presence alone does not disqualify it; every other session or terminal still blocks removal.
+Include this session's worktree in the plan if it passes the other checks. Mark its removal as conditional on step 2's host checks. For herdr, a verified pane move is enough; disclose any stale-cwd risk before approval. This session's presence alone does not disqualify it; every other session or terminal still blocks removal.
 
 Beyond that, ask both orchestrators about every candidate, whoever owns it. Neither tool sees the other's sessions, and either one can hold a live agent in a checkout the other owns. One tool's silence is not an answer, so a check you skip is a session you may destroy.
 
@@ -143,19 +143,19 @@ The blocking panes column names each pane that blocks the removal, pane id first
 
 ## 2. Move this session out
 
-After approval, move to the main checkout in this session. Do this before removing anything. If already there, verify the cwd and check the host's pane location.
+After approval, follow the host's move procedure before removing anything:
 
-1. Change the harness's persistent working directory to the main checkout using its supported tool or session control. Inspect the available controls and installed harness documentation if the mechanism is unclear. A session launched inside a worktree still needs this move.
-    - If this session entered through `EnterWorktree`, use `ExitWorktree` with `action: "keep"`; step 3 owns removal. `EnterWorktree` cannot return to the main checkout.
-    - A shell `cd` affects only that shell unless the harness documents persistence. `git -C` changes one command's target. Neither establishes the move on its own.
-2. Move the host pane using `herdr.md` step 2 when `active` is `herdr`. Follow `orca.md` step 2 when it is `orca`; Orca's terminal limitation keeps this session's checkout in place. With `active: none`, there is no pane to move.
-3. Verify tool paths in fresh calls: run plain `pwd` without `cd`, then read a known file by a relative path in the main checkout. Confirm both resolve there. A pane move alone does not change the harness cwd.
+- `active: herdr`: follow `herdr.md` step 2. Verify the same running session or terminal in the main repo workspace. Persistent cwd relocation is optional and does not block removal after a verified pane move.
+- `active: orca`: follow `orca.md` step 2. Keep this session's checkout because Orca cannot move its terminal.
+- `active: none`: there is no pane to move. Keep this session's checkout unless a supported persistent cwd change succeeds. Verify it with plain `pwd` and a relative file read in separate fresh tool calls.
 
-Continue teardown here after verification. Do not launch a replacement session, fork, or hand off as part of teardown. Do not ask the user to close this session to complete its own removal.
+If this session entered through `EnterWorktree`, use `ExitWorktree` with `action: "keep"` when available; step 3 owns removal. `EnterWorktree` cannot return to the main checkout. A shell `cd` affects only that shell unless the harness documents persistence. `git -C` changes one command's target.
 
-If the move fails, report the attempted control and exact error or missing capability. Keep this session's checkout and its branches; continue with other approved candidates only where safe. Do not infer failure from the harness name alone.
+Continue teardown in this session. Do not launch a replacement session, fork, or hand off. A failed or ambiguous pane move keeps this session's checkout and its branches; continue with other approved candidates where safe.
 
-Run removals from the main checkout against absolute paths. Never delete the old checkout to force a cwd reset, or recreate a deleted directory to hide a failed move.
+A herdr pane move does not change the agent's or parent shell's cwd. Deleting the old checkout may leave both in a deleted directory; do not promise an automatic reset or recreate the directory to hide the error.
+
+When removing this session's checkout, finish all other approved removals and build-output cleans first. Then run its removal, applicable branch deletions, and final verification in one shell invocation beginning with `cd <main-root>`, using absolute checkout paths. Capture the results there: later tool calls may fail because their default cwd no longer exists.
 
 ## 3. Remove the worktrees
 
@@ -215,7 +215,7 @@ State what went and what stayed:
 
 ## Never
 
-- Remove a worktree this session is standing in. Move out first.
+- Remove this session's checkout before step 2's host checks pass. A verified herdr pane move permits a stale cwd only with the disclosed risk covered by plan approval.
 - Remove a worktree with another herdr pane's `working`, `blocked`, `idle`, or `done` agent. Exclude only this session's verified pane, which step 2 moves out.
 - Decide on the workspace `agent_status` alone. List the panes and read `herdr pane process-info` for each one before removing.
 - Read the workspace `agent_status` as this session's own verdict. Exclude only your verified current pane id (`herdr.md`), refreshed after any move.
