@@ -27,7 +27,7 @@ herdr pane list --workspace <workspace-id>
 
 The listing covers every tab, not only the focused one. Each entry carries `pane_id`, `tab_id`, `agent`, `agent_status`, `cwd` and `foreground_cwd`.
 
-Exclude this session's own pane by identifier, never by status. The own pane is the one whose `pane_id` equals `$HERDR_PANE_ID`. Every other pane still counts, whatever the workspace `agent_status` said.
+Resolve this session's current pane id, initially from `$HERDR_PANE_ID`. After any move, refresh it as step 2 describes. Exclude only that verified pane by identifier, never by status. Every other pane still counts, whatever the workspace `agent_status` said. If identity is ambiguous, stop; do not exclude a guessed pane.
 
 The `w26` teardown skipped this step. It read its own workspace's `done` as its own verdict, removed the workspace, and killed a live session in the second tab.
 
@@ -81,7 +81,9 @@ If no such workspace exists because it closed earlier, create one first:
 herdr workspace create --cwd <main-root> --label <repo-name> --no-focus
 ```
 
-The pane's own shell keeps the deleted directory as its cwd, which `herdr pane process-info` reports as `(deleted)`. That is cosmetic, and only visible once the agent exits and hands the prompt back.
+Read the move result, then refresh `herdr pane list --workspace <main-workspace-id>` and `herdr pane process-info --pane <new-pane-id>`. A move can change the pane identifier; verify the same session or terminal at its destination and use its new identifier for subsequent checks. Stop if that match is ambiguous. Do not keep trusting the old `$HERDR_PANE_ID` after a move.
+
+A pane move changes workspace membership; it does not establish a new shell or harness cwd. Complete the verified cwd change or handoff in `SKILL.md` step 2 before deleting the old checkout. A `(deleted)` cwd is evidence of a stale directory, and can break Pi tool execution. Do not dismiss it as cosmetic.
 
 ## Step 3 – Owner: herdr
 
@@ -93,7 +95,7 @@ With a workspace, enumerate its panes first:
 herdr pane list --workspace <workspace-id>
 ```
 
-Exclude the pane whose `pane_id` equals `$HERDR_PANE_ID`. Refuse the removal while any other pane remains. Name those pane ids to the user and move to the next worktree.
+Exclude only the verified current pane id from steps 1 and 2. Refuse the removal while any other pane remains. Name those pane ids to the user and move to the next worktree.
 
 With the workspace clear, let herdr do it, so the sidebar row goes with the worktree:
 
