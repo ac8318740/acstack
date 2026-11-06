@@ -176,4 +176,16 @@ Workflow skills apply shared implementation, communication, and design-review gu
 - **Then**: It skips a worktree holding a preserve path unless the user approves losing that named path
 - **Then**: It offers to clean rebuildable build outputs in worktrees that stay, only where no live agent or process runs
 - **Then**: It never runs `git clean -x`, stops an agent, removes a worktree, or deletes a Docker volume to reclaim space
-- **Source**: `skills/teardown-worktree/SKILL.md`, `skills/teardown-worktree/artifacts.md`
+- **Then**: It inspects initialized submodules recursively and keeps checkouts when child checks are incomplete
+- **Then**: It checks incoming dependency links before removal or build-output cleanup and requires approved, verified repairs
+- **Given**: A known stopped worker holds uncommitted contributions shipped elsewhere
+- **When**: The agent considers the integrated-worker exception
+- **Then**: It accounts for every change against pinned integration evidence and verifies an independent recovery copy before requesting named discard approval
+- **Then**: It rechecks liveness, HEAD, index, contents, modes, links, and ignored data immediately before removal; changes invalidate approval
+- **Then**: It keeps unknown or unexplained changes and respects Orca's dirty-tree refusal
+- **Given**: The session runs inside a removal candidate
+- **When**: The agent prepares removal
+- **Then**: It verifies a persistent harness cwd change or hands off from main and waits for the original session to exit
+- **Then**: It never relies on removal to reset the cwd or treats a pane move as a harness cwd change
+- **Then**: It refreshes and verifies Herdr pane identity after a move before excluding its own pane
+- **Source**: `skills/teardown-worktree/SKILL.md`, `skills/teardown-worktree/artifacts.md`, `skills/teardown-worktree/workers.md`, `skills/teardown-worktree/herdr.md`
