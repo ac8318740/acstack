@@ -367,8 +367,33 @@ jobs:
           SHA: ${{ steps.check.outputs.sha }}
         run: |
           set -euo pipefail
-          if ! gh api -X PATCH "repos/${REPO}/git/refs/heads/main" -f sha="$SHA" >/dev/null 2>&1; then
-            echo "::error::GitHub refused to move main to ${SHA:0:8}. Two causes are realistic. Either the move is not a fast-forward, meaning something wrote to main directly, or a required check on main is not green on this SHA. Compare main's protection settings against the CHECKS list in this workflow. Nothing was changed."
+          gh_err="${RUNNER_TEMP:-/tmp}/promote-ref-update.err"
+          if response=$(GH_DEBUG= gh api -X PATCH \
+            "repos/${REPO}/git/refs/heads/main" \
+            -f sha="$SHA" 2>"$gh_err"); then
+            :
+          else
+            code=$?
+            # Omit raw headers and redact credentials from error fields.
+            if [ -n "${GH_TOKEN:-}" ]; then
+              response=${response//"$GH_TOKEN"/[REDACTED]}
+            fi
+            detail=$(printf '%s' "$response" | jq -ce '{
+              message,
+              errors: [.errors[]? | if type == "object" then
+                {resource, field, code, message} else . end],
+              documentation_url, status
+            } | select(.message | type == "string")' 2>/dev/null \
+              || echo "No JSON error response")
+            # The runner recognizes legacy ##[commands] anywhere in a line.
+            detail=${detail//'##['/'##\u005b'}
+            http=$(grep -oE 'HTTP [0-9]{3}' "$gh_err" | head -1 || true)
+            echo "GitHub ref update failed (gh exit ${code};" \
+              "${http:-HTTP status unavailable})."
+            printf 'GitHub response: %s\n' "$detail"
+            echo "::error::Could not confirm moving main to ${SHA:0:8}." \
+              "Inspect the GitHub response, main's ref, and required checks" \
+              "before re-running. A lost response can mean the update landed."
             exit 1
           fi
           echo "main is now at ${SHA:0:8}"
