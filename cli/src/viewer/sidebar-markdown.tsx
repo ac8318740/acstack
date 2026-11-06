@@ -1,4 +1,5 @@
 import { Children, isValidElement, useContext, useEffect, useRef, useState, type ComponentProps, type ContextType } from 'react';
+import type { Element, Root, RootContent } from 'hast';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { markdownHighlights, type QuestionHighlight } from './markdown-highlights.js';
@@ -13,6 +14,30 @@ const schema = {
   tagNames: [...defaultSchema.tagNames!, 'details', 'summary'],
   attributes: { ...defaultSchema.attributes, details: ['open'] },
 };
+
+// Only document-level headings define sections; headings in quotes or examples do not.
+function collapsibleHeadings() {
+  return (tree: Root) => {
+    const children: RootContent[] = [];
+    const stack: { level: number; section: Element }[] = [];
+    for (const node of tree.children) {
+      if (node.type === 'doctype') { children.push(node); continue; }
+      if (node.type === 'element' && /^h[1-6]$/.test(node.tagName)) {
+        const level = Number(node.tagName[1]);
+        while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
+        const section: Element = {
+          type: 'element', tagName: 'details', properties: { className: ['markdown-section'] },
+          children: [{ type: 'element', tagName: 'summary', properties: {}, children: [node] }],
+        };
+        (stack[stack.length - 1]?.section.children ?? children).push(section);
+        stack.push({ level, section });
+      } else {
+        (stack[stack.length - 1]?.section.children ?? children).push(node);
+      }
+    }
+    tree.children = children;
+  };
+}
 
 export function mermaidFrameDocument(source: string): string {
   // Authored text is data, never executable markup. The renderer cannot access the review token.
@@ -58,7 +83,7 @@ export function MermaidDiagram({ source }: { source: string }) {
 
 function MarkdownTable({ children }: ComponentProps<'table'>) {
   const navigation = useContext(QuestionReferenceContext);
-  return <div className={`markdown-table${navigation ? ' question-table' : ''}`}><table>{children}</table></div>;
+  return <div className={`markdown-table${navigation ? ' question-table' : ''}`} role="region" aria-label="Scrollable table" tabIndex={0}><table>{children}</table></div>;
 }
 
 function MarkdownPre({ children }: ComponentProps<'pre'>) {
@@ -68,8 +93,8 @@ function MarkdownPre({ children }: ComponentProps<'pre'>) {
 }
 const noImage = () => null;
 
-export function SidebarMarkdown({ children, hideImages = false, highlights = [], navigation = null }: { children: string; hideImages?: boolean; highlights?: QuestionHighlight[]; navigation?: ContextType<typeof QuestionReferenceContext> }) {
-  return <QuestionReferenceContext.Provider value={navigation}><Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, schema], [markdownHighlights, { source: children, highlights }]]} components={{
+export function SidebarMarkdown({ children, hideImages = false, foldHeadings = false, highlights = [], navigation = null }: { children: string; hideImages?: boolean; foldHeadings?: boolean; highlights?: QuestionHighlight[]; navigation?: ContextType<typeof QuestionReferenceContext> }) {
+  return <QuestionReferenceContext.Provider value={navigation}><Markdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw, [rehypeSanitize, schema], [markdownHighlights, { source: children, highlights }], ...(foldHeadings ? [collapsibleHeadings] : [])]} components={{
     ...passageComponents, ...(hideImages ? { img: noImage } : {}), table: MarkdownTable, pre: MarkdownPre,
   }}>{children}</Markdown></QuestionReferenceContext.Provider>;
 }

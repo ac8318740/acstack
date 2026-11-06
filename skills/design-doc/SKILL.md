@@ -28,7 +28,9 @@ flowchart LR
 - Inspect the source to establish current responsibilities
 - Ask the user about unresolved product decisions before inventing behavior
 - Distinguish existing behavior from proposed changes throughout the document
-- Open the root body with the proposed change, the review questions, and the trade-offs the reviewer must judge
+- Open the root body with a ten-second synthesis of the whole proposal: what changes, how it works, consequential limits, trade-offs, and decisions needed
+    - Make this standalone account understandable to an adult without project context
+    - State limits directly; remove rhetorical framing and "X, not Y" contrast formulas
 - Use the worked journey to show who does what and where the proposal changes today's flow
 - Use `examples/design-doc/acstack/maps/acstack-design/` as the worked example
 
@@ -84,6 +86,9 @@ connections:           # each connection declared once, on the acting element
     - Put interface labels on the software that provides them, not on an actor that uses them
 - Reference elements by node id. Quote ids so YAML keeps them as text
 - Keep peer elements at comparable levels of abstraction, and model only real entities
+- Put supporting explanations under nested, literal Markdown headings that name their contents
+    - Each level summarizes its children; keep the opening synthesis before the first heading so it stays visible
+    - The viewer folds H1-H6 sections through the next same-level or higher-level heading; skipped levels nest under the nearest parent
 - Element and root prose support Markdown, GFM tables, fenced Mermaid diagrams, and nested `<details>` sections
     - Leave blank lines around Markdown inside HTML disclosure sections
     - Mermaid renders offline in an isolated frame; scripts and unsafe HTML are stripped

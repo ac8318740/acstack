@@ -26,6 +26,30 @@ Reports to the user can use fragments. Durable documents need precise wording an
 - Avoid: The hook writes the symlink, which means the symlink gets created
     - The second clause adds no information
 
+## Literal headings and ordinary words
+
+Headings name their contents. A reader should understand the subject without knowing the project or interpreting a slogan.
+
+| Avoid | Write |
+| --- | --- |
+| Review three cooperating stages, not a new workflow | 3 import steps |
+| New and corrected orders share the same routing policy | Choosing a folder for an order |
+| An authority boundary beneath the workflow | Who may change an order |
+
+Explain the shared rule in the body: "New and corrected orders use the same folder rules."
+
+## Direct statements and relevant limits
+
+Avoid contrast formulas in explanations:
+
+> These are code contracts, not proof of live operation.
+
+State the concrete behavior and its evidence limit separately:
+
+> The source code includes order import. The live service has not been tested.
+
+Delete irrelevant comparisons. Keep limits that affect a decision, and retain direct safety instructions such as "Do not delete the original file."
+
 ## Give each level one question to answer
 
 - Write: The release is blocked by two failed checks
@@ -84,6 +108,70 @@ The second makes the reader guess whether the names identify the same thing.
 - Avoid: Nesting the worker under the API because both depend on authentication
 - Write: The parser exposes `parse(text)` and keeps tokenization internal
 - Avoid: Listing every tokenizer helper before explaining the parser's interface
+
+## Synthesize the proposal before nested supporting detail
+
+Avoid a teaser summary followed by a long introduction that hides the decision:
+
+```yaml
+summary: A simpler order workflow.
+```
+
+```markdown
+# The next chapter for orders
+We considered several ways to improve order entry. This proposal brings three
+components together. The following sections explain their responsibilities.
+## Components
+The Importer reads files, the Validator checks records, and the Writer saves orders.
+## Considerations
+Local files need manual transfer. We have not chosen an import authorization owner.
+```
+
+Write an always-visible summary of the full proposal (about 10 seconds to read, not an enforced word count):
+
+```yaml
+summary: >-
+  Replace manual order entry with file imports validated before storage.
+  The Importer and Validator prepare orders for the Writer.
+  Operators transfer files manually between devices.
+  Launch requires a decision on who may authorize imports.
+```
+
+Then put distinct supporting explanations under nested, literal headings:
+
+```markdown
+# 3 import components
+## Component responsibilities
+
+- **Importer:** reads the source file.
+- **Validator:** rejects invalid records.
+- **Writer:** saves accepted orders.
+
+### Invalid records
+If a record is invalid, the import stops before saving any records. The operator can correct the file and retry.
+
+## Moving files between devices
+Operators transfer files manually.
+
+# Import permissions
+The team must choose who can authorize an import before enabling writes.
+```
+
+In the design UI, the YAML summary stays visible while Markdown headings become closed nested sections. Each parent states what its children explain.
+
+The authorization blocker remains visible before any section opens. The final section explains the decision needed. The Markdown starts with a heading because a preamble would only repeat the summary.
+
+## Guarantees for a design reviewer
+
+For a human reviewing a design, replace the implementation checklist:
+
+> Validate IDs, revisions, payload fields, duplicate records, permissions, and destination paths. Acquire the shared lock, reread state, write a recovery record, and resume unfinished work before retrying.
+
+With the reviewable contract:
+
+> Reject stale or unauthorized changes. Recover interrupted writes before retrying, without duplicating records.
+
+Keep any unresolved atomicity or authorization decision explicit. The shorter contract does not remove implementation requirements; their detailed enforcement belongs in implementation records.
 
 ## Use formatting to clarify the content
 

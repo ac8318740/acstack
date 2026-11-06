@@ -6,7 +6,24 @@ import { CommentEditor } from './comment-editor.js';
 import { Pencil, X } from 'lucide-react';
 
 type Preview = { ids: string[]; range?: Range; anchor: DOMRect; pinned: boolean; focus?: HTMLElement };
-const interactive = 'button, a, input, textarea, select, [contenteditable="true"], .comment-form, .popover, .comments';
+const interactive = 'button, a, summary, input, textarea, select, [contenteditable="true"], .comment-form, .popover, .comments';
+
+function revealQuote(range: Range) {
+  let opened = false;
+  for (const node of [range.startContainer, range.endContainer]) {
+    let section = node?.parentElement?.closest<HTMLDetailsElement>('details');
+    while (section) {
+      if (!section.open) { section.open = true; opened = true; }
+      section = section.parentElement?.closest<HTMLDetailsElement>('details');
+    }
+  }
+  const common = range.commonAncestorContainer;
+  const container = common?.nodeType === 1 ? common as Element : common?.parentElement;
+  for (const section of container?.querySelectorAll<HTMLDetailsElement>('details') ?? []) {
+    if (range.intersectsNode(section) && !section.open) { section.open = true; opened = true; }
+  }
+  if (opened) range.startContainer.parentElement?.scrollIntoView({ block: 'nearest' });
+}
 
 // Ranges and document listeners stay outside React; no source DOM is rewritten.
 export function bindPostedComments(panel: { current: HTMLDivElement | null }, onPreview: (preview: Preview | null) => void) {
@@ -149,7 +166,12 @@ export function bindPostedComments(panel: { current: HTMLDivElement | null }, on
       if (active) active = { ...active, pinned: value || keepPinned || pinnedBeforeEdit };
     },
     leave,
-    show: (annotation: Annotation, element: HTMLElement, keyboard: boolean) => publish(ranges.filter(hit => hit.annotation.id === annotation.id), true, { annotation, element, keyboard }),
+    show: (annotation: Annotation, element: HTMLElement, keyboard: boolean) => {
+      refresh();
+      const hits = ranges.filter(hit => hit.annotation.id === annotation.id);
+      hits.forEach(hit => revealQuote(hit.range));
+      publish(hits, true, { annotation, element, keyboard });
+    },
     dispose: () => {
       disposed = true;
       cancel();

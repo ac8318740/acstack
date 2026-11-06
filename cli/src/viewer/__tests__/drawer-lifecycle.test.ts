@@ -1,4 +1,4 @@
-import { createElement, act, type ComponentProps } from 'react';
+import { createElement, act, useState, type ComponentProps } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Drawer, mockScopeForSelection } from '../drawer.js';
@@ -68,6 +68,45 @@ function handlers(host: Host): Handlers {
 }
 function all(host: Host): Host[] { return [host, ...host.childNodes.flatMap(all)]; }
 afterEach(() => vi.unstubAllGlobals());
+
+it('mounts the commented element prose before revealing a comment from the Comments tab', () => {
+  const document = new Host('#document');
+  document.nodeType = 9;
+  document.ownerDocument = document;
+  const create = (name: string) => Object.assign(new Host(name), { ownerDocument: document });
+  Object.assign(document, { createElement: create, createElementNS: (_: string, name: string) => create(name), createTextNode: (text: string) => Object.assign(create('#text'), { nodeType: 3, nodeValue: text }), activeElement: null });
+  vi.stubGlobal('document', document);
+  vi.stubGlobal('window', { document, innerWidth: 1360, addEventListener() {}, removeEventListener() {}, HTMLIFrameElement: class {} });
+  vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
+  const container = create('div');
+  const root = createRoot(container as unknown as HTMLElement);
+  const original = pack.graph.nodes;
+  pack.graph.nodes = [{ id: 'quoted', groupId: 'design:root', label: 'Quoted element', summary: 'Visible summary.', technicalSummary: '## Outer\n\n### Inner\n\nSaved passage.', sourceRefs: [] }];
+  const annotation = { id: 'saved', packVersion: 'v', target: { type: 'node' as const, id: 'quoted' }, selectedText: 'Saved passage.', comment: 'Clarify this.' };
+  const reveal = vi.fn(() => {
+    const hosts = all(container);
+    expect(hosts.some(node => node.attributes['data-annotate-id'] === 'quoted' && node.attributes.class === 'markdown')).toBe(true);
+    expect(hosts.filter(node => node.attributes.class === 'markdown-section')).toHaveLength(2);
+    expect(hosts.some(node => node.textContent === 'Saved passage.' || node.nodeValue === 'Saved passage.')).toBe(true);
+  });
+  function Harness() {
+    const [view, setView] = useState<ComponentProps<typeof Drawer>['view']>('comments');
+    const [selected, setSelected] = useState<string | null>(null);
+    return createElement(Drawer, { open: true, setOpen: vi.fn(), view, setView, selected, onSelect: (id, reveal) => { expect(reveal).toBe(true); setSelected(id); }, commentScope: 'all', setCommentScope: vi.fn(), questionScope: 'all', setQuestionScope: vi.fn(), diagram: { nodes: [], edges: [], nodeToVisible: {} }, focusKey: 0, annotations: [annotation], setAnnotations: vi.fn(), onEdit: vi.fn(), onComment: vi.fn(), onOpenGroup: vi.fn(), onShowComment: reveal });
+  }
+  try {
+    act(() => root.render(createElement(Harness)));
+    expect(all(container).some(node => node.attributes.class === 'markdown')).toBe(false);
+    const button = all(container).find(node => node.tagName === 'BUTTON' && node.textContent === 'Show comment')!;
+    const strip = all(container).find(node => node.attributes.class === 'drawer-tabs')!;
+    const detailsTab = strip.childNodes[0];
+    Object.assign(strip, { querySelector: () => detailsTab });
+    const click = handlers(button).onClick as unknown as (event: { currentTarget: Host; detail: number }) => void;
+    act(() => click({ currentTarget: button, detail: 0 }));
+    // The original Comments button is detached; Escape returns focus to the surviving Details tab.
+    expect(reveal).toHaveBeenCalledExactlyOnceWith(annotation, detailsTab, true);
+  } finally { act(() => root.unmount()); pack.graph.nodes = original; }
+});
 
 it('filters questions by scope without discarding drafts or expansion, and scopes tab entry to the selection', () => {
   const document = new Host('#document');

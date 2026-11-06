@@ -22,10 +22,13 @@ vi.mock('react', async original => ({
 }));
 vi.mock('react-dom/client', () => ({ createRoot: () => root }));
 vi.mock('../diagram.js', () => ({ Diagram: () => null, MeasureDiagram: () => null }));
-vi.mock('../alignment-graph.js', () => ({ initialExpandedGroups: () => [], projectDiagram: () => ({}), reconcileSelection: (id: string) => id, buildDiagram: vi.fn() }));
+vi.mock('../alignment-graph.js', async original => ({
+  ...await original<typeof import('../alignment-graph.js')>(),
+  initialExpandedGroups: () => [], projectDiagram: () => ({}), reconcileSelection: vi.fn((id: string) => id), buildDiagram: vi.fn(),
+}));
 vi.mock('../posted-comments.js', () => ({ usePostedComments: () => ({ content: null, show: vi.fn() }) }));
 // The harness invokes real handlers and rerenders state without a DOM dependency.
-type Props = { children?: ReactNode; 'aria-label'?: string; onClick?: () => void; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; onQuestions: (id: string | null) => void; questionScope: string; setQuestionScope: (scope: string) => void; view: string; setView: (view: string) => void; commentScope: string; setCommentScope: (scope: string) => void; options: { value: string; label: string }[]; onChange: (value: string) => void; annotations?: Annotation[]; onDelete?: (id: string) => void; selected: string | null; focusKey: number; draftKey: string; label: string; onSave?: (text: string) => void; setOpen: (open: boolean) => void };
+type Props = { children?: ReactNode; 'aria-label'?: string; onClick?: () => void; onSelect: (id: string | null, reveal?: boolean) => void; onAnnotate: (id: string) => void; onQuestions: (id: string | null) => void; questionScope: string; setQuestionScope: (scope: string) => void; view: string; setView: (view: string) => void; commentScope: string; setCommentScope: (scope: string) => void; options: { value: string; label: string }[]; onChange: (value: string) => void; annotations?: Annotation[]; onDelete?: (id: string) => void; selected: string | null; focusKey: number; draftKey: string; label: string; onSave?: (text: string) => void; setOpen: (open: boolean) => void };
 function elements(node: ReactNode): ReactElement<Props>[] {
   if (!isValidElement<Props>(node)) return [];
   return [node, ...Children.toArray(node.props.children).flatMap(elements)];
@@ -70,6 +73,46 @@ it('wires graph Comment, fresh and same-item selection, and detail navigation th
   expect(drawer().props).toMatchObject({ selected: null, view: 'questions', questionScope: 'all' });
   graph().props.onQuestions('edge:next');
   expect(drawer().props).toMatchObject({ selected: 'edge:next', view: 'questions', questionScope: 'selection:edge:next' });
+});
+
+it('reveals a saved quote on a hidden child instead of reconciling it to the collapsed owner', async () => {
+  const { Drawer } = await import('../drawer.js');
+  const { Diagram } = await import('../diagram.js');
+  const { pack } = await import('../pack.js');
+  const graphModule = await import('../alignment-graph.js');
+  const actualGraph = await vi.importActual<typeof import('../alignment-graph.js')>('../alignment-graph.js');
+  const original = pack.graph;
+  pack.graph = {
+    nodes: [{ id: 'child', groupId: 'inner', label: 'Child', summary: 'Child summary', technicalSummary: '## Evidence\n\nSaved child passage.', sourceRefs: [] }],
+    groups: [{ id: 'outer', label: 'Outer', summary: '', sourceRefs: [], parentGroupId: 'design:root' }, { id: 'inner', label: 'Inner', summary: '', sourceRefs: [], parentGroupId: 'outer' }],
+    edges: [], aggregateEdges: [],
+  };
+  vi.mocked(graphModule.reconcileSelection).mockImplementation(actualGraph.reconcileSelection);
+  const strict = root.render.mock.calls[0][0] as ReactElement<{ children: ReactElement }>;
+  const provider = strict.props.children as ReactElement<{ children: ReactElement }>;
+  const App = provider.props.children.type as () => ReactNode;
+  const tree = () => elements(rerender(App));
+  const drawer = () => tree().find(node => node.type === Drawer)!;
+  const graph = () => tree().find(node => node.type === Diagram)!;
+  try {
+    tree();
+    const diagramSlot = hooks.slots.findIndex(value => value && typeof value === 'object' && 'nodeToVisible' in value);
+    hooks.slots[diagramSlot] = { nodes: [{ id: 'group:outer', kind: 'folded-group', refId: 'outer' }], edges: [], nodeToVisible: { child: 'group:outer' } };
+    // Ordinary detail navigation still selects the visible owner.
+    drawer().props.onSelect('item:child');
+    expect(drawer().props.selected).toBe('group:outer');
+    drawer().props.setView('comments');
+    drawer().props.setCommentScope('all');
+    // Show comment requests the real element through the same App callback.
+    drawer().props.onSelect('item:child', true);
+    expect(drawer().props).toMatchObject({ selected: 'item:child', view: 'details', commentScope: 'all' });
+    expect(graph().props).toMatchObject({ expanded: ['inner', 'outer'], reveal: { id: 'item:child' } });
+    // Once the expanded layout arrives, real reconciliation keeps the child selected.
+    expect(actualGraph.reconcileSelection(drawer().props.selected, { nodes: [], edges: [], nodeToVisible: { child: 'item:child' } }, pack.graph)).toBe('item:child');
+  } finally {
+    pack.graph = original;
+    vi.mocked(graphModule.reconcileSelection).mockImplementation((id: string | null) => id);
+  }
 });
 
 it('opens All from the rail, preserves active scope, and scopes the Details tab to selection', async () => {

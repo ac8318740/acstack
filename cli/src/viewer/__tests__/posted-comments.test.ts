@@ -193,6 +193,40 @@ it('keeps equal quote text at different anchored occurrences separate in the key
   controller.show(a, source as unknown as HTMLElement, true);
   expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ ids: ['first'] }));
 });
+it('reveals nested quote ancestors only on explicit navigation and preserves the source range', () => {
+  const outer = { open: false, parentElement: null };
+  const inner = { open: false, parentElement: { closest: () => outer } };
+  const scrollIntoView = vi.fn();
+  const parentElement = { closest: () => inner, scrollIntoView };
+  const range = resolved.ranges[0].range;
+  Object.assign(range.startContainer, { parentElement });
+  Object.assign(range, { endContainer: { parentElement }, getClientRects: () => inner.open && outer.open ? [source.getBoundingClientRect()] : [] });
+  resolved.ranges = [];
+  controller.refresh([first]); // The Comments tab has unmounted the prose.
+  expect(inner.open).toBe(false);
+  expect(outer.open).toBe(false);
+  resolved.ranges = [{ annotation: first, range }]; // Details just remounted, before the DOM observer runs.
+  controller.show(first, source as unknown as HTMLElement, true);
+  expect(inner.open).toBe(true);
+  expect(outer.open).toBe(true);
+  expect(scrollIntoView).toHaveBeenCalledWith({ block: 'nearest' });
+  expect(preview).toHaveBeenLastCalledWith(expect.objectContaining({ range }));
+});
+
+it('reveals quoted middle sections without opening unrelated sibling sections', () => {
+  const sections = Array.from({ length: 4 }, () => ({ open: false, parentElement: null }));
+  const range = resolved.ranges[0].range;
+  Object.assign(range.startContainer, { parentElement: { closest: () => sections[0], scrollIntoView: vi.fn() } });
+  Object.assign(range, {
+    endContainer: { parentElement: { closest: () => sections[2] } },
+    commonAncestorContainer: { nodeType: 1, querySelectorAll: () => sections },
+    intersectsNode: (section: unknown) => sections.slice(0, 3).includes(section as typeof sections[number]),
+  });
+  controller.refresh([first]);
+  controller.show(first, source as unknown as HTMLElement, true);
+  expect(sections.map(section => section.open)).toEqual([true, true, true, false]);
+});
+
 it('uses the Comments entry rectangle when a resolved quote is inside collapsed content', () => {
   resolved.ranges.forEach(hit => { hit.range.getClientRects = () => [] as unknown as DOMRectList; });
   controller.refresh([first]);
