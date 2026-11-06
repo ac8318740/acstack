@@ -90,6 +90,11 @@ echo "Testing: $SCRIPT"
 echo "Workdir: $WORK"
 echo ""
 
+# A skipped label run can supersede the green check required by branch protection.
+WORKFLOW="${SCRIPT_DIR}/../.github/workflows/version-gate.yml"
+check "label additions and removals rerun the gate" 'grep -q "types: .*labeled, unlabeled" "$WORKFLOW"'
+check "no job or step condition skips version validation" '! grep -Eq "^[[:space:]]+if:" "$WORKFLOW"'
+
 # --- Case 1: only an inert doc file changed, no bump -> exit 0 ---------------
 echo "Case 1: only README.md changed"
 REPO="$WORK/case1"
