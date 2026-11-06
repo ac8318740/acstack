@@ -76,7 +76,8 @@ One rule decides the destination:
 | The work is                                  | Goes to                                                          |
 | -------------------------------------------- | ---------------------------------------------------------------- |
 | a continuation of what this session is doing | a new **tab** in this workspace – same worktree, same files       |
-| genuinely separate, or runs in parallel      | a new **worktree**, so a new **workspace**, with its own checkout |
+| needs an isolated checkout                   | a new **worktree**, so a new **workspace**, with its own checkout |
+| runs in parallel with coordinated edits      | a new **tab** here, or a worktree when isolation helps           |
 | better suited to an agent already running    | that agent, by message – no new pane at all                      |
 
 Ambiguous cases go to the user. Do not guess. Without herdr there are no tabs
@@ -121,9 +122,8 @@ in context. If you are about to search source files, stop – the conversation h
 1. **Next action** – the single concrete thing to do first
 2. **Decisions made** – so nobody reopens and re-argues them
 3. **Open questions and blockers** – including anything waiting on the user
-4. **Agent-team file ownership** – each scope, its teammate, its non-overlapping
-   file set. Also name any shared file to touch only after the team finishes.
-   Nothing else records this
+4. **Agent-team coordination** – scopes, teammates, shared-file regions, conflicting edits to serialize, and integration owner.
+   Carry intermediate outputs, uncertainty, change impact, and start or completion prerequisites not recorded elsewhere
 
 5. **Suggested skills** – which skills the receiving agent should invoke, by name
 

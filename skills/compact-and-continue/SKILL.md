@@ -123,9 +123,10 @@ anything you leave out.*
 1. **Next action** – the single concrete thing to do first
 2. **Decisions made** – so the resumed session does not reopen and re-argue them
 3. **Open questions and blockers** – including anything waiting on the user
-4. **Agent-team file ownership** – each scope, its agent, and its
-   non-overlapping files. Name any shared file to touch only after the team
-   finishes. Nothing derives it
+4. **Agent-team coordination** – each scope and agent, shared-file regions,
+   conflicting edits to serialize, and integration owner. Carry usable intermediate
+   outputs, remaining uncertainty, change impact, and start or completion prerequisites
+   not already recorded elsewhere
 
 5. **Suggested skills** – which skills the resumed session should invoke, by name
 
@@ -177,7 +178,8 @@ on a map with no resolved nodes.
 ## Agent-team plan
 - Scope A – cli-nodes-opus – files: `cli/src/lib/frontier.ts`, `cli/src/lib/frontier.test.ts`
 - Scope B – hooks-sonnet – files: `hooks/session-start-handoff.sh`
-- After team (shared files, sequential): `cli/src/index.ts`, `README.md`
+- Shared-file regions: Scope A owns CLI command wiring in `cli/src/index.ts`; Scope B owns hook documentation in `README.md`. Reread latest contents before editing.
+- Integration: Scope A reconciles both outputs and checks CLI/hook wiring before acceptance. Serialize any edits to the same command registration.
 
 ## Suggested skills
 - implement – the frontier holds three work nodes an agent can settle alone

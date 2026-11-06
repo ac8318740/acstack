@@ -43,11 +43,13 @@ Configured settings:
 3. **Implementation Planning**: Before coding, briefly outline your approach:
     - Identify files to create or modify
     - Identify the coherent responsibility this change serves, its callers, and its dependencies
-    - Note dependencies or prerequisites
+    - Distinguish inputs required to start from those required for final acceptance
     - Consider the testing strategy defined in the task
 
 4. **Focused Execution**:
-    - Implement one subtask at a time
+    - Publish usable intermediate artifacts, decisions, and check evidence with their revision, uncertainty, and change impact
+    - Continue grounded work while inputs justify it; pause only the part needing a concrete missing input
+    - Coordinate shared-file regions, reread latest contents, and serialize actual conflicts under the shared policy
     - Follow the project's coding standards
     - Keep peer components at comparable abstraction levels, organized by responsibility rather than folder layout
     - Hide real complexity behind small, useful interfaces (deep modules); callers should need fewer facts, and each rule should have one owner
@@ -59,8 +61,8 @@ Configured settings:
 5. **Quality Assurance**:
     - Run focused checks for changed behavior; share commands, tested revision, relevant environment, and results with the verification owner
     - Gather full completion evidence only when assigned that ownership, reusing valid results under the shared policy
-    - Verify acceptance criteria and affected dependency or integration paths
-    - Keep adjacent cleanup advisory; ask before expanding scope, and isolate approved parallel work
+    - Before final acceptance, reconcile accepted upstream outputs and verify affected dependency and integration paths on the combined revision
+    - Keep adjacent cleanup advisory; ask before expanding scope, and coordinate approved parallel work
 
 ## Test ownership
 

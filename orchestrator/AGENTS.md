@@ -210,6 +210,24 @@ flowchart TD
 - Preserve stronger process requests from the user
 - Work needs no fixed agent count, planning ratio, explorer dispatch, or per-phase bookkeeping
 
+### Work from usable intermediate outputs
+
+- Publish usable findings, decisions, interface contracts, draft artifacts, and focused check evidence as soon as another scope can use them
+    - Name the artifact and revision, what is settled, remaining uncertainty, and what a change would affect
+    - Tell affected teammates when an assumption or contract changes
+- Continue useful work while available inputs justify it; pause only the part that needs a concrete missing input
+    - State the missing input, who can supply it, and what it blocks
+    - Keep assumptions explicit; do not invent unsettled requirements or bypass required approval
+- Distinguish prerequisites for starting useful work from prerequisites for final acceptance
+    - A start prerequisite blocks work that cannot yet be grounded; a completion prerequisite allows grounded work now but blocks acceptance until the upstream output is accepted
+    - In AC Teams, `dependencies` gate start, `completionDependencies` gate completion, and `completionBlockedBy` reports unfinished final prerequisites
+    - Use only dependency mechanics the host actually supports; a map's `blocked-by` remains a start prerequisite
+    - Keep meaningful task scopes; do not fragment tasks merely to permit concurrency, override blockers, or mark unfinished work done
+- Before final acceptance, reconcile changed inputs and run integrated checks against the accepted upstream outputs and final combined revision
+    - A usable intermediate output is not final acceptance; retain required security, approval, and independent-review gates
+
+See `docs/concurrent-work.md` in the ACStack plugin root for examples, coordination details, and the military, engineering, and film practices behind this discipline.
+
 ### Choose useful checks
 
 - Require automated tests for meaningful changed behavior when existing coverage cannot detect mistakes
@@ -298,10 +316,10 @@ The investigator reports:
 - Give each reviewer a bounded question, affected paths, requirements, known risks, and available check evidence
     - A focused reviewer checks that question; it does not inherit ownership of every completion gate
     - Expand the review when findings reveal wider risk, and report the reason
-- Assign non-overlapping files when delegating concurrent work
+- Coordinate concurrent edits by responsibility and region under Agent teams for parallel work; preserve separate test ownership when assigned
 - Adjacent cleanup is advisory by default, not a delivery gate or an automatic source edit
     - Report worthwhile cleanup separately; ask the user before adding it to scope
-    - Approved cleanup may run in parallel on non-overlapping files or isolated worktrees, without blocking the main change
+    - Approved cleanup may run in parallel with coordinated edits or isolated worktrees, without blocking the main change
     - A defect that prevents the requested behavior or exposes a consequential risk is not merely cleanup; fix it within scope or report the blocker
 
 ### Complete required gates
@@ -362,11 +380,14 @@ Spec sync updates the living specs with every commit, whether or not the commit 
 
 ## Agent teams for parallel work
 
-- Use teams when independent scopes benefit from parallel work
+- Use teams when scopes can make useful progress together, including from usable intermediate outputs
 - Work directly or delegate sequentially when coordination costs exceed the benefit
-- Give each teammate a non-overlapping file set
-- Schedule shared-file edits sequentially to prevent overwrites
-- Use separate worktrees when appropriate
+- Assign coherent responsibilities and name shared interfaces, file regions, and the integration owner
+- Shared-file work can proceed in different regions: coordinate intended edits, reread the latest contents before editing, and preserve others' changes
+    - Serialize actual conflicting edits and integration steps; sharing a file alone does not require waiting for the whole team
+    - If edits collide, stop the conflicting edit and agree on the combined change; do not overwrite another agent's work
+    - Coordination does not make edits transactional or prevent races
+- Use separate worktrees when isolation helps; reconcile branches and verify the combined result before acceptance
 - Each scope follows the shared Implementation discipline, without a fixed agent sequence
 
 ---

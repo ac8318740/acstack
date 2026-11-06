@@ -13,7 +13,7 @@ stays advisory unless the user approves it; auto-fix is not approval to expand s
 One verification owner gathers required completion evidence for the final revision,
 reusing valid results under Build verification in `orchestrator/AGENTS.md`.
 Do not repeat all completion commands for every finding.
-Approved adjacent work may run in parallel with non-overlapping ownership or isolated
-worktrees, without blocking the main change.
+Approved adjacent work may run in parallel with coordinated shared-file regions or
+isolated worktrees under the shared policy, without blocking the main change.
 
 Report fixes, evidence, blockers, and advisory suggestions separately.

@@ -29,9 +29,9 @@ an obvious choice buries the ones that matter.
   one, zero-padded to four digits. Create the directory lazily.
 
     If the file for that number appeared since you scanned (a parallel teammate
-    wrote one), renumber to the new highest plus one. In agent teams, ADR
-    writing is a shared-file concern – route it through the orchestrator or the
-    sequential after-team step, never two teammates at once.
+    wrote one), renumber to the new highest plus one. In agent teams, coordinate
+    number allocation through one owner and serialize conflicting allocations.
+    Teammates can draft separate ADRs while other work continues.
 
 - Body: a `# title` heading, then one to three sentences stating the decision
   and the why. Optional short `## Considered options` and `## Consequences`
