@@ -13,13 +13,7 @@ herdr worktree list
 herdr workspace list
 ```
 
-Treat `working`, `blocked`, `idle` and `done` as a live agent. Skip the worktree, and run no further check on it.
-
-`idle` does not mean empty. In herdr it means an agent is present and waiting for input, which is exactly the state a session someone left open sits in. Reading `idle` as nobody home is the quickest way to destroy a running session.
-
-`unknown` never makes a worktree removable on its own. It summarises a whole workspace, and a second tab running an agent hides behind that one word.
-
-So list every pane of the workspace holding the worktree:
+Workspace status is only a hint. `working`, `blocked`, `idle`, or `done` can describe this session, which step 2 will move. `unknown` can hide another tab's agent. Always list every pane before deciding:
 
 ```bash
 herdr pane list --workspace <workspace-id>
@@ -49,7 +43,7 @@ The third case is not an agent. An editor or `gh dash` counts here. Deleting the
 
 Close it deliberately, or leave the worktree alone.
 
-One `cwd` never blocks: a path carrying the `(deleted)` marker. That shell sits in a directory somebody already removed, as step 2 describes. It holds nothing.
+A `(deleted)` cwd signals a stale directory. Report it; it does not prove the pane is safe to remove. Other panes still block removal under step 3.
 
 Cross-check the pane count against the tabs, every time:
 
@@ -83,7 +77,7 @@ herdr workspace create --cwd <main-root> --label <repo-name> --no-focus
 
 Read the move result, then refresh `herdr pane list --workspace <main-workspace-id>` and `herdr pane process-info --pane <new-pane-id>`. A move can change the pane identifier; verify the same session or terminal at its destination and use its new identifier for subsequent checks. Stop if that match is ambiguous. Do not keep trusting the old `$HERDR_PANE_ID` after a move.
 
-A pane move changes workspace membership; it does not establish a new shell or harness cwd. Complete the verified cwd change or handoff in `SKILL.md` step 2 before deleting the old checkout. A `(deleted)` cwd is evidence of a stale directory, and can break Pi tool execution. Do not dismiss it as cosmetic.
+A pane move changes workspace membership. Verify the persistent harness cwd separately as `SKILL.md` step 2 requires, then continue teardown in this session. Keep the old checkout if either move cannot be verified.
 
 ## Step 3 – Owner: herdr
 

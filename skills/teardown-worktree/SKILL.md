@@ -6,9 +6,9 @@ argument-hint: "[worktree name, or nothing to scan the whole repo]"
 
 # Teardown worktree
 
-Retire finished worktrees. Move this session out first. Remove the worktrees next. Delete the branches they were on last.
+Retire finished worktrees in this repository. After the user approves the plan, move this session to the main checkout, remove the approved worktrees, and delete their merged branches.
 
-Removing a worktree this session is standing in, or one that still holds a running agent, destroys live work. The order below exists to prevent that, as far as either orchestrator can tell. Follow it.
+Keep this session running throughout. Verify its move before deleting its old checkout, and preserve any checkout that still holds another session or terminal.
 
 ## When to use
 
@@ -26,7 +26,7 @@ Submodules are separate repos with their own worktrees and their own remote. If 
 
 ## 1. Build the plan
 
-Remove nothing before the full plan is on screen and the user has approved it. One approval covers the whole run.
+Remove nothing before the full plan is on screen and the user has approved it. That approval covers moving this session to the main checkout and carrying out the plan; no separate move approval is needed.
 
 List every worktree of the repo:
 
@@ -119,7 +119,7 @@ Merged by either test counts as merged. Merged by neither means skip. Report it.
 
 ### Live agent
 
-The worktree this session is standing in is never a candidate, whatever else is true. Step 2 still moves the session out before step 3 removes anything.
+Include this session's worktree in the plan if it passes the other checks. Mark its removal as conditional on the verified move in step 2. This session's presence alone does not disqualify it; every other session or terminal still blocks removal.
 
 Beyond that, ask both orchestrators about every candidate, whoever owns it. Neither tool sees the other's sessions, and either one can hold a live agent in a checkout the other owns. One tool's silence is not an answer, so a check you skip is a session you may destroy.
 
@@ -143,25 +143,19 @@ The blocking panes column names each pane that blocks the removal, pane id first
 
 ## 2. Move this session out
 
-Do this before removing anything, and only after approval.
+After approval, move to the main checkout in this session. Do this before removing anything. If already there, verify the cwd and check the host's pane location.
 
-`EnterWorktree` cannot do this. It rejects the main checkout outright, "is the main working tree, not a linked worktree".
+1. Change the harness's persistent working directory to the main checkout using its supported tool or session control. Inspect the available controls and installed harness documentation if the mechanism is unclear. A session launched inside a worktree still needs this move.
+    - If this session entered through `EnterWorktree`, use `ExitWorktree` with `action: "keep"`; step 3 owns removal. `EnterWorktree` cannot return to the main checkout.
+    - A shell `cd` affects only that shell unless the harness documents persistence. `git -C` changes one command's target. Neither establishes the move on its own.
+2. Move the host pane using `herdr.md` step 2 when `active` is `herdr`. Follow `orca.md` step 2 when it is `orca`; Orca's terminal limitation keeps this session's checkout in place. With `active: none`, there is no pane to move.
+3. Verify tool paths in fresh calls: run plain `pwd` without `cd`, then read a known file by a relative path in the main checkout. Confirm both resolve there. A pane move alone does not change the harness cwd.
 
-`ExitWorktree` only unwinds a worktree this session entered with `EnterWorktree`. In that case, call it with `action: "keep"`; step 3 owns removal. For a session launched inside a worktree, use a supported persistent harness cwd change, or hand off to a new session launched at the main checkout and leave the old checkout until the old session exits.
+Continue teardown here after verification. Do not launch a replacement session, fork, or hand off as part of teardown. Do not ask the user to close this session to complete its own removal.
 
-For Pi, a fresh session at main is the portable route. Where the installed Pi documents `--fork`, capture the absolute session file with `/session`, then launch `pi --fork <absolute-session-file>` from main. `--session` and `--resume` retain the saved cwd.
+If the move fails, report the attempted control and exact error or missing capability. Keep this session's checkout and its branches; continue with other approved candidates only where safe. Do not infer failure from the harness name alone.
 
-Verify the harness/tool cwd before removal with a fresh shell call running `pwd` without `cd`, and a relative file read in the main checkout. A shell `cd`, `git -C`, or pane move does not prove the harness cwd changed. Never rely on removal to reset it: Pi can retain a missing cwd and fail subsequent tool calls.
-
-Run removals from the main checkout against absolute paths. If a persistent move cannot be verified, keep this session's checkout; other approved candidates can still go. Do not recreate a removed directory to pretend the session moved.
-
-The branch `active` names decides the pane move below; pane location and harness cwd are separate checks.
-
-When `active` is `herdr`, follow `herdr.md` step 2 before you remove anything. When `active` is `orca`, follow `orca.md` step 2. It leaves this session's own checkout in place.
-
-### Host: none
-
-There is no pane or workspace to move. The verified harness cwd change or handoff above is still required.
+Run removals from the main checkout against absolute paths. Never delete the old checkout to force a cwd reset, or recreate a deleted directory to hide a failed move.
 
 ## 3. Remove the worktrees
 
@@ -222,7 +216,7 @@ State what went and what stayed:
 ## Never
 
 - Remove a worktree this session is standing in. Move out first.
-- Remove a worktree whose herdr workspace reports a `working`, `blocked`, `idle` or `done` agent. `idle` means present and waiting, not absent.
+- Remove a worktree with another herdr pane's `working`, `blocked`, `idle`, or `done` agent. Exclude only this session's verified pane, which step 2 moves out.
 - Decide on the workspace `agent_status` alone. List the panes and read `herdr pane process-info` for each one before removing.
 - Read the workspace `agent_status` as this session's own verdict. Exclude only your verified current pane id (`herdr.md`), refreshed after any move.
 - Remove a workspace that still holds a pane other than your own.
