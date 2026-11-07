@@ -156,24 +156,29 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     const feedback = scopes.find(scope => scope.path === feedbackPath)!.snapshot;
     const commentsDigest = digest(scopes.map(({ path, snapshot }) => ({ path: relative(root, path).split(sep).join('/'), packVersion: snapshot.packVersion, revision: snapshot.revision, annotations: snapshot.annotations })));
     const tuple = { sourceRevision: doc.sourceRevision, reviewRevision: feedback.revision, mapInputsDigest: inputs.mapInputsDigest, commentsDigest };
-    const unsettled = scopes.find(scope => (obligations.has(scope.path) || scope.receipt || scope.snapshot.annotations.length)
-      && (!scope.fresh || scope.receipt?.decisions.some(decision => decision.outcome === 'needs-human')));
+    const pendingFeedback = scopes.filter(scope => (obligations.has(scope.path) || scope.receipt || scope.snapshot.annotations.length)
+      && (!scope.fresh || scope.receipt?.decisions.some(decision => decision.outcome === 'needs-human')))
+      .map(scope => ({ reviewPath: scope.path, commentCount: scope.snapshot.annotations.length,
+        reason: !scope.receipt ? 'missing' : !scope.fresh ? 'stale' : 'needs-human' }));
+    const unsettled = pendingFeedback[0];
     let reason: string | undefined;
     if (staleRendered) reason = 'The design changed on the map. Reopen this revision before reviewing.';
     else if (inputs.blockers.some(blocker => blocker.kind === 'question')) reason = 'Open questions target this design';
     else if (changed.length) reason = 'Changed elements need re-approval';
     else if (inputs.blockers.length) reason = 'Choose a variant in each mock that has several';
-    else if (unsettled) reason = unsettled.fresh ? 'Reconciliation needs a human decision' : 'Feedback needs explicit reconciliation';
+    else if (unsettled) reason = unsettled.reason === 'needs-human'
+      ? 'Saved feedback needs your decision before approval.'
+      : 'The agent must finish addressing your saved feedback before you can approve.';
     const approved = saved.lifecycle?.approvals.some(item => sameTuple(item, tuple)) ?? false;
     const answers = Object.fromEntries(doc.questions.flatMap(question => question.answer === undefined ? [] : [[question.id, question.answer]]));
     return { ...tuple, doc, map, reviewPath: review.reviewPath, blockers, choices, openQuestions: inputs.openQuestions, answers, locked: inputs.locked, warnings,
       approval: { valid: !reason && approved, ...(!reason && approved ? {} : { reason: reason ?? 'This revision is not approved' }) },
-      feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), earlier, blocker: reason };
+      feedback, feedbackPath, feedbackPaths: scopes.map(scope => scope.path), pendingFeedback, earlier, blocker: reason };
   };
   const publicStatus = (result: ReturnType<typeof evaluate>) => ({
     sourceRevision: result.sourceRevision, reviewRevision: result.reviewRevision, commentsDigest: result.commentsDigest, mapInputsDigest: result.mapInputsDigest,
     map: result.map, reviewPath: result.reviewPath, blockers: result.blockers, openQuestions: result.openQuestions, locked: result.locked,
-    warnings: result.warnings, feedbackPaths: result.feedbackPaths, earlier: result.earlier, answers: result.answers, approval: result.approval, choices: result.choices,
+    warnings: result.warnings, feedbackPaths: result.feedbackPaths, pendingFeedback: result.pendingFeedback, earlier: result.earlier, answers: result.answers, approval: result.approval, choices: result.choices,
   });
   // Every write from the page checks the exact tuple it was shown, so a stale page cannot settle the map.
   const current = (saved: StoredDesignReview, expected: unknown) => {

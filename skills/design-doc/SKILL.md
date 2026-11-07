@@ -222,13 +222,21 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
 
 ## Reconcile feedback and approve
 
-- Read `~/.claude/acstack/bin/acstack design-review status <map>` for the exact revision tuple, open questions, `blockers`, and warnings
-- Select older feedback with `--review-file <canonical-review.json>` when the design changed
+- Read `~/.claude/acstack/bin/acstack design-review status <map>` for the exact revision tuple, open questions, `blockers`, `pendingFeedback`, and warnings
+- `pendingFeedback` lists every feedback file still blocking approval, including older versions
+    - `missing`: the agent has not recorded how it handled this file's comments
+    - `stale`: the design, map inputs, or comments changed after that record
+    - `needs-human`: a recorded decision needs the reviewer's answer
+- For each entry, read its `reviewPath` and run `~/.claude/acstack/bin/acstack design-review status <map> --review-file <reviewPath>` for that file's current tuple
 - Write reconciliation input with `sourceRevision`, `reviewRevision`, `commentsDigest`, and `mapInputsDigest`
 - Add a `decisions` array with `comments`, `outcome`, and a nonempty `rationale` in each decision
     - Reference each zero-based comment index exactly once
     - Choose `applied`, `retained`, or `needs-human`; `needs-human` keeps approval blocked
-- Run `~/.claude/acstack/bin/acstack design-review reconcile <map> --input <json-file>`
+- Run `~/.claude/acstack/bin/acstack design-review reconcile <map> --review-file <reviewPath> --input <json-file>` for each file
+- Check status again before asking the user to approve
+    - Finish every `missing` or `stale` entry; handling only the newest feedback leaves older comments blocking approval
+    - Ask the user the specific question for any `needs-human` entry; do not mark it settled yourself
+    - Require `pendingFeedback: []` before asking for final approval; element approvals do not settle comments
 - Approval waits on every open node that targets an element, in any mode, including fog
     - Resolve each one, or mark it out of scope
 - Changed elements block approval; the blocker list offers Re-approve for each

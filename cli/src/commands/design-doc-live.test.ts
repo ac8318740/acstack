@@ -112,7 +112,8 @@ it('keeps comments from before a design change as obligations and names them in 
   expect(event.handoffPrompt).toContain(JSON.stringify(first));
   const status = live.lifecycle().status();
   expect(status.feedbackPaths).toContain(first);
-  expect(status.approval.reason).toBe('Feedback needs explicit reconciliation');
+  expect(status.approval.reason).toBe('The agent must finish addressing your saved feedback before you can approve.');
+  expect(status.pendingFeedback).toEqual([{ reviewPath: first, commentCount: 1, reason: 'missing' }]);
   // The comment stays listed, tagged with the change that ended its revision.
   expect(status.earlier).toEqual([{ reviewPath: first, packVersion: snapshot.packVersion, label: 'before App changed', annotations: [expect.objectContaining({ comment: 'Name the command' })] }]);
   // The carry is recorded in the new review, so a restarted server still shows it.

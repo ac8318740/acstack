@@ -178,22 +178,14 @@ describe('axis-aware design placement', () => {
     expectSafe(diagram, sizes, 'top-to-bottom');
   });
 
-  it('keeps oversized horizontal labels safe or reports that no safe layout was found', async () => {
+  it('routes oversized horizontal labels safely instead of rejecting the requested expansion', async () => {
     const graph = authored();
     const expanded = graph.groups.map(g => g.id);
     const sizes = measured(graph, expanded);
     for (const size of Object.values(sizes.nodes)) size.height += 60;
     for (const size of Object.values(sizes.labels)) { size.width = 220; size.height = 92; }
     const snapshot = structuredClone({ graph, expanded, sizes });
-    let diagram: Diagram;
-    try {
-      diagram = await buildDiagram(graph, expanded, sizes, undefined, 'left-to-right');
-    } catch (error) {
-      expect(error).toBeInstanceOf(Error);
-      expect((error as Error).message).toContain('Cannot route relationships or place labels without overlap');
-      expect({ graph, expanded, sizes }).toEqual(snapshot);
-      return;
-    }
+    const diagram = await buildDiagram(graph, expanded, sizes, undefined, 'left-to-right');
     expect({ graph, expanded, sizes }).toEqual(snapshot);
     expectSafe(diagram, sizes, 'left-to-right');
   });

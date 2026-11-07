@@ -105,6 +105,34 @@ function measuredGeometry(graph: AlignmentGraph, expanded: string[], tall: boole
 }
 
 describe('compound edge routing clearance', () => {
+  it.each(['top-to-bottom', 'left-to-right'] as const)('breaks out densely packed ingress ports safely in %s', async orientation => {
+    const graph = nestedGraph(false, false);
+    graph.edges = graph.edges.map(edge => ({ ...edge, fromNodeId: edge.toNodeId, toNodeId: edge.fromNodeId }));
+    for (let index = 0; index < 6; index += 1) {
+      const id = `reader-${index}`;
+      graph.nodes.push({ ...graph.nodes.find(node => node.id === 'source')!, id, label: `Reader ${index}` });
+      graph.edges.push({ ...graph.edges[1], id, fromNodeId: id, toNodeId: 'worker', label: 'Delivers batches' });
+    }
+    const expanded = graph.groups.map(group => group.id);
+    const measured = measuredGeometry(graph, expanded, false);
+    for (const size of Object.values(measured.nodes)) size.height = 94;
+    for (const size of Object.values(measured.labels)) size.height = 28;
+    const diagram = await buildDiagram(graph, expanded, measured, undefined, orientation);
+    expectSafeRoutes(diagram, graph);
+    expect(parallelConflicts(diagram.edges)).toEqual([]);
+  }, 30_000);
+
+  it.each(['top-to-bottom', 'left-to-right'] as const)('keeps rounded ports outside fractionally measured cards in %s', async orientation => {
+    const graph = nestedGraph(false, false);
+    const expanded = graph.groups.map(group => group.id);
+    const measured = measuredGeometry(graph, expanded, false);
+    for (const size of Object.values(measured.nodes)) { size.width += 0.033; size.height += 0.067; }
+    for (const size of Object.values(measured.labels)) { size.width += 0.4; size.height += 0.3; }
+    const diagram = await buildDiagram(graph, expanded, measured, undefined, orientation);
+    expectSafeRoutes(diagram, graph);
+    expect(parallelConflicts(diagram.edges)).toEqual([]);
+  });
+
   it.each([
     { bidirectional: false, reversed: false, tall: false },
     { bidirectional: false, reversed: true, tall: true },

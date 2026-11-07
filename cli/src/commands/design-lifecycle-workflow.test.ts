@@ -13,7 +13,7 @@ const bin = fileURLToPath(new URL('../../bin/acstack.js', import.meta.url));
 const roots: string[] = [];
 const children: ChildProcess[] = [];
 type Tuple = { sourceRevision: string; reviewRevision: number; commentsDigest: string; mapInputsDigest: string };
-type Status = Tuple & { reviewPath: string; openQuestions: string[]; answers: Record<string, string>; locked: string[]; warnings: string[]; blockers: Array<{ kind: string; targetId: string; label: string; nodeId: string }>; approval: { valid: boolean; reason?: string } };
+type Status = Tuple & { pendingFeedback: Array<{ reviewPath: string; commentCount: number; reason: 'missing' | 'stale' | 'needs-human' }>; reviewPath: string; openQuestions: string[]; answers: Record<string, string>; locked: string[]; warnings: string[]; blockers: Array<{ kind: string; targetId: string; label: string; nodeId: string }>; approval: { valid: boolean; reason?: string } };
 type Snapshot = { packVersion: string; revision: number; annotations: Record<string, unknown>[] };
 type Node = { id: string; kind: string; status: string; mode?: string; answers?: string; body?: string };
 type Tracker = 'files' | 'github';
@@ -77,17 +77,17 @@ function env(root: string): NodeJS.ProcessEnv {
 function cli(root: string, args: string[]) {
   return spawnSync(process.execPath, [bin, ...args], { cwd: root, env: env(root), encoding: 'utf8', timeout: 10_000 });
 }
-function status(root: string): Status {
-  const result = cli(root, ['design-review', 'status', 'demo']);
+function status(root: string, reviewFile?: string): Status {
+  const result = cli(root, ['design-review', 'status', 'demo', ...(reviewFile ? ['--review-file', reviewFile] : [])]);
   expect(result.status, result.stdout + result.stderr).toBe(0);
   return JSON.parse(result.stdout) as Status;
 }
 function tuple(value: Tuple): Tuple {
   return { sourceRevision: value.sourceRevision, reviewRevision: value.reviewRevision, commentsDigest: value.commentsDigest, mapInputsDigest: value.mapInputsDigest };
 }
-function reconcile(root: string, payload: unknown) {
+function reconcile(root: string, payload: unknown, reviewFile?: string) {
   writeFileSync(join(root, 'receipt-input.json'), JSON.stringify(payload));
-  return cli(root, ['design-review', 'reconcile', 'demo', '--input', 'receipt-input.json']);
+  return cli(root, ['design-review', 'reconcile', 'demo', '--input', 'receipt-input.json', ...(reviewFile ? ['--review-file', reviewFile] : [])]);
 }
 function disposition(comments: number[], outcome = 'retained') {
   return { comments, outcome, rationale: 'Keep the documented local storage decision' };
@@ -370,6 +370,60 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     accepted(reconcile(root, valid));
     const approval = await server.approve(await server.get());
     expect(approval.status, await approval.clone().text()).toBe(200);
+  }, 30_000);
+
+  it('names missed historical feedback even after the latest comments and every element are settled', async () => {
+    const root = fixture();
+    const first = await start(root);
+    await savedComments(first);
+    const original = status(root);
+    const earlier = original.reviewPath;
+    accepted(reconcile(root, { ...tuple(original), decisions: [disposition([0, 1], 'applied')] }));
+    await stop(first.child);
+    writeFileSync(join(root, '.acstack/maps/demo/102-node.md'), fileNode(root, '102').replace('Runs commands.', 'Runs named commands.'));
+    const server = await start(root);
+    await savedComments(server);
+    const latest = status(root);
+    expect(latest.reviewPath).not.toBe(earlier);
+    accepted(reconcile(root, { ...tuple(latest), decisions: [disposition([0, 1], 'applied')] }));
+    const missed = [{ reviewPath: earlier, commentCount: 2, reason: 'missing' }];
+    expect(status(root).pendingFeedback).toEqual(missed);
+    for (const id of ['102', '103']) accepted(cli(root, ['design-review', 'approve-element', 'demo', id]));
+    const locked = await server.get();
+    expect(locked.sourceRevision).toBe(latest.sourceRevision);
+    expect(locked.pendingFeedback).toEqual(missed);
+    expect(locked.approval.reason).toBe('The agent must finish addressing your saved feedback before you can approve.');
+    denied(await server.approve(locked));
+    const historical = status(root, earlier);
+    expect(historical.pendingFeedback).toEqual(missed);
+    accepted(reconcile(root, { ...tuple(historical), decisions: [disposition([0, 1], 'applied')] }, earlier));
+    expect(status(root).pendingFeedback).toEqual([]);
+    expect((await server.approve(await server.get())).ok).toBe(true);
+    expect((await server.get()).approval.valid).toBe(true);
+  }, 30_000);
+
+  it('distinguishes missing, human-decision, and stale feedback without weakening approval', async () => {
+    const root = fixture();
+    const server = await start(root);
+    expect(status(root).pendingFeedback).toEqual([]);
+    const comments = await savedComments(server);
+    const initial = status(root);
+    const pending = (reason: string) => [{ reviewPath: initial.reviewPath, commentCount: 2, reason }];
+    expect(initial.pendingFeedback).toEqual(pending('missing'));
+    accepted(reconcile(root, { ...tuple(initial), decisions: [disposition([0, 1], 'needs-human')] }));
+    expect(status(root).pendingFeedback).toEqual(pending('needs-human'));
+    expect(status(root).approval.reason).toBe('Saved feedback needs your decision before approval.');
+    denied(await server.approve(await server.get()));
+    const snapshot = await server.comments();
+    expect((await server.save({ ...snapshot, annotations: [{ ...comments[0], comment: 'Keep records encrypted locally' }, comments[1]] })).ok).toBe(true);
+    const changed = status(root);
+    expect(changed.pendingFeedback).toEqual(pending('stale'));
+    denied(await server.approve(await server.get()));
+    rejected(reconcile(root, { ...tuple(initial), decisions: [disposition([0, 1], 'applied')] }), 'stale comment tuple');
+    accepted(reconcile(root, { ...tuple(changed), decisions: [disposition([0, 1], 'applied')] }));
+    expect(status(root).pendingFeedback).toEqual([]);
+    expect((await server.approve(await server.get())).ok).toBe(true);
+    expect(status(root).approval.valid).toBe(true);
   }, 30_000);
 
   it('preserves approval across restarts and rejects stale pages after the map changes', async () => {
