@@ -1,6 +1,7 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js';
 import type { AlignmentGraph, AlignmentPack, DiagramOrientation } from '../lib/alignment-packs.js';
+import { routeSegments, searchOrthogonalRoute, simplifyRoute } from './orthogonal-route.js';
 
 export const CARD_WIDTH = 300;
 export const LABEL_WIDTH = 196;
@@ -211,18 +212,20 @@ export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string
     labelAttempt = 0;
     labelSpacing.clear();
   };
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    await layout(diagram.nodes, diagram.edges, measured, design ? routeAttempt : attempt, design, labelSpacing, previous, horizontal, compact);
+  for (let attempt = 0; attempt < (design ? 7 : 6); attempt += 1) {
+    const fallback = design && attempt === 6;
+    await layout(diagram.nodes, diagram.edges, measured, design ? routeAttempt : attempt, design, labelSpacing, fallback ? undefined : previous, horizontal, compact);
     headers = measureHeaders?.(diagram.nodes) ?? {};
     unresolved = design ? diagram.edges.filter(edge => !normalizeDiagonalBends(diagram.nodes, edge, headers)).map(edge => `orthogonal route: ${edge.id}`) : [];
-    if (unresolved.length) {
+    if (unresolved.length && !fallback) {
       if (compact) leaveCompact();
       else routeAttempt += 1;
       continue;
     }
     const routeConflicts: string[] = [];
     if (design) {
-      routeConflicts.push(...orderRoutePorts(diagram.nodes, diagram.edges, horizontal, headers), ...repairRouteObstacles(diagram.nodes, diagram.edges, headers));
+      orderRoutePorts(diagram.nodes, diagram.edges, horizontal, headers);
+      routeConflicts.push(...repairRouteObstacles(diagram.nodes, diagram.edges, headers));
       // Retry jog normalization after raw control collisions no longer block whole-route validation.
       for (const edge of diagram.edges) normalizeEndpointJogs(diagram.nodes, edge, horizontal, headers);
       routeConflicts.push(...repairRouteClearance(diagram.nodes, diagram.edges, headers));
@@ -230,8 +233,9 @@ export async function buildDiagram(graph: AlignmentGraph, expandedGroups: string
     if (design && !routeConflicts.length) preferStraightRoutes(diagram.nodes, diagram.edges, horizontal, headers);
     const failedLabels: DiagramEdge[] = [];
     unresolved = [...routeConflicts, ...placeLabels(diagram.nodes, diagram.edges, failedLabels, headers)];
+    if (fallback) unresolved = searchRouteFallback(diagram.nodes, diagram.edges, headers);
     // One label-only retry stays compact; anything else falls back to side entry.
-    if (compact && (routeConflicts.length || (failedLabels.length && labelAttempt))) {
+    if (!fallback && compact && (routeConflicts.length || (failedLabels.length && labelAttempt))) {
       leaveCompact();
       continue;
     }
@@ -432,6 +436,17 @@ async function layout(nodes: DiagramNode[], edges: DiagramEdge[], measured: Meas
       if (last.x === beforeEnd.x) last.y -= Math.sign(last.y - beforeEnd.y) * ARROW_INSET;
       else last.x -= Math.sign(last.x - beforeEnd.x) * ARROW_INSET;
     }
+    // Rounded edge coordinates must not land fractionally inside an unrounded card.
+    for (const role of ['source', 'target'] as const) {
+      const node = byId.get(edge[role])!;
+      const point = role === 'source' ? edge.points[0] : edge.points.at(-1)!;
+      const inset = role === 'source' ? 0 : ARROW_INSET;
+      const faces = [
+        { axis: 'x' as const, value: node.x - inset }, { axis: 'x' as const, value: node.x + node.width + inset },
+        { axis: 'y' as const, value: node.y - inset }, { axis: 'y' as const, value: node.y + node.height + inset },
+      ].sort((a, b) => Math.abs(point[a.axis] - a.value) - Math.abs(point[b.axis] - b.value));
+      if (Math.abs(point[faces[0].axis] - faces[0].value) < 0.1) point[faces[0].axis] = faces[0].value;
+    }
     const label = out.labels?.[0];
     if (label) edge.labelBox = { x: 0, y: 0, width: label.width ?? 0, height: label.height ?? 0, lines: wrapLabel(edge.label) };
   }
@@ -495,11 +510,10 @@ function normalizeEndpointJogs(nodes: DiagramNode[], edge: DiagramEdge, horizont
 }
 
 // Uncross only the endpoint elbows, retaining every node, port slot, and interior route.
-function orderRoutePorts(nodes: DiagramNode[], edges: DiagramEdge[], horizontal: boolean, headers: Record<string, HeaderGeometry>): string[] {
+function orderRoutePorts(nodes: DiagramNode[], edges: DiagramEdge[], horizontal: boolean, headers: Record<string, HeaderGeometry>): void {
   const across = horizontal ? 'y' : 'x';
   const along = horizontal ? 'x' : 'y';
   for (const edge of edges) normalizeEndpointJogs(nodes, edge, horizontal, headers);
-  const unresolved: string[] = [];
   for (const node of nodes.filter(node => node.kind !== 'group')) for (const role of ['source', 'target'] as const) {
     const connected = edges.filter(edge => edge[role] === node.id).map(edge => {
       const indices = role === 'source' ? [0, 1, 2] : [edge.points.length - 1, edge.points.length - 2, edge.points.length - 3];
@@ -521,10 +535,8 @@ function orderRoutePorts(nodes: DiagramNode[], edges: DiagramEdge[], horizontal:
     if (connected.some(({ edge }) => !routeIsSafe(nodes, edge, headers))) repairRouteObstacles(nodes, edges, headers);
     if (connected.some(({ edge }) => !routeIsSafe(nodes, edge, headers))) {
       edges.forEach((edge, index) => { edge.points = original[index]; });
-      unresolved.push(`port order: ${node.id} ${role}`);
     }
   }
-  return unresolved;
 }
 
 // A header measured at another width is stale and must not unblock anything.
@@ -662,6 +674,88 @@ function repairRouteClearance(nodes: DiagramNode[], edges: DiagramEdge[], header
   return conflicts().map(({ first, second }) => `route clearance: ${first.edge.id} / ${second.edge.id}`);
 }
 
+// Keep short dedicated port stubs; the search can fan out before fixed slots become long parallel tracks.
+function searchedRoute(nodes: DiagramNode[], edges: DiagramEdge[], edge: DiagramEdge, headers: Record<string, HeaderGeometry>, labels: Box[], budget: { remaining: number }, via?: [Point, Point], reservedLabel?: Box): Point[] | undefined {
+  const start = edge.points[0];
+  const end = edge.points.at(-1)!;
+  const stub = (point: Point, id: string): Point => {
+    const node = nodes.find(node => node.id === id)!;
+    const sides = [
+      { distance: Math.abs(point.x - node.x), x: -10, y: 0 },
+      { distance: Math.abs(point.x - node.x - node.width), x: 10, y: 0 },
+      { distance: Math.abs(point.y - node.y), x: 0, y: -10 },
+      { distance: Math.abs(point.y - node.y - node.height), x: 0, y: 10 },
+    ].sort((a, b) => a.distance - b.distance);
+    return { x: point.x + sides[0].x, y: point.y + sides[0].y };
+  };
+  const from = stub(start, edge.source);
+  const to = stub(end, edge.target);
+  const obstacles = [...routeObstacles(nodes, edge, headers), ...labels, ...(reservedLabel ? [reservedLabel] : [])];
+  const routes = edges.filter(other => other !== edge).map(other => other.points);
+  let middle: Point[] | undefined;
+  if (via) {
+    const first = searchOrthogonalRoute(from, via[0], obstacles, routes, [start, via[0]], budget);
+    if (!first) return undefined;
+    // The second leg must not cross its own first leg, even perpendicularly.
+    const self = routeSegments([start, ...first]).map(({ a, b }) => ({ x: Math.min(a.x, b.x), y: Math.min(a.y, b.y), width: Math.abs(a.x - b.x), height: Math.abs(a.y - b.y) }));
+    const second = searchOrthogonalRoute(via[1], to, [...obstacles, ...self], routes, [via[1], end], budget);
+    if (second) middle = [...first, ...second];
+  } else middle = searchOrthogonalRoute(from, to, obstacles, routes, [start, end], budget);
+  if (!middle) return undefined;
+  const points = simplifyRoute([start, ...middle, end]);
+  const candidate = { ...edge, points };
+  return routeIsSafe(nodes, candidate, headers) && !routeClearanceConflicts([...edges.filter(other => other !== edge), candidate], candidate).length ? points : undefined;
+}
+
+// This is deliberately off the compact fast path: retain safe routes, search residual failures,
+// and reserve an exterior label run when no existing run has enough free room.
+function searchRouteFallback(nodes: DiagramNode[], edges: DiagramEdge[], headers: Record<string, HeaderGeometry>): string[] {
+  const failed: DiagramEdge[] = [];
+  placeLabels(nodes, edges, failed, headers);
+  const acceptedLabels = (edge: DiagramEdge) => edges.filter(other => other !== edge && !failed.includes(other)).flatMap(other => other.labelBox ? [other.labelBox] : []);
+  const budget = { remaining: 120_000 };
+  const pending = edges.filter(edge => !routeIsSafe(nodes, edge, headers) || routeClearanceConflicts(edges, edge).length);
+  const settled = edges.filter(edge => !pending.includes(edge));
+  for (const edge of pending) {
+    const labels = settled.flatMap(other => !failed.includes(other) && other.labelBox ? [other.labelBox] : []);
+    const points = searchedRoute(nodes, [...settled, edge], edge, headers, labels, budget);
+    if (points) { edge.points = points; settled.push(edge); }
+  }
+  failed.length = 0;
+  placeLabels(nodes, edges, failed, headers);
+  for (const edge of [...failed]) {
+    const label = edge.labelBox!;
+    const boxes = [...nodes, ...edges.flatMap(other => other.points.map(point => ({ ...point, width: 0, height: 0 })))];
+    const left = Math.min(...boxes.map(box => box.x)) - label.width - 32;
+    const right = Math.max(...boxes.map(box => box.x + box.width)) + 32;
+    const top = Math.min(...boxes.map(box => box.y));
+    const bottom = Math.max(...boxes.map(box => box.y + box.height));
+    labelSearch: for (const y of [top - label.height - 32, bottom + label.height + 32]) {
+      for (const x of [left, right]) for (const reverse of [false, true]) {
+        const reserved = { x, y: y - label.height / 2, width: label.width, height: label.height };
+        const ends: [Point, Point] = [{ x: x - 8, y }, { x: x + label.width + 8, y }];
+        if (reverse) ends.reverse();
+        const points = searchedRoute(nodes, edges, edge, headers, acceptedLabels(edge), budget, ends, reserved);
+        if (!points) continue;
+        const original = edge.points;
+        edge.points = points;
+        const remaining: DiagramEdge[] = [];
+        placeLabels(nodes, edges, remaining, headers);
+        if (!remaining.includes(edge)) {
+          failed.splice(0, failed.length, ...remaining);
+          break labelSearch;
+        }
+        edge.points = original;
+      }
+    }
+  }
+  return [
+    ...edges.filter(edge => !routeIsSafe(nodes, edge, headers)).map(edge => `route obstacle: ${edge.id}`),
+    ...routeClearanceConflicts(edges).map(({ first, second }) => `route clearance: ${first.edge.id} / ${second.edge.id}`),
+    ...placeLabels(nodes, edges, [], headers),
+  ];
+}
+
 // ELK's inline labels can leave doglegs after their positions are discarded.
 function preferStraightRoutes(nodes: DiagramNode[], edges: DiagramEdge[], horizontal: boolean, headers: Record<string, HeaderGeometry>): void {
   const across = horizontal ? 'y' : 'x';
@@ -724,10 +818,19 @@ export function placeLabels(nodes: DiagramNode[], edges: DiagramEdge[], failedLa
       const length = Math.hypot(b.x - a.x, b.y - a.y);
       const half = (a.y === b.y ? label.width : label.height) / 2 + CORNER_RADIUS + 2;
       if (length < half * 2) return [];
-      return [0.5, 0.3, 0.7, 0.15, 0.85].map(t => {
-        const along = Math.min(Math.max(length * t, half), length - half) / length;
-        return { x: a.x + (b.x - a.x) * along - label.width / 2, y: a.y + (b.y - a.y) * along - label.height / 2, width: label.width, height: label.height, vertical: a.x === b.x };
-      });
+      const axis = a.y === b.y ? 'x' : 'y';
+      const span = axis === 'x' ? 'width' : 'height';
+      const occupied = [...taken, ...edges.flatMap(other => routeSegments(other.points).map(({ a: from, b: to }) => ({
+        x: Math.min(from.x, to.x), y: Math.min(from.y, to.y), width: Math.abs(from.x - to.x), height: Math.abs(from.y - to.y),
+      })))];
+      const low = Math.min(a[axis], b[axis]) + half;
+      const high = Math.max(a[axis], b[axis]) - half;
+      const middle = (a[axis] + b[axis]) / 2;
+      // Exact free-interval boundaries find narrow valid slots missed by sampled fractions.
+      const boundaries = occupied.flatMap(box => [box[axis] - pad - label[span] / 2, box[axis] + box[span] + pad + label[span] / 2])
+        .filter(value => value >= low && value <= high).sort((c, d) => Math.abs(c - middle) - Math.abs(d - middle));
+      const positions = [...[0.5, 0.3, 0.7, 0.15, 0.85].map(t => a[axis] + Math.sign(b[axis] - a[axis]) * Math.min(Math.max(length * t, half), length - half)), ...boundaries];
+      return positions.map(value => ({ x: (axis === 'x' ? value : a.x) - label.width / 2, y: (axis === 'y' ? value : a.y) - label.height / 2, width: label.width, height: label.height, vertical: a.x === b.x }));
     });
     // A label wider than the gap between two routes leaving one card cannot sit centred on either. Sliding it
     // sideways keeps its own run passing through it, which is all the line break needs, and clears the neighbour.

@@ -73,20 +73,17 @@ function entersBox({ start, end }: { start: Point; end: Point }, box: Box) {
     : start.y > box.y + epsilon && start.y < box.y + box.height - epsilon && overlap(start.x, end.x, box.x, box.x + box.width) > epsilon;
 }
 
-function expectReadable(diagram: Diagram, sizes: MeasuredGeometry) {
-  expect(diagram.nodes.map(node => node.id).sort()).toEqual([
-    'group:design:container:ledger', 'group:design:container:orchard', 'group:design:container:sorting',
-    'item:archive', 'item:basket', 'item:courier', 'item:grade', 'item:index', 'item:observer', 'item:seed',
-  ]);
-  expect(diagram.edges).toHaveLength(7);
-  expect(diagram.edges.flatMap(edge => edge.childEdgeIds).sort()).toEqual(['a', 'b', 'c', 'd', 'e', 'f', 'g']);
+function expectReadable(diagram: Diagram, sizes: MeasuredGeometry, graph = fixture(), expanded = graph.groups.map(group => group.id)) {
+  const projection = projectDiagram(graph, expanded);
+  expect(diagram.nodes.map(node => node.id).sort()).toEqual(projection.nodes.map(node => node.id).sort());
+  expect(diagram.nodeToVisible).toEqual(projection.nodeToVisible);
+  expect(diagram.edges.flatMap(edge => edge.childEdgeIds).sort()).toEqual(projection.edges.flatMap(edge => edge.childEdgeIds).sort());
   for (const node of diagram.nodes) {
     const size = sizes.nodes[node.id];
     if (node.kind === 'group') {
       expect(node.headerHeight, node.id).toBe(size.height);
       expect(node.width, node.id).toBeGreaterThanOrEqual(size.width);
     } else {
-      expect(node.kind, node.id).toBe('item');
       expect({ width: node.width, height: node.height }, node.id).toEqual(size);
     }
     if (node.parentId) {
@@ -102,9 +99,9 @@ function expectReadable(diagram: Diagram, sizes: MeasuredGeometry) {
     for (const other of obstacles.slice(index + 1)) expect(overlaps(box, other), `${box.id} overlaps ${other.id}`).toBe(false);
   }
   for (const edge of diagram.edges) {
-    const authored = fixture().edges.find(candidate => candidate.id === edge.childEdgeIds[0])!;
-    expect(edge.source, edge.id).toBe(`item:${authored.fromNodeId}`);
-    expect(edge.target, edge.id).toBe(`item:${authored.toNodeId}`);
+    const projected = projection.edges.find(candidate => candidate.id === edge.id)!;
+    expect(edge.source, edge.id).toBe(projected.source);
+    expect(edge.target, edge.id).toBe(projected.target);
     expect(edge.points.length, edge.id).toBeGreaterThanOrEqual(2);
     for (const [id, point] of [[edge.source, edge.points[0]], [edge.target, edge.points.at(-1)!]] as const) {
       const box = diagram.nodes.find(node => node.id === id)!;
@@ -116,7 +113,7 @@ function expectReadable(diagram: Diagram, sizes: MeasuredGeometry) {
       expect(horizontal || vertical, `${edge.id} must attach to ${id}`).toBe(true);
     }
     const label = edge.labelBox!;
-    expect(label.lines.join(' '), edge.id).toBe(authored.label);
+    expect(label.lines.join(' '), edge.id).toBe(projected.label);
     expect({ width: label.width, height: label.height }, edge.id).toEqual(sizes.labels[edge.id]);
     const otherLabels = diagram.edges.filter(other => other !== edge).map(other => other.labelBox!);
     for (const box of [...obstacles, ...otherLabels]) expect(overlaps(label, box), `${edge.id} label overlap`).toBe(false);
@@ -159,6 +156,26 @@ function expectReadable(diagram: Diagram, sizes: MeasuredGeometry) {
 }
 
 describe('full expansion of an invented nested design', () => {
+  it.each([
+    { orientation: 'top-to-bottom' as const, reversed: false },
+    { orientation: 'top-to-bottom' as const, reversed: true },
+    { orientation: 'left-to-right' as const, reversed: false },
+    { orientation: 'left-to-right' as const, reversed: true },
+  ])('keeps every ancestor-valid expansion readable in $orientation, reversed=$reversed', async ({ orientation, reversed }) => {
+    const graph = fixture();
+    if (reversed) graph.edges.reverse();
+    let previous: Diagram | undefined;
+    for (const open of [[], ['orchard'], ['ledger'], ['orchard', 'ledger'], ['orchard', 'sorting'], ['orchard', 'sorting', 'ledger']]) {
+      const expanded = open.map(id => `design:container:${id}`);
+      const sizes = measured(graph, expanded, 'business');
+      const snapshot = structuredClone({ graph, expanded, sizes, previous });
+      const diagram = await buildDiagram(graph, expanded, sizes, previous, orientation);
+      expect({ graph, expanded, sizes, previous }).toEqual(snapshot);
+      expectReadable(diagram, sizes, graph, expanded);
+      previous = diagram;
+    }
+  }, 30_000);
+
   it.each([
     { mode: 'business' as const, prior: false },
     { mode: 'technical' as const, prior: false },
