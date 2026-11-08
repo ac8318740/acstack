@@ -2,10 +2,8 @@
 // The single source of truth for the version is .claude-plugin/plugin.json.
 // This copies it into cli/package.json.
 //
-// Unlike open-designer, this runs on every `npm run build`, not only before a
-// publish. The CLI reads its own package.json at runtime to answer
-// `acstack --version`, so the plugin copy has to carry the right number too -
-// not just the npm tarball.
+// Run on every build (including npm prepack) so the packaged CLI manifest
+// matches the release. `acstack --version` reads the plugin manifest directly.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';

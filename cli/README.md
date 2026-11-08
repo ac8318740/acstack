@@ -4,11 +4,14 @@ The command-line half of [ACStack](https://github.com/ac8318740/acstack) – a
 map-based agentic coding workflow where an agent plans changes as a graph of
 nodes before writing code.
 
-**ACStack does not publish this CLI to npm. You do not need to install it.**
-It ships inside the ACStack plugin as a prebuilt bundle.
+The CLI ships prebuilt inside the `acstack` npm package alongside the skills
+and host integrations. Claude Code and Codex install that package through the
+`ac-agentic-coding` marketplace; pi uses `pi install npm:acstack`.
+No separate CLI installation or runtime build is needed.
 
-The plugin's SessionStart hook links it into place. See
-[CONTRIBUTING.md](../CONTRIBUTING.md) for why.
+The SessionStart hook (or pi extension) links it into place. Source checkouts
+need `npm --prefix cli ci` and `npm --prefix cli run build` from the repository
+root. `npm pack` at the root builds the complete release artifact.
 
 ## What it does
 

@@ -4,7 +4,7 @@
 // agents/<name>.md  ->  agents/codex/<name>.toml
 //
 // The markdown is the single source of truth. The TOML is generated and
-// committed, and CI fails if it drifts - the same arrangement as cli/dist.
+// committed, and CI fails if it drifts (like pi/agents).
 // Never hand-edit the TOML.
 //
 // Codex parses agent files with deny_unknown_fields: one unrecognised key and

@@ -10,6 +10,10 @@
 # The CLI test run writes a vitest cache here, and `pi install` runs npm install at the root.
 node_modules/
 
+# Built by npm prepack; shipped inside the npm artifact, not Git.
+/cli/dist/
+/acstack-*.tgz
+
 # `acstack config set` writes its replacement beside the file and renames over
 # it. The cleanup runs on a thrown error, so only a killed process leaves one.
 acstack/*.tmp

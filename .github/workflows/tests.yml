@@ -24,9 +24,6 @@ jobs:
       - name: Install shell test prerequisites
         run: sudo apt-get update && sudo apt-get install -y python3-markdown
 
-      - name: Run the shell suites
-        run: bash tests/run-all.sh
-
       # `npm ci` needs a lockfile; otherwise use `npm install`.
       - name: Install the CLI dependencies
         run: |
@@ -36,6 +33,12 @@ jobs:
           else
             npm --prefix cli install
           fi
+
+      - name: Build the source checkout CLI
+        run: npm --prefix cli run build
+
+      - name: Run the shell suites
+        run: bash tests/run-all.sh
 
       - name: Run the CLI tests
         run: npm --prefix cli test

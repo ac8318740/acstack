@@ -24,20 +24,14 @@ jobs:
       - run: npm run typecheck
         working-directory: cli
 
+      - name: npm artifact installs without runtime builds
+        run: bash tests/test-npm-package.sh
+
       - run: npm test
         working-directory: cli
 
-      # Generated files are committed so the plugin installs with no build step.
-      # That only holds if they are actually current. The pre-commit hook in
-      # CONTRIBUTING is opt-in and easy to not have installed, so this is the
-      # check that really enforces it.
-      - name: Generated files are current
-        run: |
-          npm --prefix cli run build
-          if ! git diff --exit-code -- cli/dist cli/package.json; then
-            echo "::error::cli/dist or cli/package.json is stale. Run 'npm run build' in cli/ and commit the result."
-            exit 1
-          fi
+      - name: Manifest versions are current
+        run: git diff --exit-code -- cli/package.json
 
       # The markdown in agents/ is the source; agents/codex/*.toml is generated
       # from it and committed so the hook can install it with no build step.
@@ -71,6 +65,9 @@ jobs:
         with:
           node-version: '22'
 
+      - run: npm --prefix cli ci
+      - run: npm --prefix cli run build
+
       - name: pi extension suite
         run: bash tests/test-pi-extension.sh
 
@@ -101,6 +98,14 @@ jobs:
 
       - name: Terminal workspace pi component
         run: bash tests/test-terminal-workspace-pi.sh
+
+      # This hook suite invokes the real CLI from the source checkout.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - run: npm --prefix cli ci
+      - run: npm --prefix cli run build
 
       - name: Session start handoff hook
         run: bash tests/test-session-start-handoff.sh

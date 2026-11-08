@@ -1,8 +1,11 @@
 {
   "name": "acstack",
-  "version": "0.57.7",
+  "version": "0.57.10",
   "private": false,
-  "description": "Agentic coding stack with first-class Claude Code and pi support: skills, orchestrator instructions, and verification agents.",
+  "description": "Agentic coding stack for Claude Code, Codex, and pi: skills, orchestrator instructions, CLI, and verification agents.",
+  "scripts": {
+    "prepack": "npm --prefix cli run build && node scripts/gen-codex-agents.mjs && node scripts/gen-pi-agents.mjs"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -17,6 +20,9 @@
   ],
   "bin": {
     "acstack": "./cli/bin/acstack.js"
+  },
+  "engines": {
+    "node": ">=20.0.0"
   },
   "files": [
     ".claude-plugin/",
@@ -50,5 +56,10 @@
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    }
   }
 }
