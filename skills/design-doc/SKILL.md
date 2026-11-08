@@ -5,8 +5,7 @@ description: Author a design doc on a map and review it through a live local or 
 
 # Author and review a design doc
 
-A design doc is drawn from a map. Each design element is its own map node, and the map is the only source.
-The browser view supports drill-down, questions beside the elements they target, and feedback saved on the agent's device.
+A design doc is drawn from a map. Each design element is its own map node, and the map is the only source. The browser view supports drill-down, questions beside the elements they target, and feedback saved on the agent's device.
 
 ```mermaid
 flowchart LR
@@ -149,7 +148,7 @@ concerns:
 A question targets an element when its `answers:` parent is that element node.
 
 - A hitl question that targets an element shows beside it in the viewer
-- Research (afk) nodes that target an element stay on the map only
+- Agent work (afk), including research, is settled on the map; the viewer lists it as an approval blocker, without a reviewer answer form
 - Questions answering the root do not target the design
 - For a connection, target one of its endpoints
 - State the proposed behavior and your recommendation in the body; do not ask for judgment without showing what the reviewer would accept
@@ -199,8 +198,7 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
     - A contradiction mid-edit keeps the last good page and shows why it stopped updating
 - Open the printed localhost URL when the browser and agent share a device
 - On separate devices, run the printed SSH forwarding command from the browser's device, then open the localhost URL
-- Use `--port <port>` when another review already uses the default port
-- Choose `--orientation left-to-right` for horizontal flow; the default is `top-to-bottom`
+- Options: `--port <port>` selects another review port; `--orientation left-to-right` switches the default `top-to-bottom` flow
 - The Markdown companion derives from the same nodes; use a new path to protect existing files
 - The tracker comes from `workflow.maps.tracker`; GitHub maps need `gh` authenticated against the repo
 
@@ -237,13 +235,15 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
     - Finish every `missing` or `stale` entry; handling only the newest feedback leaves older comments blocking approval
     - Ask the user the specific question for any `needs-human` entry; do not mark it settled yourself
     - Require `pendingFeedback: []` before asking for final approval; element approvals do not settle comments
-- Approval waits on every open node that targets an element, in any mode, including fog
-    - Resolve each one, or mark it out of scope
+- Every unresolved node targeting an element blocks approval, including afk work and fog. Zero human questions does not mean ready for approval
+    - Settle actionable afk blockers before requesting approval. Record findings in the affected elements before resolving work nodes; never close them merely to clear the gate
+    - Report missing decisions or unavailable evidence when blocked. Label an unapprovable review as a draft
+    - Present the resulting revision for approval after research. A request to implement does not remove blockers or authorize agent approval; research resolution does not prove runtime safety
 - Changed elements block approval; the blocker list offers Re-approve for each
 - Approval also waits while a loose element has a mock with several variants
     - The user chooses one by locking the element while that variant is on screen; never choose for them
 - The user chooses Approve this version; approval locks every loose element
-    - While anything blocks approval, the viewer lists each blocker and links straight to its element and question
+    - While anything blocks approval, the viewer lists each blocker and links to its element (and answer form for a reviewer question)
 - Require `approval.valid: true` from status before implementation
 - Changed element nodes, saved comments, or targeting nodes reopen the gate
 - Keep `workflow.design_review` unchanged; it controls the separate frontend design pass

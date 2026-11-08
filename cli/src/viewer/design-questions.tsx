@@ -130,7 +130,11 @@ export function DesignQuestions({ selected, diagram, drafts, onDraft, onDetails,
         return next;
       })}>{allExpanded ? 'Collapse all' : 'Expand all'}</button>}
     </div>
-    {!questions.length && <p className="muted">{pack.designDocument?.questions?.length ? 'No questions for this target.' : 'No questions for this design.'}</p>}
+    {!questions.length && <p className="muted">{pack.designDocument?.questions?.length ? 'No reviewer questions for this target.' : 'No reviewer questions for this design.'}</p>}
+    {review && review.agentWork.length > 0 && <div className="muted" role="status">
+      <p>{review.agentWork.length === 1 ? '1 agent work item still blocks design approval. The agent must settle it on the map.' : `${review.agentWork.length} agent work items still block design approval. The agent must settle them on the map.`}</p>
+      <button type="button" className="btn" disabled={review.disabled} onClick={review.open}>View approval blockers</button>
+    </div>}
     {open.length > 0 && <div className="question-group">{answered.length > 0 && <h3 className="question-group-title">Open</h3>}{open.map(card)}</div>}
     {answered.length > 0 && <div className="question-group"><h3 className="question-group-title">Answered</h3>{answered.map(card)}</div>}
   </section>;

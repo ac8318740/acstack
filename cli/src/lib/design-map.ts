@@ -13,7 +13,7 @@ export type ElementChange = { label: string; before?: string; after?: string };
  * One thing holding approval, as the viewer lists it. `targetId` is the element
  * the reviewer opens to settle it; `nodeId` is the map node to settle.
  */
-export type ApprovalBlocker = { kind: 'question' | 'changed'; targetId: string; label: string; nodeId: string; changes?: ElementChange[] }
+export type ApprovalBlocker = { kind: 'question' | 'work' | 'changed'; targetId: string; label: string; nodeId: string; changes?: ElementChange[] }
   // A loose element whose mock has several variants: locking it chooses the one on screen.
   | { kind: 'variant'; targetId: string; label: string; nodeId: string; mock: string };
 
@@ -63,7 +63,7 @@ export function designMapInputs(nodes: readonly GraphNode[], doc: DesignDoc) {
   return {
     mapInputsDigest: digest(targeting.map(node => [node.id, node.status, node.title, node.body ?? ''])),
     blockers: [
-      ...targeting.map((node): ApprovalBlocker => ({ kind: 'question', targetId: node.answers as string, label: node.title, nodeId: node.id })),
+      ...targeting.map((node): ApprovalBlocker => ({ kind: node.mode === 'afk' ? 'work' : 'question', targetId: node.answers as string, label: node.title, nodeId: node.id })),
       ...unchosenVariants(doc),
     ],
     openQuestions: doc.questions.filter(question => open.has(question.id)).map(question => question.id),

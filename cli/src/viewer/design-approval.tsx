@@ -17,7 +17,7 @@ type Status = {
 export type EarlierReview = { reviewPath: string; packVersion: string; label: string; annotations: ReviewAnnotation[] };
 // What the page shows of an element when it locks, such as a mock's variant and tweaks.
 export type LockCapture = Record<string, unknown>;
-const BLOCKER_KINDS: Record<ApprovalBlocker['kind'], string> = { question: 'Open question', changed: 'Changed since approval', variant: 'Mock needs a choice' };
+const BLOCKER_KINDS: Record<ApprovalBlocker['kind'], string> = { question: 'Human decision pending', work: 'Agent work pending', changed: 'Changed since approval', variant: 'Mock needs a choice' };
 async function request(body?: unknown): Promise<Status> {
   const response = await fetch('/api/design-review', {
     method: body ? 'POST' : 'GET',
@@ -32,6 +32,7 @@ async function request(body?: unknown): Promise<Status> {
 type ApprovalControls = {
   approved: boolean; pending: boolean; disabled: boolean;
   reason: string; error?: string; open: () => void;
+  agentWork: ApprovalBlocker[];
   answered: string[]; answerText: (id: string) => string | undefined; answerable: string[]; locked?: string[]; changed: string[]; changes: (id: string) => ElementChange[]; earlier: EarlierReview[]; canAnswer: boolean;
   saveAnswer: (answer: DesignAnswer) => Promise<void>;
   lock: (id: string) => Promise<void>;
@@ -136,7 +137,7 @@ export function DesignApprovalProvider({ children }: { children: ReactNode }) {
   const approved = Boolean(!error && !pending && syncState?.status === 'Saved' && status?.approval.valid);
   const disabled = !status || pending || approved || syncState?.status !== 'Saved';
   const reason = approved ? 'This revision is approved' : error ?? status?.approval.reason ?? 'Checking revision...';
-  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, answerText, changes: (id: string) => (status?.blockers ?? []).flatMap(blocker => blocker.kind === 'changed' && blocker.targetId === id ? blocker.changes ?? [] : []), earlier: status?.earlier ?? [], locked: status?.locked, changed: (status?.blockers ?? []).filter(blocker => blocker.kind === 'changed').map(blocker => blocker.targetId), canAnswer: Boolean(status && !pending && syncState && syncState.status !== 'Not synced'), answerable: status?.openQuestions ?? [], saveAnswer, lock, chooseVariant, chosenVariant, navigate, captures, open: () => { if (disabled) return; if (status?.blockers?.length) blockerDialog.current?.showModal(); else confirm.current?.showModal(); } } : null}>
+  return <ApprovalContext.Provider value={enabled ? { approved, pending, disabled, reason, error, answered, answerText, agentWork: (status?.blockers ?? []).filter(blocker => blocker.kind === 'work'), changes: (id: string) => (status?.blockers ?? []).flatMap(blocker => blocker.kind === 'changed' && blocker.targetId === id ? blocker.changes ?? [] : []), earlier: status?.earlier ?? [], locked: status?.locked, changed: (status?.blockers ?? []).filter(blocker => blocker.kind === 'changed').map(blocker => blocker.targetId), canAnswer: Boolean(status && !pending && syncState && syncState.status !== 'Not synced'), answerable: status?.openQuestions ?? [], saveAnswer, lock, chooseVariant, chosenVariant, navigate, captures, open: () => { if (disabled) return; if (status?.blockers?.length) blockerDialog.current?.showModal(); else confirm.current?.showModal(); } } : null}>
     {children}
     {enabled && <dialog ref={confirm} className="modal" aria-labelledby="design-approval-title" aria-describedby="design-approval-explanation" onCancel={event => { if (pending) event.preventDefault(); }}>
       <h2 id="design-approval-title">Approve this version?</h2>
