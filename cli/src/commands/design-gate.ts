@@ -8,12 +8,12 @@
  *
  * Three outcomes and no fourth:
  *   on         - the key is true and impeccable is installed. Exit 0.
- *   on, warned - the same, with an impeccable too old or unreadable. The
+ *   on, warned - the same, with an old version or unusable launcher. The
  *                warning goes to stderr, and the answer is still on.
  *   off        - anything else. One `off: <reason>` line per reason, exit 1.
  *
- * It reads two files and runs nothing: no probe, no orchestrator, and no
- * impeccable subprocess. That is what makes it cheap enough for a skill to
+ * It reads configuration and checks launcher files, running no probe, orchestrator, or
+ * impeccable subprocess. That makes it cheap enough for a skill to
  * call, and it is why `config check` is not the thing a skill calls instead.
  *
  * It never exits 2, so a caller can read the exit code as the boolean it
@@ -57,7 +57,7 @@ const REASON_NOT_INSTALLED = `${IMPECCABLE_PLUGIN} is not installed`;
  */
 interface ImpeccableJson {
   version: string;
-  launcher: string;
+  launcher: string | null;
 }
 
 /** The whole answer, as `--json` prints it. */
@@ -126,14 +126,22 @@ function runDesignGate(json: boolean): void {
   const impeccable = findInstalledPlugin(IMPECCABLE_PLUGIN);
   const reasons = offReasons(root, impeccable);
   const on = reasons.length === 0;
+  const installed = impeccableJson(impeccable);
 
   if (on && impeccable !== null) {
     const note = impeccableVersionNote(impeccable.version);
     if (note !== null) console.error(chalk.yellow(note));
+    if (installed?.launcher === null) {
+      console.error(chalk.yellow(
+        `impeccable has no executable launcher under ${impeccable.installPath} ` +
+        '(checked skills/impeccable/scripts/impeccable and .claude/skills/impeccable/scripts/impeccable); ' +
+        'repair the installation before continuing the required design review'
+      ));
+    }
   }
 
   if (json) {
-    const answer: DesignGateJson = { on, reasons, impeccable: impeccableJson(impeccable) };
+    const answer: DesignGateJson = { on, reasons, impeccable: installed };
     console.log(JSON.stringify(answer, null, 2));
   } else if (on) {
     console.log('on');

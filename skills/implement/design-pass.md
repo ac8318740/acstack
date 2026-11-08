@@ -49,7 +49,9 @@ The command prints one JSON object:
 {"on": true, "reasons": ["..."], "impeccable": {"version": "4.2.0", "launcher": "/abs/path/to/scripts/impeccable"}}
 ```
 
-The `impeccable` field holds the launcher path. It holds `null` only when the gate is off.
+The `impeccable` object reports the installed plugin, or `null` when it is absent. Its `launcher` is an existing executable file, preferring `skills/impeccable/scripts/impeccable` over the legacy `.claude/skills/impeccable/scripts/impeccable` within the installed plugin root. Resolution never runs the launcher.
+
+When the gate is on and `impeccable.launcher` is `null`, the command reports the missing executable on stderr. The gate stays on. Stop the required design pass and report the installation problem for repair; do not skip context, audit, polish, or configured browser verification, and do not claim completion.
 
 When the gate is off, edit exactly as you do today. Make no impeccable call, and skip the rest of this section.
 
