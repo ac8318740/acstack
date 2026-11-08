@@ -115,28 +115,19 @@ ACSTACK_VERSION=$(ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/ | sort -
 ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/$ACSTACK_VERSION/cli/dist/index.js 2>&1
 ```
 
-**Cause**: the plugin cache holds a version from before the CLI shipped bundled in the repo, meaning before 0.9.2. This should not happen on 0.9.2 or later.
+**Cause**: an incomplete package, stale cache, or a Git-based install of a source-only revision. Release npm tarballs include `cli/dist/index.js`; source checkouts no longer do.
 
 **Fix**:
 
-- Bump or refresh the plugin cache
-    - Run `/plugin` in Claude Code and reinstall the plugin
-    - Or delete the cache directory and let Claude Code repull:
-        ```bash
-        rm -rf ~/.claude/plugins/cache/ac-agentic-coding/acstack/<old-version>
-        ```
-
-- Confirm the user is on plugin version 0.9.2 or later:
+- Update the `ac-agentic-coding` marketplace, then reinstall ACStack through `/plugin`
+    - The marketplace must use the npm source for ACStack, not a Git checkout
+    - Do not try to build an installed npm package: it intentionally excludes CLI source and build dependencies
+- For an intentional development checkout, build from the repository root:
     ```bash
-    cat ~/.claude/plugins/cache/ac-agentic-coding/acstack/*/.claude-plugin/plugin.json | grep version
+    npm --prefix cli ci
+    npm --prefix cli run build
     ```
-
-- Build the CLI in place as a one-shot, if the user is offline or cannot repull:
-    ```bash
-    cd ~/.claude/plugins/cache/ac-agentic-coding/acstack/<version>/cli
-    npm install
-    npm run build
-    ```
+- If a fresh npm-backed install still lacks the bundle, report the package version and missing path. Release packaging tests should reject that artifact.
 
 ---
 

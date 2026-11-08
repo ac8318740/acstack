@@ -26,6 +26,29 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: https://registry.npmjs.org
+
+      - name: Install npm with staged publish support
+        run: npm install -g npm@11.19.0
+
+      - run: npm --prefix cli ci
+
+      - name: Check and pack the release
+        run: |
+          set -euo pipefail
+          npm --prefix cli run typecheck
+          npm --prefix cli run lint
+          npm pack --pack-destination "$RUNNER_TEMP"
+          npm --prefix cli test
+          tarball="$RUNNER_TEMP/acstack-$(jq -r '.version' package.json).tgz"
+          bash tests/test-npm-package.sh "$tarball"
+          git diff --exit-code -- package.json plugin.json \
+            cli/package.json agents/codex pi/agents
+          echo "NPM_TARBALL=$tarball" >> "$GITHUB_ENV"
+
       # Tag whatever version main holds, unless that tag is already there. Re-running the
       # job is a no-op, and so is a dispatch on an already-tagged main.
       #
@@ -34,7 +57,10 @@ jobs:
       # than main's previous tip. Most of those commits leave the version alone, so a
       # HEAD~1 comparison would read "unchanged" and skip the tag for a release that really
       # did bump. The tag's own existence is the honest record of what is already tagged.
+      # A manual dispatch on a release branch can stage npm before main changes.
+      # Only main is tagged; branch dispatches never publish a Git release tag.
       - name: Tag the release
+        if: github.ref == 'refs/heads/main'
         run: |
           set -euo pipefail
           new="$(jq -r '.version // empty' .claude-plugin/plugin.json)"
@@ -53,16 +79,6 @@ jobs:
             echo "tag-release: created ${tag}."
           fi
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          registry-url: https://registry.npmjs.org
-
-      - name: Install npm with staged publish support
-        run: |
-          npm install -g npm@11.19.0
-          npm --version
-
       - name: Stage npm release
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -78,7 +94,8 @@ jobs:
             echo "npm: ${name}@${version} already published, nothing to stage."
             exit 0
           fi
-          if npm stage publish . --access public --provenance 2>&1 | tee /tmp/npm-stage.log; then
+          if npm stage publish "$NPM_TARBALL" --access public --provenance \
+            2>&1 | tee /tmp/npm-stage.log; then
             echo "npm: staged ${name}@${version}. Approve it on npmjs.com to publish."
             exit 0
           fi

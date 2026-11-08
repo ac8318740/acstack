@@ -5,9 +5,10 @@ ACStack is an agentic coding stack. It helps coding agents clarify requirements,
 - **ACStack aims to solve two common failure modes coding agents introduce**
     - The agent starts building before the requirements are clear
     - The agent writes code, then creates tests that pass against that code
-- **ACStack has first-class support for Claude Code and pi**
-    - Claude Code installs it as a plugin
-    - pi installs it as an npm package
+- **ACStack supports Claude Code, Codex, and pi from one npm package**
+    - Claude Code and Codex install it through the `ac-agentic-coding` marketplace
+    - pi installs `npm:acstack`
+    - The package includes the prebuilt CLI; installation needs no source build
 - **ACStack introduces structure around how your agent works**
     - Verification fits the change under a shared policy in `orchestrator/AGENTS.md`
     - Every commit updates your specs from the diff
@@ -42,7 +43,7 @@ Every box above is section 2. The rest of this file is reference.
 
 ## 1. Quickstart
 
-ACStack has first-class support for [Claude Code](https://claude.com/claude-code) and [pi](https://pi.dev).
+ACStack supports [Claude Code](https://claude.com/claude-code), [Codex](https://developers.openai.com/codex), and [pi](https://pi.dev).
 
 ### 1.1. Install on Claude Code
 
@@ -70,7 +71,20 @@ Then, in your Git repository, use `/acstack:implement`, `/acstack:quick-fix`, or
 - Your CLAUDE.md stays clean for project-specific content
 - Upgrading from a version before 0.8.0 means deleting one stale `@import` line (see [docs/migrate-0.8.md](docs/migrate-0.8.md))
 
-### 1.2. Install on pi
+### 1.2. Install on Codex
+
+You need the Codex CLI with npm plugin support, npm, and Node.js 20 or later. The native npm installation path is tested with Codex 0.163.0.
+
+```sh
+codex plugin marketplace add ac8318740/ac-agentic-coding
+codex plugin add acstack@ac-agentic-coding
+```
+
+Enable hooks and trust ACStack's reviewed hook source through Codex's trust flow. Installation alone does not grant hook execution. Start a fresh session after startup installs generated agent roles into `$CODEX_HOME/agents/` (default `~/.codex/agents/`); user-owned roles with the same names are preserved.
+
+The skills and project configuration are shared with Claude Code. The plugin includes lifecycle hooks, so use the marketplace rather than the public Codex plugin directory.
+
+### 1.3. Install on pi
 
 *The same project installs as a [pi](https://pi.dev) package with `@tintinweb/pi-subagents` or `pi-subagents` for delegation.*
 

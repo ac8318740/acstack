@@ -111,7 +111,7 @@ if [ -n "$plugin_root" ] && [ -f "$cli_wrapper" ]; then
   fi
 fi
 
-# --- Codex subagents: keep ~/.codex/agents current with the plugin ---
+# --- Codex subagents: keep ${CODEX_HOME:-~/.codex}/agents current with the plugin ---
 # Codex cannot ship agent definitions inside a plugin - its plugin manifest has
 # no agent field - so they have to be installed as files. This reconciles them
 # on every session, the same way the CLI symlink above is reconciled, so a
@@ -124,9 +124,10 @@ fi
 # Only ever overwrites files this generator wrote. A file without the generated
 # marker is someone's own agent that happens to share a name, and clobbering it
 # would be unforgivable.
-if [ -n "$plugin_root" ] && [ -d "${HOME}/.codex" ]; then
+codex_home="${CODEX_HOME:-${HOME}/.codex}"
+if [ -n "$plugin_root" ] && [ -d "$codex_home" ]; then
   codex_src="${plugin_root}/agents/codex"
-  codex_dst="${HOME}/.codex/agents"
+  codex_dst="${codex_home}/agents"
   marker="by scripts/gen-codex-agents.mjs"
 
   if [ -d "$codex_src" ]; then

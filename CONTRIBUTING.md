@@ -1,27 +1,24 @@
 # Contributing to ACStack
 
-*Three sets of generated files and one version check decide whether your pull request goes green.*
+ACStack publishes one npm package containing the CLI, skills, agents, and host integrations. Claude Code and Codex install it through the `ac-agentic-coding` marketplace; pi installs `npm:acstack`.
 
-ACStack ships as a Claude Code plugin and as a pi package, so an installed copy runs files straight out of a cache.
-
-- **Three build steps write files this repository commits**: `cli/dist`, `agents/codex`, and `pi/agents`
-- **Regenerate whichever your change invalidates**, or CI fails on the stale copy
-- **Bump the version in `.claude-plugin/plugin.json`**, and set the root `package.json` to match
-    - The cache only re-pulls when the version changes
-- **CI checks both**
-    - A red run tells you which one you missed
+- `npm pack` builds `cli/dist/` and regenerates host agent definitions before packaging
+- Git keeps CLI source and generated `agents/codex/` and `pi/agents/`; it does not keep `cli/dist/`
+- Bump `.claude-plugin/plugin.json`, root `plugin.json`, and root `package.json` together
+    - Building syncs `cli/package.json` from the Claude manifest
+- CI tests the packed artifact without runtime builds or registry dependencies and checks committed agent definitions for freshness
 
 ```mermaid
 flowchart TD
-    S["Edit source<br/>(cli/src, agents/*.md, skills/)"] --> G["Regenerate<br/>(cli/dist, agents/codex, pi/agents)"]
+    S["Edit source<br/>(cli/src, agents/*.md, skills/)"] --> G["Build npm artifact<br/>and regenerate host agents"]
     G --> H["Pre-commit hook<br/>(optional, .git/hooks/pre-commit)"]
-    H --> B["Bump the version<br/>(.claude-plugin/plugin.json, package.json)"]
+    H --> B["Bump the version<br/>(Claude, Codex, npm manifests)"]
     B --> P["Open the pull request"]
-    P --> CI["CI enforces both<br/>(version-gate, regeneration check)"]
+    P --> CI["CI checks versions,<br/>agents, and packed artifact"]
     CI -->|"a generated copy differs,<br/>or the version did not rise"| S
     CI -->|"green, then merged into dev"| D["dev collects the work"]
     D --> L["Promote<br/>(PR dev into main,<br/>then label promote-to-main)"]
-    L --> T["main fast-forwards,<br/>tag-release tags vX.Y.Z"]
+    L --> T["main fast-forwards;<br/>build, test, tag, and stage npm release"]
 ```
 
 | What you want | Where |
@@ -47,7 +44,8 @@ skills/                      – slash-command skills
 output-styles/               – output styles (ac-writing-style)
 cli/                         – Node.js CLI (TypeScript source + built dist/)
 pi/                          – the pi port: extension.ts and the generated agents/
-package.json                 – pi package manifest, never used by Claude Code or Codex
+plugin.json                  – portable Codex plugin manifest
+package.json                 – npm package, CLI bin, and pi extension manifest
 assets/                      – files a skill installs on a user's machine, and the model never reads them
 docs/                        – long-form docs a skill links to instead of inlining
 TROUBLESHOOTING.md           – downstream install diagnostics for Claude Code
@@ -167,7 +165,7 @@ bash tests/test-terminal-workspace.sh
 
 - `cli/dist/index.js` is a single self-contained file
 - esbuild inlines every runtime dependency into it: commander, chalk, fast-glob, yaml, and zod
-- Claude Code clones and runs a marketplace plugin directly, with no `npm install` step downstream
+- Marketplace installs download the prebuilt npm artifact; lifecycle scripts do not build it downstream
 
 Install CLI dependencies explicitly in each fresh clone or worktree before checks:
 
@@ -185,24 +183,23 @@ cd cli
 npm run build   # rebuilds dist/index.js via esbuild (see build.mjs)
 npm run typecheck  # tsc --noEmit, catches type errors the bundler skips
 npm run lint    # eslint, type-aware rules over src/ (see eslint.config.js)
-git add src/ dist/ package.json package-lock.json
+git add src/ package.json package-lock.json
 ```
 
-- Both `src/` and `dist/` belong in the same commit
-- A stale `dist/` ships broken or misleading behaviour to every downstream user until the next release
+- Commit source and dependency changes; `cli/dist/` is ignored
+- `npm pack` at the repository root runs `prepack`, rebuilding the CLI and both sets of host agents
 
-To verify the bundle survives a fresh install, park `node_modules/` first, then exercise the bin wrapper:
+Verify the actual package from the repository root:
 
+```sh
+bash tests/test-npm-package.sh
 ```
-mv node_modules /tmp/nm-park && node bin/acstack.js --help; mv /tmp/nm-park node_modules
-```
 
-- A healthy bundle prints the full subcommand list
-- A throw of `Dynamic require of "node:..."` means the esbuild banner in `build.mjs` regressed
+The check packs, installs offline in a temporary home with lifecycle scripts disabled, and exercises the CLI plus packaged startup hooks. It verifies versions and required host assets too. Set `ACSTACK_TEST_CODEX=1` to include the installed native Codex parser; npm transport is stubbed to use the same local tarball.
 
 ### 3.1. The recommended pre-commit hook
 
-*The pre-commit hook saves you a red run. CI is what actually enforces the two generated sets.*
+*The optional pre-commit hook regenerates committed agent definitions. CI enforces freshness.*
 
 Drop this into `.git/hooks/pre-commit` inside the acstack clone, not the marketplace parent. Then run `chmod +x .git/hooks/pre-commit`. Git ignores hook files, so this stays per-clone.
 
@@ -212,12 +209,6 @@ Drop this into `.git/hooks/pre-commit` inside the acstack clone, not the marketp
 set -euo pipefail
 
 staged=$(git diff --cached --name-only)
-
-if grep -q '^cli/src/' <<<"$staged"; then
-  echo "pre-commit: cli/src changed – rebuilding dist/"
-  (cd cli && npm run build)
-  git add cli/dist cli/package.json
-fi
 
 if grep -qE '^agents/[^/]+\.md$' <<<"$staged"; then
   echo "pre-commit: agents/*.md changed – regenerating agents/codex/ and pi/agents/"
@@ -229,11 +220,9 @@ fi
 
 - Each block fires only when its own source is part of the staged diff, then stages what it regenerates
 - The commit aborts if either command fails
-- The repository commits two sets of generated files
-    - The hook has two blocks
-    - `cli/dist` comes from esbuild
-    - `agents/codex/*.toml` comes from `scripts/gen-codex-agents.mjs`, which reads the markdown in `agents/`
-    - Editing an agent's markdown and committing without the second block leaves a red run
+- The repository commits two sets of generated agent definitions
+    - `agents/codex/*.toml` and `pi/agents/*.md` come from `agents/*.md`
+    - `cli/dist/` is built separately for the npm package
 - The hook is optional and easy to forget to install
     - `.github/workflows/ci.yml` regenerates each set and fails the run if the committed copy differs
     - Treat the hook as a convenience, and never as the guarantee
@@ -248,7 +237,7 @@ This repository's `project.yaml`, in its project folder (`acstack project-data p
 *`npm run build` syncs `cli/package.json` for tidiness. `acstack --version` never depends on that sync.*
 
 - `npm run build` syncs `cli/package.json`'s version from `.claude-plugin/plugin.json`, then runs esbuild
-- That is why both the pre-commit hook and the `git add` recipe above stage `cli/package.json` alongside `dist/`
+- Commit the synced `cli/package.json` alongside the three release manifests
 - `acstack --version` reads `.claude-plugin/plugin.json` directly at runtime, in `cli/src/lib/version.ts`
     - The reported version is right whether or not anything rebuilt
     - It has to work that way, because the rebuild only fires when `cli/src/` changes
@@ -269,11 +258,11 @@ node scripts/gen-codex-agents.mjs
 Why the hook installs them:
 
 - Codex cannot ship agent definitions inside a plugin
-    - The SessionStart hook installs them into `~/.codex/agents/`
+    - The SessionStart hook installs them into `$CODEX_HOME/agents/` (default `~/.codex/agents/`)
 - It re-reconciles on every session
 - It only overwrites a file carrying the generated marker
     - It leaves alone an agent of yours that shares a name
-- It does nothing at all on a machine with no `~/.codex`
+- It does nothing when the selected Codex home directory does not exist
 
 Before checking delivery in Codex:
 
@@ -332,7 +321,7 @@ node scripts/gen-pi-agents.mjs
     - The agents reach the CLI through `bash`, at `~/.claude/acstack/bin/acstack`
 - The root `package.json` version must equal `.claude-plugin/plugin.json`
     - `scripts/version-gate.sh` fails the pull request on a mismatch
-    - `pi install git:...@vX.Y.Z` installs from the same tag
+    - Use `pi install npm:acstack`; a source checkout requires a local build first
 - `pi/extension.ts` ports the hooks
 - `tests/test-pi-extension.sh` drives it with a stub pi API
     - The suite needs Node 22.18 or later, and skips on older Node
@@ -404,9 +393,9 @@ acstack/**
 
 ### 6.4. Before you open the pull request
 
-1. Bump `.claude-plugin/plugin.json`, and set `package.json` to the same version.
-2. Confirm `cli/dist/` is up to date. The pre-commit hook handles this if installed.
-3. Commit via `/commit` from the marketplace repo. It handles the submodule and parent ordering.
+1. Bump `.claude-plugin/plugin.json`, root `plugin.json`, and root `package.json` together.
+2. Run `bash tests/test-npm-package.sh`, then commit the synced `cli/package.json` and any changed generated agents.
+3. Commit via `/acstack:commit` in this repository to preserve spec sync. Marketplace changes are separate commits.
 
 ### 6.5. Promoting `dev` to `main`
 
@@ -443,43 +432,23 @@ The workflow refuses a promotion on three grounds: CI is not green, the move is 
 - `promote.yml` dispatches it, because a push made with `GITHUB_TOKEN` starts no workflow runs
 - It skips silently when that tag already exists, so a re-run costs nothing
 
-### 6.7. Why the CLI is not on npm
+### 6.7. Publishing the npm package
 
-*The CLI ships only as part of the plugin. That is deliberate.*
+`acstack` is the shared npm package for Claude Code, Codex, and pi. The CLI and skills ship together at one version; no separate global CLI install is required.
 
-Installing it is not a step.
+The existing `tag-release` workflow installs build dependencies, checks types and lint, packs the artifact, then runs CLI and packaged-install tests. It stages that exact tarball with provenance using npm's staged publishing flow. Approve the staged release on npmjs.com to publish it. Re-running skips an already published version.
 
-- The plugin ships `cli/dist/index.js` in the repository
-    - It arrives already built when Claude Code copies the plugin into its cache
-- The SessionStart hook then symlinks it into place
-- There is no npm install, no `node_modules` in the cache, and no network call
-- The only requirement is Node 20 on PATH
+The `ac-agentic-coding` repository owns the Claude and Codex marketplace catalogs. Both resolve `acstack@latest`; neither builds source on the user's machine. pi installs the same npm artifact directly. Node 20 or newer is required; pi has its own host requirements.
 
-Publishing to npm as well would buy a second door to the same code and cost three things.
+For the initial migration, stage npm from the reviewed release branch before promoting it to `main`:
 
-- **Version skew, which is currently impossible** – skills and CLI ship in one tarball at one version
-    - A globally installed CLI pins the version you installed
-        - A plugin release with a new CLI flag can break a skill
-    - Preventing that needs a version check at session start
-    - That is more machinery than the symlink it would replace
-- **A network dependency on a path that has none** – `npm install -g` fails on no network, a locked-down prefix, or a proxy
-    - The bundled CLI works offline
-- **PATH propagation** – a non-interactive agent subshell does not always inherit an npm global bin, notably under nvm
+```sh
+gh workflow run tag-release.yml --ref <release-branch>
+```
 
-Using ACStack from another agent harness does not need npm either.
+Branch dispatches build and stage the tarball without creating a Git tag. Approve the staged npm release, verify a registry-backed install on each host, and deploy the marketplace catalog changes. Only then promote the source revision that removes `cli/dist/` from Git. The main workflow creates the tag and skips npm staging when that version is already published.
 
-- On any machine with the plugin, the hook creates `~/.local/bin/acstack`, which has no Claude Code dependency
-- It works as a typed command whenever `~/.local/bin` is on PATH
-- The hook warns when it is not
-- What another harness lacks is the orchestrator instructions, and not the binary
-
-Revisit this only if a machine needs the CLI with **no plugin installed at all**.
-
-- That means CI, or a device that runs an agent but not Claude Code
-- We keep the package publishable for that day
-    - `npm pack --dry-run` from `cli/` shows the file list, and `prepublishOnly` runs the build
-    - The bare `acstack` name on npm belongs to an unrelated project
-        - The package would be `acstack-cli` with `acstack` as its binary
+Do not promote bundle removal while the live marketplace still uses Git. Local Git checkouts need `npm --prefix cli ci` and `npm --prefix cli run build` before running the CLI.
 
 ### 6.8. Who owns `acstack` on PATH
 

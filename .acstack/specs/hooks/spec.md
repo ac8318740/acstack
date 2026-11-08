@@ -54,3 +54,12 @@ ACStack delivers the shared communication standard through startup hooks indepen
 - **Then**: A consumed handoff moves to `<project folder>/changes/<map>/handoffs/` or `<project folder>/handoffs/<map>/`
 - **Then**: When the CLI fails, the hook passes its message on through stderr and writes nothing
 - **Source**: `hooks/project-data.sh`, `hooks/session-start.sh`, `hooks/session-start-handoff.sh`, `hooks/context-pressure.sh`
+
+## FR-007: Reconcile generated roles in the selected Codex home
+
+- **Given**: The plugin has generated Codex agent definitions and the selected Codex home exists
+- **When**: The session-start hook runs
+- **Then**: It reconciles roles into `$CODEX_HOME/agents/`, defaulting to `~/.codex/agents/` when `CODEX_HOME` is empty or unset
+- **Then**: It preserves user-owned roles and replaces only roles carrying the generator marker
+- **Then**: A custom home leaves the default home's roles untouched, and an absent selected home is not created
+- **Source**: `hooks/session-start.sh`
