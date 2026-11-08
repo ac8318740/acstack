@@ -9,15 +9,15 @@
  *
  * The whole answer is three outcomes and no fourth:
  *   on            - the key is true and impeccable is installed. Exit 0.
- *   on, warned    - the same, with an impeccable too old or unreadable. The
+ *   on, warned    - the same, with an old version or unusable launcher. The
  *                   warning goes to stderr, and the answer is still on.
  *   off           - anything else. One `off: <reason>` line per reason,
  *                   exit 1.
  *
  * Two properties are pinned harder than the rest, because they are what make
  * the command cheap enough to call from a skill:
- *   - it reads two files and runs nothing, so no probe, no orchestrator, and
- *     no impeccable subprocess
+ *   - it reads configuration, checks launcher files, and runs no probe, orchestrator, or
+ *     impeccable subprocess
  *   - it never exits 2, so a caller can treat the exit code as the boolean
  *     it asked for
  */
@@ -139,11 +139,12 @@ interface ImpeccableInstall {
   broken?: 'no-manifest' | 'no-version';
   /** The half of the registry key after the `@`, which varies by install source. */
   marketplace?: string;
+  launcherLayout?: 'current' | 'legacy' | 'both' | 'neither';
 }
 
 /**
  * Install impeccable under config root `root`, writing the two files Claude
- * Code writes:
+ * Code writes, plus an executable launcher in the requested layout:
  *
  *   <root>/plugins/installed_plugins.json  - the registry, keyed
  *      `<plugin>@<marketplace>` and carrying each install's `installPath`
@@ -170,6 +171,10 @@ function installImpeccable(root: string, opts: ImpeccableInstall): string {
       JSON.stringify(manifest, null, 2) + '\n'
     );
   }
+
+  const layout = opts.launcherLayout ?? 'current';
+  if (layout === 'current' || layout === 'both') plantLauncher(installPath);
+  if (layout === 'legacy' || layout === 'both') plantLauncher(installPath, true);
 
   writeRegistry(root, {
     [`${IMPECCABLE_PLUGIN}@${opts.marketplace ?? IMPECCABLE_PLUGIN}`]: {
@@ -229,8 +234,8 @@ function homeWithImpeccable(opts: ImpeccableInstall): string {
  * impeccable's layout and not ACStack's: a constant shared with the
  * implementation would agree with whatever the implementation joined.
  */
-function launcherPath(installPath: string): string {
-  return join(installPath, '.claude', 'skills', 'impeccable', 'scripts', 'impeccable');
+function launcherPath(installPath: string, legacy = false): string {
+  return join(installPath, ...(legacy ? ['.claude'] : []), 'skills', 'impeccable', 'scripts', 'impeccable');
 }
 
 /**
@@ -290,8 +295,8 @@ function tattlingBin(name: string): { dir: string; marker: string } {
  * to run it. This plants one that works, so the marker's absence is the
  * command choosing not to start it.
  */
-function plantLauncher(installPath: string): string {
-  const launcher = launcherPath(installPath);
+function plantLauncher(installPath: string, legacy = false): string {
+  const launcher = launcherPath(installPath, legacy);
   const marker = join(mkdtempSync(join(tmpdir(), 'acstack-marker-')), 'launcher-ran');
   mkdirSync(dirname(launcher), { recursive: true });
   writeFileSync(launcher, `#!/bin/sh\necho ran > '${marker}'\nexit 0\n`);
@@ -303,7 +308,7 @@ function plantLauncher(installPath: string): string {
 interface DesignGateJson {
   on: boolean;
   reasons: string[];
-  impeccable: { version: string; launcher: string } | null;
+  impeccable: { version: string; launcher: string | null } | null;
 }
 
 /** Parse the one JSON object `--json` prints, failing loudly when it printed something else. */
@@ -690,20 +695,87 @@ describe('acstack design-gate', () => {
       expect(launcher?.startsWith('/')).toBe(true);
     });
 
-    it('states the launcher path without checking that the file is there', () => {
-      // The fixture install writes a manifest and nothing else, so no launcher
-      // file exists under it. The path is a plain join: a caller that wants to
-      // know whether the launcher runs is the one that has to find out.
-      const install = homeAndInstall({ registryVersion: NEW_ENOUGH });
-      expect(existsSync(launcherPath(install.installPath))).toBe(false);
+    it.each(['current', 'legacy', 'both'] as const)(
+      'resolves an existing executable in the %s layout without running it', layout => {
+        const install = homeAndInstall({ registryVersion: NEW_ENOUGH, launcherLayout: layout });
+        const legacy = layout === 'legacy';
+        const marker = plantLauncher(install.installPath, legacy);
+        const expected = launcherPath(install.installPath, legacy);
+        expect(existsSync(expected)).toBe(true);
 
-      const result = runGate({ cwd: gatedProject(), home: install.home, json: true });
+        const result = runGate({ cwd: gatedProject(), home: install.home, json: true });
 
-      expect(parseGateJson(result.stdout).impeccable?.launcher).toBe(
-        launcherPath(install.installPath)
-      );
-      expect(result.status).toBe(0);
-    });
+        expect(parseGateJson(result.stdout).impeccable?.launcher).toBe(expected);
+        expect(existsSync(marker)).toBe(false);
+        expect(result.status).toBe(0);
+      }
+    );
+
+    it.each(['', 'relative-plugin'])(
+      'rejects registry install root %j instead of resolving a project-local launcher', installPath => {
+        const home = fakeHome();
+        const cwd = gatedProject();
+        const marker = plantLauncher(join(cwd, installPath));
+        writeRegistry(join(home, '.claude'), {
+          'impeccable@impeccable': { installPath, version: NEW_ENOUGH },
+        });
+
+        const result = runGate({ cwd, home, json: true });
+
+        expect(parseGateJson(result.stdout).impeccable?.launcher).toBeNull();
+        expect(parseGateJson(result.stdout).on).toBe(true);
+        expect(result.stderr).toContain('impeccable has no executable launcher');
+        expect(existsSync(marker)).toBe(false);
+        expect(result.status).toBe(0);
+      }
+    );
+
+    it.each(['non-executable', 'directory'])(
+      'falls back to legacy when the current candidate is a %s', kind => {
+        const install = homeAndInstall({ registryVersion: NEW_ENOUGH, launcherLayout: 'legacy' });
+        const current = launcherPath(install.installPath);
+        if (kind === 'non-executable') {
+          plantLauncher(install.installPath);
+          chmodSync(current, 0o644);
+        } else {
+          mkdirSync(current, { recursive: true });
+        }
+        const result = runGate({ cwd: gatedProject(), home: install.home, json: true });
+        expect(parseGateJson(result.stdout).impeccable?.launcher).toBe(
+          launcherPath(install.installPath, true)
+        );
+        expect(result.status).toBe(0);
+      }
+    );
+
+    it.each(['missing', 'non-executable', 'directory'])(
+      'reports a %s launcher without disabling the required gate', kind => {
+        const install = homeAndInstall({ registryVersion: NEW_ENOUGH, launcherLayout: 'neither' });
+        const launcher = launcherPath(install.installPath);
+        if (kind === 'non-executable') {
+          plantLauncher(install.installPath);
+          chmodSync(launcher, 0o644);
+        } else if (kind === 'directory') {
+          mkdirSync(launcher, { recursive: true });
+        }
+
+        for (const json of [true, false]) {
+          const result = runGate({ cwd: gatedProject(), home: install.home, json });
+          if (json) {
+            expect(parseGateJson(result.stdout)).toEqual({
+              on: true,
+              reasons: [],
+              impeccable: { version: NEW_ENOUGH, launcher: null },
+            });
+          } else {
+            expect(lines(result.stdout)).toEqual(['on']);
+          }
+          expect(result.stderr).toContain('impeccable has no executable launcher');
+          expect(result.stderr).toContain(install.installPath);
+          expect(result.status).toBe(0);
+        }
+      }
+    );
 
     it('reports impeccable as null when it is not installed', () => {
       const result = runGate({ cwd: gatedProject(), home: fakeHome(), json: true });
@@ -989,8 +1061,7 @@ describe('acstack design-gate', () => {
   // -------------------------------------------------------------------
   // What the command never does
   //
-  // The answer is two file reads. Everything below is a way it could stop
-  // being two file reads without any of the assertions above noticing.
+  // The answer comes from files only. These checks catch accidental probes.
   // -------------------------------------------------------------------
   describe('what the command never does', () => {
     it('never runs impeccable, however installed it is', () => {

@@ -18554,9 +18554,20 @@ var init_claude_plugins = __esm({
 });
 
 // src/lib/impeccable.ts
-import { join as join13 } from "node:path";
+import { accessSync as accessSync2, constants, statSync as statSync3 } from "node:fs";
+import { isAbsolute as isAbsolute2, join as join13 } from "node:path";
 function impeccableLauncher(installPath) {
-  return join13(installPath, ".claude", "skills", IMPECCABLE_PLUGIN, "scripts", IMPECCABLE_PLUGIN);
+  if (!isAbsolute2(installPath)) return null;
+  for (const root of [installPath, join13(installPath, ".claude")]) {
+    const launcher = join13(root, "skills", IMPECCABLE_PLUGIN, "scripts", IMPECCABLE_PLUGIN);
+    try {
+      if (!statSync3(launcher).isFile()) continue;
+      accessSync2(launcher, constants.X_OK);
+      return launcher;
+    } catch {
+    }
+  }
+  return null;
 }
 function impeccableVersionNote(version) {
   if (version === null) {
@@ -18578,14 +18589,14 @@ var init_impeccable = __esm({
 
 // src/lib/host-probe.ts
 import { spawnSync as spawnSync3 } from "node:child_process";
-import { accessSync as accessSync2, constants } from "node:fs";
+import { accessSync as accessSync3, constants as constants2 } from "node:fs";
 import { request } from "node:http";
 import { delimiter, join as join14 } from "node:path";
 function binaryOnPath(binary) {
   for (const dir of (process.env.PATH ?? "").split(delimiter)) {
     if (!dir) continue;
     try {
-      accessSync2(join14(dir, binary), constants.X_OK);
+      accessSync3(join14(dir, binary), constants2.X_OK);
       return true;
     } catch {
     }
@@ -18638,7 +18649,7 @@ var init_host_probe = __esm({
 });
 
 // src/commands/config-check.ts
-import { existsSync as existsSync13, readFileSync as readFileSync11, statSync as statSync3 } from "node:fs";
+import { existsSync as existsSync13, readFileSync as readFileSync11, statSync as statSync4 } from "node:fs";
 import { homedir as homedir3 } from "node:os";
 import { join as join15 } from "node:path";
 function checkRequiredAxes(report, config, project) {
@@ -18799,7 +18810,7 @@ function readJsonFile(path) {
 }
 function isFile(path) {
   try {
-    return statSync3(path).isFile();
+    return statSync4(path).isFile();
   } catch {
     return false;
   }
@@ -20000,11 +20011,11 @@ var require_codegen = __commonJS({
         const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
         return `${varKind} ${this.name}${rhs};` + _n;
       }
-      optimizeNames(names, constants2) {
+      optimizeNames(names, constants3) {
         if (!names[this.name.str])
           return;
         if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants2);
+          this.rhs = optimizeExpr(this.rhs, names, constants3);
         return this;
       }
       get names() {
@@ -20021,10 +20032,10 @@ var require_codegen = __commonJS({
       render({ _n }) {
         return `${this.lhs} = ${this.rhs};` + _n;
       }
-      optimizeNames(names, constants2) {
+      optimizeNames(names, constants3) {
         if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
           return;
-        this.rhs = optimizeExpr(this.rhs, names, constants2);
+        this.rhs = optimizeExpr(this.rhs, names, constants3);
         return this;
       }
       get names() {
@@ -20085,8 +20096,8 @@ var require_codegen = __commonJS({
       optimizeNodes() {
         return `${this.code}` ? this : void 0;
       }
-      optimizeNames(names, constants2) {
-        this.code = optimizeExpr(this.code, names, constants2);
+      optimizeNames(names, constants3) {
+        this.code = optimizeExpr(this.code, names, constants3);
         return this;
       }
       get names() {
@@ -20115,12 +20126,12 @@ var require_codegen = __commonJS({
         }
         return nodes.length > 0 ? this : void 0;
       }
-      optimizeNames(names, constants2) {
+      optimizeNames(names, constants3) {
         const { nodes } = this;
         let i = nodes.length;
         while (i--) {
           const n = nodes[i];
-          if (n.optimizeNames(names, constants2))
+          if (n.optimizeNames(names, constants3))
             continue;
           subtractNames(names, n.names);
           nodes.splice(i, 1);
@@ -20173,12 +20184,12 @@ var require_codegen = __commonJS({
           return void 0;
         return this;
       }
-      optimizeNames(names, constants2) {
+      optimizeNames(names, constants3) {
         var _a;
-        this.else = (_a = this.else) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants2);
-        if (!(super.optimizeNames(names, constants2) || this.else))
+        this.else = (_a = this.else) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants3);
+        if (!(super.optimizeNames(names, constants3) || this.else))
           return;
-        this.condition = optimizeExpr(this.condition, names, constants2);
+        this.condition = optimizeExpr(this.condition, names, constants3);
         return this;
       }
       get names() {
@@ -20201,10 +20212,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.iteration})` + super.render(opts);
       }
-      optimizeNames(names, constants2) {
-        if (!super.optimizeNames(names, constants2))
+      optimizeNames(names, constants3) {
+        if (!super.optimizeNames(names, constants3))
           return;
-        this.iteration = optimizeExpr(this.iteration, names, constants2);
+        this.iteration = optimizeExpr(this.iteration, names, constants3);
         return this;
       }
       get names() {
@@ -20240,10 +20251,10 @@ var require_codegen = __commonJS({
       render(opts) {
         return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
       }
-      optimizeNames(names, constants2) {
-        if (!super.optimizeNames(names, constants2))
+      optimizeNames(names, constants3) {
+        if (!super.optimizeNames(names, constants3))
           return;
-        this.iterable = optimizeExpr(this.iterable, names, constants2);
+        this.iterable = optimizeExpr(this.iterable, names, constants3);
         return this;
       }
       get names() {
@@ -20285,11 +20296,11 @@ var require_codegen = __commonJS({
         (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
         return this;
       }
-      optimizeNames(names, constants2) {
+      optimizeNames(names, constants3) {
         var _a, _b;
-        super.optimizeNames(names, constants2);
-        (_a = this.catch) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants2);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants2);
+        super.optimizeNames(names, constants3);
+        (_a = this.catch) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants3);
+        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants3);
         return this;
       }
       get names() {
@@ -20590,7 +20601,7 @@ var require_codegen = __commonJS({
     function addExprNames(names, from) {
       return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
     }
-    function optimizeExpr(expr, names, constants2) {
+    function optimizeExpr(expr, names, constants3) {
       if (expr instanceof code_1.Name)
         return replaceName(expr);
       if (!canOptimize(expr))
@@ -20605,14 +20616,14 @@ var require_codegen = __commonJS({
         return items;
       }, []));
       function replaceName(n) {
-        const c = constants2[n.str];
+        const c = constants3[n.str];
         if (c === void 0 || names[n.str] !== 1)
           return n;
         delete names[n.str];
         return c;
       }
       function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants2[c.str] !== void 0);
+        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants3[c.str] !== void 0);
       }
     }
     function subtractNames(names, from) {
@@ -27417,15 +27428,15 @@ var init_tweaks = __esm({
 // src/lib/design-mocks.ts
 import { execFile } from "node:child_process";
 import { createHash as createHash2 } from "node:crypto";
-import { existsSync as existsSync14, readFileSync as readFileSync12, realpathSync as realpathSync5, statSync as statSync4 } from "node:fs";
-import { isAbsolute as isAbsolute2, join as join16, resolve as resolve3, sep } from "node:path";
+import { existsSync as existsSync14, readFileSync as readFileSync12, realpathSync as realpathSync5, statSync as statSync5 } from "node:fs";
+import { isAbsolute as isAbsolute3, join as join16, resolve as resolve3, sep } from "node:path";
 import { promisify } from "node:util";
 function insideFolder(folder, path, owner) {
-  if (isAbsolute2(path) || path.includes("\\") || path.split("/").includes("..")) throw new Error(`Element ${owner}: mock path ${path} must be relative and stay inside ${folder}`);
+  if (isAbsolute3(path) || path.includes("\\") || path.split("/").includes("..")) throw new Error(`Element ${owner}: mock path ${path} must be relative and stay inside ${folder}`);
   const full = join16(folder, path);
   if (!existsSync14(full)) throw new Error(`Element ${owner}: mock file ${full} does not exist`);
   const real = realpathSync5(full), base = realpathSync5(folder);
-  if (!real.startsWith(base + sep) || !statSync4(real).isFile()) throw new Error(`Element ${owner}: mock path ${path} must be a file inside ${folder}`);
+  if (!real.startsWith(base + sep) || !statSync5(real).isFile()) throw new Error(`Element ${owner}: mock path ${path} must be a file inside ${folder}`);
   return real;
 }
 function fixtureValue(path, text2) {
@@ -27538,7 +27549,7 @@ function checkElementMocks(root, map, items, checkout) {
         list.push({ kind: "fixture", ...base });
         continue;
       }
-      if (statSync4(full).size > LARGE_MOCK) warnings.push(`Element ${item.id}: mock ${path} is over 5 MB and will be slow to open`);
+      if (statSync5(full).size > LARGE_MOCK) warnings.push(`Element ${item.id}: mock ${path} is over 5 MB and will be slow to open`);
       if (entry.html) {
         if (odInstalled) warnings.push(`Element ${item.id}: ${path} is inline HTML; OpenDesigner is installed, so consider an od mock with variants`);
         else if (!item.locked) warnings.push(`Element ${item.id}: mock ${path} has 1 variant; add another so the reviewer can compare options`);
@@ -28745,7 +28756,7 @@ var init_design_lifecycle = __esm({
 });
 
 // src/lib/design-watch.ts
-import { existsSync as existsSync18, readdirSync as readdirSync8, statSync as statSync5, watch, writeFileSync as writeFileSync5 } from "node:fs";
+import { existsSync as existsSync18, readdirSync as readdirSync8, statSync as statSync6, watch, writeFileSync as writeFileSync5 } from "node:fs";
 import { join as join19, relative as relative3, resolve as resolve6, sep as sep3 } from "node:path";
 function notifyDesign(root, map) {
   const dir = reviewsDir(root, map);
@@ -28786,7 +28797,7 @@ function watchDesign(root, map, onChange, settleMs = 100) {
   };
   const scan = (path) => {
     try {
-      if (statSync5(path).isDirectory()) add(path, true, void 0, true);
+      if (statSync6(path).isDirectory()) add(path, true, void 0, true);
     } catch {
     }
   };
@@ -28816,7 +28827,7 @@ __export(design_doc_exports, {
   liveDesignDoc: () => liveDesignDoc,
   register: () => register7
 });
-import { readFileSync as readFileSync14, statSync as statSync6, writeFileSync as writeFileSync6 } from "node:fs";
+import { readFileSync as readFileSync14, statSync as statSync7, writeFileSync as writeFileSync6 } from "node:fs";
 import { join as join20, resolve as resolve7 } from "node:path";
 function generateDesignDoc(root, map, output, markdown, orientation = "top-to-bottom") {
   const { doc } = loadMapDesign(root, map);
@@ -28892,7 +28903,7 @@ function register7(program3) {
     console.log(notifyDesign(root, map) ? `Notified the design doc for ${map}` : `No design-doc review has run for ${map}`);
   }));
   lifecycle.command("reconcile <map>").requiredOption("--input <json-file>", "Explicit reconciliation decisions").option("--review-file <path>", "Canonical historical feedback snapshot").action(inProject((root, map, options) => {
-    if (!statSync6(options.input).isFile() || statSync6(options.input).size > 1e6) throw new Error("Invalid reconciliation input");
+    if (!statSync7(options.input).isFile() || statSync7(options.input).size > 1e6) throw new Error("Invalid reconciliation input");
     let input;
     try {
       input = JSON.parse(readFileSync14(options.input, "utf8"));
@@ -28991,12 +29002,18 @@ function runDesignGate(json) {
   const impeccable = findInstalledPlugin(IMPECCABLE_PLUGIN);
   const reasons = offReasons(root, impeccable);
   const on = reasons.length === 0;
+  const installed = impeccableJson(impeccable);
   if (on && impeccable !== null) {
     const note = impeccableVersionNote(impeccable.version);
     if (note !== null) console.error(source_default.yellow(note));
+    if (installed?.launcher === null) {
+      console.error(source_default.yellow(
+        `impeccable has no executable launcher under ${impeccable.installPath} (checked skills/impeccable/scripts/impeccable and .claude/skills/impeccable/scripts/impeccable); repair the installation before continuing the required design review`
+      ));
+    }
   }
   if (json) {
-    const answer = { on, reasons, impeccable: impeccableJson(impeccable) };
+    const answer = { on, reasons, impeccable: installed };
     console.log(JSON.stringify(answer, null, 2));
   } else if (on) {
     console.log("on");
@@ -29160,7 +29177,7 @@ var init_ackfile = __esm({
 });
 
 // src/lib/ackwatch.ts
-import { readFileSync as readFileSync16, statSync as statSync7 } from "node:fs";
+import { readFileSync as readFileSync16, statSync as statSync8 } from "node:fs";
 import { homedir as homedir4 } from "node:os";
 import { basename as basename5, join as join21 } from "node:path";
 function transcriptPath(cwd, sessionId, projectsDir) {
@@ -29354,7 +29371,7 @@ function readLines(path) {
 }
 function stampTranscript(path) {
   try {
-    const stats = statSync7(path);
+    const stats = statSync8(path);
     return `${stats.size}:${stats.mtimeMs}`;
   } catch {
     return null;
@@ -29417,7 +29434,7 @@ var handoff_exports = {};
 __export(handoff_exports, {
   register: () => register10
 });
-import { isAbsolute as isAbsolute3, resolve as resolve8 } from "node:path";
+import { isAbsolute as isAbsolute4, resolve as resolve8 } from "node:path";
 function parseIntAtLeast(name2, min) {
   return (value) => {
     const parsed2 = value.trim() === "" ? NaN : Number(value);
@@ -29443,7 +29460,7 @@ function resolveTranscript(opts) {
   if (!opts.sessionId || !opts.cwd) {
     fail("Pass --transcript, or both --session-id and --cwd.");
   }
-  if (!isAbsolute3(opts.cwd)) {
+  if (!isAbsolute4(opts.cwd)) {
     fail(`--cwd must be an absolute path, got '${opts.cwd}'.`);
   }
   return transcriptPath(opts.cwd, opts.sessionId);
@@ -29479,7 +29496,7 @@ function register10(program3) {
     if (hasToken === Boolean(opts.fresh)) {
       fail("Pass exactly one of --token or --fresh.");
     }
-    if (typeof opts.file === "string" && !isAbsolute3(opts.file)) {
+    if (typeof opts.file === "string" && !isAbsolute4(opts.file)) {
       fail(`--file must be an absolute path, got '${opts.file}'.`);
     }
     const path = resolveTranscript(opts);
@@ -31495,7 +31512,7 @@ var require_scan = __commonJS({
 var require_parse2 = __commonJS({
   "node_modules/picomatch/lib/parse.js"(exports, module) {
     "use strict";
-    var constants2 = require_constants2();
+    var constants3 = require_constants2();
     var utils = require_utils3();
     var {
       MAX_LENGTH,
@@ -31503,7 +31520,7 @@ var require_parse2 = __commonJS({
       REGEX_NON_SPECIAL_CHARS,
       REGEX_SPECIAL_CHARS_BACKREF,
       REPLACEMENTS
-    } = constants2;
+    } = constants3;
     var expandRange = (args, options) => {
       if (typeof options.expandRange === "function") {
         return options.expandRange(...args, options);
@@ -31535,8 +31552,8 @@ var require_parse2 = __commonJS({
       const tokens = [bos];
       const capture = opts.capture ? "" : "?:";
       const win32 = utils.isWindows(options);
-      const PLATFORM_CHARS = constants2.globChars(win32);
-      const EXTGLOB_CHARS = constants2.extglobChars(PLATFORM_CHARS);
+      const PLATFORM_CHARS = constants3.globChars(win32);
+      const EXTGLOB_CHARS = constants3.extglobChars(PLATFORM_CHARS);
       const {
         DOT_LITERAL,
         PLUS_LITERAL,
@@ -32213,7 +32230,7 @@ var require_parse2 = __commonJS({
         NO_DOTS_SLASH,
         STAR,
         START_ANCHOR
-      } = constants2.globChars(win32);
+      } = constants3.globChars(win32);
       const nodot = opts.dot ? NO_DOTS : NO_DOT;
       const slashDot = opts.dot ? NO_DOTS_SLASH : NO_DOT;
       const capture = opts.capture ? "" : "?:";
@@ -32272,7 +32289,7 @@ var require_picomatch = __commonJS({
     var scan = require_scan();
     var parse4 = require_parse2();
     var utils = require_utils3();
-    var constants2 = require_constants2();
+    var constants3 = require_constants2();
     var isObject = (val) => val && typeof val === "object" && !Array.isArray(val);
     var picomatch = (glob, options, returnState = false) => {
       if (Array.isArray(glob)) {
@@ -32400,7 +32417,7 @@ var require_picomatch = __commonJS({
         return /$^/;
       }
     };
-    picomatch.constants = constants2;
+    picomatch.constants = constants3;
     module.exports = picomatch;
   }
 });
@@ -32723,7 +32740,7 @@ var require_pattern2 = __commonJS({
       const absolute = [];
       const relative5 = [];
       for (const pattern of patterns) {
-        if (isAbsolute4(pattern)) {
+        if (isAbsolute5(pattern)) {
           absolute.push(pattern);
         } else {
           relative5.push(pattern);
@@ -32732,10 +32749,10 @@ var require_pattern2 = __commonJS({
       return [absolute, relative5];
     }
     exports.partitionAbsoluteAndRelative = partitionAbsoluteAndRelative;
-    function isAbsolute4(pattern) {
+    function isAbsolute5(pattern) {
       return path.isAbsolute(pattern);
     }
-    exports.isAbsolute = isAbsolute4;
+    exports.isAbsolute = isAbsolute5;
   }
 });
 
@@ -33150,11 +33167,11 @@ var require_out = __commonJS({
       async.read(path, getSettings(optionsOrSettingsOrCallback), callback);
     }
     exports.stat = stat;
-    function statSync9(path, optionsOrSettings) {
+    function statSync10(path, optionsOrSettings) {
       const settings = getSettings(optionsOrSettings);
       return sync.read(path, settings);
     }
-    exports.statSync = statSync9;
+    exports.statSync = statSync10;
     function getSettings(settingsOrOptions = {}) {
       if (settingsOrOptions instanceof settings_1.default) {
         return settingsOrOptions;
@@ -35697,7 +35714,7 @@ __export(lint_prose_exports, {
   reportFile: () => reportFile,
   summarize: () => summarize
 });
-import { existsSync as existsSync20, readFileSync as readFileSync17, statSync as statSync8 } from "node:fs";
+import { existsSync as existsSync20, readFileSync as readFileSync17, statSync as statSync9 } from "node:fs";
 import { join as join22, relative as relative4, resolve as resolve10 } from "node:path";
 function loadVocabulary() {
   const pluginRoot = findPluginRoot();
@@ -35739,7 +35756,7 @@ function collectFiles(paths, opts) {
       missing.push(path);
       continue;
     }
-    if (statSync8(full).isDirectory()) {
+    if (statSync9(full).isDirectory()) {
       files.push(...markdownIn(full));
     } else {
       files.push(full);

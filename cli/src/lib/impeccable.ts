@@ -9,11 +9,11 @@
  * expectation cannot land on one surface and miss the other.
  *
  * Nothing here runs impeccable. The version comes from the manifest
- * `lib/claude-plugins.ts` reads, and the launcher is a path this file joins
- * and never stats.
+ * `lib/claude-plugins.ts` reads, and launcher resolution only checks files.
  */
 
-import { join } from 'node:path';
+import { accessSync, constants, statSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 import { majorVersion } from './claude-plugins.js';
 
 /** The design plugin, spelled the way its own manifest spells it. */
@@ -22,15 +22,20 @@ export const IMPECCABLE_PLUGIN = 'impeccable';
 /** The major version of impeccable ACStack's design review is written against. */
 export const IMPECCABLE_MIN_MAJOR = 4;
 
-/**
- * Where impeccable's launcher sits inside an install path.
- *
- * A plain join, never a check: a caller that wants to know whether the
- * launcher runs is the one that has to find out. Stating the path costs two
- * files read, and stating that it works costs a process started.
- */
-export function impeccableLauncher(installPath: string): string {
-  return join(installPath, '.claude', 'skills', IMPECCABLE_PLUGIN, 'scripts', IMPECCABLE_PLUGIN);
+/** Resolve an executable file in the current layout, then the legacy layout, without running it. */
+export function impeccableLauncher(installPath: string): string | null {
+  if (!isAbsolute(installPath)) return null;
+  for (const root of [installPath, join(installPath, '.claude')]) {
+    const launcher = join(root, 'skills', IMPECCABLE_PLUGIN, 'scripts', IMPECCABLE_PLUGIN);
+    try {
+      if (!statSync(launcher).isFile()) continue;
+      accessSync(launcher, constants.X_OK);
+      return launcher;
+    } catch {
+      // An absent or inaccessible candidate may still have a legacy fallback.
+    }
+  }
+  return null;
 }
 
 /**
