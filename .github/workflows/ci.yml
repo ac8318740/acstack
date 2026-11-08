@@ -65,6 +65,9 @@ jobs:
         with:
           node-version: '22'
 
+      - run: npm --prefix cli ci
+      - run: npm --prefix cli run build
+
       - name: pi extension suite
         run: bash tests/test-pi-extension.sh
 
