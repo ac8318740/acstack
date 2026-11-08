@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -11,9 +12,9 @@ const json = (file) => JSON.parse(readFileSync(file, 'utf8'));
 let passed = 0;
 let failed = 0;
 let skipped = 0;
-function check(name, run) {
+async function check(name, run) {
   try {
-    run();
+    await run();
     passed++;
     console.log(`PASS ${name}`);
   } catch (error) {
@@ -28,6 +29,40 @@ const run = (command, args, options = {}) => execFileSync(command, args, {
   ...options,
 });
 
+async function nativePluginDetails(catalog, env) {
+  const server = spawn('codex', ['app-server'], { cwd: work, env, stdio: ['pipe', 'pipe', 'pipe'] });
+  const lines = createInterface({ input: server.stdout });
+  let errors = '';
+  server.stderr.on('data', (data) => { errors = (errors + data).slice(-8000); });
+  server.on('error', (error) => { errors = error.message; lines.close(); });
+  const timer = setTimeout(() => server.kill(), 30_000);
+  const send = (message) => server.stdin.write(`${JSON.stringify(message)}\n`);
+  try {
+    send({ id: 1, method: 'initialize', params: {
+      clientInfo: { name: 'acstack-package-test', version: '1' },
+      capabilities: { experimentalApi: true },
+    } });
+    for await (const line of lines) {
+      const message = JSON.parse(line);
+      if (message.id === 1) {
+        assert.equal(message.error, undefined, JSON.stringify(message.error));
+        send({ method: 'initialized', params: {} });
+        send({ id: 2, method: 'plugin/read', params: {
+          pluginName: 'acstack', marketplacePath: path.join(catalog, '.agents/plugins/marketplace.json'),
+        } });
+      } else if (message.id === 2) {
+        assert.equal(message.error, undefined, JSON.stringify(message.error));
+        return message.result.plugin;
+      }
+    }
+    throw new Error(`native plugin/read ended without a response: ${errors}`);
+  } finally {
+    clearTimeout(timer);
+    lines.close();
+    server.kill();
+  }
+}
+
 try {
   const home = path.join(work, 'home');
   mkdirSync(path.join(home, '.codex'), { recursive: true });
@@ -39,17 +74,12 @@ try {
     XDG_CONFIG_HOME: path.join(work, 'config'),
     XDG_DATA_HOME: path.join(work, 'share'),
   };
-  const manifest = json(path.join(root, 'plugin.json'));
-  const claude = json(path.join(root, '.claude-plugin/plugin.json'));
-  check('portable manifest identity and version match Claude and npm', () => {
-    assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
+  const manifest = json(path.join(root, '.claude-plugin/plugin.json'));
+  await check('shared native manifest identity and version match npm', () => {
     assert.equal(manifest.name, 'acstack');
-    assert.equal(manifest.version, claude.version);
     assert.equal(manifest.version, json(path.join(root, 'package.json')).version);
-    assert.equal(manifest.extensions['com.openai'].hooks, './hooks/hooks.json');
-    const allowed = ['$schema', 'name', 'version', 'description', 'author', 'homepage', 'repository', 'license', 'keywords', 'extensions'];
-    assert.deepEqual(Object.keys(manifest).filter((key) => !allowed.includes(key)), []);
-    assert.equal(Object.hasOwn(manifest, 'agents'), false);
+    assert.equal(existsSync(path.join(root, 'plugin.json')), false,
+      'portable root manifest disables native Codex hooks');
   });
 
   const suppliedArchive = process.argv[2] && path.resolve(process.argv[2]);
@@ -59,14 +89,17 @@ try {
   mkdirSync(unpack);
   run('tar', ['-xzf', archive, '-C', unpack]);
   const plugin = path.join(unpack, 'package');
-  check('npm tarball includes the current native manifest and generated Codex agents', () => {
-    assert.deepEqual(json(path.join(plugin, 'plugin.json')), manifest);
+  const packagedManifest = json(path.join(plugin, '.claude-plugin/plugin.json'));
+  await check('npm tarball uses the shared manifest and includes generated Codex agents', () => {
+    assert.equal(existsSync(path.join(plugin, 'plugin.json')), false,
+      'portable root manifest disables native Codex hooks');
+    assert.deepEqual(packagedManifest, manifest);
     assert.ok(existsSync(path.join(plugin, 'agents/codex/task-executor.toml')));
   });
 
   const hookEnv = { ...env, CLAUDE_PLUGIN_ROOT: plugin, PLUGIN_ROOT: plugin };
   const hooks = json(path.join(plugin, 'hooks/hooks.json')).hooks;
-  check('packaged SessionStart injects context, creates CLI link, and preserves user Codex agents', () => {
+  await check('packaged SessionStart injects context, creates CLI link, and preserves user Codex agents', () => {
     run('git', ['init', '-q', work]);
     const agents = path.join(home, '.codex/agents');
     mkdirSync(agents, { recursive: true });
@@ -97,7 +130,7 @@ try {
     assert.equal(readFileSync(userAgent, 'utf8'), generated);
   });
 
-  check('Codex agents honor custom CODEX_HOME without changing the default home', () => {
+  await check('Codex agents honor custom CODEX_HOME without changing the default home', () => {
     const customHome = path.join(work, 'custom codex');
     const agents = path.join(customHome, 'agents');
     mkdirSync(agents, { recursive: true });
@@ -119,7 +152,7 @@ try {
     assert.equal(readFileSync(customAgent, 'utf8'), readFileSync(path.join(plugin, 'agents/codex/task-executor.toml'), 'utf8'));
   });
 
-  check('Codex role setup retains unset-home fallback and no-config behavior', () => {
+  await check('Codex role setup retains unset-home fallback and no-config behavior', () => {
     const defaultEnv = { ...hookEnv };
     delete defaultEnv.CODEX_HOME;
     run('bash', [path.join(plugin, 'hooks/session-start.sh')], { env: defaultEnv });
@@ -134,7 +167,7 @@ try {
     skipped++;
     console.log('SKIP native Codex npm ingestion (set ACSTACK_TEST_CODEX=1; requires codex)');
   } else {
-    check('installed Codex parses npm catalog and installs the portable tarball', () => {
+    await check('installed Codex parses npm catalog and discovers packaged SessionStart hooks', async () => {
       const catalog = path.join(work, 'catalog');
       mkdirSync(path.join(catalog, '.agents/plugins'), { recursive: true });
       writeFileSync(path.join(catalog, '.agents/plugins/marketplace.json'), JSON.stringify({
@@ -162,15 +195,19 @@ try {
       assert.equal(args[0], 'pack');
       assert.ok(args.includes('--ignore-scripts'));
       assert.equal(args.at(-1), 'acstack@latest');
-      const listing = run('codex', ['plugin', 'list', '--json'], { env: nativeEnv });
+      const listing = run('codex', ['plugin', 'list', '--marketplace', 'acstack-npm-test', '--json'], { env: nativeEnv });
       assert.ok(listing.includes('acstack@acstack-npm-test'), listing);
       const cache = path.join(home, '.codex/plugins/cache/acstack-npm-test/acstack');
       assert.ok(existsSync(cache), `missing installed cache ${cache}`);
       const installed = readdirSync(cache).map((entry) => path.join(cache, entry))
-        .find((dir) => existsSync(path.join(dir, 'plugin.json')));
-      assert.ok(installed, 'native cache has no portable manifest');
-      assert.deepEqual(json(path.join(installed, 'plugin.json')), manifest);
+        .find((dir) => existsSync(path.join(dir, '.claude-plugin/plugin.json')));
+      assert.ok(installed, 'native cache has no shared manifest');
+      assert.deepEqual(json(path.join(installed, '.claude-plugin/plugin.json')), packagedManifest);
       assert.ok(existsSync(path.join(installed, 'hooks/hooks.json')));
+      const details = await nativePluginDetails(catalog, nativeEnv);
+      assert.equal(details.hooks.filter((hook) => hook.eventName === 'sessionStart').length,
+        hooks.SessionStart.flatMap((group) => group.hooks).length,
+        'native Codex must discover packaged SessionStart hooks');
       console.log(`Native parser: ${run('codex', ['--version'], { env: nativeEnv }).trim()}`);
     });
   }

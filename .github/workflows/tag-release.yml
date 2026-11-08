@@ -45,7 +45,7 @@ jobs:
           npm --prefix cli test
           tarball="$RUNNER_TEMP/acstack-$(jq -r '.version' package.json).tgz"
           bash tests/test-npm-package.sh "$tarball"
-          git diff --exit-code -- package.json plugin.json \
+          git diff --exit-code -- package.json \
             cli/package.json agents/codex pi/agents
           echo "NPM_TARBALL=$tarball" >> "$GITHUB_ENV"
 

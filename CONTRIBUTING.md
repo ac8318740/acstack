@@ -4,7 +4,7 @@ ACStack publishes one npm package containing the CLI, skills, agents, and host i
 
 - `npm pack` builds `cli/dist/` and regenerates host agent definitions before packaging
 - Git keeps CLI source and generated `agents/codex/` and `pi/agents/`; it does not keep `cli/dist/`
-- Bump `.claude-plugin/plugin.json`, root `plugin.json`, and root `package.json` together
+- Bump `.claude-plugin/plugin.json` and root `package.json` together
     - Building syncs `cli/package.json` from the Claude manifest
 - CI tests the packed artifact without runtime builds or registry dependencies and checks committed agent definitions for freshness
 
@@ -12,7 +12,7 @@ ACStack publishes one npm package containing the CLI, skills, agents, and host i
 flowchart TD
     S["Edit source<br/>(cli/src, agents/*.md, skills/)"] --> G["Build npm artifact<br/>and regenerate host agents"]
     G --> H["Pre-commit hook<br/>(optional, .git/hooks/pre-commit)"]
-    H --> B["Bump the version<br/>(Claude, Codex, npm manifests)"]
+    H --> B["Bump the version<br/>(shared plugin and npm manifests)"]
     B --> P["Open the pull request"]
     P --> CI["CI checks versions,<br/>agents, and packed artifact"]
     CI -->|"a generated copy differs,<br/>or the version did not rise"| S
@@ -37,19 +37,20 @@ flowchart TD
 *Seven directories and one file, each with one job.*
 
 ```
-.claude-plugin/plugin.json   – plugin manifest (version, name, description)
+.claude-plugin/plugin.json   – shared Claude and Codex manifest (version, name, description)
 agents/                      – subagent definitions
 hooks/                       – SessionStart, Stop and UserPromptSubmit hooks
 skills/                      – slash-command skills
 output-styles/               – output styles (ac-writing-style)
 cli/                         – Node.js CLI (TypeScript source + built dist/)
 pi/                          – the pi port: extension.ts and the generated agents/
-plugin.json                  – portable Codex plugin manifest
 package.json                 – npm package, CLI bin, and pi extension manifest
 assets/                      – files a skill installs on a user's machine, and the model never reads them
 docs/                        – long-form docs a skill links to instead of inlining
 TROUBLESHOOTING.md           – downstream install diagnostics for Claude Code
 ```
+
+Codex uses the existing `.claude-plugin/plugin.json` manifest. Do not add a portable root `plugin.json`: Codex 0.163.0 gives it precedence but skips its hooks. The native package check verifies hook discovery through the shared manifest.
 
 ## 2. Assets and helper scripts
 
@@ -195,7 +196,7 @@ Verify the actual package from the repository root:
 bash tests/test-npm-package.sh
 ```
 
-The check packs, installs offline in a temporary home with lifecycle scripts disabled, and exercises the CLI plus packaged startup hooks. It verifies versions and required host assets too. Set `ACSTACK_TEST_CODEX=1` to include the installed native Codex parser; npm transport is stubbed to use the same local tarball.
+The check packs, installs offline in a temporary home with lifecycle scripts disabled, and exercises the CLI plus packaged startup hooks. It verifies versions and required host assets too. Set `ACSTACK_TEST_CODEX=1` to verify native Codex installation and hook discovery; npm transport is stubbed to use the same local tarball.
 
 ### 3.1. The recommended pre-commit hook
 
@@ -393,7 +394,7 @@ acstack/**
 
 ### 6.4. Before you open the pull request
 
-1. Bump `.claude-plugin/plugin.json`, root `plugin.json`, and root `package.json` together.
+1. Bump `.claude-plugin/plugin.json` and root `package.json` together.
 2. Run `bash tests/test-npm-package.sh`, then commit the synced `cli/package.json` and any changed generated agents.
 3. Commit via `/acstack:commit` in this repository to preserve spec sync. Marketplace changes are separate commits.
 

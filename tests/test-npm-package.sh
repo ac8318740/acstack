@@ -27,7 +27,7 @@ const json = p => JSON.parse(readFileSync(join(root, p), 'utf8'));
 const pkg = json('package.json');
 assert.equal(pkg.name, 'acstack');
 assert.equal(pkg.engines.node, json('cli/package.json').engines.node);
-for (const manifest of ['.claude-plugin/plugin.json', 'plugin.json', 'cli/package.json']) {
+for (const manifest of ['.claude-plugin/plugin.json', 'cli/package.json']) {
   assert.equal(json(manifest).version, pkg.version, `${manifest} version must match npm`);
 }
 for (const path of [
@@ -36,6 +36,7 @@ for (const path of [
   'agents/codex/task-executor.toml', 'pi/agents/task-executor.md',
   ...pkg.pi.extensions,
 ]) assert.ok(existsSync(join(root, path)), `missing package asset: ${path}`);
+assert.ok(!existsSync(join(root, 'plugin.json')), 'portable root manifest disables native Codex hooks');
 assert.ok(!existsSync(join(root, 'cli/node_modules')), 'CLI must ship bundled');
 assert.ok(!existsSync(join(root, '.acstack')), 'project records must not ship');
 assert.ok(!existsSync(join(root, 'cli/src')), 'CLI source is not a runtime dependency');
