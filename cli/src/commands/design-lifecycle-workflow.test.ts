@@ -260,8 +260,8 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     expect(fileNode(root, '104').match(/^## Answer/gm)).toHaveLength(1);
   }, 30_000);
 
-  it('holds approval on every open node targeting an element, in any mode, and on nothing else', async () => {
-    const root = fixture('files', [...base(),
+  it.each<Tracker>(['files', 'github'])('%s: distinguishes agent work from questions without weakening approval', async tracker => {
+    const root = fixture(tracker, [...base(),
       { id: '104', kind: 'research', status: 'open', mode: 'afk', answers: '103' },
       { id: '105', kind: 'decision', status: 'fog', answers: '102' },
       { id: '106', kind: 'decision', status: 'open', answers: '101' },
@@ -269,15 +269,28 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     const server = await start(root);
     const blocked = await server.get();
     expect(blocked.blockers).toEqual([
-      { kind: 'question', targetId: '103', label: 'Node 104', nodeId: '104' },
+      { kind: 'work', targetId: '103', label: 'Node 104', nodeId: '104' },
       { kind: 'question', targetId: '102', label: 'Node 105', nodeId: '105' },
     ]);
     expect(blocked.openQuestions).toEqual([]);
+    expect(blocked.approval.reason).toBe('The agent must settle pending work on the map before approval');
+    const check = cli(root, ['design-doc', 'demo', '--check']);
+    accepted(check);
+    expect(check.stdout).toContain('0 open human questions, 2 unresolved map items');
+    expect(check.stdout).toContain('Agent work pending: Node 104 (104, target 103)');
+    expect(check.stdout).toContain('Human decision pending: Node 105 (105, target 102)');
+    denied(await server.approve(blocked));
     // Research and fog stay on the map; the page cannot answer them.
     denied(await server.answer(blocked, { questionId: '104', answer: 'Done' }));
-    nodes(root, 'files', [...base(), { id: '104', kind: 'research', status: 'resolved', mode: 'afk', answers: '103' }, { id: '105', kind: 'decision', status: 'out-of-scope', answers: '102' }, { id: '106', kind: 'decision', status: 'open', answers: '101' }]);
+    nodes(root, tracker, [...base(), { id: '104', kind: 'research', status: 'open', mode: 'afk', answers: '103' }]);
+    const researchOnly = await server.get();
+    expect(researchOnly.blockers).toEqual([{ kind: 'work', targetId: '103', label: 'Node 104', nodeId: '104' }]);
+    expect(researchOnly.approval.reason).toBe('The agent must settle pending work on the map before approval');
+    denied(await server.approve(researchOnly));
+    nodes(root, tracker, [...base(), { id: '104', kind: 'research', status: 'resolved', mode: 'afk', answers: '103' }, { id: '105', kind: 'decision', status: 'out-of-scope', answers: '102' }, { id: '106', kind: 'decision', status: 'open', answers: '101' }]);
     const clear = await server.get();
     expect(clear.blockers).toEqual([]);
+    expect(cli(root, ['design-doc', 'demo', '--check']).stdout).toContain('0 open human questions, 0 unresolved map items');
     expect((await server.approve(clear)).ok).toBe(true);
   }, 30_000);
 

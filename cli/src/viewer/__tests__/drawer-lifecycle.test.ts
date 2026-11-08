@@ -138,7 +138,7 @@ it('filters questions by scope without discarding drafts or expansion, and scope
     expect(ids()).toEqual(['second']);
     render({ questionScope: 'item:unknown' });
     expect(ids()).toEqual([]);
-    expect(all(container).some(node => node.textContent === 'No questions for this target.')).toBe(true);
+    expect(all(container).some(node => node.textContent === 'No reviewer questions for this target.')).toBe(true);
     render({ questionScope: 'all' });
     expect(ids()).toEqual(['first', 'second']);
     expect(firstSummary().attributes['aria-expanded']).toBe('true');
@@ -658,7 +658,7 @@ it('lists approval blockers in a modal that links to each one, and sends capture
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   const expected = { sourceRevision: 'source-1', reviewRevision: 0, commentsDigest: 'before', mapInputsDigest: 'map-1' };
   const blocker = { kind: 'question', targetId: 'app', label: 'Retry after a conflict?', nodeId: '104' };
-  let blockers = [blocker, { kind: 'changed', targetId: 'app', label: 'Application', nodeId: 'app' }];
+  let blockers = [blocker, { kind: 'work', targetId: 'app', label: 'Check recovery ownership', nodeId: '105' }, { kind: 'changed', targetId: 'app', label: 'Application', nodeId: 'app' }];
   const posts: unknown[] = [];
   const fetch = vi.fn((_url: string, options: RequestInit) => {
     if (options.method === 'POST' && typeof options.body === 'string') posts.push(JSON.parse(options.body));
@@ -673,13 +673,21 @@ it('lists approval blockers in a modal that links to each one, and sends capture
   const container = create('div'), root = createRoot(container as unknown as HTMLElement);
   const button = (label: string) => all(container).find(node => node.tagName === 'BUTTON' && handlers(node).children === label);
   const dialog = () => all(container).find(node => node.tagName === 'DIALOG' && node.attributes['aria-labelledby'] === 'design-blockers-title')!;
-  const render = () => act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(Probe), createElement(DesignApproval), createElement(ElementLock, { id: 'app', locked: false })) }))));
+  const render = () => act(() => Promise.resolve(root.render(createElement(DesignApprovalProvider, { children: createElement('div', null, createElement(Probe), createElement(DesignApproval), createElement(DesignQuestions, { selected: null, diagram: { nodes: [], edges: [], nodeToVisible: {} }, drafts: {}, onDraft: vi.fn(), onDetails: vi.fn(), questions: [] }), createElement(ElementLock, { id: 'app', locked: false })) }))));
   try {
     await render();
     act(() => handlers(button('Approve this version')!).onClick!());
     expect(dialog().attributes.open).toBe('');
+    const text = () => all(container).map(node => node.nodeValue ?? node.textContent).join(' ');
+    expect(text()).toContain('Agent work pending');
+    expect(text()).toContain('No reviewer questions for this design.');
+    expect(text()).toContain('1 agent work item still blocks design approval. The agent must settle it on the map.');
+    act(() => handlers(all(container).filter(node => node.attributes.class === 'blocker-link')[1]).onClick!());
+    expect(navigated).toEqual([blockers[1]]);
+    act(() => handlers(button('View approval blockers')!).onClick!());
+    expect(dialog().attributes.open).toBe('');
     act(() => handlers(all(container).find(node => node.attributes.class === 'blocker-link')!).onClick!());
-    expect(navigated).toEqual([blocker]);
+    expect(navigated).toEqual([blockers[1], blocker]);
     expect(dialog().attributes).not.toHaveProperty('open');
     await act(() => Promise.resolve(handlers(button('Re-approve')!).onClick!()));
     expect(posts.at(-1)).toEqual({ lock: 'app', capture: { variant: 'compact' }, expected });

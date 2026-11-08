@@ -163,6 +163,7 @@ export function openDesignLifecycle(root: string, map: string, reviewFile?: stri
     const unsettled = pendingFeedback[0];
     let reason: string | undefined;
     if (staleRendered) reason = 'The design changed on the map. Reopen this revision before reviewing.';
+    else if (inputs.blockers.some(blocker => blocker.kind === 'work')) reason = 'The agent must settle pending work on the map before approval';
     else if (inputs.blockers.some(blocker => blocker.kind === 'question')) reason = 'Open questions target this design';
     else if (changed.length) reason = 'Changed elements need re-approval';
     else if (inputs.blockers.length) reason = 'Choose a variant in each mock that has several';

@@ -1,7 +1,7 @@
 import { Command, Option } from 'commander';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { designDocToPack, renderDesignDocMarkdown } from '../lib/design-doc.js';
+import { designDocToPack, renderDesignDocMarkdown, targetingNodes } from '../lib/design-doc.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { inProject } from '../lib/utils.js';
 import { changedElements, describeChange, loadMapDesign, openDesignLifecycle, reviewHistories } from '../lib/design-lifecycle.js';
@@ -115,13 +115,15 @@ export function register(program: Command): void {
     .option('--check', 'Validate the design doc and print warnings without serving it')
     .action(inProject(async (root, map: string, options: { port: string; markdown?: string; orientation: DiagramOrientation; check?: boolean }) => {
       if (options.check) {
-        const { doc, warnings } = loadMapDesign(root, map);
+        const { nodes, doc, warnings } = loadMapDesign(root, map);
         warn(warnings);
         const changed = changedElements(doc, reviewHistories(root, doc.id).values());
         const what = (id: string) => (doc.items.find(item => item.id === id)?.changes ?? []).map(change => change.label.toLowerCase()).join(', ');
         if (changed.length) throw new Error(`Changed since the user approved: ${changed.map(id => `${id} (${what(id)})`).join('; ')}. Report the change; re-approve only on the user's instruction (design-review approve-element).`);
         const open = doc.questions.filter(question => question.answer === undefined).length;
-        console.log(`Design doc ${doc.name}: ${doc.items.length} elements, ${open} open ${open === 1 ? 'question' : 'questions'}`);
+        const pending = targetingNodes(nodes);
+        console.log(`Design doc ${doc.name}: ${doc.items.length} elements, ${open} open human ${open === 1 ? 'question' : 'questions'}, ${pending.length} unresolved map ${pending.length === 1 ? 'item' : 'items'}`);
+        for (const node of pending) console.log(`${node.mode === 'afk' ? 'Agent work pending' : 'Human decision pending'}: ${node.title} (${node.id}, target ${node.answers})`);
         return;
       }
       const port = Number(options.port);
