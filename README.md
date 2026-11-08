@@ -73,7 +73,7 @@ Then, in your Git repository, use `/acstack:implement`, `/acstack:quick-fix`, or
 
 ### 1.2. Install on Codex
 
-You need the Codex CLI with npm plugin support, npm, and Node.js 20 or later. The native npm installation path is tested with Codex 0.163.0. Use ACStack 0.57.9 or later; the portable manifest in 0.57.8 prevents Codex hook discovery.
+You need the Codex CLI with npm plugin support, npm, and Node.js 20 or later. The native npm installation path is tested with Codex 0.163.0. Use ACStack 0.57.10 or later. It keeps the complete startup policy in Codex context instead of a truncated preview. The portable manifest in 0.57.8 prevents Codex hook discovery.
 
 ```sh
 codex plugin marketplace add ac8318740/ac-agentic-coding

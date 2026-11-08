@@ -52,6 +52,8 @@ TROUBLESHOOTING.md           – downstream install diagnostics for Claude Code
 
 Codex uses the existing `.claude-plugin/plugin.json` manifest. Do not add a portable root `plugin.json`: Codex 0.163.0 gives it precedence but skips its hooks. The native package check verifies hook discovery through the shared manifest.
 
+By default, Codex 0.163.0 caps each hook's injected output at 2,500 tokens. The orchestrator's SessionStart handler sets `additionalContextLimit: 0` to deliver the full trusted policy without spilling it to disk. This supported per-handler setting leaves user configuration and other hook limits unchanged.
+
 ## 2. Assets and helper scripts
 
 *`assets/` holds what a skill installs rather than reads. One duplicate key there costs the user their whole config file.*

@@ -70,6 +70,14 @@ for (const host of ['shell', 'pi']) {
   }
 
   const injected = await start();
+  if (host === 'shell') {
+    const policyStart = injected.indexOf('# ACStack: adaptive implementation and verification');
+    const originalPolicy = fs.readFileSync(path.join(source, 'orchestrator/AGENTS.md'), 'utf8')
+      .replace(/<!-- acstack:delegated:start -->[\s\S]*?<!-- acstack:delegated:end -->\n?/g, '')
+      .replace(/<!-- acstack:lead:(start|end) -->\n?/g, '');
+    check('shell: injection preserves the full lead policy and project-folder metadata unchanged',
+      policyStart === 0 && injected === originalPolicy + "\n\nThis repository's ACStack project folder: " + folder + '\n');
+  }
   check(`${host}: a set-up project injects the orchestrator`, injected.includes('/acstack:compact-and-continue'));
   check(`${host}: the injection names the project folder`, injected.includes(folder));
   check(`${host}: the lead session gets the lead role`, !injected.includes('You are a delegated session') && !injected.includes('<!-- acstack:'));

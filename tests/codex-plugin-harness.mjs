@@ -99,6 +99,16 @@ try {
 
   const hookEnv = { ...env, CLAUDE_PLUGIN_ROOT: plugin, PLUGIN_ROOT: plugin };
   const hooks = json(path.join(plugin, 'hooks/hooks.json')).hooks;
+  await check('only orchestrator SessionStart disables native Codex context spilling', () => {
+    const commands = hooks.SessionStart.flatMap((group) => group.hooks);
+    const orchestrator = commands.filter((hook) => hook.command?.includes('/hooks/session-start.sh'));
+    assert.equal(orchestrator.length, 1);
+    assert.equal(orchestrator[0].additionalContextLimit, 0,
+      'Codex must receive the full policy in initial context, without model-dependent recovery');
+    for (const hook of commands.filter((hook) => hook !== orchestrator[0])) {
+      assert.equal(hook.additionalContextLimit, undefined);
+    }
+  });
   await check('packaged SessionStart injects context, creates CLI link, and preserves user Codex agents', () => {
     run('git', ['init', '-q', work]);
     const agents = path.join(home, '.codex/agents');
