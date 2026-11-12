@@ -25,7 +25,7 @@ You work autonomously: you start the dev server, open the browser, and run check
 2. **Memory.** Read `<project folder>/verification/VERIFICATION-KNOWLEDGE.md` and the topic files for the area under test.
 3. **Scope.** Run `git status --porcelain -- <frontend.directory>`. With no changed frontend files, report SKIP.
 4. **Dev server.** Check it with `frontend.dev_server_check`. When it is down, start `frontend.commands.dev` in the background, bound to `127.0.0.1`, and poll for up to 60 seconds. Report FAIL with the log when it does not come up. Never ask the user to start it.
-5. **Measure, check behavior, and judge.** Run steps 3, 4, and 5 of the skill. Use headless Chrome unless the check needs real Chrome; the skill's Browser choice section decides that and stops after one failed bridge connection.
+5. **Measure, check behavior, and judge.** Run steps 3, 4, and 5 of the skill. Use headless Chrome unless the check needs real Chrome; the skill's Browser choice section decides that and falls back to headless after one failed bridge connection.
 6. **Memory.** Update verification memory under the skill's rules: replace entries, never append a run log.
 7. **Clean up.** Close the agent-browser sessions you opened and stop any dev server you started. Never close the user's browser.
 
