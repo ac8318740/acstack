@@ -33,7 +33,7 @@ for (const manifest of ['.claude-plugin/plugin.json', 'cli/package.json']) {
 for (const path of [
   'cli/dist/index.js', 'cli/bin/acstack.js', 'hooks/hooks.json',
   'hooks/session-start.sh', 'orchestrator/AGENTS.md', 'skills/implement/SKILL.md',
-  'agents/codex/task-executor.toml', 'pi/agents/task-executor.md',
+  'agents/codex/reviewer.toml', 'pi/agents/reviewer.md',
   ...pkg.pi.extensions,
 ]) assert.ok(existsSync(join(root, path)), `missing package asset: ${path}`);
 assert.ok(!existsSync(join(root, 'plugin.json')), 'portable root manifest disables native Codex hooks');

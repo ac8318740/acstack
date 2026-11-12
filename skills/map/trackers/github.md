@@ -127,8 +127,7 @@ gh issue list --label "map:<name>" --state all --limit 500 \
   --json number,title,body,state,stateReason,labels,url
 ```
 
-`body` carries the edges and the node's `label`. `url` is the address a node
-id links to in a generated diagram, and `../visuals.md` gives the anchor syntax.
+`body` carries the edges and the node's `label`. `url` is the node's issue address.
 Neither field is optional.
 
 `--limit` caps the result. Closed issues count toward it, so history alone

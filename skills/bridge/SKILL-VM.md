@@ -40,7 +40,9 @@ and is driving a real Chrome on the laptop.
 
 ### 1. Install agent-browser
 
-See the `browser-verify` skill for the install command.
+```bash
+npm install -g agent-browser
+```
 
 ### 2. Create `agent-browser.json` in each configured project's folder
 

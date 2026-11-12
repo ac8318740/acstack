@@ -660,7 +660,7 @@ export default function acstack(pi: ExtensionAPI): void {
 			warnedSubagents = true;
 			report(
 				ctx,
-				"acstack: no supported subagent tool is loaded (Agent, subagent, or team_agent), so the test-writer, task-executor, task-checker, and frontend-verifier agents cannot run. Install `npm:ac-teams` with `pi install`.",
+				"acstack: no supported subagent tool is loaded (Agent, subagent, or team_agent), so the investigator, reviewer, scope-worker, and frontend-verifier agents cannot run. Install `npm:ac-teams` with `pi install`.",
 				"warning",
 			);
 		}
@@ -680,7 +680,7 @@ export default function acstack(pi: ExtensionAPI): void {
 		const folder = projectFolder(undefined, ctx.cwd);
 		if (folder !== null) {
 			const orchestrator = readText(orchestratorFile);
-			if (orchestrator) sections["acstack-orchestrator"] = `${orchestratorFor(orchestrator, delegated ? "delegated" : "lead")}\n\nThis repository's ACStack project folder: ${folder}\n`;
+			if (orchestrator) sections["acstack-orchestrator"] = `${orchestratorFor(orchestrator, delegated ? "delegated" : "lead")}\n\nThis repository's ACStack project folder: ${folder}\nACStack plugin root: ${packageRoot}\n`;
 			else report(ctx, `acstack: could not read ${orchestratorFile}`, "warning");
 		}
 

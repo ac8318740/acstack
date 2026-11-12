@@ -1,6 +1,6 @@
 ---
 name: archive
-description: Close out a cleared map – one whose frontier is empty with no fog and no claims left – by verifying the durable residue, meaning what the effort leaves behind in living specs, ADRs and the glossary, was extracted, then closing the root and disposing of the nodes per workflow.maps.persist. Invoke when a map has just been cleared, when the last node on a map resolves, or when the user asks to archive or close out a map. Refuses and asks first if anything is still open. Also archives legacy changes/ directories from the pre-map workflow.
+description: Close out a cleared map – one whose frontier is empty with no fog and no claims left – by verifying the durable residue, meaning what the effort leaves behind in tests, ADRs and the glossary, was extracted, then closing the root and disposing of the nodes per workflow.maps.persist. Invoke when a map has just been cleared, when the last node on a map resolves, or when the user asks to archive or close out a map. Refuses and asks first if anything is still open. Also archives legacy changes/ directories from the pre-map workflow.
 argument-hint: "[map or legacy change name]"
 ---
 
@@ -14,7 +14,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Purpose
 
-Archive verifies implemented specs, durable decisions, and retained review evidence before closing the root and disposing of temporary map nodes.
+Archive verifies tested behavior, durable decisions, and retained review evidence before closing the root and disposing of temporary map nodes.
 
 ## Step 1: Locate the map
 
@@ -63,7 +63,8 @@ If anything remains, stop and list the fog, open questions, or claims.
 Ask the user to resolve them or explicitly mark dropped scope out of scope before retrying.
 Do not dispose of an uncleared map.
 
-For a map with `element` nodes, run:
+For a map whose design needed the user's approval (When to stop for the user
+in `orchestrator/AGENTS.md`), run:
 
 ```bash
 ~/.claude/acstack/bin/acstack design-review status <map>
@@ -84,18 +85,16 @@ On GitHub, compose the walk per `trackers/github.md`.
 
 Check each resolution left what it should have:
 
-1. **Living specs** – behaviour the effort built should already be in
-   `<project folder>/specs/` via commit-time sync. Spot-check the affected domains.
-
-   Verify against source and verification evidence, not proposals copied from map nodes.
-   Fix gaps on sight per the Spec Correction Protocol.
+1. **Tests** – behaviour the effort built should have tests that pin it.
+   Spot-check against source and verification evidence, not proposals copied from map nodes.
+   Behaviour with no test has no record once the nodes go; add the test or report the gap.
 
 2. **ADRs and glossary** – apply `record-context`'s existing tests to unrecorded decisions.
    An ADR requires a hard-to-reverse, surprising decision with a real trade-off.
    A glossary entry requires an agreed term; neither is the common outcome.
 
 3. **Scope and provenance** – record dropped scope, unresolved limits, and reopening conditions before disposal.
-   Keep durable node identities and their provenance with the affected specs or decision records.
+   Keep durable node identities and their provenance with the affected decision records.
 
    Preserve enough context to trace implemented behavior back to its decisions without retaining proposals as requirements.
    Stop if unresolved scope still needs a decision rather than an explicit out-of-scope resolution.
@@ -159,7 +158,7 @@ Never change the Git index or force-add records to commit them.
 ## Step 6: Report
 
 - Nodes resolved / out-of-scope counts
-- Residue: domains spot-checked, ADRs and glossary entries written
+- Residue: tests spot-checked, ADRs and glossary entries written
 - Disposal: node deletion or archive path, plus retained review evidence and provenance
 - Reminder: commit with `/acstack:commit`
 
@@ -168,13 +167,8 @@ Never change the Git index or force-add records to commit them.
 The pre-map workflow created changes that hold proposal.md, design.md and
 tasks.md. They still archive the old way, so an upgrade never strands work:
 
-1. Read the change's artifacts. Derive the affected domains from the file
-   paths in `tasks.md` via `<project folder>/domain-map.yaml`.
-
-2. For each domain, merge what the feature ADDED, MODIFIED or REMOVED into
-   `<project folder>/specs/[domain]/spec.md`.
-
-3. Write a `delta.md` into the change directory.
+1. Read the change's artifacts and write a `delta.md` into the change
+   directory, stating what the feature added, modified or removed.
 
     Then run the CLI's `acstack archive <name>`. It moves the artifacts,
     delta included, to `<project folder>/changes/archive/[YYYY-MM-DD]-[change-name]/`.

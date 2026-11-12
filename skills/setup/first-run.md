@@ -18,7 +18,7 @@ Profile:      [detected]
 Directories:  src/, tests/
 Commands:     [from profile]
 Frontend:     [if applicable]
-Workflow:     adaptive verification, spec sync on, grilling via question tool
+Workflow:     adaptive verification, grilling via question tool
 ```
 
 ## Step 4: Ask what to customise
@@ -45,8 +45,7 @@ numbered list. It holds two questions in one call:
       "header": "Workflow",
       "multiSelect": true,
       "options": [
-        {"label": "Grilling", "description": "How grilling asks its questions – a question tool (default) or plain prose"},
-        {"label": "Spec sync", "description": "Disable automatic spec sync on commit"}
+        {"label": "Grilling", "description": "How grilling asks its questions – a question tool (default) or plain prose"}
       ]
     }
   ]
@@ -73,7 +72,6 @@ user did not select.
 - Do not offer or generate the deprecated TDD booleans or retired `workflow.alignment_packs` settings
 
 
-- **Spec sync** – ask enabled against disabled.
 - **Python venv** – ask the activation command. Ask it only for a Python profile.
 
 Leave the whole `frontend.browser` block out here. Step 10 owns it, and both
@@ -105,9 +103,8 @@ failing row.
 
 A `no-project` row means Step 6 wrote no config. Go back to Step 3 and write it.
 
-On a first run the menu carries several rows, and only one of them failed. A
-fresh project has no domain map, so `domain-map` fails. It selects no output
-style, so `output-style` reports `info`.
+On a first run the menu carries info rows and usually no failures. A fresh
+project selects no output style, so `output-style` reports `info`.
 
 A fresh project that configures a frontend adds `preferred-browser-mode` and
 `frontend-verification`, both `info` as well, because it has named no browser

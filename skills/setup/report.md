@@ -14,7 +14,6 @@ Source:       [source dir]
 Tests:        [tests dir]
 Grilling:     [question tool/inline prose]
 Verification: adaptive (shared Implementation discipline)
-Spec sync:    [enabled/disabled]
 Frontend:     [configured/not configured]
 Browser:      [project's preferred mode / not configured]
 Design:       [on / off / not asked]
@@ -23,12 +22,11 @@ Workspace:    [yes / yes, n updates available / not installed / declined / not a
 Mode:         [global / tracked]
 Project data: [absolute path from acstack project-data path]
 Config:       <project folder>/project.yaml
-Domain map:   <project folder>/domain-map.yaml ([n] domains / starter – fill in)
 Output style: acstack:ac-writing-style (global) | (project) | not set
 
 Health check: [n] pass, [n] fail, [n] info
 
-Next: describe what you want to build, or run /acstack:bootstrap for existing code.
+Next: describe what you want to build.
 ```
 
 - Fill `Host:` from the machine declarations in global config

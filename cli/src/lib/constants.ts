@@ -34,11 +34,6 @@ export function projectFile(root?: string): string {
   return acstackFile(PROJECT_FILE, root);
 }
 
-/** The domain map spec sync reads, and `acstack config check` reports on. */
-export function domainMapFile(root?: string): string {
-  return acstackFile(DOMAIN_MAP_FILE, root);
-}
-
 /**
  * Where the per-project-type starting configurations live, relative to the
  * plugin root. `/acstack:setup` copies one into a new project.yaml, and

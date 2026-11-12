@@ -25,7 +25,7 @@ To enumerate a project's maps: `ls "$(~/.claude/acstack/bin/acstack project-data
 
 `create` rejects a node that omits `--kind` or `--label`. `--kind` takes one of
 `destination`, `notes`, `decision`, `research`, `work`, or `element`. `--label` takes the
-node's short name for a diagram, at most four words and thirty characters.
+node's short name, at most four words and thirty characters.
 
 `--summary` is optional: one plain sentence, on one line, for a business
 reader. `create` refuses a blank one, and on `update` an empty string clears it.
@@ -73,6 +73,6 @@ acstack node update <id> --map <name> --status resolved --append-body "## Answer
 ## What `read` and `walk` strip
 
 Both commands drop every diagram block a node body holds. A diagram block is
-the rendered map that sits between the `<!-- acstack:diagram -->` markers
-`node diagram` writes. `--visuals` prints the blocks. `--json` always carries
+the rendered map that older maps hold between `<!-- acstack:diagram -->`
+markers. `--visuals` prints the blocks. `--json` always carries
 the whole body.

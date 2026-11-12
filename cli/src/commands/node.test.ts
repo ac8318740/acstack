@@ -181,7 +181,7 @@ function writeNodeFile(root: string, map: string, fixture: NodeFixture): void {
   writeFileSync(join(dir, `${fixture.id}-${slug}.md`), content);
 }
 
-/** One generated block, in the exact marker-wrapped shape renderDiagram writes. */
+/** One generated block, in the exact marker-wrapped shape older map tooling wrote. */
 function diagramBlock(content = 'flowchart TD\n  n001["x"]'): string {
   return `${DIAGRAM_START}\n\`\`\`mermaid\n${content}\n\`\`\`\n${DIAGRAM_END}`;
 }
@@ -299,7 +299,7 @@ describe('node read', () => {
   });
 
   it('leaves a line carrying both markers alone, because neither sits alone on it', () => {
-    // `renderDiagram` never writes the two markers on one line, so a human who
+    // The generated blocks never held the two markers on one line, so a human who
     // does is writing prose about them. No start marker sits alone on its own
     // line here, so nothing in this body is a block.
     const body = [
@@ -797,7 +797,7 @@ describe('kind from a stored file and from a label', () => {
     ]);
     const path = join(root, 'issues.json');
     writeFileSync(path, payload);
-    const result = runPiped(`cat ${JSON.stringify(path)}`, ['node', 'diagram', '--stdin'], {
+    const result = runPiped(`cat ${JSON.stringify(path)}`, ['node', 'walk', '--stdin'], {
       cwd: root,
     });
     expect(result.status).toBe(1);
@@ -856,7 +856,7 @@ describe('--body-file -', () => {
 // --body-file - on a terminal
 //
 // Nothing is piped in, so the refusal has to name the flag the user can reach
-// for instead. `node diagram --stdin` names `gh issue list` because that is its
+// for instead. `node walk --stdin` names `gh issue list` because that is its
 // caller; `--body-file -` on `node create` has a different one and owes a
 // different sentence.
 // ---------------------------------------------------------------------------
@@ -898,8 +898,8 @@ describe('--body-file - on a terminal', () => {
     expect(result.text).not.toContain('gh issue list');
   });
 
-  it('keeps the `gh issue list` wording on node diagram --stdin, its real caller', () => {
-    const result = runTty(['node', 'diagram', '--stdin'], { cwd: root });
+  it('keeps the `gh issue list` wording on node walk --stdin, its real caller', () => {
+    const result = runTty(['node', 'walk', '--stdin'], { cwd: root });
     expect(result.status).toBe(1);
     expect(result.text).toContain('gh issue list');
   });
@@ -936,34 +936,19 @@ describe('stdin window', () => {
     expect(create.stderr).not.toContain('nothing arrived on stdin within');
   });
 
-  it('takes a whole issue list from a slow producer on node diagram --stdin', () => {
+  it('takes a whole issue list from a slow producer on node walk --stdin', () => {
     const producer = streamingProducer('issues.cjs', issuesJson());
-    const result = runPiped(producer, ['node', 'diagram', '--stdin'], {
+    const result = runPiped(producer, ['node', 'walk', '--stdin'], {
       cwd: root,
       env: { ACSTACK_STDIN_SILENCE_MS: '400' },
     });
     expect(result.status).toBe(0);
-    expect(result.stdout).toContain('n101');
-    expect(result.stdout).toContain('n102');
+    expect(result.stdout).toContain('101 – Issue 101');
+    expect(result.stdout).toContain('102 – Issue 102');
   });
 
-  it('draws the root issue with a subtree count and no frontier outline', () => {
-    // The root issue is open and hitl on the github backend too, and the rule
-    // is the backend's input, not the files one's.
-    const path = join(root, 'root-issues.json');
-    writeFileSync(path, issuesJson());
-    const result = runPiped(`cat ${JSON.stringify(path)}`, ['node', 'diagram', '--stdin'], {
-      cwd: root,
-    });
-    expect(result.status).toBe(0);
-    expect(result.stdout).toContain('&num;101</a> destination - 1 of 1 open');
-    // The class name is the cue: the root takes the plain fill of its derived
-    // status, never the frontier outline and never the hitl dash.
-    expect(result.stdout).toMatch(/^\s*class\s+n101\s+open\s*$/m);
-  });
-
-  it('refuses a silent pipe on node diagram --stdin too', () => {
-    const result = runPiped(silentProducer('silent-diagram.cjs'), ['node', 'diagram', '--stdin'], {
+  it('refuses a silent pipe on node walk --stdin too', () => {
+    const result = runPiped(silentProducer('silent-walk.cjs'), ['node', 'walk', '--stdin'], {
       cwd: root,
       env: { ACSTACK_STDIN_SILENCE_MS: '300' },
     });
@@ -998,39 +983,6 @@ describe('stdin window', () => {
 });
 
 // ---------------------------------------------------------------------------
-// node diagram, refusals
-//
-// Three mistakes, three messages: the map that is not there, no backend named,
-// and both named at once. Each names only what its own reader got wrong.
-// ---------------------------------------------------------------------------
-
-describe('node diagram refusals', () => {
-  it('names the map and its missing directory', () => {
-    const result = runCli(['node', 'diagram', '--map', 'nope'], { cwd: root });
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("Map 'nope' does not exist");
-    expect(result.stderr).toContain(join(root, '.acstack', 'maps', 'nope'));
-    expect(result.stderr).toContain('directory');
-  });
-
-  it('names both backends when neither is given', () => {
-    const result = runCli(['node', 'diagram'], { cwd: root });
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(
-      'Name a backend: --map <name> for the files backend, or --stdin for the github one.'
-    );
-  });
-
-  it('says to use one, not both, when both are given', () => {
-    const result = runCli(['node', 'diagram', '--map', 'm', '--stdin'], { cwd: root });
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain(
-      'Use --map <name> for the files backend or --stdin for the github one, not both.'
-    );
-  });
-});
-
-// ---------------------------------------------------------------------------
 // A. workflow.maps.tracker: github
 //
 // The map lives in GitHub issues, so acstack/maps/<name>/ is not there and
@@ -1050,7 +1002,6 @@ function setTracker(value: 'github' | 'files' | null): void {
 const MAP_READING_COMMANDS: Array<{ name: string; args: string[]; routes: boolean }> = [
   { name: 'node walk', args: ['node', 'walk', '--map', 'g'], routes: true },
   { name: 'node frontier', args: ['node', 'frontier', '--map', 'g'], routes: true },
-  { name: 'node diagram', args: ['node', 'diagram', '--map', 'g'], routes: true },
   { name: 'node list', args: ['node', 'list', '--map', 'g'], routes: false },
   { name: 'node read', args: ['node', 'read', '001', '--map', 'g'], routes: false },
   {
@@ -1149,9 +1100,9 @@ describe('tracker: files leaves the files backend alone', () => {
 // ---------------------------------------------------------------------------
 // B. A map directory that is not there, on the files backend
 //
-// `node diagram --map nope` already names the map and the missing directory.
-// The other three answered as though the map were real and empty, which is the
-// same wrong answer the github tracker produced.
+// Every reader names the map and the missing directory rather than answering
+// as though the map were real and empty, the same wrong answer the github
+// tracker produced.
 // ---------------------------------------------------------------------------
 
 const FILES_BACKEND_TRACKERS: Array<{ name: string; tracker: 'files' | null }> = [
@@ -1199,8 +1150,7 @@ describe('a map directory that does not exist', () => {
 // ---------------------------------------------------------------------------
 // C. node walk --stdin and node frontier --stdin
 //
-// The same contract `node diagram --stdin` already keeps: one backend named,
-// never two, and the adapter's own message when the payload is bad.
+// One backend named, never two, and the adapter's own message when the payload is bad.
 // ---------------------------------------------------------------------------
 
 /** One `gh issue list --json ...` entry, with the state and labels spelled out. */
@@ -1261,7 +1211,7 @@ function graphIssuesJson(): string {
   ]);
 }
 
-/** Pipes `payload` into the CLI, the way the diagram --stdin tests do. */
+/** Pipes `payload` into the CLI, the way the stdin window tests do. */
 function pipePayload(payload: string, args: string[], file = 'payload.json') {
   const path = join(root, file);
   writeFileSync(path, payload);

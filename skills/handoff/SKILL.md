@@ -77,7 +77,7 @@ One rule decides the destination:
 | -------------------------------------------- | ---------------------------------------------------------------- |
 | a continuation of what this session is doing | a new **tab** in this workspace – same worktree, same files       |
 | needs an isolated checkout                   | a new **worktree**, so a new **workspace**, with its own checkout |
-| runs in parallel with coordinated edits      | a new **tab** here, or a worktree when isolation helps           |
+| runs in parallel with another writer         | a new **worktree**; each writer gets its own checkout (Team mode) |
 | better suited to an agent already running    | that agent, by message – no new pane at all                      |
 
 Ambiguous cases go to the user. Do not guess. Without herdr there are no tabs
@@ -89,54 +89,9 @@ sessions with `claude agents --json`, which works with no terminal attached.
 
 Read [`running-agent.md`](running-agent.md) when the listing shows a live session.
 
-## The rule that governs the handoff
+## What the handoff carries
 
-*Reference state. Never copy it.*
-
-A handoff that restates the repo is a second copy of the repo, correct only at
-the moment you write it. Anything the receiving agent can run a command to learn,
-it should run the command.
-
-| Do not write it down        | The receiving agent gets it from                                                  |
-| --------------------------- | --------------------------------------------------------------------------------- |
-| Map state and reading order | `~/.claude/acstack/bin/acstack node walk --map <name>` (reading order of the map)  |
-| What can be worked next     | `~/.claude/acstack/bin/acstack node frontier --map <name>` (what is workable now)  |
-| Files in flight             | `git status --short` and `git diff`                                                |
-| Test baseline, last result  | `<project folder>/.test-baseline` and referenced check logs; reuse valid evidence under the shared policy |
-| What the code does          | the living specs in `<project folder>/specs/`                                               |
-
-On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
-map skill's `trackers/github.md`.
-
-The same applies to specs, architecture decision records, issues and commits.
-Reference records and check logs by path or URL; retain the tested revision, environment, command, and result.
-A handoff alone does not require a suite rerun. Anchor evidence held only in conversation.
-
-**You do not search the codebase for this.** Build the handoff from what is already
-in context. If you are about to search source files, stop – the conversation holds it.
-
-## What only a handoff can carry
-
-*Five things. Nothing on disk records them, so what you leave out disappears.*
-
-1. **Next action** – the single concrete thing to do first
-2. **Decisions made** – so nobody reopens and re-argues them
-3. **Open questions and blockers** – including anything waiting on the user
-4. **Agent-team coordination** – scopes, teammates, shared-file regions, conflicting edits to serialize, and integration owner.
-   Carry intermediate outputs, uncertainty, change impact, and start or completion prerequisites not recorded elsewhere
-
-5. **Suggested skills** – which skills the receiving agent should invoke, by name
-
-Omit any that do not apply. Do not pad.
-
-Prose follows the `writing` skill.
-
-## Redaction
-
-*The handoff leaves the conversation and becomes another agent's prompt.*
-
-Strip credentials, tokens, API keys, connection strings and personal data before
-writing. Reference where a secret lives, not its value. This is not optional.
+Read [`anchor.md`](anchor.md) and follow it: reference state rather than copying it, carry the five things only a handoff can, and redact secrets.
 
 ## Write the handoff file
 
@@ -160,12 +115,7 @@ Acknowledge before any other tool call. Run ~/.claude/acstack/bin/acstack handof
 This temp file is not `<project folder>/HANDOFF.md`, the `compact-and-continue` anchor.
 Never put this line into that anchor, which has to start with `---` frontmatter.
 
-Head the rest with the same skeleton the `compact-and-continue` anchor uses. The
-headings are Next action, Decisions made, Open questions and blockers,
-Agent-team plan, Suggested skills, References. That skeleton is the five carried
-items above, plus the commands from the reference table instead of copied state.
-
-Drop any heading with nothing under it.
+Head the rest with the sections `anchor.md` lists.
 
 The launch prompt is a **single-line pointer at that file**, never the handoff
 text itself. `herdr agent start` rejects newlines and tabs in its arguments.

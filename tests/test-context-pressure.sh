@@ -588,7 +588,7 @@ mk_transcript "$T_SUB" "$(user_line)" "$(usage_line 950000)"
 cat > "$CASE_DIR/agent-sub.meta.json" <<'EOF'
 {"taskKind": "subagent"}
 EOF
-run_hook "$(subagent_payload "$T_SUB" false "task-checker" "agent-sub")"
+run_hook "$(subagent_payload "$T_SUB" false "reviewer" "agent-sub")"
 RC_SUB="$RC"
 check "exit code 0 (ordinary subagent)"                     '[ "$RC_SUB" -eq 0 ]'
 check "empty stdout for taskKind=subagent despite big usage"  'is_quiet "$OUT"'

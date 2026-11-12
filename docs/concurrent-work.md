@@ -32,9 +32,7 @@ Notify consumers when the contract changes. Continue the parts still justified b
 
 ## Coordinate edits and verify the combined result
 
-Assign responsibilities, shared interfaces, file regions, and an integration owner. Teammates can edit different regions of one file after coordinating their intent and rereading the latest contents. Preserve changes already made by others. Serialize the edits that actually conflict and integration steps that require one writer.
-
-Coordination cannot guarantee transactional edits or eliminate races. If edits collide, stop the conflicting edit and agree on the combined result. Separate worktrees can isolate changes, but their branches still need reconciliation and integrated verification.
+Assign responsibilities, shared interfaces, and an integration owner. Each writer works in its own checkout, under Solo and Team modes in `orchestrator/AGENTS.md`, so edits never race. The lead merges the branches and reconciles conflicts.
 
 Focused checks support intermediate decisions. Final acceptance requires accepted upstream outputs, reconciliation of changed assumptions, and checks against the final combined revision. Reuse earlier evidence only while its relevant inputs remain unchanged. Report any blocked check or unresolved risk.
 

@@ -50,7 +50,7 @@ interface StoredConfig {
 interface StoredProjectYaml {
   profile?: unknown;
   workflow?: {
-    spec_sync?: unknown;
+    read_guard?: unknown;
     frontend_verification?: unknown;
     design_review?: unknown;
     grilling?: { questions?: unknown };
@@ -150,12 +150,11 @@ interface ConfigCheckJson {
  * The identifiers `check --json` gives the project rows.
  *
  * These are asserted by value on purpose: the whole point of a machine
- * readable mode is that a caller can say "the domain map row failed" without
+ * readable mode is that a caller can say "the agent-browser row failed" without
  * matching prose, so the identifiers are part of the contract and renaming
  * one is a breaking change.
  */
 const CHECK_ROW_IDS = {
-  domainMap: 'domain-map',
   agentBrowser: 'agent-browser',
   agentBrowserJson: 'agent-browser-json',
   verificationKnowledge: 'verification-knowledge',
@@ -404,27 +403,6 @@ function keysAt(parsed: unknown, key: string): string[] {
   return Object.keys(node).sort();
 }
 
-/** Write `body` to `.acstack/domain-map.yaml` under an existing project root. */
-function writeDomainMap(root: string, body: string): void {
-  mkdirSync(join(root, '.acstack'), { recursive: true });
-  writeFileSync(join(root, '.acstack', 'domain-map.yaml'), body);
-}
-
-/** A well-formed domain map holding exactly three domains. */
-const DOMAIN_MAP_THREE = [
-  'domains:',
-  '  cli:',
-  '    paths:',
-  '      - cli/src/',
-  '  skills:',
-  '    paths:',
-  '      - skills/',
-  '  hooks:',
-  '    paths:',
-  '      - hooks/',
-  '',
-].join('\n');
-
 /** Write `body` verbatim to `agent-browser.json` in the project root. */
 function writeAgentBrowserJson(root: string, body: string): void {
   writeFileSync(join(root, '.acstack', 'agent-browser.json'), body);
@@ -446,6 +424,13 @@ function writeVerificationKnowledge(root: string): void {
   const dir = join(root, HELPERS_DIR);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, 'VERIFICATION-KNOWLEDGE.md'), '# Verification knowledge\n');
+}
+
+/** A frontend project whose only failing project row is a missing `agent-browser.json`. */
+function projectMissingAgentBrowserJson(): string {
+  const root = makeProject(frontendProjectYaml(9222));
+  writeVerificationKnowledge(root);
+  return root;
 }
 
 /**
@@ -1122,7 +1107,7 @@ const HAND_EDITED_PROJECT = [
   'profile: node-typescript',
   '',
   'workflow:',
-  '  spec_sync: true',
+  '  read_guard: true',
   '  grilling:',
   '    questions: tool      # tool | inline',
   '  tdd:',
@@ -1179,13 +1164,13 @@ describe('acstack config set, project keys', () => {
     });
 
     it.each([
-      ['workflow.bogus', 'workflow.spec_sync'],
+      ['workflow.bogus', 'workflow.read_guard'],
       ['frontend.browser.bogus', 'frontend.browser.mode'],
-      ['bogus', 'workflow.spec_sync'],
+      ['bogus', 'workflow.read_guard'],
       // Claude Code owns outputStyle, and section 10 of the reference
       // promises `config set` cannot change it. It is neither schema's key,
       // so the unknown-key path is what has to say so.
-      ['outputStyle', 'workflow.spec_sync'],
+      ['outputStyle', 'workflow.read_guard'],
     ])('refuses %s and names %s, a key it does know', (unknown, known) => {
       const result = runSet(unknown, 'x', makeProject('name: unknown-key-project\n'));
 
@@ -1255,7 +1240,7 @@ describe('acstack config set, project keys', () => {
     it('keeps the order of the sibling keys around the one it changed', () => {
       expectTheWriteLanded();
 
-      expect(text.indexOf('spec_sync')).toBeLessThan(text.indexOf('grilling'));
+      expect(text.indexOf('read_guard')).toBeLessThan(text.indexOf('grilling'));
       expect(text.indexOf('grilling')).toBeLessThan(text.indexOf('tdd'));
     });
 
@@ -1269,7 +1254,7 @@ describe('acstack config set, project keys', () => {
     it('changes the one key it was given and no other', () => {
       expect(atKey(parsed, 'workflow.tdd.strict')).toBe(false);
       expect(atKey(parsed, 'workflow.tdd.orchestrator_strict')).toBe(true);
-      expect(atKey(parsed, 'workflow.spec_sync')).toBe(true);
+      expect(atKey(parsed, 'workflow.read_guard')).toBe(true);
       expect(atKey(parsed, 'profile')).toBe('node-typescript');
       expect(atKey(parsed, 'commands.test')).toBe('npm --prefix cli test');
     });
@@ -1829,7 +1814,7 @@ describe('acstack config set, project keys', () => {
     // one of the six spellings the host axes accept, in one project. Read
     // once at the end, so the file also has to survive six writes in a row.
     const BOOLEAN_CASES: [string, string, boolean][] = [
-      ['workflow.spec_sync', 'yes', true],
+      ['workflow.read_guard', 'yes', true],
       ['workflow.tdd.strict', 'ON', true],
       ['workflow.tdd.orchestrator_strict', 'false', false],
       ['workflow.frontend_verification', 'no', false],
@@ -1858,14 +1843,14 @@ describe('acstack config set, project keys', () => {
       // `yes`, `ON` and `OFF` all parse back as booleans under YAML 1.1, so
       // the parsed assertions above would pass even if the raw spelling were
       // written straight through. The file itself has to say true or false.
-      expect(text).toMatch(/spec_sync:\s*true\s*$/m);
+      expect(text).toMatch(/read_guard:\s*true\s*$/m);
       expect(text).toMatch(/self_invoke:\s*false\s*$/m);
       expect(text).not.toMatch(/\bON\b|\bOFF\b/);
       expect(text).not.toMatch(/:\s*(yes|no)\s*$/im);
     });
 
     it('rejects a non-boolean value for a boolean key with exit 1, naming the boolean form', () => {
-      const result = runSet('workflow.spec_sync', 'sometimes', makeProject('name: bool-reject\n'));
+      const result = runSet('workflow.read_guard', 'sometimes', makeProject('name: bool-reject\n'));
 
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('boolean');
@@ -2044,16 +2029,17 @@ describe('acstack config set, project keys', () => {
   });
 
   describe('a key written here reaches the thing that reads it', () => {
-    it('turns the domain-map row informational once workflow.spec_sync is set to false', () => {
+    it('turns frontend verification on once workflow.frontend_verification is set to true', () => {
       // The round trip that matters: `config set` writes the file, and the
-      // reader is a separate process reading it back off disk. A project with
-      // no domain map fails that row until spec sync goes off.
-      const cwd = makeProject('name: round-trip-project\n');
-      expect(runSet('workflow.spec_sync', 'false', cwd).status).toBe(0);
+      // reader is a separate process reading it back off disk.
+      const cwd = makeProject(frontendProjectYaml(9222));
+      writeAgentBrowserJson(cwd, agentBrowserJsonFor(9222));
+      writeVerificationKnowledge(cwd);
+      expect(runSet('workflow.frontend_verification', 'true', cwd).status).toBe(0);
 
-      const result = runCheck({ cwd, path: [emptyPathDir()], json: true });
+      const result = runCheck({ cwd, path: [fakeBinDir('agent-browser', 0)], json: true });
 
-      expect(checkJsonRow(result.stdout, CHECK_ROW_IDS.domainMap)?.status).toBe('info');
+      expect(checkJsonRow(result.stdout, CHECK_ROW_IDS.frontendVerification)?.status).toBe('pass');
       expect(result.status).toBe(0);
     });
   });
@@ -2086,14 +2072,14 @@ describe('acstack config set when the path descends through a value', () => {
    * to set, the key standing in the way, and the file that arranges it.
    *
    * This is not a spelling the schema can refuse. `workflow` is a real block
-   * name and `spec_sync` is a real key under it, so the key is known and the
+   * name and `read_guard` is a real key under it, so the key is known and the
    * value is valid; the file is what makes the write impossible. Nothing can
    * be written without overwriting the value already there, which is the
    * user's data and not the command's to discard - so the answer is to refuse
    * and say which key is in the way.
    */
   const SCALAR_ON_THE_PATH: [string, string, string][] = [
-    ['workflow.spec_sync', 'workflow', 'workflow: fast\n'],
+    ['workflow.read_guard', 'workflow', 'workflow: fast\n'],
     ['workflow.tdd.strict', 'workflow.tdd', 'workflow:\n  tdd: strict\n'],
     ['commands.test', 'commands', 'profile: node-typescript\ncommands: "npm test"\n'],
   ];
@@ -2152,9 +2138,9 @@ describe('acstack config set when the path descends through a value', () => {
  */
 describe('acstack config set into a block left empty', () => {
   it('sets a deeper key under the block whose last key config unset removed', () => {
-    const root = makeProject('profile: node-typescript\nworkflow:\n  spec_sync: true\n');
+    const root = makeProject('profile: node-typescript\nworkflow:\n  read_guard: true\n');
 
-    const removed = runUnset('workflow.spec_sync', root);
+    const removed = runUnset('workflow.read_guard', root);
     expect(removed.status).toBe(0);
     // The state the removal leaves behind, stated as its own assertion so the
     // sequence cannot pass because the removal quietly stopped doing this.
@@ -2197,12 +2183,12 @@ describe('acstack config set into a block left empty', () => {
   ])('treats %s as an empty block and writes the key under it', (_case, yaml) => {
     const root = makeProject(yaml);
 
-    const result = runSet('workflow.spec_sync', 'false', root);
+    const result = runSet('workflow.read_guard', 'false', root);
 
     expect(result.status).toBe(0);
     expectNoStackTrace(result);
     const parsed = parseProjectYamlShowingFile(root);
-    expect(atKey(parsed, 'workflow.spec_sync')).toBe(false);
+    expect(atKey(parsed, 'workflow.read_guard')).toBe(false);
     expect(atKey(parsed, 'profile')).toBe('node-typescript');
   });
 });
@@ -2226,11 +2212,11 @@ describe('acstack config set into a document stating nothing', () => {
   ])('writes the key into %s', (_case, body) => {
     const root = makeProject(body);
 
-    const result = runSet('workflow.spec_sync', 'false', root);
+    const result = runSet('workflow.read_guard', 'false', root);
 
     expect(result.status).toBe(0);
     expectNoStackTrace(result);
-    expect(atKey(parseProjectYamlShowingFile(root), 'workflow.spec_sync')).toBe(false);
+    expect(atKey(parseProjectYamlShowingFile(root), 'workflow.read_guard')).toBe(false);
   });
 });
 
@@ -2259,7 +2245,7 @@ describe('acstack config set on a file that is not valid UTF-8', () => {
   const LATIN1_PROJECT = Buffer.concat([
     Buffer.from('# caf', 'utf-8'),
     Buffer.from([0xe9]),
-    Buffer.from(' notes, hand-edited\nworkflow:\n  spec_sync: true\n', 'utf-8'),
+    Buffer.from(' notes, hand-edited\nworkflow:\n  read_guard: true\n', 'utf-8'),
   ]);
 
   /** The UTF-8 encoding of U+FFFD, what a lossy decode leaves in the byte's place. */
@@ -2533,7 +2519,7 @@ describe('acstack config set on a document that is not a mapping', () => {
     (_case, body) => {
       const root = makeProject(body);
 
-      const result = runSet('workflow.spec_sync', 'true', root);
+      const result = runSet('workflow.read_guard', 'true', root);
 
       expect(result.status).toBe(1);
       // The whole case. Today the library's Error goes uncaught, so the user
@@ -2545,7 +2531,7 @@ describe('acstack config set on a document that is not a mapping', () => {
   it.each(NOT_A_MAPPING)('names the file and the problem in one line when the document is %s', (_case, body) => {
     const root = makeProject(body);
 
-    const result = runSet('workflow.spec_sync', 'true', root);
+    const result = runSet('workflow.read_guard', 'true', root);
 
     const lines = result.stderr.trim().split('\n');
     expect(lines).toHaveLength(1);
@@ -2557,7 +2543,7 @@ describe('acstack config set on a document that is not a mapping', () => {
     const root = makeProject(body);
     const before = readProjectYaml(root);
 
-    const result = runSet('workflow.spec_sync', 'true', root);
+    const result = runSet('workflow.read_guard', 'true', root);
 
     expect(result.status).toBe(1);
     expect(readProjectYaml(root)).toBe(before);
@@ -2570,7 +2556,7 @@ describe('acstack config set on a document that is not a mapping', () => {
       const root = makeProject(body);
       const before = readProjectYaml(root);
 
-      const result = runUnset('workflow.spec_sync', root);
+      const result = runUnset('workflow.read_guard', root);
 
       expect(result.status).toBe(0);
       expectNoStackTrace(result);
@@ -3191,7 +3177,7 @@ describe('acstack config get, project keys', () => {
     // `HAND_EDITED_PROJECT` already states each key read here, so no value
     // has to be written through the CLI before it can be read back.
     it.each([
-      ['workflow.spec_sync', 'true'],
+      ['workflow.read_guard', 'true'],
       ['workflow.tdd.orchestrator_strict', 'true'],
     ])('prints %s as %s, read out of .acstack/project.yaml', (key, printed) => {
       const result = runGet(key, makeProject(HAND_EDITED_PROJECT));
@@ -3288,7 +3274,7 @@ describe('acstack config get, project keys', () => {
       // The message `config set` already gives. An unknown key is refused
       // against both schemas, so the list the user is shown has to name the
       // project keys too, not only the host axes.
-      expect(result.stderr).toContain('workflow.spec_sync');
+      expect(result.stderr).toContain('workflow.read_guard');
     });
   });
 });
@@ -3334,7 +3320,7 @@ describe('acstack config unset, project keys', () => {
       expect(text).toContain('  test: "npm --prefix cli test"');
       expect(text).toContain('  source: "cli/src/"');
       expect(atKey(parsed, 'profile')).toBe('node-typescript');
-      expect(atKey(parsed, 'workflow.spec_sync')).toBe(true);
+      expect(atKey(parsed, 'workflow.read_guard')).toBe(true);
     });
 
     it('writes nothing to the global config', () => {
@@ -3423,7 +3409,7 @@ describe('acstack config unset, project keys', () => {
 
       expect(result.status).toBe(1);
       expect(result.stderr).toContain('Unknown config key "workflow.bogus"');
-      expect(result.stderr).toContain('workflow.spec_sync');
+      expect(result.stderr).toContain('workflow.read_guard');
       expect(readProjectYaml(root)).toBe(before);
     });
   });
@@ -3504,7 +3490,7 @@ interface ConfigListProjectRow {
  * stored, and is not rows.
  *
  * `project` is an ARRAY, in the file's own order, and not an object keyed by
- * the dotted path. A file is free to state `workflow.spec_sync: true` as one
+ * the dotted path. A file is free to state `workflow.read_guard: true` as one
  * literal quoted key AND state the same path nested, and both are rows the
  * human listing prints. Keyed by the dotted path they collide, and the first
  * of them is dropped without a word. An array cannot collide, and it carries
@@ -3586,7 +3572,7 @@ describe('acstack config list', () => {
       // `list` reports the files, not the resolved configuration. A key the
       // file omits takes its default, and printing it here would read as a
       // decision this project made.
-      expect(result.stdout).not.toContain('workflow.spec_sync');
+      expect(result.stdout).not.toContain('workflow.read_guard');
       expect(result.stdout).not.toContain('workflow.maps.persist');
     });
   });
@@ -3706,9 +3692,9 @@ describe('acstack config list', () => {
   /**
    * A file that states one path twice, once literally and once nested.
    *
-   * YAML lets a key hold a dot. `"workflow.spec_sync": true` is a mapping key
+   * YAML lets a key hold a dot. `"workflow.read_guard": true` is a mapping key
    * whose name happens to contain one, and it is a completely different key
-   * from `spec_sync` inside a `workflow` block - which the same file is free
+   * from `read_guard` inside a `workflow` block - which the same file is free
    * to state as well. Both are lines in the file, so both are rows in a
    * listing that reports the file.
    *
@@ -3718,19 +3704,19 @@ describe('acstack config list', () => {
    * an array for that reason, and file order comes free with it.
    *
    * The literal key is UNKNOWN, however known the path it spells looks.
-   * `config get workflow.spec_sync` walks the blocks and never sees it, so
+   * `config get workflow.read_guard` walks the blocks and never sees it, so
    * that key reads as unset while a line stating it sits in the file, and
-   * `config set workflow.spec_sync` writes the nested spelling beside it
+   * `config set workflow.read_guard` writes the nested spelling beside it
    * rather than changing it. A row nothing can read and nothing will write is
    * exactly what the mark is for.
    */
   describe('a file that states one path as a literal dotted key and again nested', () => {
     /** The literal key first, the nested spelling second, a third key after both. */
     const DOTTED_KEY_PROJECT = [
-      '"workflow.spec_sync": true',
+      '"workflow.read_guard": true',
       '',
       'workflow:',
-      '  spec_sync: false',
+      '  read_guard: false',
       '',
       'commands:',
       '  test: "npm --prefix cli test"',
@@ -3759,7 +3745,7 @@ describe('acstack config list', () => {
     it('--json keeps both rows, with the value each of them states', () => {
       // Two rows, not one: the file states two lines and the listing reports
       // the file. Which value wins is a question for `get`, not for a listing.
-      expect(projectRows(json, 'workflow.spec_sync').map(row => row.value)).toEqual([true, false]);
+      expect(projectRows(json, 'workflow.read_guard').map(row => row.value)).toEqual([true, false]);
     });
 
     it("--json reports the rows in the file's own order", () => {
@@ -3767,8 +3753,8 @@ describe('acstack config list', () => {
       // beside their editor. Asserted as the whole array, so a row that moved
       // or a row that vanished both show here.
       expect(json.project).toEqual([
-        { key: 'workflow.spec_sync', value: true, known: false },
-        { key: 'workflow.spec_sync', value: false, known: true },
+        { key: 'workflow.read_guard', value: true, known: false },
+        { key: 'workflow.read_guard', value: false, known: true },
         { key: 'commands.test', value: 'npm --prefix cli test', known: true },
       ]);
     });
@@ -3776,11 +3762,11 @@ describe('acstack config list', () => {
     it('--json calls the literal key unknown and the nested one known', () => {
       // The two rows share a dotted path and differ on this. A caller looking
       // for the rows it cannot act on gets the literal one and nothing else.
-      expect(projectRows(json, 'workflow.spec_sync').map(row => row.known)).toEqual([false, true]);
+      expect(projectRows(json, 'workflow.read_guard').map(row => row.known)).toEqual([false, true]);
     });
 
     it('prints both rows in text mode as well, marking only the literal one', () => {
-      const lines = text.stdout.split('\n').filter(line => line.startsWith('workflow.spec_sync '));
+      const lines = text.stdout.split('\n').filter(line => line.startsWith('workflow.read_guard '));
 
       expect(lines).toHaveLength(2);
       expect(lines[0]).toContain(UNKNOWN_MARK);
@@ -3791,7 +3777,7 @@ describe('acstack config list', () => {
       // The reason the literal row carries the mark, stated as behaviour: the
       // key `get` answers with is the nested one, whatever the literal line
       // above it says.
-      const read = runGet('workflow.spec_sync', root);
+      const read = runGet('workflow.read_guard', root);
 
       expect(read.status).toBe(0);
       expect(read.stdout.trim()).toBe('false');
@@ -3842,9 +3828,9 @@ describe('acstack config list', () => {
 
     it('leaves no mark on the block header an unset emptied', () => {
       const root = makeProject(
-        ['workflow:', '  spec_sync: true', '', 'commands:', '  test: "npm test"', ''].join('\n')
+        ['workflow:', '  read_guard: true', '', 'commands:', '  test: "npm test"', ''].join('\n')
       );
-      expect(runUnset('workflow.spec_sync', root).status).toBe(0);
+      expect(runUnset('workflow.read_guard', root).status).toBe(0);
 
       const { text, json } = listBothWays(root);
 
@@ -4489,7 +4475,6 @@ describe('acstack config check', () => {
     declareOrchestrators(false, false);
 
     const cwd = makeProject('name: no-frontend-project\n');
-    writeDomainMap(cwd, DOMAIN_MAP_THREE);
     const result = runCli(['config', 'check'], {
       cwd,
       path: [emptyPathDir()],
@@ -4532,7 +4517,6 @@ describe('acstack config check', () => {
     // (covered separately under check 4 below); a project with no frontend
     // has no such preference, so this isolates check 1 (required axes set).
     const cwd = makeProject('name: no-frontend-project\n');
-    writeDomainMap(cwd, DOMAIN_MAP_THREE);
     const result = runCli(['config', 'check'], {
       cwd,
       path: [emptyPathDir()],
@@ -4900,7 +4884,6 @@ describe('acstack config check', () => {
         expect(runCli(['config', 'set', 'host.browser.headless', 'true']).status).toBe(0);
 
         const cwd = makeProject('name: no-frontend-project\n');
-        writeDomainMap(cwd, DOMAIN_MAP_THREE);
         const result = runCli(['config', 'check'], {
           cwd,
           path: [fakeBinDir(binaryName, 0)],
@@ -4915,10 +4898,9 @@ describe('acstack config check', () => {
       declareOrchestrators(false, false);
       expect(runCli(['config', 'set', 'host.browser.headless', 'true']).status).toBe(0);
 
-      // The domain map every project owes is satisfied, so the exit code
+      // A project with no frontend owes no project rows, so the exit code
       // reads on check 3's headless probe and nothing else.
       const cwd = makeProject('name: no-frontend-project\n');
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       const result = runCli(['config', 'check'], {
         cwd,
         path: [emptyPathDir()],
@@ -4933,10 +4915,9 @@ describe('acstack config check', () => {
       declareOrchestrators(false, false);
       expect(runCli(['config', 'set', 'host.browser.local', 'true']).status).toBe(0);
 
-      // The domain map every project owes is satisfied, so the exit code
+      // A project with no frontend owes no project rows, so the exit code
       // reads on check 3's local probe and nothing else.
       const cwd = makeProject('name: no-frontend-project\n');
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       const result = runCli(['config', 'check'], {
         cwd,
         path: [emptyPathDir()],
@@ -4953,7 +4934,6 @@ describe('acstack config check', () => {
       expect(runCli(['config', 'set', 'host.browser.local', 'false']).status).toBe(0);
 
       const cwd = makeProject('name: no-frontend-project\n');
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       const result = runCli(['config', 'check'], {
         cwd,
         path: [emptyPathDir()],
@@ -4976,13 +4956,11 @@ describe('acstack config check', () => {
 
         // A project that configures a frontend owes the frontend project
         // rows too - agent-browser on PATH, an agreeing agent-browser.json
-        // and a verification knowledge base - as well as the domain map
-        // every project owes. Satisfying all of them keeps the exit code
+        // and a verification knowledge base. Satisfying all of them keeps the exit code
         // this test reads about check 3's remote probe and nothing else.
         const cwd = makeProject(
           `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${port}\n`
         );
-        writeDomainMap(cwd, DOMAIN_MAP_THREE);
         writeAgentBrowserJson(cwd, agentBrowserJsonFor(port));
         writeVerificationKnowledge(cwd);
         const result = runCli(['config', 'check'], {
@@ -5007,12 +4985,11 @@ describe('acstack config check', () => {
       expect(runCli(['config', 'set', 'host.browser.headless', 'false']).status).toBe(0);
       expect(runCli(['config', 'set', 'host.browser.local', 'false']).status).toBe(0);
 
-      // The domain map and the three frontend project rows are satisfied so
+      // The three frontend project rows are satisfied so
       // that the exit code reads on check 3's remote probe alone.
       const cwd = makeProject(
         `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${port}\n`
       );
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(cwd, agentBrowserJsonFor(port));
       writeVerificationKnowledge(cwd);
       const result = runCli(['config', 'check'], {
@@ -5033,12 +5010,11 @@ describe('acstack config check', () => {
         expect(runCli(['config', 'set', 'host.browser.headless', 'false']).status).toBe(0);
         expect(runCli(['config', 'set', 'host.browser.local', 'false']).status).toBe(0);
 
-        // The domain map and the three frontend project rows are satisfied so
+        // The three frontend project rows are satisfied so
         // that the exit code reads on check 3's remote probe alone.
         const cwd = makeProject(
           `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${port}\n`
         );
-        writeDomainMap(cwd, DOMAIN_MAP_THREE);
         writeAgentBrowserJson(cwd, agentBrowserJsonFor(port));
         writeVerificationKnowledge(cwd);
         const result = runCli(['config', 'check'], {
@@ -5068,12 +5044,11 @@ describe('acstack config check', () => {
         expect(runCli(['config', 'set', 'host.browser.headless', 'false']).status).toBe(0);
         expect(runCli(['config', 'set', 'host.browser.local', 'false']).status).toBe(0);
 
-        // The domain map and the three frontend project rows are satisfied
+        // The three frontend project rows are satisfied
         // so that the exit code reads on check 4 alone.
         const cwd = makeProject(
           `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${port}\n`
         );
-        writeDomainMap(cwd, DOMAIN_MAP_THREE);
         writeAgentBrowserJson(cwd, agentBrowserJsonFor(port));
         writeVerificationKnowledge(cwd);
         const result = runCli(['config', 'check'], {
@@ -5096,13 +5071,12 @@ describe('acstack config check', () => {
 
       // The port is stated only so agent-browser.json has a number to agree
       // with: the host declares remote false, so nothing knocks on it. With
-      // the domain map and the frontend rows satisfied too, the exit code
+      // the frontend rows satisfied too, the exit code
       // reads on check 4 alone.
       const cdpPort = 9222;
       const cwd = makeProject(
         `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${cdpPort}\n`
       );
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(cwd, agentBrowserJsonFor(cdpPort));
       writeVerificationKnowledge(cwd);
       const result = runCli(['config', 'check'], {
@@ -5122,14 +5096,12 @@ describe('acstack config check', () => {
       expect(runCli(['config', 'set', 'host.browser.local', 'false']).status).toBe(0);
 
       // The port is stated only so agent-browser.json has a number to agree
-      // with: every axis is false, so nothing knocks on it. With the domain
-      // map and the frontend rows satisfied too, the exit code reads on
-      // check 4 alone.
+      // with: every axis is false, so nothing knocks on it. With the frontend
+      // rows satisfied too, the exit code reads on check 4 alone.
       const cdpPort = 9222;
       const cwd = makeProject(
         `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${cdpPort}\n`
       );
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(cwd, agentBrowserJsonFor(cdpPort));
       writeVerificationKnowledge(cwd);
       const result = runCli(['config', 'check'], {
@@ -5151,9 +5123,8 @@ describe('acstack config check', () => {
     // check 3 - which independently probes host.browser.headless because it
     // is declared true - passes too, isolating check 4's own outcome.
     //
-    // The cases that read the exit code also satisfy the project rows: the
-    // domain map every project owes, and - because these projects configure
-    // a frontend - agent-browser on PATH, an agreeing agent-browser.json and
+    // The cases that read the exit code also satisfy the project rows:
+    // because these projects configure a frontend, agent-browser on PATH, an agreeing agent-browser.json and
     // a verification knowledge base. A missing one of those is an ordinary
     // failure, so leaving any unsatisfied would move the exit code for a
     // reason that has nothing to do with fallback.
@@ -5169,13 +5140,12 @@ describe('acstack config check', () => {
 
       // The port is stated only so agent-browser.json has a number to agree
       // with: the host declares remote false, so nothing knocks on it. With
-      // the domain map and the frontend rows satisfied too, the exit code
+      // the frontend rows satisfied too, the exit code
       // reads on check 4 alone.
       const cdpPort = 9222;
       const cwd = makeProject(
         `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${cdpPort}\n    fallback: none\n`
       );
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(cwd, agentBrowserJsonFor(cdpPort));
       writeVerificationKnowledge(cwd);
       const result = runCli(['config', 'check'], {
@@ -5201,7 +5171,6 @@ describe('acstack config check', () => {
       const cwd = makeProject(
         `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${cdpPort}\n`
       );
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(cwd, agentBrowserJsonFor(cdpPort));
       writeVerificationKnowledge(cwd);
       const result = runCli(['config', 'check'], {
@@ -5221,7 +5190,6 @@ describe('acstack config check', () => {
       const cwd = makeProject(
         `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${cdpPort}\n    fallback: headless\n`
       );
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(cwd, agentBrowserJsonFor(cdpPort));
       writeVerificationKnowledge(cwd);
       const result = runCli(['config', 'check'], {
@@ -5241,7 +5209,6 @@ describe('acstack config check', () => {
       const cwd = makeProject(
         `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${cdpPort}\n    fallback: local\n`
       );
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(cwd, agentBrowserJsonFor(cdpPort));
       writeVerificationKnowledge(cwd);
       const result = runCli(['config', 'check'], {
@@ -5267,7 +5234,6 @@ describe('acstack config check', () => {
         const cwd = makeProject(
           `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${port}\n    fallback: none\n`
         );
-        writeDomainMap(cwd, DOMAIN_MAP_THREE);
         writeAgentBrowserJson(cwd, agentBrowserJsonFor(port));
         writeVerificationKnowledge(cwd);
         const result = runCli(['config', 'check'], {
@@ -5289,14 +5255,12 @@ describe('acstack config check', () => {
       expect(runCli(['config', 'set', 'host.browser.local', 'false']).status).toBe(0);
 
       // The port is stated only so agent-browser.json has a number to agree
-      // with: every axis is false, so nothing knocks on it. With the domain
-      // map and the frontend rows satisfied too, the exit code reads on
-      // check 4 alone.
+      // with: every axis is false, so nothing knocks on it. With the frontend
+      // rows satisfied too, the exit code reads on check 4 alone.
       const cdpPort = 9222;
       const cwd = makeProject(
         `frontend:\n  helpers_dir: "${HELPERS_DIR}"\n  browser:\n    mode: remote\n    cdp_port: ${cdpPort}\n    fallback: none\n`
       );
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(cwd, agentBrowserJsonFor(cdpPort));
       writeVerificationKnowledge(cwd);
       const result = runCli(['config', 'check'], {
@@ -5419,11 +5383,9 @@ describe('acstack config check', () => {
       // A backend project with nothing wrong with it, so the only thing
       // moving in its report is the row that went away.
       const plain = makeProject('name: backend-only-project\n');
-      writeDomainMap(plain, DOMAIN_MAP_THREE);
       backend = runCheck({ cwd: plain, path: [emptyPathDir()] });
 
       const withFrontend = makeProject(frontendProjectYaml(9222));
-      writeDomainMap(withFrontend, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(withFrontend, agentBrowserJsonFor(9222));
       writeVerificationKnowledge(withFrontend);
       frontend = runCheck({ cwd: withFrontend, path: [fakeBinDir('agent-browser', 0)] });
@@ -5514,14 +5476,14 @@ describe('acstack config check', () => {
   // Project rows
   //
   // Checks 1 to 5 are all about the machine and the project's browser
-  // preference. The project rows below are about the checkout itself: the
-  // domain map every project needs, the three rows a project only has once
-  // it configures a frontend, and the output style.
+  // preference. The project rows below are about the checkout itself: the three
+  // rows a project only has once it configures a frontend, and the output
+  // style.
   //
   // A project row that fails is a plain failure (exit 1). It never sets the
   // exit code to 2, which stays reserved for a required host axis nobody has
   // declared - until that is answered nothing else can be trusted, and a
-  // missing domain map is not that kind of problem.
+  // missing agent-browser.json is not that kind of problem.
   //
   // Every test in this section runs under `runCheck`, which supplies an
   // isolated global config, an isolated HOME and a PATH holding only what the
@@ -5529,247 +5491,6 @@ describe('acstack config check', () => {
   // 1 to 5 pass or go informational, so a FAIL line seen here is the project
   // row being pinned and nothing else.
   // ---------------------------------------------------------------------
-
-  describe('the domain map row (project rows)', () => {
-    /** The domain map row's line, wherever in the report it ends up. */
-    function domainMapLine(output: string): string | undefined {
-      return lineContaining(output, 'domain-map.yaml');
-    }
-
-    it('passes and states how many domains the map holds when acstack/domain-map.yaml is present', () => {
-      const cwd = makeProject('name: mapped-project\n');
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
-
-      const result = runCheck({ cwd });
-
-      expect(result.status).toBe(0);
-      const line = domainMapLine(result.stdout);
-      expect(line).toBeDefined();
-      expect(line).toContain('PASS');
-      // The map holds three domains, and the row is supposed to say so - a
-      // map that exists but describes two paths out of forty is the failure
-      // mode a bare "exists" line cannot show.
-      expect(line).toMatch(/\b3\b/);
-    });
-
-    it('fails and says spec sync skips silently when acstack/domain-map.yaml is absent', () => {
-      const cwd = makeProject('name: unmapped-project\n');
-
-      const result = runCheck({ cwd });
-
-      expect(result.status).toBe(1);
-      const fails = failLines(result.stdout);
-      expect(fails).toHaveLength(1);
-      expect(fails[0]).toContain('domain-map.yaml');
-      // Naming the consequence, not just the missing file: the whole reason
-      // this is a failure is that spec sync goes quiet rather than erroring.
-      expect(fails[0].toLowerCase()).toContain('spec sync');
-      expect(fails[0].toLowerCase()).toContain('living spec');
-    });
-
-    it('fails on a malformed acstack/domain-map.yaml rather than crashing with a stack trace', () => {
-      const cwd = makeProject('name: broken-map-project\n');
-      writeDomainMap(cwd, 'domains: {cli: [unclosed\n');
-
-      const result = runCheck({ cwd });
-
-      // The report must still be printed, with the malformed map as one
-      // ordinary failure line in it. A parse error escaping as an unhandled
-      // throw would print a stack to stderr and no report at all.
-      expect(result.stderr).not.toMatch(/\n\s+at /);
-      const fails = failLines(result.stdout);
-      expect(fails).toHaveLength(1);
-      expect(fails[0]).toContain('domain-map.yaml');
-      expect(result.status).toBe(1);
-    });
-
-    it('checks the domain map in a project with no frontend, since every project needs one', () => {
-      // Same as the absent case above, but stated as its own pin: the domain
-      // map row is not one of the frontend-only rows, and a project that
-      // drives no browser is still expected to have a map.
-      const cwd = makeProject('name: no-frontend-project\n');
-
-      const result = runCheck({ cwd, path: [emptyPathDir()] });
-
-      const line = domainMapLine(result.stdout);
-      expect(line).toBeDefined();
-      expect(line).toContain('FAIL');
-    });
-  });
-
-  describe('the domain map row respects workflow.spec_sync (project rows)', () => {
-    /** A project that has turned spec sync off, with no domain map written. */
-    function specSyncOffProject(): string {
-      return makeProject('name: unmapped-project\nworkflow:\n  spec_sync: false\n');
-    }
-
-    // One arrangement read two ways: the human report shows the row is no
-    // longer a failure, and the JSON shows the status a caller branches on.
-    let text: ReturnType<typeof runCheck>;
-    let json: ReturnType<typeof runCheck>;
-
-    beforeAll(() => {
-      const cwd = specSyncOffProject();
-      text = runCheck({ cwd, path: [emptyPathDir()] });
-      json = runCheck({ cwd, path: [emptyPathDir()], json: true });
-    });
-
-    it('reports the missing domain map as informational when workflow.spec_sync is false', () => {
-      // A project that turned spec sync off has no use for the map, so a
-      // missing one is the state the user asked for, not a problem found.
-      expect(checkJsonRow(json.stdout, CHECK_ROW_IDS.domainMap)?.status).toBe('info');
-      expect(failLines(text.stdout)).toEqual([]);
-    });
-
-    it('exits 0 with spec sync off and no domain map, since nothing else is wrong', () => {
-      expect(text.status).toBe(0);
-      expect(json.status).toBe(0);
-    });
-
-    it('still says the map is missing, so the cost of turning spec sync back on stays visible', () => {
-      const line = lineContaining(text.stdout, 'domain-map.yaml');
-      expect(line).toBeDefined();
-      expect(line).toContain('INFO');
-      // Informational is not silent: someone weighing spec sync back on has
-      // to be able to see that the map is the thing they would owe.
-      expect(line?.toLowerCase()).toMatch(/missing|absent|not present|no domain map/);
-    });
-
-    it('keeps the id domain-map when the row goes informational, so one branch reads both outcomes', () => {
-      expect(checkJsonRow(json.stdout, CHECK_ROW_IDS.domainMap)).toBeDefined();
-    });
-
-    it.each([
-      ['workflow.spec_sync is left unset, since true is the default', 'name: unmapped-project\n'],
-      [
-        'workflow.spec_sync is explicitly true',
-        'name: unmapped-project\nworkflow:\n  spec_sync: true\n',
-      ],
-    ])('still fails the missing domain map when %s', (_case, yaml) => {
-      const result = runCheck({ cwd: makeProject(yaml), path: [emptyPathDir()], json: true });
-
-      expect(checkJsonRow(result.stdout, CHECK_ROW_IDS.domainMap)?.status).toBe('fail');
-      expect(result.status).toBe(1);
-    });
-  });
-
-  /**
-   * A map that names no domains fails, the same way an absent one does.
-   *
-   * The row reports a consequence, not a file: spec sync reads the map, finds
-   * the domains it should update, and updates them. A map stating `domains:
-   * {}` gives it nothing to find, so spec sync skips silently and the living
-   * specs stop being updated - which is word for word the failure the row
-   * exists to report. "maps 0 domains", reported as a pass, is that failure
-   * described accurately and then filed as success.
-   */
-  describe('the domain map row when the map names no domains (project rows)', () => {
-    /** The two spellings of a `domains` mapping with nothing in it. */
-    const NO_DOMAINS: [string, string][] = [
-      ['a flow mapping with no entries', 'domains: {}\n'],
-      ['a key with nothing after the colon', 'domains:\n'],
-    ];
-
-    /** A project stating `body` as its whole domain map. */
-    function projectMapping(body: string): string {
-      const cwd = makeProject('name: empty-map-project\n');
-      writeDomainMap(cwd, body);
-      return cwd;
-    }
-
-    /**
-     * The clause after the first " - " of a check message: what the row says
-     * the cost is, as opposed to what it found.
-     *
-     * Compared rather than hardcoded, so this pins that the two outcomes state
-     * the same consequence without also freezing the sentence they state it
-     * in - the wording is the report's to improve.
-     */
-    function consequenceClause(message: string): string {
-      const at = message.indexOf(' - ');
-      return at === -1 ? '' : message.slice(at + 3);
-    }
-
-    /** The domain-map row's message from a JSON check run in `cwd`. */
-    function domainMapMessage(cwd: string): string {
-      const result = runCheck({ cwd, path: [emptyPathDir()], json: true });
-      return checkJsonRow(result.stdout, CHECK_ROW_IDS.domainMap)?.message ?? '';
-    }
-
-    it.each(NO_DOMAINS)('fails when the map states %s', (_case, body) => {
-      const result = runCheck({ cwd: projectMapping(body), path: [emptyPathDir()], json: true });
-
-      expect(checkJsonRow(result.stdout, CHECK_ROW_IDS.domainMap)?.status).toBe('fail');
-      expect(result.status).toBe(1);
-    });
-
-    it.each(NO_DOMAINS)(
-      'states the consequence a missing map states when the map states %s',
-      (_case, body) => {
-        const clause = consequenceClause(domainMapMessage(makeProject('name: unmapped\n')));
-        expect(clause).not.toBe('');
-
-        expect(consequenceClause(domainMapMessage(projectMapping(body)))).toBe(clause);
-      }
-    );
-
-    it('does not report zero domains as a count of what it mapped', () => {
-      const result = runCheck({ cwd: projectMapping('domains: {}\n'), path: [emptyPathDir()] });
-
-      const line = lineContaining(result.stdout, 'domain-map.yaml');
-      expect(line).toBeDefined();
-      expect(line).toContain('FAIL');
-      // "maps 0 domains" reads as a map doing its job on an empty repo, which
-      // is not what a repo with a project.yaml in it is.
-      expect(line).not.toMatch(/maps 0 domain/);
-    });
-  });
-
-  /**
-   * `workflow.spec_sync` is read with the same boolean spellings `config set`
-   * writes it with.
-   *
-   * `off`, `on`, `yes` and `no` are boolean words `config set` accepts and
-   * turns into `false` or `true` on the way to disk. Written into the file by
-   * hand they are strings, which the reader ignores - so the file says spec
-   * sync is off, the check treats it as on, and the row demands a map that
-   * nothing is going to read. One command's vocabulary has to be the other's,
-   * or the file means one thing when the tool wrote it and another when the
-   * user did.
-   *
-   * Pinned through the domain map row because that is what the flag changes:
-   * a project with no map fails while spec sync is on and goes informational
-   * once it is off.
-   */
-  describe('the domain map row honours the boolean words config set takes (project rows)', () => {
-    /** The domain-map row's status for a project stating `spec_sync: <word>` and holding no map. */
-    function rowStatus(word: string): string | undefined {
-      const cwd = makeProject(`name: worded-project\nworkflow:\n  spec_sync: ${word}\n`);
-      const result = runCheck({ cwd, path: [emptyPathDir()], json: true });
-      return checkJsonRow(result.stdout, CHECK_ROW_IDS.domainMap)?.status;
-    }
-
-    it.each(['false', 'off', 'no', 'FALSE', 'Off', 'NO'])(
-      'reads %s as spec sync being off, so the missing map is informational',
-      word => {
-        expect(rowStatus(word)).toBe('info');
-      }
-    );
-
-    it.each(['true', 'on', 'yes', 'TRUE', 'On', 'YES'])(
-      'reads %s as spec sync being on, so the missing map still fails',
-      word => {
-        expect(rowStatus(word)).toBe('fail');
-      }
-    );
-
-    it('leaves a word that is not one of the six reading as the default', () => {
-      // The guard on the two above: a reader that took any non-empty string as
-      // a stated value would turn a typo into a decision. `true` is the
-      // documented default, so an unreadable value keeps the map owed.
-      expect(rowStatus('maybe')).toBe('fail');
-    });
-  });
 
   describe('the frontend-only project rows (project rows)', () => {
     /** PATH holding an `agent-browser` executable and nothing else. */
@@ -5779,12 +5500,11 @@ describe('acstack config check', () => {
 
     /**
      * A project that configures a frontend with every project row satisfied:
-     * a domain map, an `agent-browser.json` agreeing with the project's
+     * an `agent-browser.json` agreeing with the project's
      * `frontend.browser.cdp_port`, and a verification knowledge base.
      */
     function healthyFrontendProject(cdpPort = 9222): string {
       const root = makeProject(frontendProjectYaml(cdpPort));
-      writeDomainMap(root, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(root, agentBrowserJsonFor(cdpPort));
       writeVerificationKnowledge(root);
       return root;
@@ -5793,7 +5513,6 @@ describe('acstack config check', () => {
     /** A frontend project with everything but `agent-browser.json`. */
     function frontendProjectWithoutBrowserJson(cdpPort = 9222): string {
       const root = makeProject(frontendProjectYaml(cdpPort));
-      writeDomainMap(root, DOMAIN_MAP_THREE);
       writeVerificationKnowledge(root);
       return root;
     }
@@ -5891,7 +5610,6 @@ describe('acstack config check', () => {
 
     it('fails when the canonical project verification knowledge file is missing', () => {
       const root = makeProject(frontendProjectYaml(9222));
-      writeDomainMap(root, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(root, agentBrowserJsonFor(9222));
 
       const result = runCheck({ cwd: root, path: agentBrowserOnPath() });
@@ -5907,7 +5625,6 @@ describe('acstack config check', () => {
       // no helpers directory - and none of that is this project's business,
       // because it configures no frontend to verify.
       const cwd = makeProject('name: no-frontend-project\n');
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
 
       const result = runCheck({ cwd, path: [emptyPathDir()] });
 
@@ -5930,7 +5647,6 @@ describe('acstack config check', () => {
      */
     function verificationProject(workflow = ''): string {
       const root = makeProject(frontendProjectYaml(9222) + workflow);
-      writeDomainMap(root, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(root, agentBrowserJsonFor(9222));
       writeVerificationKnowledge(root);
       return root;
@@ -5976,7 +5692,7 @@ describe('acstack config check', () => {
 
     it.each([
       ['the project states no workflow block at all', ''],
-      ['workflow states other keys but not frontend_verification', 'workflow:\n  spec_sync: true\n'],
+      ['workflow states other keys but not frontend_verification', 'workflow:\n  read_guard: true\n'],
     ])('reports frontend-verification as informational when %s', (_case, workflow) => {
       // Anything other than the literal true leaves verification off, so an
       // absent key reads the same as one written false.
@@ -6003,7 +5719,6 @@ describe('acstack config check', () => {
       // is absent rather than informational - the same rule the other
       // frontend-only rows already follow.
       const cwd = makeProject('name: no-frontend-project\n');
-      writeDomainMap(cwd, DOMAIN_MAP_THREE);
 
       const result = runCheck({ cwd, path: [emptyPathDir()], json: true });
 
@@ -6018,7 +5733,7 @@ describe('acstack config check', () => {
 
       const result = runCheck({ cwd, path: [emptyPathDir()] });
 
-      // There is no project.yaml, so there is no domain map to want, no
+      // There is no project.yaml, so there is no
       // frontend to configure and no rows to fail. Saying so once is the
       // useful answer; five failures about files a non-project was never
       // going to have is noise.
@@ -6037,7 +5752,6 @@ describe('acstack config check', () => {
     /** A project with nothing wrong with it, so the output style row is the only thing moving. */
     function styledProject(): string {
       const root = makeProject('name: styled-project\n');
-      writeDomainMap(root, DOMAIN_MAP_THREE);
       return root;
     }
 
@@ -6191,7 +5905,6 @@ describe('acstack config check', () => {
     /** A project with nothing wrong with it, so the impeccable row is the only thing moving. */
     function impeccableProject(): string {
       const root = makeProject('name: impeccable-project\n');
-      writeDomainMap(root, DOMAIN_MAP_THREE);
       return root;
     }
 
@@ -6607,9 +6320,9 @@ describe('acstack config check', () => {
 
   describe('project rows and the exit code', () => {
     it('exits 1, never 2, when a project row fails and every required host axis is declared', () => {
-      const cwd = makeProject('name: unmapped-project\n');
+      const cwd = projectMissingAgentBrowserJson();
 
-      const result = runCheck({ cwd });
+      const result = runCheck({ cwd, path: [fakeBinDir('agent-browser', 0)] });
 
       expect(failLines(result.stdout)).toHaveLength(1);
       expect(result.status).toBe(1);
@@ -6617,7 +6330,7 @@ describe('acstack config check', () => {
 
     it('exits 2 when a required host axis is unset and a project row fails too (unset still wins)', () => {
       // A frontend project makes all three browser axes required; declaring
-      // only the orchestrators leaves them unset. The domain map is missing
+      // only the orchestrators leaves them unset. agent-browser is missing
       // at the same time, so a project row fails alongside.
       const cwd = makeProject(frontendProjectYaml(9222));
 
@@ -6627,7 +6340,7 @@ describe('acstack config check', () => {
         path: [emptyPathDir()],
       });
 
-      expect(failLines(result.stdout).join('\n')).toContain('domain-map.yaml');
+      expect(failLines(result.stdout).join('\n')).toContain('agent-browser');
       expect(result.status).toBe(2);
     });
   });
@@ -6639,7 +6352,7 @@ describe('acstack config check', () => {
   // same way `config show --json` and `config browser-mode --json` print.
   //
   // The object is `{ checks: [ { id, status, message } ] }`. `id` is the
-  // stable handle: a caller asks "did `domain-map` fail" rather than reading
+  // stable handle: a caller asks "did `agent-browser` fail" rather than reading
   // the sentence, so identifiers are asserted by value here while `message`
   // is only ever asserted to exist and be non-empty.
   //
@@ -6663,7 +6376,6 @@ describe('acstack config check', () => {
 
       beforeAll(() => {
         const root = makeProject(frontendProjectYaml(9222));
-        writeDomainMap(root, DOMAIN_MAP_THREE);
         writeAgentBrowserJson(root, agentBrowserJsonFor(9222));
         writeVerificationKnowledge(root);
 
@@ -6706,7 +6418,7 @@ describe('acstack config check', () => {
         expect(new Set(ids).size).toBe(ids.length);
       });
 
-      it('carries all six project rows under their contract identifiers, the four file rows passing', () => {
+      it('carries all five project rows under their contract identifiers, the three file rows passing', () => {
         const parsed = json();
         // Every id but impeccable's. That row reports on a plugin installed
         // on the MACHINE rather than on anything in the project, and this
@@ -6719,14 +6431,13 @@ describe('acstack config check', () => {
           expect(row(parsed, id), `no row with id "${id}"`).toBeDefined();
         }
         expect(row(parsed, CHECK_ROW_IDS.impeccable)).toBeUndefined();
-        expect(row(parsed, CHECK_ROW_IDS.domainMap)?.status).toBe('pass');
         expect(row(parsed, CHECK_ROW_IDS.agentBrowser)?.status).toBe('pass');
         expect(row(parsed, CHECK_ROW_IDS.agentBrowserJson)?.status).toBe('pass');
         expect(row(parsed, CHECK_ROW_IDS.verificationKnowledge)?.status).toBe('pass');
       });
     });
 
-    describe('a project missing its domain map and configuring no frontend', () => {
+    describe('a project configuring no frontend', () => {
       let result: ReturnType<typeof runCheck>;
       const json = (): ConfigCheckJson => JSON.parse(result.stdout) as ConfigCheckJson;
 
@@ -6738,10 +6449,10 @@ describe('acstack config check', () => {
         });
       });
 
-      it('marks the failing row failed by identifier, not by prose', () => {
+      it('marks the no-frontend row informational by identifier, with nothing failing', () => {
         const parsed = json();
-        expect(row(parsed, CHECK_ROW_IDS.domainMap)?.status).toBe('fail');
-        expect(parsed.checks.filter(check => check.status === 'fail')).toHaveLength(1);
+        expect(row(parsed, 'no-frontend')?.status).toBe('info');
+        expect(parsed.checks.filter(check => check.status === 'fail')).toHaveLength(0);
       });
 
       it('carries no frontend-only row for a project that configures no frontend', () => {
@@ -6754,16 +6465,16 @@ describe('acstack config check', () => {
 
       it('still carries the rows every project gets', () => {
         const parsed = json();
-        expect(row(parsed, CHECK_ROW_IDS.domainMap)).toBeDefined();
         expect(row(parsed, CHECK_ROW_IDS.outputStyle)).toBeDefined();
       });
     });
 
     it('exits the same with --json as without it', () => {
-      const cwd = makeProject('name: unmapped-project\n');
+      const cwd = projectMissingAgentBrowserJson();
+      const path = [fakeBinDir('agent-browser', 0)];
 
-      const text = runCheck({ cwd, path: [emptyPathDir()] });
-      const json = runCheck({ cwd, path: [emptyPathDir()], json: true });
+      const text = runCheck({ cwd, path });
+      const json = runCheck({ cwd, path, json: true });
 
       expect(text.status).toBe(1);
       expect(json.status).toBe(text.status);
@@ -6775,7 +6486,6 @@ describe('acstack config check', () => {
 
     beforeAll(() => {
       const root = makeProject(frontendProjectYaml(9222));
-      writeDomainMap(root, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(root, agentBrowserJsonFor(9222));
       writeVerificationKnowledge(root);
 
@@ -6798,7 +6508,7 @@ describe('acstack config check', () => {
     });
 
     it('keeps the human output shape once the project rows are printed', () => {
-      expect(result.stdout).toContain('domain-map.yaml');
+      expect(result.stdout).toContain('agent-browser.json');
       expect(result.stdout).toMatch(/^\d+\. /m);
       expect(result.stdout).toMatch(/^ {3}(PASS|FAIL|INFO) /m);
       expect(result.stdout).toMatch(/^\d+ passed, \d+ failed, \d+ informational$/m);
@@ -6811,13 +6521,11 @@ describe('acstack config check', () => {
 
     beforeAll(() => {
       const root = makeProject(frontendProjectYaml(9222));
-      writeDomainMap(root, DOMAIN_MAP_THREE);
       writeAgentBrowserJson(root, agentBrowserJsonFor(9222));
       writeVerificationKnowledge(root);
       frontend = runCheck({ cwd: root, path: [fakeBinDir('agent-browser', 0)] });
 
       const plain = makeProject('name: no-frontend-project\n');
-      writeDomainMap(plain, DOMAIN_MAP_THREE);
       bare = runCheck({ cwd: plain, path: [emptyPathDir()] });
     });
 
@@ -6830,11 +6538,11 @@ describe('acstack config check', () => {
       expect(frontend.stdout).not.toMatch(/^8\. /m);
     });
 
-    it('gives section 6 five rows for a project that configures a frontend', () => {
-      // The domain map, agent-browser, agent-browser.json, the verification
+    it('gives section 6 four rows for a project that configures a frontend', () => {
+      // agent-browser, agent-browser.json, the verification
       // knowledge base and frontend verification. Counting them is what
       // catches a row added twice or a row quietly dropped.
-      expect(sectionRows(frontend.stdout, 6)).toHaveLength(5);
+      expect(sectionRows(frontend.stdout, 6)).toHaveLength(4);
     });
 
     it('gives section 6 one row for a project that configures no frontend', () => {

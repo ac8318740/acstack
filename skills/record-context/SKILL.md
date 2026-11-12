@@ -29,7 +29,7 @@ an obvious choice buries the ones that matter.
   one, zero-padded to four digits. Create the directory lazily.
 
     If the file for that number appeared since you scanned (a parallel teammate
-    wrote one), renumber to the new highest plus one. In agent teams, coordinate
+    wrote one), renumber to the new highest plus one. In Team mode, coordinate
     number allocation through one owner and serialize conflicting allocations.
     Teammates can draft separate ADRs while other work continues.
 
@@ -80,20 +80,15 @@ If you find hand edits in it, regenerate; the files are the truth.
 If the decision fixed what a word means – picked between competing names,
 sharpened a fuzzy term, coined one – record it:
 
-- **Cross-domain terms** go in `<project folder>/CONTEXT.md`.
-- **Domain terms** go in `<project folder>/specs/<domain>/CONTEXT.md`, beside that
-  domain's `spec.md`. Find the domain in `<project folder>/domain-map.yaml`.
-
-- Create both files lazily; there is no index file –
-  `domain-map.yaml` already lists every domain.
+Terms go in `<project folder>/CONTEXT.md`. Create it lazily.
 
 Format: a `# Glossary` heading, then one `**term** – definition` line per
 term, alphabetical, one or two sentences each. Each definition follows the
 `writing` skill.
 
-Glossary and nothing else – no implementation notes, no specs, no scratch
+Glossary and nothing else – no implementation notes, no requirements, no scratch
 content. The moment it accepts anything else it becomes another document
-competing with the living specs.
+competing with the code and tests.
 
 **The human wins.** A glossary records the vocabulary humans agreed on.
 Nobody rewrites it to match code. If code and glossary disagree, surface the
@@ -103,4 +98,4 @@ disagreement to the user; only a human decision changes the entry.
 
 If the decision fails the ADR bar and settled no term, write nothing and
 say nothing. The durable trail for ordinary decisions is the resolved node
-and the living specs.
+and the tests.

@@ -160,7 +160,6 @@ function splitTopLevel(args: string): string[] {
 
 describe('the default config check applies is the default config get reports', () => {
   const flags = [
-    { flag: 'spec_sync', key: 'workflow.spec_sync' },
     { flag: 'frontend_verification', key: 'workflow.frontend_verification' },
   ];
 

@@ -80,7 +80,7 @@ Before deciding whether the map must persist:
 - Invoke `/acstack:design-doc` for shared behavior, component boundaries, or data-flow decisions
 - Apply that condition to conversation-only work as well as persisted maps
 - Skip design documents when those decisions are absent, including pure copyediting
-- When a design is required, require current design approval before implementation; changed element nodes or questions targeting them reopen review
+- When a design is required, show the plan in the design doc; stop for approval only under When to stop for the user in `orchestrator/AGENTS.md`
 
 The machinery appears only when it must persist. After the opening grill:
 
@@ -107,8 +107,7 @@ the list, marked `skip: <reason>`.
 
 1. **Orient.** The packaging walk (`acstack node walk --map <name>`) – the root
    and pinned nodes in full, everything else gisted, meaning title and status
-   only. Zoom in with `node read <id>` when a gist matters – it drops the
-   generated diagram blocks, and `--visuals` puts them back. Do not load
+   only. Zoom in with `node read <id>` when a gist matters. Do not load
    every body.
 
     Also check `node list --map <name> --status claimed`. A claim marks a node
@@ -122,8 +121,8 @@ the list, marked `skip: <reason>`.
    a node from the root, so the broadest questions come first. The query never
    returns the root.
 
-3. **Route by `mode` – the only field the machine routes on** (`kind` picks
-   the node's diagram shape, never its route; the one exception is `element`,
+3. **Route by `mode` – the only field the machine routes on** (`kind` describes
+   the node, never its route; the one exception is `element`,
    which never reaches the frontier because only the user locks it):
     - `hitl` nodes: run grilling rounds over them. A round is the whole hitl
      frontier.
@@ -154,13 +153,10 @@ the list, marked `skip: <reason>`.
     - Classify new fog by whether it changes the design
     - Create the critique node when the resolved node changed the frontend,
       per `frontend.md`
-    - Regenerate the diagram on the resolved node's parent (see Regenerating
-      diagrams)
     - Reopen design review when element nodes, saved comments, or questions targeting them change
     - Recompute the frontier
 
-    The regeneration comes after the new nodes exist. A surfaced node hangs
-    off the node you just resolved, inside that same subtree.
+    A surfaced node hangs off the node you just resolved.
 
     A shallow node arriving late jumps the queue – that is correct, something
     big just opened up.
@@ -173,22 +169,14 @@ Never filter on leaf position or "has a resolved question above it". Work
 nodes can hang anywhere, including straight off the root – a bug is work with
 no question above it.
 
-## Regenerating diagrams
-
-A parent's diagram draws its subtree, so any status change below it leaves
-that diagram wrong. Regenerate on the resolved node's parent after every
-resolution, and on every parent at each frontier recompute. The map skill's
-`visuals.md` holds the commands and the write rules (Regenerating a parent's
-diagram).
-
 ## Done
 
 The map clears when the frontier is empty and no fog remains. Deferred fog can
 let implementation start, but archive still needs an answer or an out-of-scope
 resolution.
 
-The durable residue is what the map leaves behind – the living specs through
-commit-time sync, the ADRs and glossary entries through `record-context`. You
+The durable residue is what the map leaves behind – the tests that pin the
+built behavior, the ADRs and glossary entries through `record-context`. You
 have already extracted it along the way.
 
 Report what the map settled. Point at anything the map left `out-of-scope`.

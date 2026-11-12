@@ -297,7 +297,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   check('lists the skills in every session, with name and absolute path',
     listing.includes(`    <name>map</name>`) && listing.includes(`    <location>${mapFile}</location>`));
   check('lists a skill with its description',
-    /<name>test-conventions<\/name>\n    <description>Test placement rules[^<]*<\/description>/.test(listing));
+    /<name>map<\/name>\n    <description>The entry point for planned work\.[^<]*<\/description>/.test(listing));
   check('leaves out a skill only the user may run', listing.includes('<name>implement</name>') && !listing.includes('<name>setup</name>'));
   check('tells the model to name skills as /acstack:<name>', listing.includes('write /acstack:<name>, never /skill:<name>'));
   check('still registers /acstack:setup', reg.commands['acstack:setup'] !== undefined);
@@ -333,11 +333,11 @@ for (const delegated of [false, true]) {
   await fire(reg, 'session_start', { reason: 'startup' }, ctx);
   const event = promptEvent();
   await fire(reg, 'before_agent_start', event, ctx);
-  await reg.commands['acstack:code-review'].handler('', ctx);
+  await reg.commands['acstack:writing'].handler('', ctx);
   check('outside Git retains general skills and commands without a fake project folder',
-    event.systemPromptOptions.sections['acstack-skills']?.includes('<name>code-review</name>')
+    event.systemPromptOptions.sections['acstack-skills']?.includes('<name>writing</name>')
       && !event.systemPromptOptions.sections['acstack-orchestrator']
-      && reg.userSent[0]?.content.startsWith('<skill name="code-review"') && fs.readdirSync(dir).length === 0);
+      && reg.userSent[0]?.content.startsWith('<skill name="writing"') && fs.readdirSync(dir).length === 0);
 }
 
 // --- writing style --------------------------------------------------------------

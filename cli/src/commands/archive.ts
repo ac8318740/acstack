@@ -11,9 +11,8 @@ export function register(program: Command): void {
     .description('Archive a completed change')
     .argument('[name]', 'change name')
     .option('-y, --yes', 'skip confirmation')
-    .option('--skip-specs', 'skip living spec updates')
     .action(
-      inProject((root, name: string | undefined, opts: { yes?: boolean; skipSpecs?: boolean }) => {
+      inProject((root, name: string | undefined) => {
         // If no name, list changes
         if (!name) {
           const changes = listChanges(root);
@@ -45,10 +44,6 @@ export function register(program: Command): void {
         console.log(chalk.green(`Archived: ${name}`));
         console.log(`  From: ${CHANGES_DIR}/${name}/`);
         console.log(`  To:   ${CHANGES_DIR}/${ARCHIVE_DIR}/${archiveName}/`);
-
-        if (!opts.skipSpecs) {
-          console.log(chalk.dim('\nRemember to update living specs if needed.'));
-        }
       })
     );
 }

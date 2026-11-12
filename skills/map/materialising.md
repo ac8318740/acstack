@@ -27,15 +27,11 @@ operation. First the root:
 - On GitHub, every node body opens with a header line that encodes its edges.
   [`trackers/github.md`](trackers/github.md) holds the format. The files backend writes none.
 
-- Every node carries a required `kind` and `label`, its short diagram name.
+- Every node carries a required `kind` and `label`, its short name.
   Work nodes and the destination add a one-sentence business `--summary`.
   [`trackers/files.md`](trackers/files.md) holds the kinds, the caps, and the CLI's contract.
 
-- Every node body carries a diagram, two at most. A childless `notes` node is
-  the one exception.
-
-    [`visuals.md`](visuals.md) holds which visual each kind gets, where it sits in the body,
-    and the rules a hand-drawn one follows. Read it before the first body.
+- Node bodies are plain prose, with no diagram. The design doc is the one visual.
 
 - Standing preferences for the effort become one resolved node. Style rules
   and constraints the grill surfaced go there. Create it with
@@ -59,10 +55,6 @@ operation. First the root:
 - Write every title and body per the `writing` skill.
 - Nodes describe behaviour, not file paths. A node can sit on the frontier for
   weeks while the codebase moves – you resolve the paths at claim time.
-
-- Draw every parent's diagram once every node exists, per [Regenerating
-  diagrams](SKILL.md#regenerating-diagrams). A parent draws its subtree, so nothing can draw one earlier.
-  The root is a parent too, and it draws the whole map.
 
 - When a design is required:
     - Write each design element as an `element` node, per `/acstack:design-doc`

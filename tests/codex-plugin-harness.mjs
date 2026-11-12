@@ -94,7 +94,7 @@ try {
     assert.equal(existsSync(path.join(plugin, 'plugin.json')), false,
       'portable root manifest disables native Codex hooks');
     assert.deepEqual(packagedManifest, manifest);
-    assert.ok(existsSync(path.join(plugin, 'agents/codex/task-executor.toml')));
+    assert.ok(existsSync(path.join(plugin, 'agents/codex/reviewer.toml')));
   });
 
   const hookEnv = { ...env, CLAUDE_PLUGIN_ROOT: plugin, PLUGIN_ROOT: plugin };
@@ -113,8 +113,8 @@ try {
     run('git', ['init', '-q', work]);
     const agents = path.join(home, '.codex/agents');
     mkdirSync(agents, { recursive: true });
-    const userAgent = path.join(agents, 'task-executor.toml');
-    const custom = 'name = "task-executor"\ndescription = "My agent"\n';
+    const userAgent = path.join(agents, 'reviewer.toml');
+    const custom = 'name = "reviewer"\ndescription = "My agent"\n';
     writeFileSync(userAgent, custom);
     const context = [];
     for (const group of hooks.SessionStart) {
@@ -128,7 +128,7 @@ try {
     assert.equal(readlinkSync(path.join(home, '.claude/acstack/bin/acstack')), path.join(plugin, 'cli/bin/acstack.js'));
     assert.equal(readFileSync(userAgent, 'utf8'), custom);
     for (const file of readdirSync(path.join(plugin, 'agents/codex'))) {
-      if (!file.endsWith('.toml') || file === 'task-executor.toml') continue;
+      if (!file.endsWith('.toml') || file === 'reviewer.toml') continue;
       assert.equal(readFileSync(path.join(agents, file), 'utf8'), readFileSync(path.join(plugin, 'agents/codex', file), 'utf8'));
     }
     rmSync(userAgent);
@@ -138,36 +138,44 @@ try {
     writeFileSync(userAgent, '# by scripts/gen-codex-agents.mjs\nstale = true\n');
     run('bash', [path.join(plugin, 'hooks/session-start.sh')], { env: hookEnv });
     assert.equal(readFileSync(userAgent, 'utf8'), generated);
+    // A retired generated agent is removed; a user's own file with a free name is kept.
+    const retired = path.join(agents, 'task-executor.toml');
+    const own = path.join(agents, 'my-agent.toml');
+    writeFileSync(retired, '# by scripts/gen-codex-agents.mjs\nname = "task-executor"\n');
+    writeFileSync(own, custom);
+    run('bash', [path.join(plugin, 'hooks/session-start.sh')], { env: hookEnv });
+    assert.equal(existsSync(retired), false);
+    assert.equal(readFileSync(own, 'utf8'), custom);
   });
 
   await check('Codex agents honor custom CODEX_HOME without changing the default home', () => {
     const customHome = path.join(work, 'custom codex');
     const agents = path.join(customHome, 'agents');
     mkdirSync(agents, { recursive: true });
-    const customAgent = path.join(agents, 'task-executor.toml');
-    const custom = 'name = "task-executor"\ndescription = "Custom-home user agent"\n';
+    const customAgent = path.join(agents, 'reviewer.toml');
+    const custom = 'name = "reviewer"\ndescription = "Custom-home user agent"\n';
     writeFileSync(customAgent, custom);
-    const defaultAgent = path.join(home, '.codex/agents/task-executor.toml');
+    const defaultAgent = path.join(home, '.codex/agents/reviewer.toml');
     writeFileSync(defaultAgent, '# by scripts/gen-codex-agents.mjs\ndefault_home_sentinel = true\n');
     const customEnv = { ...hookEnv, CODEX_HOME: customHome };
     run('bash', [path.join(plugin, 'hooks/session-start.sh')], { env: customEnv });
     assert.equal(readFileSync(customAgent, 'utf8'), custom);
     for (const file of readdirSync(path.join(plugin, 'agents/codex'))) {
-      if (!file.endsWith('.toml') || file === 'task-executor.toml') continue;
+      if (!file.endsWith('.toml') || file === 'reviewer.toml') continue;
       assert.equal(readFileSync(path.join(agents, file), 'utf8'), readFileSync(path.join(plugin, 'agents/codex', file), 'utf8'));
     }
     assert.ok(readFileSync(defaultAgent, 'utf8').includes('default_home_sentinel'));
     writeFileSync(customAgent, '# by scripts/gen-codex-agents.mjs\nstale = true\n');
     run('bash', [path.join(plugin, 'hooks/session-start.sh')], { env: customEnv });
-    assert.equal(readFileSync(customAgent, 'utf8'), readFileSync(path.join(plugin, 'agents/codex/task-executor.toml'), 'utf8'));
+    assert.equal(readFileSync(customAgent, 'utf8'), readFileSync(path.join(plugin, 'agents/codex/reviewer.toml'), 'utf8'));
   });
 
   await check('Codex role setup retains unset-home fallback and no-config behavior', () => {
     const defaultEnv = { ...hookEnv };
     delete defaultEnv.CODEX_HOME;
     run('bash', [path.join(plugin, 'hooks/session-start.sh')], { env: defaultEnv });
-    assert.equal(readFileSync(path.join(home, '.codex/agents/task-executor.toml'), 'utf8'),
-      readFileSync(path.join(plugin, 'agents/codex/task-executor.toml'), 'utf8'));
+    assert.equal(readFileSync(path.join(home, '.codex/agents/reviewer.toml'), 'utf8'),
+      readFileSync(path.join(plugin, 'agents/codex/reviewer.toml'), 'utf8'));
     const missingHome = path.join(work, 'not-configured-codex');
     run('bash', [path.join(plugin, 'hooks/session-start.sh')], { env: { ...hookEnv, CODEX_HOME: missingHome } });
     assert.equal(existsSync(missingHome), false);

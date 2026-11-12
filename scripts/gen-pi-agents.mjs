@@ -57,12 +57,9 @@ const srcDir = join(root, 'agents');
 const outDir = join(root, 'pi', 'agents');
 const tools = 'read, grep, find, ls, bash, edit, write';
 
-// The ACStack skills each agent reads. test-conventions names the test-writer
-// in its description, browser-verify covers the agent-browser commands the
-// frontend-verifier runs, and the frontend-verifier's prompt points at bridge.
+// The ACStack skills each agent reads. browser-verify covers the agent-browser
+// commands the frontend-verifier runs, and its prompt points at bridge.
 const SKILLS = {
-  'test-writer': ['test-conventions'],
-  'task-executor': ['test-conventions'],
   'frontend-verifier': ['browser-verify', 'bridge'],
 };
 

@@ -115,8 +115,8 @@ const DEFAULT_STDIN_SILENCE_MS = 30_000;
 // narrower one. Both read the same knob.
 const STDIN_SILENCE_ENV = 'ACSTACK_STDIN_SILENCE_MS';
 
-// The refusal for a caller that names no sentence of its own. `node diagram
-// --stdin` is that caller, and the pipe it names is the one it documents.
+// The refusal for a caller that names no sentence of its own. `node walk
+// --stdin` is such a caller, and the pipe it names is the one it documents.
 const TTY_REFUSAL =
   'nothing is piped into stdin - stdin is a terminal. Pipe the input in, ' +
   'as in `gh issue list --json ... | acstack ...`.';

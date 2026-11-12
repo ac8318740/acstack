@@ -21,8 +21,8 @@ network.
 
 | Command | Purpose |
 |---|---|
-| `acstack list` | List active changes or specs |
-| `acstack show <name>` | Display a change or spec |
+| `acstack list` | List active changes, or legacy specs |
+| `acstack show <name>` | Display a change, or a legacy spec |
 | `acstack node create/get/set` | Read and write graph nodes |
 | `acstack node walk/frontier/path` | Traverse the graph |
 | `acstack archive` | Archive a completed change |

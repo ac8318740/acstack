@@ -129,7 +129,6 @@ export const DESIGN_REVIEW_KEY = 'workflow.design_review';
 export const PROJECT_KEYS: Readonly<Record<string, ProjectKeySpec>> = {
   profile: { kind: 'profile' },
 
-  'workflow.spec_sync': { kind: 'boolean' },
   'workflow.grilling.questions': { kind: 'enum', values: ['tool', 'inline'] },
   'workflow.tdd.strict': { kind: 'boolean' },
   'workflow.tdd.orchestrator_strict': { kind: 'boolean' },
@@ -678,7 +677,7 @@ function emptyBlockFor(node: unknown, doc: ReturnType<typeof parseDocument>): YA
  * are null - a file holding only `---` - is the same thing one level up.
  *
  * Anything else on the path is a refusal, not a crash. `workflow: fast`
- * cannot hold `workflow.spec_sync` without discarding `fast`, and a list
+ * cannot hold `workflow.read_guard` without discarding `fast`, and a list
  * cannot hold a named key at all, so both say which key is in the way and
  * leave the file exactly as it was. A mapping is the only shape that can hold
  * the key, which is why a list is refused rather than descended into: `setIn`
@@ -713,7 +712,7 @@ function ensureBlocksAbove(
     if (!doc.hasIn(above)) return;
 
     const node: unknown = doc.getIn(above, true);
-    // Flow style counts: `workflow: {spec_sync: true}` is a mapping to descend
+    // Flow style counts: `workflow: {read_guard: true}` is a mapping to descend
     // into, and the write puts the new key inside it.
     if (isMap(node)) continue;
     if (isNullScalar(node)) {
@@ -834,7 +833,6 @@ export function setProjectKey(file: string, key: string, value: unknown): void {
  * never made. `config get` then says the key is unset and stops there.
  */
 export const PROJECT_KEY_DEFAULTS: Readonly<Record<string, string>> = {
-  'workflow.spec_sync': 'true',
   'workflow.grilling.questions': 'tool',
   [FRONTEND_VERIFICATION_KEY]: 'false',
   [DESIGN_REVIEW_KEY]: 'false',
@@ -1006,8 +1004,8 @@ function knowsKeysUnder(key: string): boolean {
  * Three answers, and the schema settles only one of them.
  *
  * A segment holding a dot is a key nothing can reach. YAML lets a mapping key
- * hold one, so `"workflow.spec_sync": true` is a key whose name contains a
- * dot rather than the `spec_sync` of a `workflow` block - and the dotted path
+ * hold one, so `"workflow.read_guard": true` is a key whose name contains a
+ * dot rather than the `read_guard` of a `workflow` block - and the dotted path
  * every command takes walks the blocks, so it reads the nested spelling and
  * never this line. However known the path it spells looks, this row is one
  * nothing reads and nothing writes.

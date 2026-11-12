@@ -15,13 +15,13 @@ Use a design doc for shared behavior, component boundaries, and data-flow decisi
 - Follow `/acstack:design-doc` to write element nodes and the questions that target them
 - Run `~/.claude/acstack/bin/acstack design-doc <map>` for live review
 - Reconcile saved comments through `design-review reconcile`
-- Require `approval.valid: true` from `~/.claude/acstack/bin/acstack design-review status <map>` before implementation
-- Approval covers the element nodes, saved comments, and every open node targeting an element
-- Reopen review when those inputs change; regenerating presentation alone preserves approval
-- Use `node walk`, `node frontier`, and `node diagram` for planning views, not architecture generation
+- Stop for approval only under When to stop for the user in `orchestrator/AGENTS.md`: the plan decides something the user has not, or changes a contract or module boundary
+- When you stop, require `approval.valid: true` from `~/.claude/acstack/bin/acstack design-review status <map>` before implementation
+- Regenerating presentation alone preserves approval
+- Use `node walk` and `node frontier` for planning views, not architecture generation
 
 ## New fog during implementation
 
 - Return design-changing fog to `/acstack:map`
 - Keep other fog with its reopening trigger
-- Revise the element nodes and repeat reconciliation and approval when review inputs change
+- Revise the element nodes; stop for approval again only when the revision meets When to stop for the user

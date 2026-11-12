@@ -1,0 +1,53 @@
+<!doctype html>
+<!-- Fixture for tests/test-frontend-measure.sh. #clean must measure clean; each
+     other region holds exactly one planted violation. Monospace text and ch
+     widths keep line wrapping independent of installed fonts. -->
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  :root {
+    --font-family-base: monospace;
+    --font-size-sm: 14px;
+    --font-size-md: 16px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 16px;
+    --color-text: #111;
+  }
+  body { margin: var(--space-2); font: var(--font-size-md)/1.5 var(--font-family-base); color: var(--color-text); background: #fff; }
+  section { margin: 0 0 var(--space-3); }
+  p { margin: 0 0 var(--space-2); }
+  button { font: inherit; padding: var(--space-1) var(--space-2); margin: 0; border: 0; background: #ddd; color: #111; }
+  .bar { display: flex; gap: var(--space-2); }
+  .narrow { width: 10ch; }
+  #slide { display: inline-block; transition: transform 300ms linear; }
+  .busy #slide { transform: translateX(16px); }
+  #steady-save { min-width: 16ch; }
+</style>
+</head>
+<body>
+  <section id="clean">
+    <p class="narrow">aaaa bbbb cc dd</p>
+    <p style="font-size: var(--font-size-sm)">small print</p>
+    <div class="bar"><button>One</button><button>Two</button><button>Six</button></div>
+    <div class="bar" id="steady"><button id="steady-save">Save</button><span>status</span></div>
+  </section>
+
+  <section id="off-font"><p style="font-size: 15px">fifteen pixels</p></section>
+
+  <section id="padding">
+    <div class="bar"><button>One</button><button style="padding: var(--space-2) var(--space-2)">Two</button><button>Six</button></div>
+  </section>
+
+  <section id="lone"><p class="narrow">aaaa bbbb c</p></section>
+
+  <section id="edges"><div>first</div><div style="margin-left: 2px">second</div></section>
+
+  <section id="contrast"><p style="color: #bbb">pale text</p></section>
+
+  <section id="target"><button style="padding: 0; font-size: var(--font-size-sm); line-height: 1">x</button></section>
+
+  <section id="moving" class="bar"><button id="save">Save</button><span id="slide">status</span></section>
+</body>
+</html>

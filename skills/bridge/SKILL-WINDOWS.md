@@ -119,7 +119,7 @@ Copy every file from the plugin into `%USERPROFILE%\playwriter-bridge\`:
 `register-tasks.ps1` refuses to run when `relay.ps1`, `tunnel.ps1`,
 `opener.ps1` or `opener.js` is missing from this directory.
 
-They live in the plugin at `plugins/acstack/assets/playwriter-bridge/`.
+They live in the plugin root at `assets/playwriter-bridge/`.
 The same directory holds `vm-free-port.sh`, which belongs on the VM. You
 do not need that file on Windows.
 

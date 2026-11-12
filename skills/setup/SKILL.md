@@ -1,6 +1,6 @@
 ---
 name: setup
-description: Set up ACStack in a project, and change how an already configured project is set up. With no project.yaml in the project folder it detects the project type, writes the config, generates the domain map and offers browser verification. With one already there it leads with the health check, then offers to fix each row that failed. Both paths end in the same check, so it is safe to run on the first day and on any day after.
+description: Set up ACStack in a project, and change how an already configured project is set up. With no project.yaml in the project folder it detects the project type, writes the config and offers browser verification. With one already there it leads with the health check, then offers to fix each row that failed. Both paths end in the same check, so it is safe to run on the first day and on any day after.
 argument-hint: "[what to set up or change]"
 disable-model-invocation: true
 ---
@@ -127,7 +127,7 @@ CLI. An agent testing this branch before the release runs
 It prints one object to standard output and nothing else:
 
 ```json
-{"checks": [{"id": "domain-map", "status": "pass", "message": "domain-map.yaml maps 4 domains"}]}
+{"checks": [{"id": "agent-browser", "status": "pass", "message": "agent-browser is on PATH"}]}
 ```
 
 Each `status` is `pass`, `fail` or `info`. The exit codes carry the same news:
@@ -164,14 +164,13 @@ Each `id` maps to one fix. Work the selected rows in this order:
 | `preferred-browser-mode` | invoke the `host` skill on a `fail`, Step 10 on an `info` |
 | `optional-axis:host.terminal_workspace` | Step 12 |
 | `optional-axis:<key>` | invoke the `host` skill, through the menu option in Step 8 |
-| `domain-map` | Step 9a in `row-fixes.md` |
 | `agent-browser` | Step 9b in `row-fixes.md` |
 | `agent-browser-json` | Step 9c in `row-fixes.md` |
 | `verification-knowledge` | Step 9d in `row-fixes.md` |
 | `frontend-verification` | run `acstack config set workflow.frontend_verification true` |
 | `output-style` | Step 9e in `row-fixes.md` |
 
-Read [`row-fixes.md`](row-fixes.md) when a selected row is `browser-mode:<mode>`, `frontend-verification`, `domain-map`, `agent-browser`, `agent-browser-json`, `verification-knowledge` or `output-style`. It holds the second fixes and Steps 9a to 9e.
+Read [`row-fixes.md`](row-fixes.md) when a selected row is `browser-mode:<mode>`, `frontend-verification`, `agent-browser`, `agent-browser-json`, `verification-knowledge` or `output-style`. It holds the second fixes and Steps 9b to 9e.
 
 ## Step 10: Ask the project's browser mode
 
