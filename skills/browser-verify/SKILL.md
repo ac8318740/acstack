@@ -131,9 +131,18 @@ Use the user's real Chrome only for checks headless cannot do: a real profile or
 
 1. Run `~/.claude/acstack/bin/acstack config browser-mode --json`. It answers from the project's `frontend.browser.mode` and the host's declared modes, and prints `{mode, preferred, reason, fallback}`
     - Exit 1 prints one message on stderr naming the fix (`/acstack:setup` or `/acstack:host`). Report it verbatim
-    - When `mode` is not `remote`, the real-Chrome check cannot run here; report that limit
+    - When `mode` is not `remote`, the real-Chrome check cannot run here; use the fallbacks below
 2. When `mode` is `remote`, connect once: `export AGENT_BROWSER_CONFIG="<project folder>/agent-browser.json"`, then `curl -sf --max-time 3 http://127.0.0.1:<cdp_port>/json/version` (port `19988` by default)
-3. If that fails, stop. Do not retry, wait, or launch something else. Report that the bridge is down and point to the `bridge` skill, which owns the Playwriter bridge setup and diagnosis
+3. If that fails, do not retry or wait. Report that the bridge is down, point to the `bridge` skill (it owns bridge setup and diagnosis), and continue headless with the fallbacks below
+
+When real Chrome is unavailable, check as much as headless can and keep going:
+
+- **Fonts:** confirm the app's web fonts loaded with `document.fonts.check`; only system fallback fonts differ
+- **Scrollbars and layout:** headless reserves scrollbar width too, so check overflow and layout there
+- **Real profile or sign-on:** use the test login or dev auth bypass recorded in verification memory
+- **GPU:** headless renders WebGL and canvas in software; check correctness there
+
+List what only real Chrome can confirm (text smoothing, GPU-specific bugs) in the report for the user to check in one pass at the end. Stop only when the core check needs the user's real session and verification memory records no test login; report that as a missing setup step for the project.
 
 Never kill the user's browser. Close only sessions you opened.
 
