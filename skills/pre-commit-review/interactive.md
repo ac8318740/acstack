@@ -1,14 +1,13 @@
 # Pre-commit review: interactive mode
 
-Step 6 of `SKILL.md` in interactive mode, the default.
+Step 4 of `SKILL.md` in interactive mode, the default.
 
-Present in-scope findings in **waves of up to 4** using the question tool (AskUserQuestion on Claude Code). On a host without one, use a numbered list in chat. Group related findings together.
+Present the findings you kept in **waves of up to 4** using the question tool (AskUserQuestion on Claude Code). On a host without one, use a numbered list in chat. Group related findings together.
 
 Keep adjacent suggestions in a separate advisory list, not the required fix waves.
 If one is worth pursuing, ask for explicit approval to add it to scope. "Fix all"
 for the main review does not include that advisory list. Approved cleanup may run
-in parallel with coordinated shared-file regions or isolated worktrees under the
-shared policy, without delaying the main change.
+in parallel in its own checkout (Team mode), without delaying the main change.
 
 Format each wave like:
 

@@ -25,5 +25,9 @@ Map nodes define the design; GitHub hosts a published copy of the Markdown compa
 
 ```yaml
 kind: store
+location: Markdown files in the project folder, or GitHub issues on the GitHub tracker
+mocks:
+- title: Files tracker layout
+  markdown: layout.md
 ```
 </details>

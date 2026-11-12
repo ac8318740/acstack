@@ -42,44 +42,11 @@ ACSTACK_ROOT=$(cd -- "$(dirname -- "$(readlink -f "$HOME/.claude/acstack/bin/acs
 "$ACSTACK_ROOT/skills/new-worktree/detect-orchestrator.sh"
 ```
 
-That invariant CLI symlink is the only way to reach the plugin's own root. The SessionStart hook maintains it, and re-creates it every time an agent session starts. Do not shorten the path and do not reach for `$CLAUDE_PLUGIN_ROOT`; the plugin deliberately does not depend on env vars propagating into subshells.
+`../teardown-worktree/detector.md` explains the path and the six lines the script prints. This skill branches on `active`, the orchestrator hosting this session; `owner` matters only to teardown.
 
-The script always exits 0 and prints six lines:
-
-```
-declared_herdr=<true|false|unset>
-declared_orca=<true|false|unset>
-detected=<herdr|orca|none>
-active=<herdr|orca|none>
-owner=<herdr|orca|none>
-warning=<one line, empty when there is nothing to say>
-```
-
-The script takes one optional argument: the checkout to examine. A checkout is one git worktree directory. The script examines the current directory when you pass nothing.
-
-- `declared_herdr` – whether the user has herdr installed on this host, recorded in the ACStack global config under `host.orchestrators.herdr`. `unset` means nobody has declared herdr on this host yet.
-- `declared_orca` – the same yes-or-no answer for Orca, recorded under `host.orchestrators.orca`. The two are independent: a host can have both installed, one, or neither, so one answer says nothing about the other. Both `false` is how a host says it has no orchestrator at all.
-- `detected` – which orchestrator is actually hosting this session, read from the environment markers an orchestrator injects into the terminals it opens.
-- `active` – the branch to run.
-- `owner` – which orchestrator owns the checkout the script examined. The path settles it.
-
-    A checkout under `~/orca/workspaces/` belongs to Orca. A checkout under herdr's worktree root belongs to herdr, and herdr's config names that root. Anything else is plain git, reported as `none`.
-
-- `warning` – one line written for a human, empty when there is nothing to say.
-
-Declared means installed. Detected means hosting.
-
-Detected wins, so `active` always equals `detected`. So this skill never drives an orchestrator that the host declared but that does not host this session. A marker for an orchestrator the host never declared earns a warning, not a refusal.
-
-Owning is not hosting. The session's host creates a worktree, so this skill branches on `active`. The owner decides who removes a checkout later, and the `teardown-worktree` skill acts on that.
-
-Three rules follow:
-
-- If `warning` is non-empty, repeat it to the user verbatim before going any further. It addresses a human reader.
-- Branch on `active`. That is the section to run, and the only thing that decides it.
-- Sometimes the script does not run at all – no output, and a non-zero exit from the invocation rather than from the script. Do not guess. There is no `active` to branch on.
-
-    Say so to the user, treat it as no orchestrator, and go no further than the plain git branch in `Orchestrator: none`. An installed plugin that predates the script looks like this. The file is missing or not executable, so the invocation fails before the script can report anything.
+- If `warning` is non-empty, repeat it to the user verbatim before going any further
+- Branch on `active`. That is the section to run, and the only thing that decides it
+- If the script does not run (no output and a non-zero exit), say so, treat it as no orchestrator, and go no further than the plain git branch in `Orchestrator: none`
 
 ### Orchestrator: herdr
 

@@ -1,6 +1,6 @@
 import ELK from 'elkjs/lib/elk.bundled.js';
 import type { ElkExtendedEdge, ElkNode } from 'elkjs/lib/elk-api.js';
-import type { AlignmentGraph, AlignmentPack, DiagramOrientation } from '../lib/alignment-packs.js';
+import type { AlignmentGraph, AlignmentNode, AlignmentPack, DiagramOrientation } from '../lib/alignment-packs.js';
 import { routeSegments, searchOrthogonalRoute, simplifyRoute } from './orthogonal-route.js';
 
 export const CARD_WIDTH = 300;
@@ -30,6 +30,8 @@ export type DiagramNode = Box & {
   technicalLabel?: string;
   elementKind?: string;
   channels?: string[];
+  progress?: AlignmentNode['progress'];
+  change?: AlignmentNode['change'];
   summary: string;
   itemCount?: number;
   parentId?: string;
@@ -127,6 +129,8 @@ export function projectDiagram(graph: AlignmentGraph, expandedGroups: string[]):
       summary: group.summary,
       elementKind: graph.nodes.find(node => node.id === group.ownerNodeId)?.elementKind,
       channels: graph.nodes.find(node => node.id === group.ownerNodeId)?.channels,
+      progress: graph.nodes.find(node => node.id === group.ownerNodeId)?.progress,
+      change: graph.nodes.find(node => node.id === group.ownerNodeId)?.change,
       itemCount: graph.nodes.filter(node => node.id !== group.ownerNodeId && ancestors(node.groupId).includes(group.id)).length,
       parentId: containerOf(group.parentGroupId),
     });
@@ -142,6 +146,8 @@ export function projectDiagram(graph: AlignmentGraph, expandedGroups: string[]):
       technicalLabel: node.technicalLabel,
       elementKind: node.elementKind,
       channels: node.channels,
+      progress: node.progress,
+      change: node.change,
       summary: node.summary,
       parentId: containerOf(node.groupId),
     });
@@ -762,33 +768,52 @@ function preferStraightRoutes(nodes: DiagramNode[], edges: DiagramEdge[], horizo
   const along = horizontal ? 'x' : 'y';
   const span = horizontal ? 'height' : 'width';
   const byId = new Map(nodes.map(node => [node.id, node]));
-  for (const edge of edges) {
-    if (edge.points.length <= 2) continue;
-    const source = byId.get(edge.source)!;
-    const target = byId.get(edge.target)!;
-    // Container ports belong to ELK's boundary routing, not ordinary card sides.
-    if (source.kind === 'group' || target.kind === 'group') continue;
-    const start = { ...edge.points[0] };
-    const end = { ...edge.points.at(-1)! };
-    const sourcePorts = edges.filter(other => other.source === source.id).length;
-    const targetPorts = edges.filter(other => other.target === target.id).length;
-    if (start[across] !== end[across]) {
-      if (targetPorts === 1) end[across] = start[across];
-      else if (sourcePorts === 1) start[across] = end[across];
-      else continue;
+  // Straightening one edge can free the corridor or label room another edge needed, so repeat until stable.
+  for (let changed = true; changed;) {
+    changed = false;
+    for (const edge of edges) {
+      if (edge.points.length <= 2) continue;
+      const source = byId.get(edge.source)!;
+      const target = byId.get(edge.target)!;
+      // Container ports belong to ELK's boundary routing, not ordinary card sides.
+      if (source.kind === 'group' || target.kind === 'group') continue;
+      const first = edge.points[0];
+      const last = edge.points.at(-1)!;
+      const onSide = (point: Point, node: DiagramNode, role: 'source' | 'target') => {
+        const normal = node[along] + (role === 'source' ? node[horizontal ? 'width' : 'height'] : -ARROW_INSET);
+        return point[along] === Math.round(normal * 10) / 10
+          && point[across] >= node[across] + 24 && point[across] <= node[across] + node[span] - 24;
+      };
+      if (!onSide(first, source, 'source') || !onSide(last, target, 'target') || last[along] <= first[along]) continue;
+      // A moved port keeps its order and spacing against the card's other ports on the same side, so no crossings appear.
+      const portFree = (value: number, role: 'source' | 'target') => {
+        const from = role === 'source' ? first : last;
+        return edges.every(other => {
+          const port = other === edge || other[role] !== edge[role] ? undefined : role === 'source' ? other.points[0] : other.points.at(-1)!;
+          return !port || ((value - port[across]) * (from[across] - port[across]) > 0
+            && Math.abs(value - port[across]) >= Math.abs(from[across] - port[across]));
+        });
+      };
+      // Keep one port where ELK spread it when possible; otherwise try the middle and both ends of the cards' shared span,
+      // since hover controls and neighbouring labels can block any one of them.
+      const low = Math.max(source[across], target[across]) + 24;
+      const high = Math.min(source[across] + source[span], target[across] + target[span]) - 24;
+      const tries = [first[across], last[across], Math.round((low + high) / 2), low, high];
+      for (const value of tries) {
+        const start = { ...first, [across]: value };
+        const end = { ...last, [across]: value };
+        if (!onSide(start, source, 'source') || !onSide(end, target, 'target')) continue;
+        if ((value !== first[across] && !portFree(value, 'source')) || (value !== last[across] && !portFree(value, 'target'))) continue;
+        const trial = edges.map(other => ({ ...other, points: other === edge ? [start, end] : other.points,
+          labelBox: other.labelBox ? { ...other.labelBox } : undefined }));
+        const candidate = trial[edges.indexOf(edge)];
+        if (!routeIsSafe(nodes, candidate, headers) || routeClearanceConflicts(trial, candidate).length || placeLabels(nodes, trial, [], headers).length) continue;
+        edge.points = candidate.points;
+        edges.forEach((other, index) => { other.labelBox = trial[index].labelBox; });
+        changed = true;
+        break;
+      }
     }
-    const onSide = (point: Point, node: DiagramNode, role: 'source' | 'target') => {
-      const normal = node[along] + (role === 'source' ? node[horizontal ? 'width' : 'height'] : -ARROW_INSET);
-      return point[along] === Math.round(normal * 10) / 10
-        && point[across] >= node[across] + 24 && point[across] <= node[across] + node[span] - 24;
-    };
-    if (!onSide(start, source, 'source') || !onSide(end, target, 'target') || end[along] <= start[along]) continue;
-    const trial = edges.map(other => ({ ...other, points: other === edge ? [start, end] : other.points,
-      labelBox: other.labelBox ? { ...other.labelBox } : undefined }));
-    const candidate = trial[edges.indexOf(edge)];
-    if (!routeIsSafe(nodes, candidate, headers) || routeClearanceConflicts(trial, candidate).length || placeLabels(nodes, trial, [], headers).length) continue;
-    edge.points = candidate.points;
-    edges.forEach((other, index) => { other.labelBox = trial[index].labelBox; });
   }
 }
 

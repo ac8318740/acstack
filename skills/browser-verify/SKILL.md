@@ -1,238 +1,156 @@
 ---
 name: browser-verify
-description: How to interact with a browser for frontend verification using agent-browser CLI and CDP. ALWAYS use when UI or frontend files are modified and workflow.frontend_verification is true in the project's project.yaml. Also use before running agent-browser commands, when element refs go stale, when CDP connection fails, or when verifying UI behavior. Covers all commands (snapshot, screenshot, click, fill, type), element ref strategy, DOM staleness rules, selector priority, and remote/headless/local environment troubleshooting.
+description: The frontend skill. Before a UI edit it loads design context and the generic UI rules; after the edit it measures the rendered page with the bundled measure.js, checks behavior in headless Chrome through agent-browser, and runs a judge only when hierarchy or the primary action changed. Use whenever frontend files change, before running agent-browser commands, when choosing between headless Chrome and the Playwriter bridge, and when reading or updating verification memory.
 ---
 
-# Browser helpers
+# Frontend verification
 
-## Purpose
+Frontend work follows one loop: load the rules before the edit, then measure, check behavior, and judge only when the change warrants it.
 
-This is an operational reference for browser-based verification using the `agent-browser` CLI and Chrome DevTools Protocol (CDP). It covers commands, selector strategy, environment setup, and troubleshooting.
+```mermaid
+flowchart LR
+    R["1. Before the edit<br/>design context and UI rules"] --> E["Edit"]
+    E --> S["2. Static checks"]
+    S --> M["3. Measure<br/>measure.js"]
+    M --> B["4. Check behavior<br/>agent-browser"]
+    B --> J{"Hierarchy or primary<br/>action changed?"}
+    J -->|yes| JU["5. Judge"]
+    J -->|no| W["6. Update memory"]
+    JU --> W
+```
 
-For setup (installing agent-browser, creating config files, scaffolding knowledge base), use `/acstack:setup`. To audit what a project already has, run `acstack config check`.
+The parent session runs steps 1 and 2. Steps 3 to 6 run in the parent, or in the `frontend-verifier` agent when the project enables configured browser verification.
 
 ## Project configuration
 
-ACStack keeps project data in the project folder, the path `~/.claude/acstack/bin/acstack project-data path` prints. Read `<project folder>/project.yaml` for:
+The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. `<project folder>/project.yaml` may set:
 
-- `frontend.directory` – frontend source directory
-- `frontend.dev_server_url` – dev server URL
-- `frontend.helpers_dir` – helper programs, not verification metadata
-- `frontend.browser.mode` – the browser environment this project prefers: `remote`, `headless`, or `local`
-- `frontend.browser.fallback` – set it to `none` to forbid any other mode standing in. Every other value allows one
-- `frontend.browser.cdp_port` – CDP port. Default `19988` for `mode: remote` (Playwriter bridge), `9555` for `headless`/`local`.
+- `frontend.directory` (default `frontend/`), `frontend.dev_server_url`, `frontend.dev_server_check`, and `frontend.commands.dev|build|lint|test`
+- `workflow.frontend_verification: true`, which makes the `frontend-verifier` agent run on final frontend code
+- `workflow.design_review`, the design gate that adds impeccable's checks (see [`impeccable.md`](impeccable.md))
+- `frontend.browser.mode`, `frontend.browser.fallback`, and `frontend.browser.cdp_port`, used only for a real-Chrome connection (see Browser choice)
 
-## Which browser mode to use
+Without configuration, the rules, measure.js, and agent-browser still work by hand. Do not create configuration for general work. Report an unreadable or invalid file instead of treating it as absent.
 
-The project states a preference. The host states what it can actually provide. One command reads both and returns the answer:
+## 1. Before the edit: design context and UI rules
 
-```bash
-~/.claude/acstack/bin/acstack config browser-mode --json
-```
+Load design context once per task, before your first edit under `frontend.directory`. When the design gate is on, follow step 0 of [`impeccable.md`](impeccable.md). Token values live in the project's design system; these rules are generic.
 
-It answers from declared configuration alone. It probes nothing, so it returns at once and always gives the same answer on the same machine.
+- A different font, font size, or weight needs a purpose: emphasis, de-emphasis, or hierarchy
+    - Reuse the project's font family and a small type scale; equivalent text uses identical typography
+- Use the spacing scale (shared tokens or repeated gaps and padding); a one-off offset usually hides a layout error
+- Give same-role siblings (bar buttons, list rows) equal padding and height
+- Align related elements to shared edges or baselines; use consistent indentation to show hierarchy
+- Center status text and controls on the same row, including inside nested action groups; a centered parent does not align its children
+- Nothing jiggles: a state change (label, pending, error, hover) must not move or resize anything it does not mean to
+    - Reserve space for changing labels and for scrollbars, so overflow never shifts text or rewraps lines
+- Content fills its component's width with equal horizontal padding; text wraps only after filling it, and no last line holds a single word
+- Make hierarchy and the primary action obvious without explanation
+- Render dropdown menus with the shared project component and tokens, never browser-native option menus or per-screen copies
+    - Keep keyboard navigation (arrows, Home/End, Enter/Space, Escape, Tab), screen-reader semantics, visible focus, dismissal, and viewport fit
+- Meet WCAG AA contrast and a 24x24px minimum target size
 
-On exit 0 it prints one JSON object:
+## 2. Static checks
 
-```json
-{
-  "mode": "headless",
-  "preferred": "remote",
-  "reason": "the project prefers remote, which this host does not declare available, so headless stands in",
-  "fallback": true
-}
-```
+When configured frontend files changed (`git status --porcelain -- <frontend.directory>`, including untracked files and excluding deletions), run the configured `frontend.commands.build`, `lint`, and `test`. When the design gate is on, run the detector, audit, and polish in [`impeccable.md`](impeccable.md) before browser work.
 
-- `mode` – the browser mode to use: `remote`, `headless`, or `local`
-- `preferred` – the project's stated `frontend.browser.mode`, or `null` when it states none
-- `reason` – one sentence that explains the choice
-- `fallback` – `true` only when `mode` differs from a stated preference
+## 3. Measure
 
-Without `--json` it prints the same two facts on one line: the mode, then the reason.
-
-### How it decides
-
-The host declares which modes this machine can provide. It does so on three axes in the global config at `~/.acstack/config.json` (`$ACSTACK_HOME/config.json` when that variable is set):
-
-- `host.browser.remote` – this machine can reach a browser on another machine
-- `host.browser.headless` – this machine can launch headless Chromium
-- `host.browser.local` – this machine has a display for a visible browser
-
-`/acstack:host` sets them. From there the rules are short:
-
-1. The project's preferred mode wins when the host declares that mode available.
-2. Otherwise the first mode the host does declare stands in, in the order remote, headless, local.
-3. A project that sets `frontend.browser.fallback: none` allows no mode to stand in.
-4. A project that states no preferred mode takes the first mode the host declares. This is not a fallback, so `fallback` stays `false` and `frontend.browser.fallback` has no say.
-
-### When it has no answer
-
-The command exits 1, writes one plain-text message to stderr, and prints nothing on stdout. This happens even with `--json`, so a caller parsing the output gets an empty stdout rather than an object to check a field on.
-
-Three situations produce it. Each message names the one command that fixes it:
-
-- the project configures no frontend, or there is no ACStack project here. The message names `/acstack:setup`
-- this host declares no browser mode available, or nobody has described this host yet. The message names `/acstack:host`
-- the project forbids a fallback, and this host does not declare the mode it prefers. The message names `/acstack:host`
-
-The frontend-verifier treats exit 1 as a FAIL and reports the message verbatim. It never guesses a mode of its own.
-
-## Browser environments
-
-agent-browser works the same way in every environment. Only the CDP connection setup differs.
-
-### Remote browser (Playwriter bridge)
-
-Best experience – you interact with the user's real browser on their machine. Set `frontend.browser.mode: remote` and `frontend.browser.cdp_port: 19988` in project.yaml.
-
-Remote mode uses the Playwriter bridge.
-
-A relay runs on the browser machine and exposes a CDP-shaped endpoint. The Playwriter Chrome extension drives Chrome through the `chrome.debugger` API. Chrome itself opens no CDP listener.
-
-The dev machine reaches the relay through an SSH reverse tunnel.
-
-This section does not decide whether remote mode runs here. `acstack config browser-mode` decides that, from the project's preference and the host's `host.browser.*` axes together. Run it before you connect.
-
-Once that command returns `remote`, the answer is final. If the bridge is then down, the frontend-verifier reports FAIL with troubleshooting steps. It does not launch headless Chromium instead, because the command already ruled on any stand-in mode.
-
-#### Setup
-
-1. **On the browser machine**, install Node 18+. Install Playwriter:
-
-   ```bash
-   npm install -g playwriter
-   ```
-
-2. **In Chrome on the browser machine** (preferably a dedicated profile), install the Playwriter extension. Pin it:
-
-   ```
-   https://chromewebstore.google.com/detail/playwriter-mcp/jfeammnjpkecdekppnclgkkffahnhfhe
-   ```
-
-3. **Run two long-running processes on the browser machine**:
-
-   ```bash
-   # Relay (listens on 127.0.0.1:19988 for the extension and for tunnelled CDP clients)
-   playwriter serve --host 127.0.0.1
-
-   # SSH reverse tunnel from the browser machine to the dev machine
-   ssh -N -R 19988:127.0.0.1:19988 <user>@<dev-machine>
-   ```
-
-4. **Per-tab activation**: in Chrome, click the Playwriter toolbar icon on each tab you want automated.
-
-5. **Verify** from the dev machine:
-
-   ```bash
-   curl -s http://localhost:19988/json/version
-   ```
-
-#### Common gotchas
-
-**Playwriter hardcodes port `19988`.** The port has no config option. The relay, the extension, and the tunnel all use the same port by design.
-
-**The relay must run on the same host as Chrome.** The Playwriter extension hard-rejects any `/extension` client that is not `127.0.0.1`.
-
-Do not run the relay on the dev machine. Run the relay where Chrome runs. Then tunnel to it from the dev machine.
-
-**You must click the extension icon once per tab.** Playwriter attaches per-tab. Playwriter cannot attach to `chrome://` and `about:` pages – use normal web URLs.
-
-**Stale relay blocks the port.** If `playwriter serve` fails because a stale relay already binds port 19988 on the browser machine, run:
+`measure.js` (beside this file) reads computed styles and geometry in the page and reports violations. Run it first; it is cheaper and more exact than reading screenshots.
 
 ```bash
-playwriter serve --host 127.0.0.1 --replace
+MEASURE="<this skill's directory>/measure.js"
+agent-browser open <dev_server_url>/<page>
+agent-browser eval --stdin < "$MEASURE"                                 # whole page
+agent-browser eval "acstackMeasure.run({scope: '[data-testid=panel]'})"  # the changed region
 ```
 
-to kick the previous relay.
+Loading the file defines `window.acstackMeasure` and returns a report for `<body>`. Navigation clears it, so load it again after `open` or a reload.
 
-**Detection**: `curl localhost:19988/json/version` returns Playwriter-flavored JSON (the bridge mimics a CDP `/json/version` payload).
+| Rule | What it reports |
+|---|---|
+| `type-size`, `type-family`, `type-weight` | Text off the scale; `distinctFontSizes` lists the sizes in the region, and each needs a purpose |
+| `spacing` | Padding, vertical margin, or gap off the spacing scale |
+| `sibling-padding`, `sibling-height` | Same-role siblings with unequal padding, or unequal height within one row |
+| `edge` | Sibling left or right edges within 4px of each other but not equal |
+| `lone-word` | A wrapped text block whose last line holds one word |
+| `contrast` | Text below WCAG AA (4.5:1, or 3:1 for large text) |
+| `target-size` | An interactive element smaller than 24x24px (inline links are exempt) |
+| `jiggle` | A box that moved or resized across a state change |
 
-#### Persistent cross-device setup
+- Each violation is `{rule, selector, actual, expected}`
+- The scale comes from the custom properties on `:root`. Token names choose the category (`font-size`, `space`, `font-family`, `weight`); without tokens, values used by two or more elements on the page form the scale, so outliers stand out
+- Fix each violation or state why it is intended. A heuristic can be wrong; an unexplained violation is not done
 
-Use the `bridge` skill for a durable Windows laptop → Linux VM setup: [`../bridge/SKILL.md`](../bridge/SKILL.md).
+### Jiggle across states
 
-It adds auto-reconnecting scheduled tasks, ssh-agent key persistence, multi-VM tunneling, automated diagnosis (`doctor.ps1`), canonical stop (`stop.ps1`), and VM-side port cleanup (`vm-free-port.sh`). It routes to a Windows runbook or a Linux/VM runbook based on where you are. It also defines the paste-ready handoff format for cross-device work.
-
-The scripts ship under `plugins/acstack/assets/playwriter-bridge/`.
-
-### Local headless (no display)
-
-This mode works on headless Linux VMs, CI, and containers – anywhere without a GUI.
-
-**Launch**:
+Record boxes, change the state, then compare. `jiggle` waits for every finite animation and transition to finish plus two animation frames before measuring, so a same-tick reading cannot pass by accident. Never replace this with a fixed sleep.
 
 ```bash
-chromium --headless --no-sandbox --remote-debugging-port=9555 --disable-gpu --user-data-dir=/tmp/chromium-verify &
+agent-browser eval "acstackMeasure.snapshot({scope: '#toolbar'})"
+agent-browser click @e5                                       # the state change
+agent-browser eval "acstackMeasure.jiggle({allow: ['.spinner']})"
 ```
 
-Try these binary names in order: `chromium`, `chromium-browser`, `google-chrome`, `google-chrome-stable`.
+`allow` lists selectors meant to move. Check normal, pending, error, and narrow layouts (`agent-browser set viewport 390 844`).
 
-**Clean up**: Kill the process when done. The frontend-verifier handles this automatically.
+## 4. Check behavior
 
-### Local with display (WSL, desktop Linux, macOS)
-
-Same as headless but with a visible browser window:
-
-```bash
-chromium --remote-debugging-port=9555 --user-data-dir=/tmp/chromium-verify &
-```
-
-Omit `--headless` to see the browser. Useful during development.
-
-## agent-browser command reference
-
-For configured verification, explicitly select the absolute `<project folder>/agent-browser.json` path before running the commands below:
-
-```bash
-export AGENT_BROWSER_CONFIG="$(~/.claude/acstack/bin/acstack project-data path)/agent-browser.json"
-```
-
-- Run this only when the file exists; alternatively pass `--config` with the same absolute path
-- Do not rely on root config autodiscovery
-- Manual CDP quality checks remain available without project configuration or a configured browser mode
-- For those checks, omit the missing config and use `agent-browser --cdp <port> ...` with the explicitly chosen endpoint
+Start the dev server bound to `127.0.0.1` when it is not running, and stop it when you started it. Then drive the change with agent-browser:
 
 | Command | Purpose |
-|---------|---------|
-| `agent-browser open <url>` | Navigate to a URL |
-| `agent-browser snapshot -i` | Accessibility tree with interactive element refs |
-| `agent-browser screenshot <path>` | Take a screenshot |
-| `agent-browser screenshot --annotate <path>` | Screenshot with numbered element labels |
-| `agent-browser click @e<N>` | Click an element by ref |
-| `agent-browser fill @e<N> "text"` | Clear the field, then type |
-| `agent-browser type @e<N> "text"` | Append text without clearing |
-| `agent-browser hover @e<N>` | Hover over an element |
-| `agent-browser press <Key>` | Press a keyboard key |
-| `agent-browser dblclick @e<N>` | Double-click |
-| `agent-browser drag @e<N> @e<M>` | Drag and drop |
-| `agent-browser console` | Check console errors/logs |
+|---|---|
+| `agent-browser open <url>` | Navigate |
+| `agent-browser snapshot -i` | Accessibility tree with interactive refs (`@e1`, ...) |
+| `agent-browser click @eN`, `fill @eN "text"`, `type @eN "text"`, `hover @eN`, `press <Key>` | Interact |
+| `agent-browser screenshot /abs/path.png` | Screenshot; use an absolute path |
+| `agent-browser console`, `agent-browser errors` | Console logs and page errors |
+| `agent-browser set viewport <w> <h>` | Resize the viewport |
+| `agent-browser wait <selector>` | Wait for an element instead of sleeping |
 
-### Critical rule: re-snapshot after DOM changes
+- Re-run `snapshot -i` after anything that changes the DOM (navigation, a click that opens something, hot reload); old refs go stale
+- Prefer `data-testid`, then the accessible role and name from the snapshot, then text; CSS selectors are a last resort
+- Report console errors even when the page looks right
+- Use a named session (`--session <task>`) and run `agent-browser close` at the end
 
-agent-browser ties element refs (`@e1`, `@e2`, etc.) to a specific DOM state. They go stale after:
+## 5. Judge, only when hierarchy or the primary action changes
 
-- Navigation
-- Clicks that change the DOM (modals, dropdowns, route changes)
-- Hot-reload after code changes
-- Any dynamic content loading
+Skip this step for changes that keep hierarchy and the primary action as they were. Otherwise launch a clean-context reviewer (the `reviewer` agent, or a general agent) with only the screenshots and a one-line statement of what the screen is for. It scores each item pass or fail with one sentence of reason:
 
-Always run `agent-browser snapshot -i` again before using element refs after any DOM change.
+1. The hierarchy is clear: the most important content reads first
+2. The primary action is obvious and singular
+3. A new user could use the screen without explanation
 
-## Selector strategy
+Treat a fail as a finding to fix or to put to the user.
 
-When recording patterns in VERIFICATION-KNOWLEDGE.md, prefer identifiers in this order:
+## Browser choice
 
-1. `data-testid="..."` – most stable, survives refactors
-2. Accessible name/role from snapshot – e.g., "button named 'Submit'"
-3. Text content – e.g., "heading containing 'Dashboard'"
-4. CSS selectors – last resort, fragile
+Use headless Chrome through agent-browser by default (install with `npm install -g agent-browser`, then `agent-browser install` when no Chrome is present). `agent-browser open` launches it; no CDP port or config file is needed. Add `--args "--no-sandbox"` on VMs and containers where Chrome reports "No usable sandbox".
 
-The snapshot gives you accessible names and roles automatically. Use these to find elements rather than fragile CSS selectors.
+Use the user's real Chrome only for checks headless cannot do: a real profile or single sign-on, platform fonts or scrollbars, Windows rendering, or a GPU. Then:
 
-## Integration points
+1. Run `~/.claude/acstack/bin/acstack config browser-mode --json`. It answers from the project's `frontend.browser.mode` and the host's declared modes, and prints `{mode, preferred, reason, fallback}`
+    - Exit 1 prints one message on stderr naming the fix (`/acstack:setup` or `/acstack:host`). Report it verbatim
+    - When `mode` is not `remote`, the real-Chrome check cannot run here; report that limit
+2. When `mode` is `remote`, connect once: `export AGENT_BROWSER_CONFIG="<project folder>/agent-browser.json"`, then `curl -sf --max-time 3 http://127.0.0.1:<cdp_port>/json/version` (port `19988` by default)
+3. If that fails, stop. Do not retry, wait, or launch something else. Report that the bridge is down and point to the `bridge` skill, which owns the Playwriter bridge setup and diagnosis
 
-- **frontend-verifier agent** uses agent-browser for configured real-browser verification – this skill is its reference
-- **verification owner** completes static and design checks under `skills/implement/design-pass.md` before configured browser verification
-- **/acstack:setup** runs the setup interviews (install, config, knowledge base scaffolding) and offers a fix for each row the health check fails
-- **`acstack config check`** reports browser infrastructure gaps without changing browser settings
-- **/acstack:quick-fix** uses agent-browser for visual verification of bug fixes
+Never kill the user's browser. Close only sessions you opened.
+
+## Verification memory
+
+Verification memory holds what the next run needs to know about this project: how to reach a screen, sign in, find a stable selector, or avoid a trap. It lives in `<project folder>/verification/`:
+
+```text
+verification/
+  VERIFICATION-KNOWLEDGE.md   index: facts every run needs, then one line per topic file
+  <topic>.md                  recipes and traps for one area, e.g. auth.md, library.md
+```
+
+- Read the index first, then only the topic files for the area you touch
+- The index stays short (about 100 lines); a topic file splits when it passes about 150 lines
+- An entry states a current fact or recipe: what, how (the exact command or selector), and why when it is not obvious
+- Replace entries; never append an incident log. Rewrite a wrong entry, delete a stale one, and merge duplicates. Dates, run narratives, and "learned on" notes do not belong
+- Record what the next run would otherwise rediscover, not what happened this run
+- Follow the `writing` skill
+- Git tracking follows the project's global or tracked mode; keep no knowledge files elsewhere

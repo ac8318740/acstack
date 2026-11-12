@@ -25,6 +25,7 @@ Map nodes define the design; GitHub hosts a published copy of the Markdown compa
 
 ```yaml
 kind: external-system
+location: github.com, in the project's repository
 channels:
 - web
 ```

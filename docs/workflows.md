@@ -1,63 +1,39 @@
 # ACStack workflows
 
-*Every request ends the same way, with your specs updated from the diff. What changes is how many questions you settle first.*
+*Every request ends with a verified commit. What changes is how many questions you settle first.*
 
-ACStack routes a request down one of three paths. Every path ends at a commit that updates your specs.
-
-- **The path depends on what is in your way**: nothing, a bug, or an unanswered question
-- **A clear request goes straight to implementation and adaptive verification** (see section 4)
-- **A bug goes to root-cause analysis first** (see section 2)
-- **A request with open questions becomes a to-do graph** you work through (see section 1)
-- **The rest of this document** is the detail behind one box of the diagram below
-- **Project records live in the project folder**, the path `~/.claude/acstack/bin/acstack project-data path` prints; this document writes its parts as `<project folder>/specs/` and so on ([config-reference.md](config-reference.md) explains where it lives)
+ACStack routes a request by what stands in its way: nothing, a bug, or open decisions. Each box below links to the file that owns its rules.
 
 ```mermaid
 flowchart TD
     R["A request<br/>(feature, bug, refactor)"] --> Q{"What stands<br/>in the way?"}
-    Q -->|"nothing – the way is clear"| I["Implement<br/>(implement)"]
-    Q -->|"it is broken"| F["Root-cause fix<br/>(quick-fix)"]
+    Q -->|"nothing: the way is clear"| I["Implement<br/>(implement)"]
+    Q -->|"it is broken"| F["Root-cause fix<br/>(fix)"]
     Q -->|"open decisions"| M["Map<br/>(chart, then work the frontier)"]
     M -->|"work nodes"| I
-    I --> T["Verify the change<br/>(shared Implementation discipline)"]
+    I --> T["Verify the change<br/>(Implementation discipline)"]
     F --> T
-    T --> C["Commit<br/>(acstack:commit)"]
-    C --> Y["Sync specs from the diff<br/>(domain-map.yaml)"]
-    Y --> L[("Living specs<br/>in the project folder")]
+    T --> C["Commit<br/>(commit)"]
     M -->|"every question answered"| A["Archive<br/>(check the decisions landed,<br/>then delete the nodes)"]
-    A --> L
+    A --> L[("Tests, ADRs, glossary")]
 ```
 
-| Step in the diagram   | Detail    |
-| --------------------- | --------- |
-| Map, the to-do graph  | section 1 |
-| Implement             | section 2 |
-| Asking and recording  | section 3 |
-| Verify the change     | section 4 |
-| Commit **and** sync   | section 5 |
-| Archive               | section 6 |
-| Living specs          | section 7 |
+| Box | Owner |
+| --- | --- |
+| Map | [`skills/map`](../skills/map/SKILL.md); questions through [`skills/grilling`](../skills/grilling/SKILL.md), decisions recorded by [`skills/record-context`](../skills/record-context/SKILL.md) |
+| Implement | [`skills/implement`](../skills/implement/SKILL.md) |
+| Root-cause fix | [`skills/fix`](../skills/fix/SKILL.md) |
+| Verify the change | Implementation discipline, Review before commit, and Build verification in [`orchestrator/AGENTS.md`](../orchestrator/AGENTS.md) |
+| Commit | [`skills/commit`](../skills/commit/SKILL.md) |
+| Archive | [`skills/archive`](../skills/archive/SKILL.md) |
 
-The request box is a terminal, not a step. Section 5 covers two boxes because one command does both.
+Project records live in the project folder; [config-reference.md](config-reference.md) explains where. Parallel work follows [concurrent-work.md](concurrent-work.md).
 
-Section 8 describes this document. No box holds it.
+## Map vocabulary
 
-## 1. The map, meaning the to-do graph
+A map is a set of small records called nodes. Nothing stores the map itself; it is queries over the nodes. ACStack never sorts requests into sizes: there is one path, and only the node count changes.
 
-*One kind of record replaces the fixed proposal, design, and tasks pipeline earlier versions used. Nothing stores the map itself. It is queries over the nodes.*
-
-- **A map** is a set of small records called nodes
-- **A node** is one question to settle or one piece of work to do
-- `/acstack:map` is the entry point for planned work
-    - It charts a map when none exists, opening with a grill, a round of questions that fixes the destination and surfaces the fog
-    - The destination is what finished looks like
-    - It works the frontier instead when a map exists
-- ACStack never sorts requests into sizes
-    - Nothing picks a different process for a big one
-    - There is one path, and only the node count changes
-
-A node carries one of five statuses.
-
-| Status | What it means |
+| Status | Meaning |
 | --- | --- |
 | `fog` | nobody can state it precisely yet |
 | `open` | ready to settle |
@@ -65,224 +41,10 @@ A node carries one of five statuses.
 | `resolved` | settled |
 | `out-of-scope` | deliberately dropped |
 
-A node carries a `kind`, a `label`, and a `mode` too. Two link types connect the nodes.
+- **`mode`**: who settles the node. `hitl` is a human; `afk` is an agent alone
+- **`answers`**: the one node whose answer raised this one. These links form a tree, which gives a reading order
+- **`blocked-by`**: nodes that must resolve before this one starts. These links never loop
+- **frontier**: the `open` nodes with no unresolved blockers, ready to work now
+- **residue**: what an effort leaves behind: tests, ADRs, and glossary entries
 
-- **`kind`** is one of five: `destination`, `notes`, `decision`, `research`, `work`
-    - It picks the node's shape in a diagram, never how the map routes it
-- **`label`** is the node's short name for a diagram, at most four words
-- **`mode`** says who settles the node: `hitl` for a human, `afk` for an agent alone
-- **`answers`** names the one node whose answer raised this one
-    - The parent links form a tree, which gives you a reading order
-    - An agent packages a handoff by walking that tree
-- **`blocked-by`** names any number of nodes that must resolve before this one starts
-    - The blocking edges form a directed acyclic graph, meaning the edges never loop back
-    - These edges tell you what you can work right now
-
-Every node body carries a diagram, two at most. A childless `notes` node is the one exception.
-
-- A node with children draws its own subtree, rendered by `acstack node diagram`
-- Every other node draws what its question or its change touches, drawn by the agent
-- A second mermaid fence under each diagram is its legend, showing only the cues that diagram uses
-- On GitHub every node id in a diagram links to its issue
-- `skills/map/visuals.md` holds the rules
-
-ACStack works depth out from `answers`. Nobody declares it. The map itself is five queries.
-
-| The question | The query |
-| --- | --- |
-| Where are we going? | the root node |
-| What have we decided? | the `resolved` nodes, in the order the decisions happened |
-| What can we work now? | the `open` nodes with no unresolved blockers |
-| What is not yet specified? | the `fog` nodes |
-| What did we drop? | the `out-of-scope` nodes |
-
-Nodes live in a tracker. That is the storage layer, and you can swap it.
-
-- A tracker provides four operations and nothing more: create, read, update, list
-- GitHub issues are the default
-    - The first line of every issue body carries all of that node's edges
-    - One list call therefore returns the whole graph
-    - A sub-issue and a dependency mirror those edges, so GitHub's own interface draws the map
-- Files under `<project folder>/maps/<name>/` are the fallback
-    - Frontmatter holds the edges, so those files carry no header line
-- Frontier, claim, and resolve build on those four operations
-    - No tracker implements them itself
-
-**Build no more process than the job needs.**
-
-- You create a map only when the fog will outlive the session
-- You settle one question in conversation
-    - That leaves an architecture decision record (ADR), not a map
-
-## 2. Implement
-
-*A unit of work carries its own size. One node is a quick change.*
-
-*Forty is a long effort. Nothing declares which.*
-
-- `/acstack:implement` claims `afk` work nodes from the frontier when a map exists
-    - It treats the request itself as the work item when none does
-    - Either way, investigate relevant code directly or through useful delegation
-- The command resolves paths at claim time
-    - A node describes behaviour
-    - It can sit unstarted for weeks
-- The shared Implementation discipline applies inside each claim (see section 4)
-- A node only ever moves `open -> claimed -> resolved`
-    - The agent releases the claim when work stalls
-    - The node is plainly open again
-- Progress is a query, not a checkbox file
-    - Resuming never means re-reading an effort end to end
-
-`/acstack:quick-fix` stays separate. A broken thing is a different problem from an unanswered question.
-
-- A bug has a root cause to find, not a decision to settle
-- `/acstack:quick-fix` therefore never creates a node
-
-## 3. Asking the questions, and writing the answers down
-
-*Three skills the agent reaches for itself, without you typing a command, carry the interviewing, the recording, and the writing.*
-
-- **`grilling`** is the interview
-    - It works through your decisions one round at a time
-    - A round asks the whole frontier, every question whose prerequisites have resolved, numbered, each with a recommended answer
-    - It then recomputes the frontier and repeats
-    - Facts are the agent's job, never yours
-    - It investigates technical facts directly or through useful delegation
-    - Presentation follows `workflow.grilling.questions`, the host's question tool by default
-    - It falls back to inline prose past 4 questions, or for a question with no discrete options
-    - There is no question cap
-    - The set of answerable questions bounds itself
-- **`record-context`** fires when a decision lands
-    - It writes an ADR under `<project folder>/decisions/` only when the decision is hard to reverse *and* surprising *and* a real trade-off
-    - It writes a glossary term when a term got settled, in `<project folder>/CONTEXT.md` for cross-domain vocabulary
-    - It writes a domain term in `<project folder>/specs/<domain>/CONTEXT.md` instead
-    - It can write both, or neither
-    - ACStack generates the ADR index from the files
-    - Nobody hand-edits it
-- **`writing`** holds the standard every durable artifact follows: node answers, ADRs, glossary entries, specs and handoffs
-    - The words to avoid live in `skills/writing/vocabulary.md`
-
-## 4. Verify the change
-
-*Choose checks that can detect realistic mistakes, then gather evidence before completion.*
-
-```mermaid
-flowchart LR
-    A["Assess what breaks"] --> B["Choose checks and useful delegation"]
-    B --> C["Test and implement"]
-    C --> D["Verify evidence and required gates"]
-    D -->|insufficient or failed| B
-    D -->|pass| E["Report results and limits"]
-```
-
-- The authoritative policy lives in `orchestrator/AGENTS.md`, under Implementation discipline
-- One agent can investigate, test, implement, and verify straightforward work
-- Publish usable intermediate outputs with their revision, uncertainty, and change impact so related work can proceed
-    - Distinguish start prerequisites from completion prerequisites; pause only work needing a concrete missing input
-    - Coordinate shared-file regions and reread latest changes; serialize actual conflicts and integration steps
-    - Reconcile accepted upstream outputs and run integrated checks before final acceptance
-    - See [Concurrent work](concurrent-work.md) for military planning, JPL Team X, and film-editing precedents
-- Practical tests-first work remains preferred
-- Another agent adds independent interpretation or review when useful or required by the shared policy
-- Choosing separate test ownership prevents the implementer from weakening those tests
-- One verification owner gathers formatting and project-required completion evidence for the final revision
-    - Use focused checks during implementation and reuse valid results across agents, nodes, and commits
-    - Rerun affected checks when relevant code, inputs, or environment change, or validity is uncertain
-- Review depth follows plausible failures in affected security, resource lifecycle, concurrency, and performance paths
-- Adjacent cleanup stays advisory unless the user approves it; approved independent work can run in parallel without blocking delivery
-- Deep modules hide complexity: callers need fewer facts, and each rule has one owner
-- Frontend design checks run under `skills/implement/design-pass.md`, even without a delegated checker
-- Configured real-browser verification runs on the final code after required gates pass
-- Report commands, results, and blocked checks rather than phase narration
-- Deprecated TDD booleans no longer control order or delegation, including explicit `true`
-    - Existing config remains readable without automatic rewriting
-    - New setup offers no replacement switches
-
-
-## 5. Commit and sync specs
-
-*Spec sync runs on every commit on every path. It reads the diff. Your specs therefore describe what you built, not what you planned.*
-
-`/acstack:commit` groups changes into MECE commits. MECE means mutually exclusive and collectively exhaustive: no change appears twice, and no change goes missing. Before writing them it does five things.
-
-1. Reads `<project folder>/domain-map.yaml` to map each changed file to a domain.
-2. Works out what the diff adds, modifies or removes, for each affected domain with a `spec.md`.
-3. Writes those entries into the domain's spec; it stages the specs only when they sit inside the working tree being committed, which happens only in tracked mode from the main checkout.
-4. Flags source files that match no domain.
-5. Checks the glossaries.
-
-On the glossary check:
-
-- It says so when the diff renames or deletes an identifier matching a glossary term
-- It never edits the glossary
-- For specs the code wins
-- For the glossary the human wins
-
-Four cases stop sync.
-
-- `workflow.spec_sync` set to `false`
-- no domain map
-- no file matching a domain
-- a change that touches only docs and config
-
-**Without `<project folder>/domain-map.yaml` this step does nothing, silently.**
-
-- `/acstack:setup` generates that file
-- `acstack config check` reports it as missing on a project set up before that existed
-
-## 6. Archive
-
-*A map is working state, not a record you keep. Archive checks the decisions reached your specs, your decision notes, and your glossary, then deletes the nodes.*
-
-- `/acstack:archive` checks all nodes, not just the frontier: no open questions, fog, or claims apart from the root
-- A bound design requires completed feedback reconciliation and current exact-revision approval
-- Archive checks living specs against implemented behavior, not proposals
-- Archive applies `record-context`'s existing ADR and glossary criteria
-- Archive records dropped scope, unresolved limits, and durable node provenance before disposal
-- Design source, canonical review evidence, imported history, and decision logs survive regardless of `workflow.maps.persist`
-- Archive never recursively deletes review artifacts or evidence-bearing handoffs
-- It then disposes of the nodes
-    - It deletes them by default
-    - It moves them to `<project folder>/archive/<date>-<name>/nodes/` when `workflow.maps.persist` is `true`
-    - Keeping nodes is off by default
-    - A kept map is a second copy of every decision
-    - The two drift apart
-    - On the GitHub tracker there is nothing to dispose
-    - A closed issue is already the archive
-- Archive runs either way
-    - The user types `/acstack:archive`
-    - `/acstack:map` hands off to it once every node resolves
-    - The disposal step then asks you first
-- Legacy `<project folder>/changes/` directories from the pre-map workflow still archive the old way
-    - An upgrade therefore never strands work
-
-## 7. Living specs
-
-*What the project keeps. ACStack deletes a map once every question resolves. `<project folder>/specs/` outlives it.*
-
-- Specs live at `<project folder>/specs/<domain>/spec.md`, organised by the domains in `domain-map.yaml`
-- Each spec states numbered functional requirements (`FR-NNN`) in Given, When, Then form
-- They are cumulative
-- They describe only what the code already does
-- A roadmap item in a living spec is a bug in the spec
-
-Two rules keep them honest.
-
-- **Two writers, one target**
-    - Commit-time sync handles incremental change
-    - Archive verifies a completed map left nothing behind
-    - Both converge on the same files
-- **Fix it when you see it**
-    - An agent that finds a contradiction corrects the spec or routes the correction to its owner
-    - A read-only reviewer reports the discrepancy to the completion owner
-    - The owner rewrites wrong behaviour, appends missing requirements, and deletes stale references
-
-`/acstack:bootstrap` generates the first set from an existing codebase. A project never starts from an empty directory.
-
-## 8. Where the design record lives
-
-*This section describes the document, not the system. No diagram box holds it.*
-
-- The reasoning behind this design lives in the issues labelled `wayfinder` on this repository
-- That covers why one node type, why four tracker operations, and why no tiers
-- Each issue is one decision with the reasoning that produced it
+Kinds, labels, and the tracker contract are in [`skills/map/trackers/files.md`](../skills/map/trackers/files.md).

@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LABEL_MAX_CHARS, LABEL_MAX_WORDS } from './nodes.js';
 import { nodesFromIssues } from './github-issues.js';
-import { renderDiagram } from './diagram.js';
 
 // ---------------------------------------------------------------------------
 // Building input
@@ -339,30 +338,5 @@ describe('label', () => {
       )
     );
     expect(nodes[0].label).toBe('A · B');
-  });
-});
-
-describe('url', () => {
-  it('never lets a url break out of the anchor it is written into', () => {
-    // A single quote closes the href mermaid opened, and everything after it
-    // lands as further attributes on the anchor.
-    const url = "https://github.com/acme/repo/issues/101' onmouseover='steal()";
-    const render = () =>
-      renderDiagram(
-        nodesFromIssues(
-          issuesJson(issue({ number: 101, labels: ['map:demo', 'kind:destination'], url }))
-        )
-      );
-    let out: string;
-    try {
-      out = render();
-    } catch {
-      // Refusing a url that is not a plain https link is the other answer the
-      // requirement allows, and it closes the hole just as well.
-      return;
-    }
-    const tags = out.match(/<a\b[^>]*>/g) ?? [];
-    expect(tags.length).toBeGreaterThan(0);
-    for (const tag of tags) expect(tag).toMatch(/^<a href='[^'<>]*'>$/);
   });
 });

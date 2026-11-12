@@ -5,19 +5,19 @@
 Optional `<project folder>/project.yaml` holds saved ACStack project settings.
 The project folder is the repository's ACStack data folder, the path `~/.claude/acstack/bin/acstack project-data path` prints (section 1 explains where it lives).
 
-General implementation, investigation, and review work without setup. Without this file, agents use repository instructions, manifests, existing tests, and CI to discover commands and directories. They do not invent commands or create configuration automatically. Run `/acstack:setup` when you want saved settings or storage-backed features such as maps and living specs.
+General implementation, investigation, and review work without setup. Without this file, agents use repository instructions, manifests, existing tests, and CI to discover commands and directories. They do not invent commands or create configuration automatically. Run `/acstack:setup` when you want saved settings or storage-backed features such as maps.
 
 Existing configuration keeps its gates. Unreadable or invalid configuration, legacy data, and project-data conflicts require the reported repair; they are not absent-config fallbacks. Orphan warnings alone do not block general work.
 
 - **It names what to run**: the test, build, lint, typecheck, and format commands
 - **It names where to look**: the source and test directories, and the frontend
-- **It configures required gates**: spec sync, frontend verification, and design review
+- **It configures required gates**: frontend verification, and design review
 - **Agents read it when present** before running project checks
 - **A key you leave out takes the default** this document gives it
 
 Three terms first.
 
-- **A key** is one dotted path into the file, such as `workflow.spec_sync`
+- **A key** is one dotted path into the file, such as `workflow.read_guard`
 - **A default** is what ACStack does when the file states no value
 - **A rung** is one token count at which the context-pressure hook speaks up, asking the session to choose continuity or freshness
 
@@ -49,7 +49,7 @@ flowchart TD
 
 *The setup skill writes the whole file. To change one key, run `acstack config set`.*
 
-- `<project folder>/project.yaml` sits beside `<project folder>/domain-map.yaml`
+- `<project folder>/project.yaml` sits at the top of the project folder
 - `/acstack:setup` writes it
     - On a fresh project the skill detects the project type, then writes every key from a profile under `profiles/`
     - On a project that already has the file, the skill leads with the health check and offers a menu of changes
@@ -77,7 +77,7 @@ These commands report configuration without changing settings.
     - It exits non-zero with a repair message for legacy, invalid, or conflicting data
     - Orphan warnings do not block a valid current repository or adopt the orphan's settings
     - The session-start hook states the same path in the agent's context
-- This document writes a part inside it as `<project folder>/project.yaml`, `<project folder>/specs/`, and so on
+- This document writes a part inside it as `<project folder>/project.yaml`, `<project folder>/maps/`, and so on
 - `/acstack:setup` creates the folder with `mkdir -p "$(~/.claude/acstack/bin/acstack project-data path)"`
 - No configuration key and no `.gitignore` rule controls where project data lives
 
@@ -95,24 +95,20 @@ A project uses one of two modes.
 - In tracked mode the project folder resolves into the main checkout
     - Edits to a feature branch's own `.acstack/` take effect only once they reach the main checkout
     - A teammate's clone links its entry to the committed `.acstack/` automatically on first use
-- Spec sync stages updated specs only when they sit inside the working tree being committed
-    - In global mode they never do
-    - In tracked mode they do only for a commit made in the main checkout
 
 Every part keeps its name inside the project folder.
 
 | Part | Path |
 | --- | --- |
 | Project configuration | `<project folder>/project.yaml` |
-| Domain map | `<project folder>/domain-map.yaml` |
-| Living specs | `<project folder>/specs/` |
 | Maps | `<project folder>/maps/` |
 | Archives | `<project folder>/archive/` |
 | Legacy change records | `<project folder>/changes/` |
 | Legacy review artifacts | `<project folder>/alignment-packs/` |
+| Retired living specs and domain map, left untouched | `<project folder>/specs/`, `<project folder>/domain-map.yaml` |
 | Canonical design reviews | `<project folder>/design-reviews/` |
 | Architecture decisions | `<project folder>/decisions/` |
-| Cross-domain glossary | `<project folder>/CONTEXT.md` |
+| Glossary | `<project folder>/CONTEXT.md` |
 | Browser connection | `<project folder>/agent-browser.json` |
 | Verification knowledge | `<project folder>/verification/VERIFICATION-KNOWLEDGE.md` |
 | Test baseline | `<project folder>/.test-baseline` |
@@ -193,7 +189,7 @@ What migration does:
 
 - ACStack removes legacy `map --map` and `align-viewer` without aliases
 - Use `design-doc <map>` to review a map's design doc; its elements are `element` nodes on that map
-- Use `node walk`, `node frontier`, and `node diagram` for map planning
+- Use `node walk` and `node frontier` for map planning
 - Review evidence in `design-reviews/` outlives temporary map nodes regardless of `workflow.maps.persist`
 
 ### 1.1. Which file a write lands in
@@ -318,7 +314,7 @@ Three refusals protect a file neither command can handle.
     - `acstack config unset` leaves that line standing when it removes a block's last key
     - The tool wrote `workflow:` itself, so the listing does not warn about it
 - A key holding a dot is a key of its own
-    - YAML reads `"workflow.spec_sync": true` as one key whose name contains a dot
+    - YAML reads `"workflow.read_guard": true` as one key whose name contains a dot
     - The same file may state the nested spelling as well
     - The listing prints both rows, and marks the literal one
     - Every command walks the blocks, so all of them answer out of the nested spelling
@@ -339,11 +335,10 @@ Three refusals protect a file neither command can handle.
 
 ## 3. workflow: the switches
 
-*Six booleans sit in the block. Each one changes how much discipline ACStack applies. A byte count tunes the large-read guard, and one more key decides how the agent asks you a question.*
+*Five booleans sit in the block. Each one changes how much discipline ACStack applies. A byte count tunes the large-read guard, and one more key decides how the agent asks you a question.*
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `workflow.spec_sync` | `true`, `false` | `true` | the `commit` skill runs spec sync before it commits, unless this says `false`; with `false` the living specs under `<project folder>/specs/` stop tracking the code |
 | `workflow.tdd.strict` | `true`, `false` | none | deprecated compatibility boolean; no sequencing effect, including explicit `true` |
 | `workflow.tdd.orchestrator_strict` | `true`, `false` | none | deprecated compatibility boolean; no delegation effect, including explicit `true` |
 | `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, and the change touched frontend files |
@@ -358,8 +353,6 @@ How a boolean reads:
     - `false`, `no`, and `off` all read as false
 - The tables show `true` and `false`
     - That is what the file holds after `acstack config set` writes one
-- `workflow.spec_sync` reads as on unless the file states one of the three false spellings outright
-    - The `commit` skill treats a missing key and an explicit `true` the same way
 - `workflow.frontend_verification` reads as off unless the file states one of the three true spellings outright
     - The frontend-verifier is the only reader
     - `orchestrator/AGENTS.md` and the `browser-verify` skill both run it on an explicit `true` alone
@@ -593,8 +586,8 @@ Two limits are worth knowing.
 | `commands.lint` | a shell command, or `null` | from the profile | the verification owner lints with it, usually with a fix flag |
 | `commands.typecheck` | a shell command, or `null` | from the profile | the verification owner type-checks with it |
 | `commands.format` | a shell command, or `null` | from the profile | format touched files before final verification; `null` means no format step |
-| `directories.source` | a path | `src/` | where `/acstack:setup` explores to propose the domain map, and where the implementer writes source |
-| `directories.tests` | a path | `tests/` | where tests live; assigned separate test ownership governs who may edit them |
+| `directories.source` | a path | `src/` | where the implementer writes source |
+| `directories.tests` | a path | `tests/` | where tests live |
 | `test_markers.exclude` | comma-separated markers, or `null` | `null` for Node, `slow,integration` for Python | which markers a default test run leaves out, as in `pytest -m` |
 | `venv.activate` | a shell command, or `null` | `null` for Node, `source .venv/bin/activate` for Python | every agent prefixes each command with it when the file states one |
 
@@ -683,7 +676,6 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
 
 ```yaml
 workflow:
-  spec_sync: true
   grilling:
     questions: tool
   # /acstack:setup writes true for a project with a frontend.

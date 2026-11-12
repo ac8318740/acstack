@@ -42,7 +42,7 @@ This example keeps the existing architecture: Agent skills guide the agent; the 
 7. The agent revises element nodes, picks up answer follow-ups at its next frontier recompute, and reconciles each comment
 8. The developer approves the revision, which approves every element
 9. The agent requires `approval.valid: true` from `acstack design-review status <map>` before implementation
-10. At map closeout, archive verifies implemented functional requirements in living specs, architecture decision records (ADRs), and agreed glossary terms before disposing of temporary nodes
+10. At map closeout, archive verifies tests for the implemented behavior, architecture decision records (ADRs), and agreed glossary terms before disposing of temporary nodes
 
 ### Approval belongs to exact inputs
 
@@ -180,6 +180,8 @@ The ACStack plugin contains Agent skills, Agent session setup, and the CLI packa
 - State: awaiting approval
 - Channels: none
 
+Location: Markdown files in the project folder, or GitHub issues on the GitHub tracker
+
 Map nodes define the design; GitHub hosts a published copy of the Markdown companion only if the developer chooses to share it.
 
 - The map drives the review
@@ -204,6 +206,8 @@ Map nodes define the design; GitHub hosts a published copy of the Markdown compa
 - Kind: external-system
 - State: awaiting approval
 - Channels: web
+
+Location: github.com, in the project's repository
 
 Map nodes define the design; GitHub hosts a published copy of the Markdown companion only if the developer chooses to share it.
 

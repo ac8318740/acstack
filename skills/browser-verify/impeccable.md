@@ -1,6 +1,6 @@
-# The design pass
+# The impeccable design gate
 
-The parent session owns audit and polish; frontend checks remain required even when the session delegates no task-checker.
+This file covers the optional design gate, the impeccable checks that run when `workflow.design_review` is on. The generic UI rules, measure step, and browser checks live in [`SKILL.md`](SKILL.md). The parent session owns audit and polish; these checks remain required even when no reviewer ran.
 
 ```mermaid
 flowchart TD
@@ -16,15 +16,6 @@ flowchart TD
 ```
 
 ## 0. Load design context before a UI edit (mandatory)
-
-- Frontend content fills its component's available width with equal horizontal padding; text wraps only after filling that width
-- Reuse the project's font family and a small type scale; equivalent text uses identical typography, with variations reserved for meaningful hierarchy
-- Align related elements to shared edges or baselines; use consistent spacing and indentation to show their hierarchy
-- Center status text and controls on the same row, including inside nested action groups; a centered parent does not align its children
-- Use shared spacing tokens or repeated gaps and padding; avoid one-off offsets that conceal a layout error
-- Reserve scrollbar space in scrollable panels so overflow never shifts text or changes line wrapping
-- Render dropdown menus with shared project components and tokens, not browser-native option menus or per-screen copies
-- Preserve keyboard navigation, screen-reader semantics, visible focus, dismissal, and viewport fit in shared dropdowns
 
 impeccable is a third-party design plugin. It holds the project's design context, meaning the files that state the design rules and the token definitions a UI file follows.
 
@@ -81,7 +72,7 @@ Each directive below asks for work you do not own. Put it in your report and car
 - `NO_PRODUCT_MD` and `PRODUCT_INIT_REQUIRED` – both point at impeccable's `init`, which owns `PRODUCT.md`
 - `INCUMBENT_WORLD_UNDOCUMENTED` and `WORLD_DISCOVERY_REQUIRED` – both point at impeccable's `document`, which owns `DESIGN.md`
 - `UPDATE_AVAILABLE` – never run impeccable's `update` in the same turn, because it rewrites files this session is reading
-- `MANUAL_DETECTOR_REQUIRED` – report it to the verification owner, who runs the detector under `skills/implement/design-pass.md`
+- `MANUAL_DETECTOR_REQUIRED` – report it to the verification owner, who runs the detector in step 2 below
 
 **File ownership**
 
@@ -97,7 +88,7 @@ impeccable installs its own PostToolUse hook, a check Claude Code runs right aft
 
 - Follow the shared Implementation discipline in `orchestrator/AGENTS.md`
 - The verification owner gathers the file list, completes static checks, and handles the detector
-    - A delegated task-checker may own this work, but its presence is optional
+    - A delegated reviewer may own this work, but its presence is optional
 - Read `<project folder>/project.yaml` before deriving paths
     - This pass requires a configured `frontend`
     - `frontend.directory` defaults to `frontend/` when omitted
@@ -116,15 +107,11 @@ git status --porcelain -- <frontend.directory>
     - `frontend.commands.build`
     - `frontend.commands.lint`
     - `frontend.commands.test`
-- Leave browser interaction to `frontend-verifier` after the required gates pass
+- Leave browser interaction to steps 3 to 6 of `SKILL.md` after the required gates pass
 
 ## 2. Run the design detector
 
-- Verify shared edges, text baselines, control centers, gaps, and padding before running the detector
-- Check nested groups as well as their parents; a shared row must not leave status text aligned to a button's top edge
-- Check normal, pending, error, and narrow layouts; compare bounding boxes or text baselines in the browser rather than judging a screenshot alone
-- Verify dropdowns reuse the shared component and project tokens before running the detector
-- Check arrow keys, Home/End, Enter/Space, Escape, Tab, focus, and viewport fit when a shared dropdown changes
+- Shared edges, padding, and jiggle are measured by `measure.js` (step 3 of `SKILL.md`), not judged from screenshots
 - Check the design gate before running the detector
 
 ```bash
@@ -184,5 +171,5 @@ npx impeccable detect --json <file> [<file>...]
     - The checker reruns affected tests, static checks, and the detector without editing files
 - Without a delegated checker, the parent reruns those checks on the polished code
 - Resolve failures before browser verification
-- Delegate `frontend-verifier` on final code when the project enables configured browser verification
+- Then measure and check behavior on the final code (steps 3 to 6 of `SKILL.md`), through `frontend-verifier` when the project enables configured browser verification
 - Report actual checks and results, including detector warnings and advisory findings

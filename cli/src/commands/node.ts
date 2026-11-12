@@ -8,7 +8,7 @@ import { fail, inProject, readStdin } from '../lib/utils.js';
 import { invalidEnumValue } from '../lib/global-config.js';
 import { projectFile } from '../lib/constants.js';
 import { getProjectKey } from '../lib/project-config.js';
-import { renderDiagram, stripDiagrams } from '../lib/diagram.js';
+import { stripDiagrams } from '../lib/diagram.js';
 import { nodesFromIssues } from '../lib/github-issues.js';
 import {
   NODE_STATUSES,
@@ -141,8 +141,8 @@ interface BackendOptions {
 }
 
 /**
- * The nodes of whichever backend the flags name, for `walk`, `frontier` and
- * `diagram`. One home for the rules, so the three cannot drift apart on which
+ * The nodes of whichever backend the flags name, for `walk` and `frontier`.
+ * One home for the rules, so the two cannot drift apart on which
  * backend a pair of flags means or on how they refuse a map they cannot read.
  */
 function backendNodes(root: string, command: string, opts: BackendOptions): GraphNode[] {
@@ -272,7 +272,7 @@ function registerCreate(nodeCmd: Command): void {
     .option('--status <status>', oneOf(NODE_STATUSES), parseStatus)
     .option('--mode <mode>', 'hitl (a human settles it) or afk (an agent settles it alone)', parseMode)
     .requiredOption('--kind <kind>', ALLOWED_KINDS_SENTENCE, parseKind)
-    .requiredOption('--label <label>', `short name for diagrams: ${LABEL_CAP_SENTENCE}`)
+    .requiredOption('--label <label>', `short name for map views: ${LABEL_CAP_SENTENCE}`)
     .option('--summary <text>', SUMMARY_HELP)
     .option('--answers <id>', 'the node whose resolution raised this one (its provenance parent) – required except on the root')
     .option('--blocked-by <ids>', 'comma-separated ids of nodes that must settle before this one can be worked', parseIdList)
@@ -336,7 +336,7 @@ function registerUpdate(nodeCmd: Command): void {
     .option('--status <status>', oneOf(NODE_STATUSES), parseStatus)
     .option('--mode <mode>', oneOf(NODE_MODES), parseMode)
     .option('--kind <kind>', ALLOWED_KINDS_SENTENCE, parseKind)
-    .option('--label <label>', `new short name for diagrams: ${LABEL_CAP_SENTENCE}`)
+    .option('--label <label>', `new short name for map views: ${LABEL_CAP_SENTENCE}`)
     .option('--summary <text>', `${SUMMARY_HELP}; empty string clears`)
     .option('--answers <id>', 'new provenance parent')
     .option('--blocked-by <ids>', 'comma-separated blocking ids; empty string clears', parseIdList)
@@ -473,23 +473,6 @@ function registerWalk(nodeCmd: Command): void {
     );
 }
 
-function registerDiagram(nodeCmd: Command): void {
-  nodeCmd
-    .command('diagram')
-    .description(
-      'Render the map as mermaid, wrapped in the replaceable diagram markers.\n' +
-        `Reads the files backend with --map, or a \`${GH_ISSUE_LIST}\` pipe with --stdin.`
-    )
-    .option('--map <name>', MAP_HELP)
-    .option('--stdin', STDIN_HELP)
-    .option('--from <id>', 'draw this node and its descendants only, rather than the whole map')
-    .action(
-      inProject((root, opts: BackendOptions & { from?: string }) => {
-        console.log(renderDiagram(backendNodes(root, 'diagram', opts), { from: opts.from }));
-      })
-    );
-}
-
 function registerList(nodeCmd: Command): void {
   nodeCmd
     .command('list')
@@ -546,7 +529,6 @@ export function register(program: Command): void {
   registerUpdate(nodeCmd);
   registerFrontier(nodeCmd);
   registerWalk(nodeCmd);
-  registerDiagram(nodeCmd);
   registerList(nodeCmd);
   registerKinds(nodeCmd);
 }

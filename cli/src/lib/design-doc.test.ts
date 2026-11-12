@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { designDocToPack, designFromNodes, renderDesignDocMarkdown, targetingNodes } from './design-doc.js';
+import { designCheck, designDocToPack, designFromNodes, renderDesignDocMarkdown, targetingNodes } from './design-doc.js';
 import { generateDesignDoc } from '../commands/design-doc.js';
 import { createNode, type GraphNode } from './nodes.js';
 import { buildDiagram, initialExpandedGroups } from '../viewer/alignment-graph.js';
@@ -112,6 +112,59 @@ describe('design docs built from map nodes', () => {
       'Locked element 003 sits inside loose element 002',
       'Node 010 is open on locked element 003',
     ]);
+  });
+  it('shows work progress per element and never lets work hold approval', () => {
+    const nodes = [...fixture(),
+      node('010', { kind: 'work', mode: 'afk', answers: '002', status: 'resolved' }),
+      node('011', { kind: 'work', mode: 'afk', answers: '002', status: 'claimed' }),
+      node('012', { kind: 'work', mode: 'afk', answers: '002', blockedBy: ['011'] }),
+      node('013', { kind: 'work', mode: 'afk', answers: '002' }),
+      node('014', { kind: 'work', mode: 'afk', answers: '003', status: 'out-of-scope' }),
+      node('015', { kind: 'work', mode: 'afk', answers: '003' }),
+      node('016', { kind: 'decision', answers: '003' }),
+      node('017', { kind: 'notes', mode: 'afk', answers: '003' }),
+    ];
+    const { doc, warnings } = build(nodes);
+    const pack = designDocToPack(doc);
+    expect(pack.graph.nodes.find(n => n.id === '002')!.progress).toEqual([
+      { id: '010', title: 'Node 010', status: 'done' }, { id: '011', title: 'Node 011', status: 'in-progress' },
+      { id: '012', title: 'Node 012', status: 'blocked' }, { id: '013', title: 'Node 013', status: 'todo' },
+    ]);
+    expect(pack.graph.nodes.find(n => n.id === '003')!.progress).toEqual([{ id: '015', title: 'Node 015', status: 'todo' }]);
+    // Work and notes are not questions: they never hold approval. Work is progress only, on loose (002) and locked (003) elements alike; a question still holds approval.
+    expect(targetingNodes(nodes).map(n => n.id)).toEqual(['016']);
+    expect(warnings).toEqual(['Node 016 is open on locked element 003']);
+    expect(doc.sourceRevision).toBe(build(fixture()).doc.sourceRevision);
+  });
+  it('checks mocks, locations, and top-level size; locked elements only warn', () => {
+    const root = node('001', { kind: 'destination', answers: undefined, title: 'Example' });
+    const element = (id: string, yaml: string, fields: Partial<GraphNode> = {}) => node(id, { body: block('Design element', yaml), ...fields });
+    const nodes = [root,
+      element('002', 'kind: component\nchannels: [web]\nconnections: [{to: 003, direction: one-way, label: Uses}]'),
+      element('003', 'kind: store'),
+      element('004', 'kind: external-system\nchannels: [web]\nparent: "002"'),
+      element('005', 'kind: store\nparent: "002"', { status: 'resolved' }),
+      element('006', 'kind: component\nchannels: [cli]\nparent: "002"\nchange: removed'),
+      element('007', 'kind: component\nchannels: [agent]\nparent: "002"'),
+    ];
+    expect(designCheck(build(nodes).doc)).toEqual({
+      blocking: [
+        'Element 002 has a user-facing channel (web) but no mock',
+        'Store 003 has no location; name its technology and where it lives',
+        'External system 004 has no location; name its technology and where it lives',
+      ],
+      warnings: [
+        'Store 003 has no mock of its schema or structure',
+        'Store 005 has no location; name its technology and where it lives',
+        'Store 005 has no mock of its schema or structure',
+      ],
+    });
+    const wide = [root, ...Array.from({ length: 8 }, (_, index) => element(`0${index + 10}`, `kind: component\nconnections: [{to: ${index ? '010' : '011'}, direction: one-way, label: Uses}]`))];
+    expect(designCheck(build(wide).doc).warnings).toEqual(['The top level has 8 elements; nest related ones under a parent to keep it to seven or fewer']);
+    expect(() => build([root, element('002', 'kind: component\nchange: moved')])).toThrow(/change/);
+  });
+  it('passes the public example through the clarity checks', () => {
+    expect(designCheck(exampleDesign())).toEqual({ blocking: [], warnings: [] });
   });
   it('writes safe offline HTML and the same-source Markdown from a files map', () => {
     const root = mkdtempSync(join(tmpdir(), 'design-doc-'));

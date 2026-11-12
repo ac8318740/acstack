@@ -105,12 +105,12 @@ class AdaptiveVerificationTests(unittest.TestCase):
         shutil.copyfile(ROOT / "scripts/gen-pi-agents.mjs", script)
         result = subprocess.run(["node", str(script)], capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
-        generated = self.root / "pi/agents/task-executor.md"
+        generated = self.root / "pi/agents/frontend-verifier.md"
         frontmatter = generated.read_text().split("---", 2)[1]
         fields = dict(re.findall(r"^([A-Za-z]+):\s*(.*?)\s*$", frontmatter, re.M))
-        self.assertIn("test-conventions", fields.get("skills", "").split(", "))
-        self.assertEqual((generated.parent / fields["skillPath"] / "test-conventions/SKILL.md").resolve(),
-                         self.root / "skills/test-conventions/SKILL.md")
+        self.assertIn("browser-verify", fields.get("skills", "").split(", "))
+        self.assertEqual((generated.parent / fields["skillPath"] / "browser-verify/SKILL.md").resolve(),
+                         self.root / "skills/browser-verify/SKILL.md")
 
 
 if __name__ == "__main__":

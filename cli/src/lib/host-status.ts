@@ -478,9 +478,9 @@ export function frontendHelpersDir(projectYaml: unknown): string | null {
  * throw at the call rather than one that waits for a file to omit the flag.
  *
  * Which default belongs to which key is the caller's to say rather than this
- * function's: the two keys `check` reads default opposite ways, spec sync
- * running unless a project turns it off and frontend verification staying off
- * until a project turns it on.
+ * function's: keys default different ways, so `read_guard` stays on unless
+ * a project turns it off and frontend verification stays off until a project
+ * turns it on.
  *
  * A string goes through the same parser `acstack config set` writes these
  * keys with. `off`, `on`, `yes` and `no` are words the command accepts and
@@ -511,19 +511,6 @@ export function workflowFlag(
   } catch {
     return fallback;
   }
-}
-
-/**
- * How many domains a parsed domain map describes, or null when it describes
- * no `domains` mapping at all.
- *
- * The count is the point rather than mere existence: a map that names two
- * domains in a repo with forty is the failure a bare "the file is there" line
- * cannot show.
- */
-export function domainCount(domainMapYaml: unknown): number | null {
-  const domains = record(record(domainMapYaml)?.domains);
-  return domains ? Object.keys(domains).length : null;
 }
 
 /**

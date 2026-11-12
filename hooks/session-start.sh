@@ -149,6 +149,14 @@ if [ -n "$plugin_root" ] && [ -d "$codex_home" ]; then
         fi
       fi
     done
+
+    # Remove agents an earlier version generated that this version no longer ships.
+    for dst in "$codex_dst"/*.toml; do
+      [ -f "$dst" ] || continue
+      [ -f "${codex_src}/$(basename "$dst")" ] && continue
+      grep -qF "$marker" "$dst" 2>/dev/null || continue
+      rm -f "$dst" && echo "acstack: removed retired Codex agent $(basename "$dst" .toml)" >&2
+    done
   fi
 fi
 
@@ -199,7 +207,7 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 0
 fi
 
-python3 - "$claude_md" "$project_folder" <<'PY'
+python3 - "$claude_md" "$project_folder" "$plugin_root" <<'PY'
 import json, re, sys
 path = sys.argv[1]
 with open(path, 'r', encoding='utf-8') as f:
@@ -208,6 +216,8 @@ with open(path, 'r', encoding='utf-8') as f:
 content = re.sub(r'<!-- acstack:delegated:start -->[\s\S]*?<!-- acstack:delegated:end -->\n?', '', content)
 content = re.sub(r'<!-- acstack:lead:(start|end) -->\n?', '', content)
 content += "\n\nThis repository's ACStack project folder: " + sys.argv[2] + "\n"
+if sys.argv[3]:
+    content += "ACStack plugin root: " + sys.argv[3] + "\n"
 print(json.dumps({
     "hookSpecificOutput": {
         "hookEventName": "SessionStart",

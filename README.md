@@ -1,6 +1,6 @@
 # ACStack
 
-ACStack is an agentic coding stack. It helps coding agents clarify requirements, test meaningful behavior, and keep docs matching the code.
+ACStack is an agentic coding stack. It helps coding agents clarify requirements, test meaningful behavior, and review changes before they land.
 
 - **ACStack aims to solve two common failure modes coding agents introduce**
     - The agent starts building before the requirements are clear
@@ -11,7 +11,6 @@ ACStack is an agentic coding stack. It helps coding agents clarify requirements,
     - The package includes the prebuilt CLI; installation needs no source build
 - **ACStack introduces structure around how your agent works**
     - Verification fits the change under a shared policy in `orchestrator/AGENTS.md`
-    - Every commit updates your specs from the diff
 - Straightforward work can stay with one agent, including investigation, tests, implementation, and verification
     - One verification owner gathers final completion evidence, reusing valid results instead of repeating checks at every handoff
     - Review depth follows affected risks; adjacent cleanup is advisory unless the user approves it
@@ -19,10 +18,10 @@ ACStack is an agentic coding stack. It helps coding agents clarify requirements,
 ```mermaid
 flowchart TD
     Q{"What kind of<br/>request is this?"} -->|"clear enough to build"| IM["Build it<br/>(/acstack:implement)"]
-    Q -->|"something stopped working"| QF["Find the root cause first<br/>(/acstack:quick-fix)"]
+    Q -->|"something stopped working"| QF["Find the root cause first<br/>(/acstack:fix)"]
     Q -->|"still has open questions"| MP["Answer them first<br/>(/acstack:map)"]
     MP -->|"once the questions are answered"| IM
-    IM --> C["Commit, and update the docs<br/>(/acstack:commit)"]
+    IM --> C["Review and commit<br/>(/acstack:commit)"]
     QF --> C
 ```
 
@@ -56,9 +55,9 @@ Install the plugin:
 /plugin install acstack@ac-agentic-coding
 ```
 
-Then, in your Git repository, use `/acstack:implement`, `/acstack:quick-fix`, or `/acstack:pre-commit-review` directly. Without project configuration, ACStack follows repository instructions and discovers tooling from manifests, tests, and CI.
+Then, in your Git repository, use `/acstack:implement`, `/acstack:fix`, or `/acstack:pre-commit-review` directly. Without project configuration, ACStack follows repository instructions and discovers tooling from manifests, tests, and CI.
 
-- Optional: `/acstack:setup` detects the project type and writes `project.yaml` for saved workflow settings and storage-backed features such as maps and living specs
+- Optional: `/acstack:setup` detects the project type and writes `project.yaml` for saved workflow settings and storage-backed features such as maps
     - Existing configuration keeps its gates; invalid configuration or project-data conflicts require repair, not an unconfigured fallback
 - All ACStack-owned project records live in one project folder per repository, shared by all of its worktrees
     - `~/.claude/acstack/bin/acstack project-data path` prints it; by default it is `~/.acstack/projects/<key>/`, outside the repository
@@ -114,7 +113,7 @@ Then use the general workflows in your Git repository immediately. Run `/acstack
 - ACStack includes the question-status bridge automatically
     - With `@juicesharp/rpiv-ask-user-question` and Herdr's Pi integration installed, Herdr shows blocked while Pi waits for an answer
     - Existing setup-installed bridges can stay installed without counting the same wait twice
-- Both subagent packages find the four agents through the `pi.subagents` field in `package.json`
+- Both subagent packages find the agents of section 6 through the `pi.subagents` field in `package.json`
     - `@tintinweb/pi-subagents` exposes `Agent`; `pi-subagents` exposes `subagent`
     - The agents use your subagent package's default model
     - ACStack warns at session start when pi lists neither tool
@@ -142,9 +141,9 @@ Two words first, because the third command below uses them.
 The three commands:
 
 - **The request is clear enough to build** – run `/acstack:implement`
-    - It runs the four agents of section 6 on your request
+    - It works solo or as a team, using the agents of section 6 where they help
     - A one-line change stays a one-line change
-- **Something already built stopped working** – run `/acstack:quick-fix`
+- **Something already built stopped working** – run `/acstack:fix`
     - It makes the agent find the root cause before it edits anything
 - **The request still has open questions** – run `/acstack:map`
     - The agent interviews you one round at a time
@@ -161,44 +160,11 @@ The three commands:
 
 *`/acstack:map` builds a map only when a single conversation cannot settle every question.*
 
-Each node carries one of five statuses.
-
-| Status | Meaning |
-| ------ | ------- |
-| `fog` | anything you cannot yet articulate clearly |
-| `open` | ready to answer or build |
-| `claimed` | someone is working on it now |
-| `resolved` | done |
-| `out-of-scope` | dropped on purpose |
-
-Each node also records six things.
-
-- **Which earlier answer led to this question**
-    - You can read the decisions back in the order you made them
-- **Which other nodes have to finish before this one starts**
-    - ACStack uses that to tell you what is ready to start
-- **Who answers it**: you, or the agent working alone
-- **What kind it is**: a destination, a standing note, a decision, research, or work
-- **A short name**, which labels the node in a diagram
-- **Where it lives**: a GitHub issue by default, or a markdown file under `<project folder>/maps/` with no GitHub remote
-
-Almost every node explains itself with a diagram.
-
-- The entry node draws the whole map, and collapses the parts you have finished
-- Every other node draws its own question or its own change
-- A legend sits under each diagram, showing only the symbols that diagram uses
-- On GitHub you click a node in the diagram to open its issue
-
-Two things ACStack does with a finished map.
-
-- **It works through the nodes that are ready to start**, meaning the open ones with nothing unfinished blocking them
-    - ACStack calls that set the **frontier**
-- **It packs the whole map into a single brief**
-    - A fresh agent session picks up where the last one stopped
+Each node has a status (`fog`, `open`, `claimed`, `resolved`, or `out-of-scope`), says who answers it, and links to the answer that raised it and the nodes that must finish first. The open nodes with nothing unfinished blocking them are the **frontier**: what is ready to start. Nodes live in GitHub issues by default, or in markdown files under `<project folder>/maps/`.
 
 Every rule in ACStack exists because something went wrong without it, over months of real product development with coding agents.
 
-For the full picture of each step and how they connect, read [docs/workflows.md](docs/workflows.md).
+[docs/workflows.md](docs/workflows.md) links each step to the skill that owns it and defines the map vocabulary.
 
 ## 3. Configure a project and a machine
 
@@ -232,7 +198,6 @@ ACStack ships a Node.js CLI: `acstack config`, `acstack list`, `acstack node ...
     - `acstack node frontier` lists what is ready to start now, closest to the original goal first
     - `acstack node walk` packs the whole map into one brief for a fresh session, in the order the decisions happened
     - The brief always includes the original goal, plus any node you marked as worth carrying along
-    - `acstack node diagram` draws a map, or any part of one, as a mermaid diagram with a legend under it
     - The skills claim and resolve a node with `update` calls
 
 Two symlinks reach the CLI. The SessionStart hook maintains both.
@@ -255,7 +220,7 @@ If `acstack` does not run after a Claude Code install, read [TROUBLESHOOTING.md]
 
 | Skill | Description |
 |-------|-------------|
-| `/acstack:implement` | Build what is ready to start, running the four agents of section 6, whether or not a map exists |
+| `/acstack:implement` | Build what is ready to start, whether or not a map exists |
 
 For work with open decisions, chart it with `/acstack:map` first.
 
@@ -271,13 +236,12 @@ For work with open decisions, chart it with `/acstack:map` first.
 
 | Skill | Description |
 |-------|-------------|
-| `/acstack:commit` | Commit, and update the specs under `<project folder>/specs/` from the diff first |
-| `/acstack:archive` | Verify implemented specs and current design approval, retain review evidence, then dispose of temporary map nodes |
-| `/acstack:sync` | Update the specs from code changes, outside a commit |
+| `/acstack:commit` | Commit in MECE groups through the project's hooks |
+| `/acstack:archive` | Verify tests, decisions, and current design approval, retain review evidence, then dispose of temporary map nodes |
 | `/acstack:handoff` | Hand work to a visible agent, a new one in its own pane or one already running, with acknowledgement |
 | `/acstack:compact-and-continue` | Anchor the session's load-bearing state to survive compaction, then continue in place |
 
-What an effort leaves behind is what matters: updated specs, decision notes, and glossary entries. ACStack throws the nodes away.
+What an effort leaves behind is what matters: tests, decision notes, and glossary entries. ACStack throws the nodes away.
 
 ### 5.4. Setup and supporting
 
@@ -285,13 +249,10 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 |-------|-------------|
 | `/acstack:setup` | Set up ACStack in a project, and change how a project already set up is configured |
 | `/acstack:host` | Declare this machine's dev setup once, as the `host.*` axes |
-| `/acstack:bootstrap` | Write the first set of specs by reading your existing code |
 | `/acstack:explore` | Thinking partner mode, read-only |
-| `/acstack:quick-fix` | Structured bug fix workflow with root cause analysis |
-| `/acstack:pre-commit-review` | Deep quality review of all changes since last commit |
-| `/acstack:test-conventions` | Test placement rules and naming conventions |
-| `/acstack:code-review` | Linus Torvalds code philosophy for reviews |
-| `/acstack:browser-verify` | agent-browser command reference, CDP troubleshooting, and selector strategy |
+| `/acstack:fix` | Find the root cause of a bug, then route the fix |
+| `/acstack:pre-commit-review` | Clean-context review of uncommitted changes; `/acstack:commit` runs it for nontrivial changes |
+| `/acstack:browser-verify` | The frontend skill: UI rules before an edit, then measure, behavior checks in headless Chrome, and a judge when hierarchy changes |
 | `/acstack:bridge` | Set up and operate the Playwriter cross-device browser bridge |
 | `/acstack:visual-docs` | Write docs that lead with a diagram and derive structure from it (Minto pyramid) |
 | `/acstack:new-worktree` | Create a git worktree off the remote base branch and continue the task inside it |
@@ -300,53 +261,26 @@ What an effort leaves behind is what matters: updated specs, decision notes, and
 
 ## 6. Every agent
 
-*Use agents when independent interpretation, review, or parallel scopes improve confidence.*
+*Each agent is named for why you delegate to it.*
 
 | Agent | Role |
 | --- | --- |
-| `test-writer` | Optional independent tests from requirements and interfaces |
-| `task-executor` | Implements source and tests unless tests have a separate owner |
-| `task-checker` | Bounded independent review; owns completion checks only when assigned |
+| `investigator` | Read-only answer to one bounded question, keeping raw discovery out of the lead's context |
+| `reviewer` | Clean-context review of a change from the diff and the requirements |
+| `scope-worker` | Owns one independent scope in its own checkout, in Team mode |
 | `frontend-verifier` | Configured real-browser verification on final frontend code |
 
-- `orchestrator/AGENTS.md` owns the shared Implementation discipline
-- Require independent review for security boundaries, money, irreversible data changes, or unresolved correctness or impact uncertainty
-- Separate test ownership stays separate when chosen
-- Configured frontend gates still apply without a delegated checker
+`orchestrator/AGENTS.md` owns when to use each: Delegate investigation, Review before commit, and Solo and Team modes.
 
 ## 7. Output style
 
-*The plugin ships one output style. It applies the house standard to every chat reply.*
+*The plugin ships one output style, `acstack:ac-writing-style`, which applies the house writing standard to every chat reply.*
 
-- Claude Code shows the style as `acstack:ac-writing-style`
-- It applies the `writing` skill's plain-language rules and the `visual-docs` skill's Minto pyramid and bullet discipline
-- A reply leads with the answer and puts 90% or more of what follows in bullets
-- Each bullet holds one sentence and ends without a period
-- Sub-bullets nest as far as the point needs, indented four spaces per level
-- Every word has to earn its place: no em dash, no emoji, no puffery, and no contrast clause that does no work
-
-How to turn it on:
-
-- `/acstack:setup` offers the style on both paths
-    - On a new project it comes late
-    - It is optional there
-    - On a project already set up it is a health-check row
-- The skill writes `outputStyle` for you
-- It asks first
-- Use `~/.claude/settings.json` for every project, or `.claude/settings.local.json` for this one
-- A project value overrides the global one
-- The style applies after `/clear`, or in a new session
-- The plugin never forces it on
-
-The style also ships a per-turn reminder:
-
-- `hooks/ac-writing-style-reminder.sh` runs on every prompt and re-injects the style's own words
-- A built-in style carries a `turnReminder` field, and a file-based style cannot, so the hook supplies the equivalent
-- It emits two sections lifted straight out of `output-styles/ac-writing-style.md`
-    - "Who you are", top-level lines only, which is the persona
-    - "Before you send", in full, which is the nine-item checklist
-- It reads those sections at run time, so the reminder can never drift from the style
-- It stays silent under any other output style, and it writes nothing to the transcript
+- `output-styles/ac-writing-style.md` holds the standard between its `acstack:communication` markers
+- `/acstack:setup` offers the style and asks before writing `outputStyle`, globally or for one project; the plugin never forces it on
+- `hooks/ac-writing-style-reminder.sh` re-injects the marked block on every prompt, read from the style file at run time so it cannot drift
+    - It stays silent under any other output style and writes nothing to the transcript
+- pi gets the same standard from its extension (see section 1.3)
 
 ## 8. Terminal workspace for driving several agents
 
@@ -368,14 +302,9 @@ The style also ships a per-turn reminder:
 - Require tests for meaningful changed behavior when existing coverage cannot catch mistakes
 - Reuse adequate coverage for refactors and skip new tests for nonbehavioral edits
 - Explain impractical testing and disclose missing regression protection
-- Keep docs current through commit-time spec sync
 - Build no more planning structure than the unanswered questions need
 - Preserve explicit requests for stronger process
-- The deprecated `workflow.tdd.strict` and `workflow.tdd.orchestrator_strict` booleans no longer control sequencing or delegation, including explicit `true`
-    - Neither key has an effective default
-    - ACStack removes the former strict guarantee
-    - ACStack does not automatically rewrite existing configuration
-    - New setup does not offer or generate these keys
+- The deprecated `workflow.tdd.*` booleans no longer control anything (see [config-reference.md](docs/config-reference.md))
 
 ## 10. Licence and credits
 

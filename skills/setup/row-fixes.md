@@ -89,51 +89,6 @@ frontend and has not turned browser verification on. Turn it on:
 
 `docs/config-reference.md` documents the key.
 
-### 9a. Generate the domain map
-
-`<project folder>/domain-map.yaml` maps source paths to spec domains. Spec sync,
-`/acstack:archive`, `/acstack:bootstrap` and `/acstack:pre-commit-review` all
-read it. Without it, every path through spec sync skips in silence, and the
-living specs never update.
-
-Investigate `directories.source` directly or through useful delegation under the shared Implementation discipline in `orchestrator/AGENTS.md`.
-Propose top-level functional areas with a kebab-case name, their paths, and one line saying what each owns.
-
-Guidance for the proposal:
-
-- Group by responsibility, not by layer. Use `auth`, `billing` and `search`,
-  never `models`, `controllers` and `utils`.
-
-- Prefer a directory prefix over a file list. Consumers match a path as a prefix.
-- Aim for 3 to 10 domains. Fewer, and spec sync cannot tell two changes apart.
-  More, and every commit touches several.
-
-- Leave tests, config, build files and docs unmapped. Consumers skip a path that
-  no domain covers.
-
-If `<project folder>/specs/` already holds domain directories, propose those names first
-and map the paths onto them. Renaming a domain here orphans its `spec.md`.
-
-Print the proposal and confirm it with the question tool (AskUserQuestion on Claude Code). Ask "Use this domain map,
-or adjust it?" and offer "Use it" against "Adjust (I'll give feedback)".
-
-Then write the file:
-
-```yaml
-# Domain Map: maps source paths to spec domains
-# Read by spec sync, /acstack:archive, /acstack:bootstrap
-
-domains:
-  <domain-name>:
-    paths:
-      - <path prefix>
-    description: <what this domain owns>
-```
-
-A greenfield project has no code to group. Say so, write the header with one
-commented example under `domains:`, and invent nothing. Tell the user to fill it
-in, or to run `/acstack:setup` again once there is code to map.
-
 ### 9b. Install the browser driver
 
 `agent-browser` is the command line tool the frontend verifier drives a browser
@@ -162,28 +117,22 @@ Keep helper programs in `frontend.helpers_dir`; do not move that directory or re
 Write:
 
 ```markdown
-# Verification Knowledge Base
+# Verification memory
 
-Evolving reference for browser-based verification. Updated by the frontend-verifier agent after each run.
+The index of what a verification run needs to know about this project. Read this
+file first, then only the topic files for the area under test. Follow the rules
+in the `browser-verify` skill's Verification memory section: replace entries,
+never append a run log.
 
-## URL Patterns
+## Every run
 
-<!-- Add URL patterns and routing rules here -->
+- Dev server: <!-- start command, URL, and loopback binding -->
+- Sign-in: <!-- test account and where its credentials live -->
 
-## Element Patterns
+## Topics
 
-<!-- Add stable element identifiers discovered during testing.
-     Prefer data-testid attributes – they survive refactors.
-     Record the accessible name/role from agent-browser snapshots. -->
-
-## Gotchas & Lessons Learned
-
-<!-- Add issues and workarounds discovered during testing -->
-
-## Proven Verification Sequences
-
-<!-- Add step sequences that work reliably.
-     Example: "To verify login: open /login, snapshot, fill @username, fill @password, click @submit, wait 2s, snapshot again, check for dashboard heading" -->
+<!-- One line per topic file in this folder, e.g.
+- [auth.md](auth.md) – signing in, switching organizations -->
 ```
 
 ### 9e. Offer the writing output style

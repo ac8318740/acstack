@@ -36,7 +36,7 @@ function project(name, yaml) {
 {
   const none = readGuardSettings(project('no-config'));
   check('settings: no project.yaml means on at 32 KB', none.enabled && none.minBytes === 32768);
-  const off = readGuardSettings(project('off', 'profile: x\nworkflow:\n  spec_sync: true\n  read_guard: false   # off\n'));
+  const off = readGuardSettings(project('off', 'profile: x\nworkflow:\n  read_guard: false   # off\n'));
   check('settings: workflow.read_guard false turns the guard off', off.enabled === false);
   for (const spelling of ['no', 'OFF', '"False"']) {
     check(`settings: read_guard ${spelling} turns the guard off`, readGuardSettings(project(`off-${spelling.replace(/"/g, '')}`, `workflow:\n  read_guard: ${spelling}\n`)).enabled === false);

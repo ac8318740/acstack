@@ -21,8 +21,8 @@ entry for any mode the machine declares unavailable, then ask the rest.
 {
   "question": "How will you connect a browser for frontend verification?",
   "options": [
-    {"label": "Remote browser (Playwriter bridge)", "description": "Best experience – drive Chrome on your desktop/laptop via the Playwriter extension over SSH. Choose this if you develop on a remote VM."},
-    {"label": "Headless (automatic)", "description": "The frontend-verifier launches headless Chromium when needed. No setup required. Choose this for CI or if you don't need to see the browser."},
+    {"label": "Headless (Recommended)", "description": "The frontend verifier drives headless Chrome through agent-browser. No setup required. Real Chrome is only needed for profiles, single sign-on, platform fonts, or a GPU."},
+    {"label": "Remote browser (Playwriter bridge)", "description": "For checks that need your real Chrome, driven over SSH from a remote VM. Headless still runs every other check."},
     {"label": "Local with display", "description": "Launch a visible browser on this machine. Choose this for desktop Linux, macOS, or WSL with display access."},
     {"label": "Skip for now", "description": "I'll set this up later – /acstack:host to declare what this machine can do, /acstack:setup for the project's preference"}
   ]
@@ -49,14 +49,15 @@ headless Chromium when it needs one.
 On **Local with display**, look for a Chromium binary. Tell the user the frontend
 verifier launches it when it needs one.
 
-On **Remote browser**, ask what the verifier does when the browser answers nothing:
+On **Remote browser**, ask what happens when a machine cannot reach the real
+browser. Headless Chrome still runs every check that does not need it:
 
 ```json
 {
-  "question": "When the remote browser isn't connected, what should the frontend-verifier do?",
+  "question": "When a machine cannot reach your real browser, what should checks that need it do?",
   "options": [
-    {"label": "Fall back to headless", "description": "Launch headless Chromium automatically. Verification still runs, just without your real browser."},
-    {"label": "Fail", "description": "Report FAIL so you know the bridge is down. Choose this if headless results aren't useful for your app."}
+    {"label": "Report the limit", "description": "Headless runs every other check; the verifier reports which real-Chrome checks could not run."},
+    {"label": "Fail", "description": "Report FAIL. Choose this if headless results aren't useful for your app."}
   ]
 }
 ```
@@ -69,52 +70,12 @@ Then go to Step 11.
 
 ## Step 11: Connect the Playwriter bridge
 
-This step is the one copy of the bridge setup. Step 10 reaches it on a `remote`
-answer. Step 9 reaches it on a `browser-mode:remote` failure.
+Step 10 reaches this step on a `remote` answer. Step 9 reaches it on a
+`browser-mode:remote` failure.
 
-Remote mode drives Chrome through the Playwriter extension, which uses the
-`chrome.debugger` API. Chrome itself opens no CDP listener. Show these steps:
-
-```
-To connect your browser via the Playwriter bridge:
-
-1. On the browser machine, install Node 18+ and Playwriter:
-
-   npm install -g playwriter
-
-2. In Chrome on the browser machine (preferably a dedicated profile), install the Playwriter extension and pin it:
-
-   https://chromewebstore.google.com/detail/playwriter-mcp/jfeammnjpkecdekppnclgkkffahnhfhe
-
-3. Run two long-running processes on the browser machine:
-
-   Relay:         playwriter serve --host 127.0.0.1
-   Reverse tunnel: ssh -N -R 19988:127.0.0.1:19988 <user>@<dev-machine>
-
-4. In Chrome, click the Playwriter toolbar icon on each tab you want automated.
-
-5. Verify from this (dev) machine:
-
-   curl -s http://localhost:19988/json/version
-```
-
-Show these gotchas after the steps:
-
-- Playwriter hardcodes port `19988`. Nobody can change it.
-- The relay runs on the same host as Chrome. The extension rejects any
-  `/extension` client that is not `127.0.0.1`.
-
-- Each tab needs the extension icon clicked once. Playwriter cannot attach to a
-  `chrome://` or `about:` page.
-
-- A stale relay holds port 19988 on the browser machine. Run
-  `playwriter serve --host 127.0.0.1 --replace` to kick the previous one.
-
-For a Windows laptop setup that opens no window, see
-`plugins/acstack/docs/playwriter-bridge-windows.md`. It covers auto-reconnecting
-scheduled tasks, ssh-agent key persistence and one-time admin registration. It
-ships `relay.ps1`, `tunnel.ps1` and `register-tasks.ps1` under
-`plugins/acstack/assets/playwriter-bridge/`.
+Invoke the `bridge` skill. It owns the Playwriter bridge setup: the relay and
+extension on the browser machine, the reverse SSH tunnel, the Windows scheduled
+tasks, and diagnosis. Do not repeat its steps here.
 
 Then re-run the health check from Step 7 and read the `browser-mode:remote` row.
 It passes once something answers on the port.

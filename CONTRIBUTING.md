@@ -398,7 +398,7 @@ acstack/**
 
 1. Bump `.claude-plugin/plugin.json` and root `package.json` together.
 2. Run `bash tests/test-npm-package.sh`, then commit the synced `cli/package.json` and any changed generated agents.
-3. Commit via `/acstack:commit` in this repository to preserve spec sync. Marketplace changes are separate commits.
+3. Commit via `/acstack:commit` in this repository. Marketplace changes are separate commits.
 
 ### 6.5. Promoting `dev` to `main`
 

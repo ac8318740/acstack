@@ -26,7 +26,7 @@ function fixture() {
   const node = (id: string, kind: string, body = '', answers = '101') => writeFileSync(join(map, `${id}-node.md`), `---\nstatus: open\nmode: hitl\nkind: ${kind}\nlabel: Node ${id}\n${kind === 'destination' ? '' : `answers: "${answers}"\n`}blocked-by: []\n---\n\n# Node ${id}\n\n${body}\n`);
   node('101', 'destination');
   node('102', 'element', element('kind: component\nconnections: [{to: 103, direction: one-way, label: Writes}]\nmocks:\n  - {title: Checkout, od: {design: checkout, page: home}}\n  - {fixture: order.json, schema: order.schema.json}'));
-  node('103', 'element', element('kind: store'));
+  node('103', 'element', element('kind: store\nlocation: Local files'));
   writeFileSync(join(map, 'elements/102/order.json'), '{"id": 1}');
   writeFileSync(join(map, 'elements/102/order.schema.json'), '{"type": "object", "required": ["id"]}');
   mkdirSync(join(root, '.open-designer/designs/checkout'), { recursive: true });

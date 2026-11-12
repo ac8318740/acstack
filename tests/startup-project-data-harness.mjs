@@ -75,8 +75,8 @@ for (const host of ['shell', 'pi']) {
     const originalPolicy = fs.readFileSync(path.join(source, 'orchestrator/AGENTS.md'), 'utf8')
       .replace(/<!-- acstack:delegated:start -->[\s\S]*?<!-- acstack:delegated:end -->\n?/g, '')
       .replace(/<!-- acstack:lead:(start|end) -->\n?/g, '');
-    check('shell: injection preserves the full lead policy and project-folder metadata unchanged',
-      policyStart === 0 && injected === originalPolicy + "\n\nThis repository's ACStack project folder: " + folder + '\n');
+    check('shell: injection preserves the full lead policy, project-folder, and plugin-root metadata unchanged',
+      policyStart === 0 && injected === originalPolicy + "\n\nThis repository's ACStack project folder: " + folder + '\nACStack plugin root: ' + plugin + '\n');
   }
   check(`${host}: a set-up project injects the orchestrator`, injected.includes('/acstack:compact-and-continue'));
   check(`${host}: the injection names the project folder`, injected.includes(folder));

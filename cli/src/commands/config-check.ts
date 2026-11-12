@@ -8,7 +8,6 @@ import {
   CLAUDE_DIR,
   CLAUDE_LOCAL_SETTINGS_FILE,
   CLAUDE_SETTINGS_FILE,
-  domainMapFile,
   ACSTACK_OUTPUT_STYLE,
   VERIFICATION_KNOWLEDGE_FILE,
 } from '../lib/constants.js';
@@ -25,7 +24,6 @@ import {
   BROWSER_MODE_PRIORITY,
   CHROMIUM_BINARIES,
   declaredBrowserModes,
-  domainCount,
   FALLBACK_FORBIDDEN,
   isBrowserAxis,
   outputStyleOf,
@@ -42,7 +40,6 @@ import { findInstalledPlugin } from '../lib/claude-plugins.js';
 import { IMPECCABLE_PLUGIN, impeccableVersionNote } from '../lib/impeccable.js';
 import { cdpPortAnswers, firstBinaryOnPath, runCommand } from '../lib/host-probe.js';
 import { FRONTEND_VERIFICATION_KEY } from '../lib/project-config.js';
-import { readYaml } from '../lib/utils.js';
 import type { LoadedProject } from './config.js';
 
 /**
@@ -441,68 +438,8 @@ function isFile(path: string): boolean {
   }
 }
 
-/** The domain map's path within a project, as the user would write it. */
-const DOMAIN_MAP_PATH = domainMapFile();
-
 /** Where the install instructions for the browser driver send the user. */
 const AGENT_BROWSER_INSTALL = `npm install -g ${AGENT_BROWSER_BIN}`;
-
-/**
- * The domain map, which every project needs whether or not it has a UI.
- *
- * A missing map is a failure rather than a note because of how it fails: spec
- * sync finds no domains, updates nothing and says nothing, so the living
- * specs quietly stop tracking the code while everything still looks fine.
- *
- * `specSync` is what makes that a failure. A project that set
- * `workflow.spec_sync` to false has nothing reading the map, so a missing one
- * is the state it asked for rather than a problem found - the row still says
- * the map is absent, because that is the cost of turning spec sync back on,
- * but it says it as a note. The row keeps its identifier either way, so one
- * caller branch reads both outcomes.
- */
-function checkDomainMap(report: CheckReport, root: string, specSync: boolean): void {
-  const id = 'domain-map';
-  const consequence =
-    'spec sync then skips silently and the living specs stop being updated';
-  const path = domainMapFile(root);
-
-  if (!existsSync(path)) {
-    report.line(
-      specSync ? 'fail' : 'info',
-      id,
-      specSync
-        ? `${DOMAIN_MAP_PATH} is missing - ${consequence}`
-        : `${DOMAIN_MAP_PATH} is missing, and workflow.spec_sync is false - nothing reads the ` +
-          'map, so it is only owed if spec sync goes back on'
-    );
-    return;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = readYaml(path);
-  } catch (err) {
-    report.line('fail', id, `${DOMAIN_MAP_PATH} is not valid YAML: ${firstLineOf(err)}`);
-    return;
-  }
-
-  // A map naming nothing is a missing map with extra steps. Spec sync opens
-  // it, finds no domains to update, updates none and says nothing - which is
-  // the failure this row exists to report, whether the `domains` mapping is
-  // absent or present and empty. "maps 0 domains" reported as a pass is that
-  // failure described accurately and then filed as success.
-  const domains = domainCount(parsed);
-  if (domains === null || domains === 0) {
-    report.line('fail', id, `${DOMAIN_MAP_PATH} names no domains - ${consequence}`);
-    return;
-  }
-  report.line(
-    'pass',
-    id,
-    `${DOMAIN_MAP_PATH} maps ${domains} ${domains === 1 ? 'domain' : 'domains'}`
-  );
-}
 
 /**
  * The three things a project needs before its frontend can be verified: the
@@ -642,21 +579,17 @@ export function checkProjectFiles(report: CheckReport, loaded: LoadedProject): v
 
   if (!loaded.root) {
     // Nothing here is this directory's business: without .acstack/ there is no
-    // map to want and no frontend to configure. One line saying so beats a
+    // frontend to configure. One line saying so beats a
     // column of failures about files a non-project was never going to have.
     report.line('info', 'no-project', 'No ACStack project here, so there are no project files to check');
     return;
   }
 
-  checkDomainMap(report, loaded.root, loaded.workflow.specSync);
-  if (loaded.host.hasFrontend) {
-    checkFrontendFiles(
-      report,
-      loaded.root,
-      loaded.host,
-      loaded.workflow.frontendVerification
-    );
+  if (!loaded.host.hasFrontend) {
+    report.line('info', 'no-frontend', 'This project configures no frontend, so there are no frontend files to check');
+    return;
   }
+  checkFrontendFiles(report, loaded.root, loaded.host, loaded.workflow.frontendVerification);
 }
 
 /**

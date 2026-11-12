@@ -58,90 +58,12 @@ A child session would write the lead's quiet marker and the shared
 `<project folder>/HANDOFF.md` anchor, where the project folder is the path
 `~/.claude/acstack/bin/acstack project-data path` prints. Both belong to the lead alone.
 
-Five facts sit behind that command, measured on Claude Code 2.1.241. Each one
-names a way the command has already been got wrong:
+Read [`../handoff/lead-check.md`](../handoff/lead-check.md) before you change that command, or when
+its answer looks wrong. It says what the command checks and why.
 
-- **No environment variable answers this.** `CLAUDE_CODE_CHILD_SESSION` holds
-  `1` in every Bash subprocess, lead or child. It marks "spawned by Claude
-  Code", nothing more. An in-process child session shares the lead's
-  `CLAUDE_CODE_SESSION_ID`, `CLAUDE_PID` and `CLAUDE_CODE_ENTRYPOINT`.
+## What the anchor carries
 
-- **The command hunts for its own record, so it waits.** The host writes that
-  record while the command runs, roughly four seconds in. One grep with no loop
-  runs too early, finds nothing and answers `lead` for everyone. Never flatten
-  the loop.
-
-- **The nonce must be yours alone.** Reuse one, or take one from a prompt, and
-  another agent's transcript answers for you. The angle brackets make an
-  unsubstituted copy a bash syntax error. That beats a silent match on whatever
-  agent read this file before you, so never soften `<nonce>` to a bare word.
-
-- **`<session>.jsonl` can only ever say `lead`.** Your own mark lands there
-  whether you are the lead or not. So the loop reads the agent transcripts
-  first, and treats that file as an early exit rather than evidence of a child.
-
-- **No evidence means lead.** The old gate read a variable that is always set.
-  It answered `child` in every session, and neither skill could run (#146).
-
-    Ten seconds with no matching transcript answers `lead` instead. A teammate
-    running as its own top-level session lands here, and rightly: it owns its
-    own marker.
-
-## The rule that governs the anchor
-
-*Reference state. Never copy it.*
-
-An anchor that restates the repository is a second copy of the repository,
-correct only at the instant you wrote it. If the resumed session can learn
-something by running a command, it should run the command.
-
-| Do not write it down        | The resumed session gets it from                                                 |
-| --------------------------- | -------------------------------------------------------------------------------- |
-| Map state and reading order | `~/.claude/acstack/bin/acstack node walk --map <name>` (reading order of the map) |
-| What can be worked next     | `~/.claude/acstack/bin/acstack node frontier --map <name>` (what is workable now) |
-| Files in flight             | `git status --short` and `git diff`                                               |
-| Test baseline, last result  | `<project folder>/.test-baseline` and referenced check logs; reuse valid evidence under the shared policy |
-| What the code does          | the living specs in `<project folder>/specs/`                                              |
-
-On GitHub, `--map` refuses – pipe `gh issue list` into `--stdin` per the
-map skill's `trackers/github.md`.
-
-The same applies to specs, architecture decision records, issues and commits.
-Reference them by path or URL. Preserve references to check evidence with its tested
-revision, relevant environment, command, and result; compaction alone does not require
-a suite rerun. If evidence exists only in the conversation, anchor it rather than lose it.
-
-**You do not search the codebase for this.** Build the anchor from what is
-already in context. If you are about to search source files, stop – the
-conversation holds it.
-
-## What only an anchor can carry
-
-*Five things. Nothing on disk records them, so the resumed session loses
-anything you leave out.*
-
-1. **Next action** – the single concrete thing to do first
-2. **Decisions made** – so the resumed session does not reopen and re-argue them
-3. **Open questions and blockers** – including anything waiting on the user
-4. **Agent-team coordination** – each scope and agent, shared-file regions,
-   conflicting edits to serialize, and integration owner. Carry usable intermediate
-   outputs, remaining uncertainty, change impact, and start or completion prerequisites
-   not already recorded elsewhere
-
-5. **Suggested skills** – which skills the resumed session should invoke, by name
-
-Omit any that do not apply. Do not pad.
-
-A session that no longer has this conversation reads the anchor. Prose follows
-the `writing` skill.
-
-## Redaction
-
-*The anchor lands in the working tree.*
-
-Strip credentials, tokens, API keys, connection strings and personal data
-before writing. Reference where a secret lives rather than its value. This is
-not optional.
+Read [`../handoff/anchor.md`](../handoff/anchor.md) and follow it: reference state rather than copying it, carry the five things only an anchor can, and redact secrets. The anchor lands in the project folder.
 
 ## Write the anchor
 
@@ -176,10 +98,10 @@ on a map with no resolved nodes.
 - Node 21 waits on the user. Does a resolved node keep its `blocked-by` links?
 
 ## Agent-team plan
-- Scope A – cli-nodes-opus – files: `cli/src/lib/frontier.ts`, `cli/src/lib/frontier.test.ts`
-- Scope B – hooks-sonnet – files: `hooks/session-start-handoff.sh`
-- Shared-file regions: Scope A owns CLI command wiring in `cli/src/index.ts`; Scope B owns hook documentation in `README.md`. Reread latest contents before editing.
-- Integration: Scope A reconciles both outputs and checks CLI/hook wiring before acceptance. Serialize any edits to the same command registration.
+- Scope A – cli-nodes-opus – own worktree – files: `cli/src/lib/frontier.ts`, `cli/src/lib/frontier.test.ts`
+- Scope B – hooks-sonnet – own worktree – files: `hooks/session-start-handoff.sh`
+- Shared interface: the `node frontier --json` output shape; Scope A tells Scope B before changing it
+- Integration: the lead merges both worktrees and checks CLI and hook wiring before acceptance
 
 ## Suggested skills
 - implement – the frontier holds three work nodes an agent can settle alone
@@ -201,16 +123,9 @@ d="${ACSTACK_CONTEXT_PRESSURE_DIR:-${TMPDIR:-/tmp}/acstack-context-pressure}"
 sid="${CLAUDE_CODE_SESSION_ID:-${PI_SESSION_ID:-}}"; [ -n "$sid" ] && mkdir -p "$d" && : > "$d/$sid.quiet" || true
 ```
 
-`CLAUDE_CODE_SESSION_ID` (`PI_SESSION_ID` on pi) is this session's own id, so the marker lands exactly
-where the hook looks for it. The lead check at the top ruled out the child
-sessions, where the variable names the lead instead.
-
-If the variable is unset, skip this step. Tell the user that the hook keeps
-nudging, which is noisy but harmless.
-
-The hook clears the marker when the session compacts. It resets its state on
-`SessionStart` with `source: compact`, so the nudge returns once the context grows
-again.
+`CLAUDE_CODE_SESSION_ID` (`PI_SESSION_ID` on pi) is this session's own id. If
+the variable is unset, skip this step and tell the user the hook keeps nudging,
+which is noisy but harmless. `../handoff/lead-check.md` says when the marker clears.
 
 ## Hand over the compact line
 

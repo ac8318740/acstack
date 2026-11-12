@@ -60,8 +60,8 @@ class CommunicationStandardTests(unittest.TestCase):
                         self.assertEqual(fields["inheritProjectContext"], "true")
                         self.assertEqual(fields["inheritSkills"], "true")
                         self.assertEqual(fields["tools"], "read, grep, find, ls, bash, edit, write")
-                        if file.stem in ("task-executor", "test-writer"):
-                            self.assertIn("test-conventions", fields["skills"])
+                        if file.stem == "frontend-verifier":
+                            self.assertIn("browser-verify", fields["skills"])
                             self.assertEqual(fields["skillPath"], "../../skills")
                     self.assertIn(original, body)
                     self.assertIn(expected, body)

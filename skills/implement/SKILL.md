@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Implement clear requests with adaptive testing and verification under the shared Implementation discipline in orchestrator/AGENTS.md. A map is a stored graph of question and work nodes. Claims afk nodes – away from keyboard, meaning nodes an agent settles alone – from the map frontier, the nodes ready to be worked now, when a map exists; runs the same discipline directly on the request when none does. A unit of work carries its own size – one node is a quick change, forty is a long effort, and nothing declares which. Invoke whenever the way is clear and something needs building, changing or extending, however small. Use quick-fix instead when something is broken and needs a root cause found, and map instead when decisions still need settling before anyone can build.
+description: Implement clear requests with adaptive testing and verification under the shared Implementation discipline in orchestrator/AGENTS.md. A map is a stored graph of question and work nodes. Claims afk nodes – away from keyboard, meaning nodes an agent settles alone – from the map frontier, the nodes ready to be worked now, when a map exists; runs the same discipline directly on the request when none does. A unit of work carries its own size – one node is a quick change, forty is a long effort, and nothing declares which. Invoke whenever the way is clear and something needs building, changing or extending, however small. Use `fix` instead when something is broken and needs a root cause found, and map instead when decisions still need settling before anyone can build.
 argument-hint: "[map name, or the request to implement]"
 ---
 
@@ -45,8 +45,7 @@ off the root.
 Before claiming one, check whether the map is ready to build from:
 
 - If any `fog` node changes the design, stop and point the user at `/acstack:map`
-- For a map with `element` nodes, require `approval.valid: true` from `acstack design-review status <map>`
-- If approval is invalid, return to `/acstack:design-doc` for reconciliation and exact-revision approval
+- When the design meets When to stop for the user in `orchestrator/AGENTS.md`, require `approval.valid: true` from `acstack design-review status <map>`; if it is invalid, return to `/acstack:design-doc` for reconciliation
 - If a `fog` node needs later evidence without changing the design, leave it with its reopening trigger
 
 If the frontier holds only `hitl` nodes – human in the loop, meaning a
@@ -109,12 +108,8 @@ Nodes describe behaviour, not paths. **Resolve paths at claim time**.
 Investigate relevant source, callers, tests, and docs directly or through useful delegation.
 Pass discovered paths and requirements to any delegated agents to avoid repeated searches.
 
-- Before implementation, check whether the active map has `element` nodes
-- If it does, run `acstack design-review status <map>` and require `approval.valid: true`
-- Reconcile feedback through `/acstack:design-doc` when approval is invalid
 - Never lock an element; only the user locks
-- Reopen review after element nodes, saved comments, or questions targeting them change
-- Keep unsettled requirements in design/map records; living specs describe verified implementation
+- Keep unsettled requirements in design/map records; tests describe verified implementation
 
 ### 5. Execute within the claim
 
@@ -123,7 +118,7 @@ Apply the shared Implementation discipline to the claimed node or bare request.
 - Choose useful checks before nontrivial edits
 - Test, implement, format, and verify against requirements
 - Get independent review when the shared policy requires it
-- Read `design-pass.md` when the design gate is on and configured frontend files changed
+- Follow the `browser-verify` skill when configured frontend files changed
 - Delegate configured real-browser verification after the required gates pass
 - Fix failures and repeat the affected checks
 - Release a stalled claim (`--status open`) when the session must stop
@@ -136,11 +131,10 @@ unit verified, a revert, or a blocker.
 Read `decision-log.md` before the first row. It holds where the log lives and
 the columns.
 
-**Parallelism**: follow the shared policy's usable intermediate outputs and
-start-versus-completion prerequisites. Coordinate responsibilities and shared-file
-regions; reread latest contents before editing. Serialize actual conflicts and
-integration steps. Resolve only after required inputs are accepted and integrated
-checks pass.
+**Parallelism**: follow Solo and Team modes in `orchestrator/AGENTS.md`, and
+`docs/concurrent-work.md` for intermediate outputs and start-versus-completion
+prerequisites. Resolve only after required inputs are accepted and integrated checks
+pass.
 
 ### 6. Resolve
 
@@ -180,13 +174,11 @@ Stop when the afk frontier is empty, or when only `hitl` nodes remain (hand
 those to `/acstack:map`). With no map, stop when required verification is green.
 
 Report: nodes resolved, tests passing, lines added/removed. Remind the user:
-`/acstack:commit` to commit – spec sync extracts the durable record from the
-diff.
+`/acstack:commit` to commit.
 
 ## Key rules
 
 - Apply `orchestrator/AGENTS.md` as the shared verification policy
-- Respect separate test ownership when chosen
 - Claim on start, resolve after verification, and release on stall
 - Investigate before editing, directly or through useful delegation
 

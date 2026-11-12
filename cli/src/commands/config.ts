@@ -130,23 +130,20 @@ export interface LoadedProject {
   helpersDir: string | null;
 }
 
-/** What the project's `workflow` block says about the two rows that read it. */
+/** What the project's `workflow` block says about the row that reads it. */
 interface ProjectWorkflow {
-  /** Whether spec sync runs, and so whether this project owes a domain map. */
-  specSync: boolean;
   /** Whether a UI change gets verified in a real browser before it lands. */
   frontendVerification: boolean;
 }
 
 /**
- * The two `workflow` flags, each against the default `PROJECT_KEY_DEFAULTS`
- * documents for its key, so `config check` acts on the value `config get`
- * reports. `undefined` is a project.yaml nobody found, which takes both
- * defaults like a file that states neither key.
+ * The `workflow` flag `config check` reads, against the default
+ * `PROJECT_KEY_DEFAULTS` documents for it, so `config check` acts on the value
+ * `config get` reports. `undefined` is a project.yaml nobody found, which
+ * takes the default like a file that omits the key.
  */
 function projectWorkflow(projectYaml: unknown): ProjectWorkflow {
   return {
-    specSync: workflowFlag(projectYaml, 'spec_sync', projectKeyDefaultFlag),
     frontendVerification: workflowFlag(projectYaml, 'frontend_verification', projectKeyDefaultFlag),
   };
 }
@@ -435,7 +432,7 @@ function listConfig(asJson: boolean): void {
     // arrive beside it rather than around it.
     //
     // Rows in a list, in the file's own order, and not an object keyed by
-    // the dotted path. A file is free to state `workflow.spec_sync` as one
+    // the dotted path. A file is free to state `workflow.read_guard` as one
     // literal key holding a dot AND state the same path nested, and both are
     // lines the human listing prints - keyed by the path they collide, and
     // the first of them goes without a word. Every row says whether a schema

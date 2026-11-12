@@ -18,9 +18,33 @@ Because the setup spans two machines, any real bridge work usually needs
 two coding agents – one on each device. This skill gives both agents a
 shared vocabulary and a structured way to hand work across.
 
-For the agent-browser CLI itself (commands, selectors, CDP), see the
-`browser-verify` skill. This skill is strictly about the tunnel / relay /
-scheduling layer.
+Headless Chrome covers most frontend checks. The bridge is only for
+checks that need the user's real Chrome: a profile or single sign-on,
+platform fonts or scrollbars, Windows rendering, or a GPU. For the
+agent-browser CLI itself and when to use the bridge, see the
+`browser-verify` skill. This skill owns the tunnel, relay, and
+scheduling layer, and the one copy of its setup steps.
+
+## Manual setup in brief
+
+The platform runbooks automate these steps. On the browser machine:
+
+1. Install Node 18+ and Playwriter: `npm install -g playwriter`
+2. In Chrome (preferably a dedicated profile), install and pin the
+   Playwriter extension:
+   `https://chromewebstore.google.com/detail/playwriter-mcp/jfeammnjpkecdekppnclgkkffahnhfhe`
+3. Run the relay, `playwriter serve --host 127.0.0.1`, and the reverse
+   tunnel, `ssh -N -R 19988:127.0.0.1:19988 <user>@<dev-machine>`
+4. Click the Playwriter toolbar icon on each tab to automate
+5. On the dev machine, check `curl -s http://127.0.0.1:19988/json/version`
+
+Traps:
+
+- Playwriter hardcodes port 19988
+- The relay must run on the same host as Chrome; the extension rejects
+  any `/extension` client that is not `127.0.0.1`
+- Playwriter cannot attach to `chrome://` or `about:` pages
+- A stale relay holding the port: `playwriter serve --host 127.0.0.1 --replace`
 
 ## Step 1 – detect your platform
 
@@ -78,7 +102,7 @@ later. Tell the user clearly which block goes where.
   (`doctor.ps1`). Reach for those before improvising.
 
 - Do not edit the scripts in place to "try something". Change them in
-  `plugins/acstack/assets/playwriter-bridge/`.
+  `assets/playwriter-bridge/` in the plugin root.
 
     On the next Claude Code launch, the SessionStart hook redeploys
     changed scripts to `%USERPROFILE%\playwriter-bridge\` on the
@@ -99,7 +123,7 @@ one as "UTF-8 Unicode (with BOM)".
 
 ## Files this skill governs
 
-Under `plugins/acstack/assets/playwriter-bridge/`:
+Under `assets/playwriter-bridge/` in the plugin root:
 
 - `launcher-src.cs`, `build-launcher.ps1` – launcher shim (hides console,
   owns the child process tree)

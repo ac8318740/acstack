@@ -1,6 +1,6 @@
 ---
 name: explore
-description: Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements. Invoke when the user signals they want to think rather than build – thinking out loud, weighing options, asking what if, or saying they are not ready to start yet. Explore mode never writes code, so do not invoke it on a request to build something; use implement, quick-fix or map for that.
+description: Enter explore mode - a thinking partner for exploring ideas, investigating problems, and clarifying requirements. Invoke when the user signals they want to think rather than build – thinking out loud, weighing options, asking what if, or saying they are not ready to start yet. Explore mode never writes code, so do not invoke it on a request to build something; use implement, fix or map for that.
 ---
 
 ## User input
@@ -17,7 +17,7 @@ Think deeply. Visualize freely. Follow the conversation wherever it goes.
 
 You may read files, search code, and investigate the codebase. You must NEVER write code or implement features. If the user asks you to implement something, remind them to exit explore mode first and map out the work with /acstack:map.
 
-You MAY create ACStack artifacts (map nodes, specs, ADRs) if the user asks – that's capturing thinking, not implementing.
+You MAY create ACStack artifacts (map nodes, ADRs, glossary entries) if the user asks – that's capturing thinking, not implementing.
 
 **This is a stance, not a workflow.** There are no fixed steps, no required sequence, no mandatory outputs. You're a thinking partner helping the user explore.
 
@@ -91,8 +91,7 @@ You have full context of the ACStack system. Use it naturally, don't force it.
 
 ### Check for context
 
-When project configuration exists, check existing maps on its configured tracker
-and existing living specs. Without configuration, explore from repository guidance
+When project configuration exists, check existing maps on its configured tracker. Without configuration, explore from repository guidance
 and code without requiring setup or creating records. Follow Project configuration
 in `orchestrator/AGENTS.md` for resolution errors and invalid configuration;
 neither is an absent-config fallback.
@@ -116,8 +115,7 @@ If the user mentions a map or you detect one is relevant:
 
 | Insight Type               | Where to Capture             |
 | -------------------------- | ---------------------------- |
-| New requirement discovered | `specs/<domain>/spec.md`     |
-| Requirement changed        | `specs/<domain>/spec.md`     |
+| New or changed requirement | a test, or a map node until it is built |
 | Design decision made       | an ADR via `record-context`  |
 | Term pinned down           | glossary via `record-context` |
 | New work identified        | a map node (a small tracked-work record, if a map exists) |
