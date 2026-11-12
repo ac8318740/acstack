@@ -2204,7 +2204,9 @@ if command -v script >/dev/null 2>&1 && command -v less >/dev/null 2>&1; then
     # q after it, always: a binding that does not fire leaves less sitting
     # there, and a test that reads no exit status at all cannot tell that
     # apart from one that never started.
-    sleep 3; printf '%s' "$2" >&8; sleep 3
+    # The DEL after the key cancels less 6xx's own # shell-command prompt,
+    # which an unbound # opens; older less just rings the bell at it.
+    sleep 3; printf '%s\177' "$2" >&8; sleep 3
     # In a subshell: when the binding did fire, less is already gone and the
     # fifo has no reader, and a SIGPIPE here would kill the command
     # substitution this runs inside before it ever reads the exit status.
