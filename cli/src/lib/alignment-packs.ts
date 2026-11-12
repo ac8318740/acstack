@@ -58,7 +58,11 @@ const AlignmentNodeSchema = z
     channels: z.array(z.enum(['web', 'mobile', 'desktop', 'cli', 'agent', 'email', 'sms', 'voice'])).optional(),
     // A design element's map node is resolved: the user locked it, so it is a requirement.
     locked: z.boolean().optional(),
+    // How the design changes this element in the current system.
+    change: z.enum(['added', 'changed', 'removed']).optional(),
     mocks: z.array(MockSummarySchema).max(50).optional(),
+    // Work nodes targeting a design element, for the viewer's progress badge and list.
+    progress: z.array(z.object({ id: z.string().min(1), title: z.string().min(1), status: z.enum(['todo', 'in-progress', 'done', 'blocked']) }).strict()).max(200).optional(),
     summary: z.string().min(1),
     // The full technical definition, as markdown; `summary` is the plain-language one.
     technicalSummary: z.string().min(1).optional(),

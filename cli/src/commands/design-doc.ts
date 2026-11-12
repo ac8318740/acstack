@@ -1,7 +1,7 @@
 import { Command, Option } from 'commander';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { designDocToPack, renderDesignDocMarkdown, targetingNodes } from '../lib/design-doc.js';
+import { designCheck, designDocToPack, renderDesignDocMarkdown, targetingNodes } from '../lib/design-doc.js';
 import { renderAlignmentPackHtml } from '../lib/alignment-pack-renderer.js';
 import { inProject } from '../lib/utils.js';
 import { changedElements, describeChange, loadMapDesign, openDesignLifecycle, reviewHistories } from '../lib/design-lifecycle.js';
@@ -120,6 +120,9 @@ export function register(program: Command): void {
         const changed = changedElements(doc, reviewHistories(root, doc.id).values());
         const what = (id: string) => (doc.items.find(item => item.id === id)?.changes ?? []).map(change => change.label.toLowerCase()).join(', ');
         if (changed.length) throw new Error(`Changed since the user approved: ${changed.map(id => `${id} (${what(id)})`).join('; ')}. Report the change; re-approve only on the user's instruction (design-review approve-element).`);
+        const clarity = designCheck(doc);
+        warn(clarity.warnings);
+        if (clarity.blocking.length) throw new Error(`Design doc ${doc.name} fails its clarity checks:\n${clarity.blocking.map(problem => `- ${problem}`).join('\n')}`);
         const open = doc.questions.filter(question => question.answer === undefined).length;
         const pending = targetingNodes(nodes);
         console.log(`Design doc ${doc.name}: ${doc.items.length} elements, ${open} open human ${open === 1 ? 'question' : 'questions'}, ${pending.length} unresolved map ${pending.length === 1 ? 'item' : 'items'}`);

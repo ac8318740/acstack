@@ -26,5 +26,8 @@ connections:
 - to: 008
   direction: bidirectional
   label: Exchanges the design and comments with
+mocks:
+- title: Terminal output
+  markdown: terminal.md
 ```
 </details>

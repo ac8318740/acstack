@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, type Ref, type RefObject } from 'react';
+import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref, type RefObject } from 'react';
 import {
   Background, BaseEdge, type Edge, EdgeLabelRenderer, type EdgeProps,
   Handle, MarkerType, type Node, type NodeProps, Panel, Position, ReactFlow, useInternalNode, useReactFlow,
@@ -47,7 +47,7 @@ function BoxContent({ data }: { data: BoxData }) {
       <div className="box-heading">
         {framed ? <button type="button" className="header-select" onClick={() => data.onSelect(data.id)}>{data.label}</button>
           : <div className="box-title">{technical ? data.technicalLabel ?? data.label : data.label}</div>}
-        {(data.elementKind || data.channels?.length) && <ElementMetadata kind={data.elementKind} channels={data.channels} />}
+        {(data.elementKind || data.channels?.length) && <ElementMetadata kind={data.elementKind} channels={data.channels} progress={data.progress} change={data.change} />}
       </div>
       <div className="box-sub">{data.summary}</div>
       {meta && <div className="box-meta">{meta}</div>}
@@ -64,12 +64,12 @@ function BoxContent({ data }: { data: BoxData }) {
   </div>;
 }
 function ItemBox({ data, selected }: NodeProps<Node<BoxData>>) {
-  return <div className={`box${data.kind === 'folded-group' ? ' folded' : ''}${selected ? ' selected' : ''}${data.dimmed ? ' dimmed' : ''}`} onClick={() => !window.getSelection()?.toString() && data.onSelect(data.id)}>
+  return <div className={`box${data.kind === 'folded-group' ? ' folded' : ''}${selected ? ' selected' : ''}${data.dimmed ? ' dimmed' : ''}`} data-change={data.change} onClick={() => !window.getSelection()?.toString() && data.onSelect(data.id)}>
     <Handle type="target" position={data.orientation === 'left-to-right' ? Position.Left : Position.Top} /><BoxContent data={data} /><Handle type="source" position={data.orientation === 'left-to-right' ? Position.Right : Position.Bottom} />
   </div>;
 }
 function GroupFrame({ data, selected }: NodeProps<Node<BoxData>>) {
-  return <div className={`frame${selected ? ' selected' : ''}`}><Handle type="target" position={data.orientation === 'left-to-right' ? Position.Left : Position.Top} /><BoxContent data={data} /><Handle type="source" position={data.orientation === 'left-to-right' ? Position.Right : Position.Bottom} /></div>;
+  return <div className={`frame${selected ? ' selected' : ''}`} data-change={data.change}><Handle type="target" position={data.orientation === 'left-to-right' ? Position.Left : Position.Top} /><BoxContent data={data} /><Handle type="source" position={data.orientation === 'left-to-right' ? Position.Right : Position.Bottom} /></div>;
 }
 function LabelContent({ edge, actions = noActions, comments = 0, questions = 0 }: { edge: DiagramEdge; actions?: Actions; comments?: number; questions?: number }) {
   const selectId = `edge:${edge.childEdgeIds[0]}`;
@@ -128,7 +128,7 @@ export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }
             const hardObstacles = [
               ...titles,
               ...textRects('.box-meta, .box-kind'),
-              ...[...element.querySelectorAll('.type-pill, .channel-pill, .card-controls button, .count-pill, .annotation-actions button, .question-badge')].map(control => local(control.getBoundingClientRect())),
+              ...[...element.querySelectorAll('.type-pill, .channel-pill, .progress-pill, .change-pill, .card-controls button, .count-pill, .annotation-actions button, .question-badge')].map(control => local(control.getBoundingClientRect())),
             ];
             const subtitleLines = textRects('.box-sub');
             if (!titles.length || [...hardObstacles, ...subtitleLines].some(box => !Object.values(box).every(Number.isFinite) || box.width <= 0 || box.height <= 0)) continue;
@@ -225,6 +225,8 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
   selected: string | null; onSelect: (id: string | null) => void; onAnnotate: (id: string) => void; onQuestions?: (id: string | null) => void; commentCounts: Map<string, number>; layoutKey?: string; contentZoom?: Zoom; orientation?: DiagramOrientation;
 }) {
   const questionCounts = useQuestionCounts(diagram);
+  // Fades what does not exist in the chosen state; the layout stays put so both states read in the same places.
+  const [phase, setPhase] = useState<'changes' | 'before' | 'after'>('changes');
   const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
   const revealed = useRef<{ id: string } | undefined>(undefined);
   const revealedIn = useRef<DiagramModel | undefined>(undefined);
@@ -322,7 +324,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     const name = (id: string) => byId.get(id)?.label ?? id;
     return { id: edge.id, source: edge.source, target: edge.target, type: 'routed', ariaLabel: `${name(edge.source)} ${edge.label} ${name(edge.target)} (${edge.bidirectional ? 'both directions' : 'source to target'})`, data: { ...edge, ...actions, state, selectId: `edge:${edge.childEdgeIds[0]}`, comments, questions: questionCounts.get(`edge:${edge.childEdgeIds[0]}`) ?? 0, selected: edge === selectedEdge }, markerStart: edge.bidirectional ? { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE } : undefined, markerEnd: { type: MarkerType.ArrowClosed, width: 14, height: 14, color: state === 'active' ? ACCENT : EDGE }, zIndex: state === 'active' ? 2 : 0 };
   });
-  return <div ref={canvas} className="diagram-canvas"><ReactFlow onMoveStart={event => { if (event) userMoved.current = true; }} nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="light" zIndexMode="manual" elevateNodesOnSelect={false} nodesConnectable={false} minZoom={0.15} maxZoom={2} panOnScroll={true} zoomOnScroll={false} zoomOnPinch={true} panOnDrag={true}
+  return <div ref={canvas} className="diagram-canvas" data-phase={phase}><ReactFlow onMoveStart={event => { if (event) userMoved.current = true; }} nodes={nodes} edges={edges} nodeTypes={nodeTypes} edgeTypes={edgeTypes} colorMode="light" zIndexMode="manual" elevateNodesOnSelect={false} nodesConnectable={false} minZoom={0.15} maxZoom={2} panOnScroll={true} zoomOnScroll={false} zoomOnPinch={true} panOnDrag={true}
     onNodeClick={(_, node) => onSelect(node.id)} onEdgeClick={(_, edge) => edge.data && onSelect(edge.data.selectId)}
     onKeyDown={event => {
       if (event.key.toLowerCase() === 'f' && event.target instanceof Element && !event.target.closest('input,textarea,button')) { event.preventDefault(); fit(); return; }
@@ -339,6 +341,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
       {pack.documentKind === 'design' ? <label className="metadata-toggle"><input type="checkbox" checked={zoom === 'technical'} onChange={event => { pending.current = null; setZoom(event.target.checked ? 'technical' : 'business'); }} /> Show source metadata</label>
         : <div className="segmented" role="radiogroup" aria-label="Detail level">{(['business', 'technical'] as const).map(value => <label key={value}><input type="radio" name="detail-level" checked={zoom === value} onChange={() => setZoom(value)} />{value === 'business' ? 'Business' : 'Technical'}</label>)}</div>}
       <div className="segmented"><button type="button" onClick={() => { pending.current = null; setExpanded(pack.graph.groups.map(group => group.id)); }}>Expand all</button><button type="button" onClick={() => { pending.current = null; setExpanded(pack.documentKind === 'design' ? ['design:root'] : []); }}>Collapse all</button></div>
+      {pack.graph.nodes.some(node => node.change) && <div className="segmented" role="radiogroup" aria-label="Design state">{(['changes', 'before', 'after'] as const).map(value => <button key={value} type="button" role="radio" aria-checked={phase === value} onClick={() => setPhase(value)}>{value === 'changes' ? 'Changes' : value === 'before' ? 'Before' : 'After'}</button>)}</div>}
     </Panel>
     {pack.designDocument?.questions?.length ? <Panel position="bottom-right" className="question-legend"><button type="button" className="btn" onClick={() => onQuestions(null)}><ListTodo size={14} aria-hidden="true" /> Design questions</button></Panel> : null}
     <Panel position="bottom-left" className="zoom-controls"><div role="group" aria-label="Diagram viewport"><button type="button" className="icon-btn" aria-label="Zoom out" data-tooltip="Zoom out" onClick={() => { userMoved.current = true; void zoomOut(); }}><Minus size={18} /></button><button type="button" className="icon-btn" aria-label="Zoom in" data-tooltip="Zoom in" onClick={() => { userMoved.current = true; void zoomIn(); }}><Plus size={18} /></button><button type="button" className="btn" onClick={() => fit()} data-tooltip="Fit the complete diagram (F)">Fit diagram</button></div></Panel>

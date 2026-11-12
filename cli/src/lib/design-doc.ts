@@ -17,6 +17,10 @@ const ElementConfigSchema = z.object({
   connections: z.array(z.object({ to: reference, direction: z.enum(['one-way', 'bidirectional']), label: text }).strict()).max(200).default([]),
   // Files in the element folder, `<project folder>/maps/<map>/elements/<id>/`; see design-mocks.ts.
   mocks: z.array(MockEntrySchema).max(50).default([]),
+  // Technology and place, e.g. "PostgreSQL on Supabase"; `--check` requires it on stores and external systems.
+  location: text.optional(),
+  // How this design changes the current system; the viewer offers before and after views when any element has one.
+  change: z.enum(['added', 'changed', 'removed']).optional(),
 }).strict();
 const RootConfigSchema = z.object({
   concerns: z.array(z.object({
@@ -43,9 +47,11 @@ type Element = {
   id: string; title: string; name: string; summary: string; kind: z.infer<typeof DesignKindSchema>; parent?: string;
   channels: z.infer<typeof DesignChannelSchema>[]; relationships: Relationship[]; detailText?: string; source?: string; resolved: boolean; locked: boolean; configDigest: string;
   // `mockSummaries` is filled once the files are checked, by loadMapDesign.
-  mocks: MockEntry[]; mockSummaries?: MockSummary[];
+  mocks: MockEntry[]; mockSummaries?: MockSummary[]; location?: string; change?: 'added' | 'changed' | 'removed';
   // Set by changedElements when the element no longer matches its approval.
   changes?: import('./design-map.js').ElementChange[];
+  // Work nodes targeting the element; progress is map state, so it stays out of the content digest.
+  progress?: WorkProgress[];
 };
 type Concern = { id: string; name: string; elements: string[]; requirement: string; response: string };
 export type DesignDoc = {
@@ -77,10 +83,25 @@ function point(source: string, offset: number) {
   return { line: before.length, column: before[before.length - 1].length + 1 };
 }
 
-/** The open nodes, in any mode, whose `answers` parent is a design element. They hold approval. */
+/** The open question and decision nodes, in any mode, whose `answers` parent is a design element. They hold approval. */
 export function targetingNodes(nodes: readonly GraphNode[]): GraphNode[] {
   const elements = new Set(nodes.filter(node => node.kind === 'element' && node.status !== 'out-of-scope').map(node => node.id));
-  return nodes.filter(node => node.kind !== 'element' && node.answers && elements.has(node.answers) && !isSettled(node.status));
+  // Only questions (decision, research) hold approval. Work is the plan, shown as progress.
+  return nodes.filter(node => (node.kind === 'decision' || node.kind === 'research') && node.answers && elements.has(node.answers) && !isSettled(node.status));
+}
+
+export type WorkProgress = { id: string; title: string; status: 'todo' | 'in-progress' | 'done' | 'blocked' };
+/** Each element's work nodes (kind work, answering the element), with the status the viewer shows. */
+function workProgress(nodes: readonly GraphNode[]): Map<string, WorkProgress[]> {
+  const byId = new Map(nodes.map(node => [node.id, node]));
+  const out = new Map<string, WorkProgress[]>();
+  for (const node of nodes) {
+    if (node.kind !== 'work' || !node.answers || node.status === 'out-of-scope') continue;
+    const status = node.status === 'resolved' ? 'done' : node.status === 'claimed' ? 'in-progress'
+      : node.blockedBy.some(id => { const blocker = byId.get(id); return !blocker || !isSettled(blocker.status); }) ? 'blocked' : 'todo';
+    out.set(node.answers, [...out.get(node.answers) ?? [], { id: node.id, title: node.title, status }]);
+  }
+  return out;
 }
 
 /**
@@ -124,9 +145,14 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
       }),
       detailText: rest || undefined, source: node.url ?? (node.file && `maps/${map}/${node.file}`), resolved: node.status === 'resolved', locked: node.status === 'resolved', // Approval covers the requirement prose too; `rest` already leaves out regenerated diagrams.
       configDigest: digest({ config, title: node.title, name: node.label, summary: node.summary ?? node.title, detail: rest }), mocks: value.mocks,
+      ...(value.location && { location: value.location }), ...(value.change && { change: value.change }),
     };
   });
   const byElement = new Map(items.map(item => [item.id, item]));
+  for (const [id, progress] of workProgress(nodes)) {
+    const item = byElement.get(id);
+    if (item) item.progress = progress;
+  }
   const ancestors = (id: string): string[] => {
     const out: string[] = [];
     for (let parent = byElement.get(id)?.parent; parent; parent = byElement.get(parent)?.parent) {
@@ -185,8 +211,31 @@ export function designFromNodes(map: string, nodes: readonly GraphNode[]): { doc
     });
   }
   // Lock state and questions live in the map inputs digest, so locking or answering never makes the open page stale.
-  const content = { id: map, name: root.title, summary: root.summary ?? root.title, detailText: rootBlock.rest || undefined, concerns, items: items.map(item => ({ ...item, source: undefined, resolved: undefined, locked: undefined })) };
+  const content = { id: map, name: root.title, summary: root.summary ?? root.title, detailText: rootBlock.rest || undefined, concerns, items: items.map(item => ({ ...item, source: undefined, resolved: undefined, locked: undefined, progress: undefined })) };
   return { doc: { ...content, items, questions, sourceRevision: digest(content) }, warnings };
+}
+
+const USER_FACING = new Set(['web', 'mobile', 'desktop', 'cli']);
+/**
+ * Clarity rules `--check` applies on top of a valid build. A loose element's problems block;
+ * a locked element's only warn, since fixing them would reopen its approval.
+ */
+export function designCheck(doc: DesignDoc): { blocking: string[]; warnings: string[] } {
+  const blocking: string[] = [];
+  const warnings: string[] = [];
+  for (const item of doc.items) {
+    if (item.change === 'removed') continue;
+    const problems: string[] = [];
+    if ((item.kind === 'store' || item.kind === 'external-system') && !item.location) problems.push(`${item.kind === 'store' ? 'Store' : 'External system'} ${item.id} has no location; name its technology and where it lives`);
+    // An external system's interface is someone else's product, so only the elements this design builds need mocks.
+    const facing = item.channels.filter(channel => USER_FACING.has(channel));
+    if (item.kind !== 'external-system' && facing.length && !item.mocks.length) problems.push(`Element ${item.id} has a user-facing channel (${facing.join(', ')}) but no mock`);
+    (item.locked ? warnings : blocking).push(...problems);
+    if (item.kind === 'store' && !item.mocks.length) warnings.push(`Store ${item.id} has no mock of its schema or structure`);
+  }
+  const top = doc.items.filter(item => !item.parent).length;
+  if (top > 7) warnings.push(`The top level has ${top} elements; nest related ones under a parent to keep it to seven or fewer`);
+  return { blocking, warnings };
 }
 
 const ANSWER_HEADING = /^## Answer(?: \(changed \d{4}-\d{2}-\d{2}\))?[ \t]*$/m;
@@ -209,7 +258,7 @@ function markdownText(value: string): string {
     .replace(/[\\`*{}[\]()#+!_|>~]/g, '\\$&').replace(/[\r\n]/g, ' ');
 }
 function itemDetail(doc: DesignDoc, item: Element): string {
-  return [item.detailText, ...doc.concerns.filter(c => c.elements.includes(item.id)).map(c => `## ${markdownText(c.name)}\n\n- Requirement: ${markdownText(c.requirement)}\n- Design response: ${markdownText(c.response)}\n- Applies to: ${c.elements.join(', ')}`)].filter(Boolean).join('\n\n');
+  return [item.location && `Location: ${markdownText(item.location)}`, item.detailText, ...doc.concerns.filter(c => c.elements.includes(item.id)).map(c => `## ${markdownText(c.name)}\n\n- Requirement: ${markdownText(c.requirement)}\n- Design response: ${markdownText(c.response)}\n- Applies to: ${c.elements.join(', ')}`)].filter(Boolean).join('\n\n');
 }
 export function designDocToPack(doc: DesignDoc, orientation: DiagramOrientation = 'top-to-bottom'): AlignmentPack {
   const containers = new Set(doc.items.flatMap(item => item.parent ? [item.parent] : []));
@@ -223,8 +272,8 @@ export function designDocToPack(doc: DesignDoc, orientation: DiagramOrientation 
       groups: [{ id: 'design:root', label: doc.name, summary: doc.summary, sourceRefs: [] }, ...doc.items.filter(item => containers.has(item.id)).map(item => ({ id: `design:container:${item.id}`, parentGroupId: item.parent ? `design:container:${item.parent}` : 'design:root', label: item.name, ownerNodeId: item.id, summary: item.summary, sourceRefs: [item.id] }))],
       nodes: doc.items.map(item => ({
         id: item.id, groupId: containers.has(item.id) ? `design:container:${item.id}` : item.parent ? `design:container:${item.parent}` : 'design:root', label: item.name, summary: item.summary,
-        elementKind: item.kind, channels: item.channels, locked: item.locked, technicalSummary: itemDetail(doc, item) || undefined, sourceRefs: [item.id],
-        ...(item.mockSummaries?.length && { mocks: item.mockSummaries }),
+        elementKind: item.kind, channels: item.channels, locked: item.locked, ...(item.change && { change: item.change }), technicalSummary: itemDetail(doc, item) || undefined, sourceRefs: [item.id],
+        ...(item.mockSummaries?.length && { mocks: item.mockSummaries }), ...(item.progress && { progress: item.progress }),
       })),
       edges: edges.map(edge => ({ id: edge.id, fromNodeId: edge.from, toNodeId: edge.to, direction: edge.direction, relationship: 'design', label: edge.label, summary: edge.label, sourceRefs: [edge.from, edge.to] })), aggregateEdges: [],
     },
@@ -246,5 +295,5 @@ export function renderDesignDocMarkdown(doc: DesignDoc, orientation: DiagramOrie
   };
   walk();
   for (const edge of doc.items.flatMap(item => item.relationships)) lines.push(`    element_${edge.from} ${edge.direction === 'bidirectional' ? '<-->' : '-->'}|"${label(edge.label)}"| element_${edge.to}`);
-  return `# ${markdownText(doc.name)}\n\n${markdownText(doc.summary)}\n\n<!-- Generated from the map's element nodes; regenerate with design-doc --markdown -->\n\n\`\`\`mermaid\n${lines.join('\n')}\n\`\`\`\n\n${doc.detailText ?? ''}\n\n${doc.questions.length ? `## Questions\n\n${doc.questions.map(q => `### ${markdownText(q.question)}\n\n- Node: \`${q.id}\`\n- Target: \`${q.target.id}\`${q.answer !== undefined ? `\n- Answer: ${markdownText(q.answer) || 'given'}` : ''}${q.choices ? `\n- Answer format: ${q.multiple ? 'Select all that apply' : 'Choose one'}\n${q.choices.map(choice => `    - ${markdownText(choice)}`).join('\n')}\n    - Other (write in)` : '\n- Answer format: Free text'}`).join('\n\n')}\n\n` : ''}${doc.items.map(item => `## ${markdownText(item.name)}\n\n*${markdownText(item.summary)}*\n\n- Node: \`${item.id}\`\n- Kind: ${item.kind}\n- State: ${item.locked ? 'approved' : 'awaiting approval'}\n- Channels: ${item.channels.join(', ') || 'none'}\n\n${itemDetail(doc, item)}`).join('\n\n')}`.trimEnd() + '\n';
+  return `# ${markdownText(doc.name)}\n\n${markdownText(doc.summary)}\n\n<!-- Generated from the map's element nodes; regenerate with design-doc --markdown -->\n\n\`\`\`mermaid\n${lines.join('\n')}\n\`\`\`\n\n${doc.detailText ?? ''}\n\n${doc.questions.length ? `## Questions\n\n${doc.questions.map(q => `### ${markdownText(q.question)}\n\n- Node: \`${q.id}\`\n- Target: \`${q.target.id}\`${q.answer !== undefined ? `\n- Answer: ${markdownText(q.answer) || 'given'}` : ''}${q.choices ? `\n- Answer format: ${q.multiple ? 'Select all that apply' : 'Choose one'}\n${q.choices.map(choice => `    - ${markdownText(choice)}`).join('\n')}\n    - Other (write in)` : '\n- Answer format: Free text'}`).join('\n\n')}\n\n` : ''}${doc.items.map(item => `## ${markdownText(item.name)}\n\n*${markdownText(item.summary)}*\n\n- Node: \`${item.id}\`\n- Kind: ${item.kind}${item.change ? `\n- Change: ${item.change}` : ''}\n- State: ${item.locked ? 'approved' : 'awaiting approval'}\n- Channels: ${item.channels.join(', ') || 'none'}\n\n${itemDetail(doc, item)}`).join('\n\n')}`.trimEnd() + '\n';
 }

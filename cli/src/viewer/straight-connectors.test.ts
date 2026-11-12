@@ -144,7 +144,9 @@ describe('straight connectors with measured content and real ELK', () => {
     const graph = fixture(false);
     graph.edges.push({ id: 'bypass', fromNodeId: 'sender', toNodeId: 'receiver', label: 'Bypass', summary: 'Bypass', relationship: 'design', sourceRefs: [] });
     const sizes = measured(graph, []);
+    // The worker spans the whole shared corridor, so no port shift can straighten the bypass.
     if (orientation === 'left-to-right') sizes.nodes['item:worker'].height = 400;
+    else sizes.nodes['item:worker'].width = 700;
     const diagram = await buildDiagram(graph, [], sizes, undefined, orientation);
     expectSafe(diagram, graph, sizes, orientation);
     const edge = diagram.edges.find(candidate => candidate.childEdgeIds.includes('bypass'))!;
@@ -455,5 +457,33 @@ it.each(orientations)('uses measured header whitespace to shrink the expanded pu
   if (orientation === 'top-to-bottom') {
     expect(extent(diagram)).toBeLessThanOrEqual(extent(sideEntry) * 0.8);
     expect(bends(diagram)).toBeLessThanOrEqual(bends(sideEntry) / 2);
+  }
+});
+
+// Cards whose spans overlap get one straight connector, even when ELK spread the shared card's ports apart.
+it.each(orientations)('straightens overlapping cards in the collapsed public example in %s', async orientation => {
+  const graph = designDocToPack(exampleDesign()).graph;
+  // Browser-measured sizes, and each card's hover comment control above its top-right corner.
+  const heights: Record<string, number> = { 'item:002': 94, 'group:design:container:003': 128, 'item:009': 94, 'item:010': 114 };
+  const projection = projectDiagram(graph, ['design:root']);
+  const sizes: MeasuredGeometry = {
+    nodes: Object.fromEntries(projection.nodes.map(node => [node.id, { width: 300, height: heights[node.id] }])),
+    labels: Object.fromEntries(projection.edges.map(edge => [edge.id, { width: 196, height: edge.id.includes('010') ? 44 : 28 }])),
+  };
+  const hover: HeaderMeasurer = nodes => Object.fromEntries(nodes.map(node => [node.id,
+    { width: node.width, hardObstacles: [{ x: node.width - 45, y: -51, width: 44, height: 44 }], subtitleLines: [] }]));
+  const diagram = await buildDiagram(graph, ['design:root'], sizes, undefined, orientation, hover);
+  const across = orientation === 'left-to-right' ? 'y' : 'x';
+  const span = across === 'x' ? 'width' : 'height';
+  const byId = new Map(diagram.nodes.map(node => [node.id, node]));
+  const shared = diagram.edges.filter(edge => {
+    const [a, b] = [byId.get(edge.source)!, byId.get(edge.target)!];
+    return Math.min(a[across] + a[span], b[across] + b[span]) - Math.max(a[across], b[across]) >= 2 * 24 + 12;
+  });
+  expect(shared.length, 'example has overlapping connected cards').toBeGreaterThan(0);
+  for (const edge of shared) {
+    const blocked = diagram.nodes.some(node => node.id !== edge.source && node.id !== edge.target && node.kind !== 'group'
+      && crosses(edge.points[0], { ...edge.points.at(-1)!, [across]: edge.points[0][across] }, node));
+    if (!blocked) expect(edge.points, `${edge.id} bends without an obstacle`).toHaveLength(2);
   }
 });

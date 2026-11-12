@@ -22,7 +22,7 @@ const question = (yaml: string) => `Should retries keep the draft?\n\n<details>\
 const base = (): Node[] => [
   { id: '101', kind: 'destination', status: 'open' },
   { id: '102', kind: 'element', status: 'open', answers: '101', body: `Runs commands.\n\n${element('kind: component\nconnections: [{to: 103, direction: one-way, label: Writes}]')}` },
-  { id: '103', kind: 'element', status: 'open', answers: '101', body: element('kind: store') },
+  { id: '103', kind: 'element', status: 'open', answers: '101', body: element('kind: store\nlocation: Local files') },
 ];
 function fixture(tracker: Tracker = 'files', list: Node[] = base()) {
   const root = mkdtempSync(join(tmpdir(), 'design-lifecycle-'));
@@ -292,6 +292,45 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     expect(clear.blockers).toEqual([]);
     expect(cli(root, ['design-doc', 'demo', '--check']).stdout).toContain('0 open human questions, 0 unresolved map items');
     expect((await server.approve(clear)).ok).toBe(true);
+  }, 30_000);
+
+  it('blocks --check on clarity problems and warns on softer ones', () => {
+    const root = fixture('files', [base()[0], base()[1], { id: '103', kind: 'element', status: 'open', answers: '101', body: element('kind: store\nchannels: [web]') }]);
+    const failed = cli(root, ['design-doc', 'demo', '--check']);
+    rejected(failed, 'clarity problems');
+    expect(failed.stderr).toContain('warning: Store 103 has no mock of its schema or structure');
+    expect(failed.stderr).toContain('- Store 103 has no location; name its technology and where it lives\n- Element 103 has a user-facing channel (web) but no mock');
+  });
+
+  it('lets work nodes never block or reopen approval, while questions and design edits do', async () => {
+    const root = fixture();
+    const write = (id: string, status: string, mode: string, kind: string) => writeFileSync(join(root, `.acstack/maps/demo/${id}-node.md`),
+      `---\nstatus: ${status}\nmode: ${mode}\nkind: ${kind}\nlabel: Node ${id}\nanswers: "103"\nblocked-by: []\n---\n\n# Node ${id}\n`);
+    // Open work on a loose element is the plan, not a blocker.
+    write('104', 'open', 'afk', 'work');
+    const server = await start(root);
+    const before = await server.get();
+    expect(before.blockers).toEqual([]);
+    expect((await server.approve(before)).ok).toBe(true);
+    expect((await server.get()).approval.valid).toBe(true);
+    // Work created after approval leaves it valid.
+    write('105', 'claimed', 'afk', 'work');
+    const after = await server.get();
+    expect(after.blockers).toEqual([]);
+    expect(after.approval.valid).toBe(true);
+    expect(cli(root, ['design-doc', 'demo', '--check']).stdout).toContain('0 unresolved map items');
+    // An open question for the user blocks approval.
+    write('106', 'open', 'hitl', 'decision');
+    const asked = await server.get();
+    expect(asked.blockers).toEqual([{ kind: 'question', targetId: '103', label: 'Node 106', nodeId: '106' }]);
+    expect(asked.approval).toEqual({ valid: false, reason: 'Open questions target this design' });
+    rmSync(join(root, '.acstack/maps/demo/106-node.md'));
+    expect((await server.get()).approval.valid).toBe(true);
+    // An edit to the design doc itself invalidates the approved revision.
+    writeFileSync(join(root, '.acstack/maps/demo/103-node.md'), fileNode(root, '103').replace('kind: store', 'kind: store\nchannels: [web]'));
+    const edited = await server.get();
+    expect(edited.sourceRevision).not.toBe(after.sourceRevision);
+    expect(edited.approval.valid).toBe(false);
   }, 30_000);
 
   it('locks one element from the page, unapproves it when its config changes, and re-approves it', async () => {

@@ -60,6 +60,8 @@ A design doc belongs to one map. Use `/acstack:map` to chart it if none exists.
 kind: component        # actor | component | store | external-system
 parent: "003"          # optional: the element that contains this one
 channels: [cli, web]   # optional
+location: SQLite file in the project folder  # required on a store or external system
+change: added          # optional: added | changed | removed, against the current system
 connections:           # each connection declared once, on the acting element
     - to: "007"
       direction: one-way # one-way | bidirectional
@@ -71,6 +73,13 @@ connections:           # each connection declared once, on the acting element
 - Choose `kind` from `actor`, `component`, `store`, or `external-system`
     - An actor participates from outside the system, such as a person or an external autonomous agent
     - An agent built into the system is a component
+- Give every `store` and `external-system` a `location` naming its technology and where it lives (for example "PostgreSQL on Supabase" or "Stripe API")
+- Keep the top level to seven elements or fewer; nest related elements under a parent
+- Name elements and connections with plain, specific words the reviewer already uses, such as "Order files" rather than "Persistence layer"
+    - To show a sequence, start connection labels with step numbers: `1. Sends the order`
+- Mark changes to an existing system with `change: added`, `changed`, or `removed`
+    - The viewer then offers Changes, Before, and After views; Before fades added elements and After fades removed ones
+    - Use markers for refactors and extensions, so the reviewer sees what moves; a new system needs none
 - Use `parent` only for genuine containment, not dependencies or shared concerns
     - Each component represents one entity, shown as either a collapsed card or an expanded container, never both
     - Let nesting express containment without a duplicate "Contains" arrow
@@ -120,6 +129,13 @@ mocks:
     - Fixtures show structure, not volume: keep each one under 20 KB
     - OpenDesigner pages import the same fixture file as props, so keep one copy in the element folder
 - Every mock on a locked element is a requirement unless it sets `illustrative: true`
+- Mock what each element exposes
+    - Every element this design builds with a `web`, `mobile`, `desktop`, or `cli` channel needs a mock; `--check` fails without one
+    - Show a CLI as a Markdown file with the commands and their output in a `text` block
+    - Show a database schema as a fixture with its JSON Schema, or a Mermaid `erDiagram`
+    - Show a file or directory layout as a Markdown tree in a `text` block
+    - `--check` warns about a store with no mock
+- When the design extends existing code, build its mocks from that code: reuse its components, styles, sample data, and real command output, so the mock shows the change and not a redesign
 
 ### Design-wide config on the root
 
@@ -149,6 +165,9 @@ A question targets an element when its `answers:` parent is that element node.
 
 - A hitl question that targets an element shows beside it in the viewer
 - Agent work (afk), including research, is settled on the map; the viewer lists it as an approval blocker, without a reviewer answer form
+- Implementation work is a `kind: work` node that answers its element
+    - Each element shows a badge for its work (To do, In progress, Done, or Blocked, with a done count), and its drawer lists the items; the badge updates live
+    - Work is progress only; see the gate rules below
 - Questions answering the root do not target the design
 - For a connection, target one of its endpoints
 - State the proposed behavior and your recommendation in the body; do not ask for judgment without showing what the reviewer would accept
@@ -184,12 +203,17 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
     - a concern or highlight that names nothing on the map
     - a mock file that is missing or outside its element folder, an unknown OpenDesigner design or page, or a fixture over 20 KB or not matching its schema
     - an element changed since the user approved it, until it is re-approved
+- `--check` also fails on missing clarity on a loose element (a locked one only warns):
+    - a store or external system without a `location`
+    - an element this design builds with a `web`, `mobile`, `desktop`, or `cli` channel and no mock
 - It warns on oddities:
     - a fog element, a locked element inside a loose one, or an open question on a locked element
     - a loose element's mock with fewer than two variants
     - a locked element with only illustrative mocks
     - inline HTML while OpenDesigner is installed
     - a mock file over 5 MB
+    - a store with no mock of its schema or structure
+    - more than seven elements at the top level
 - Fix contradictions before asking the user to review
 - Keep the command running while the reviewer works
 - The open page updates live: the server watches the map folder, element folders, and fixtures, and pushes each rebuild
@@ -235,8 +259,9 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
     - Finish every `missing` or `stale` entry; handling only the newest feedback leaves older comments blocking approval
     - Ask the user the specific question for any `needs-human` entry; do not mark it settled yourself
     - Require `pendingFeedback: []` before asking for final approval; element approvals do not settle comments
-- Every unresolved node targeting an element blocks approval, including afk work and fog. Zero human questions does not mean ready for approval
-    - Settle actionable afk blockers before requesting approval. Record findings in the affected elements before resolving work nodes; never close them merely to clear the gate
+- Unresolved question and decision nodes targeting an element block approval, including afk research and fog. Zero human questions does not mean ready for approval
+    - Work nodes never block approval: open work is the plan, shown as progress on its element
+    - Settle actionable afk research before requesting approval. Record findings in the affected elements before resolving it; never close a node merely to clear the gate
     - Report missing decisions or unavailable evidence when blocked. Label an unapprovable review as a draft
     - Present the resulting revision for approval after research. A request to implement does not remove blockers or authorize agent approval; research resolution does not prove runtime safety
 - Changed elements block approval; the blocker list offers Re-approve for each
@@ -244,7 +269,8 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
     - The user chooses one by locking the element while that variant is on screen; never choose for them
 - The user chooses Approve this version; approval locks every loose element
     - While anything blocks approval, the viewer lists each blocker and links to its element (and answer form for a reviewer question)
-- Require `approval.valid: true` from status before implementation
-- Changed element nodes, saved comments, or targeting nodes reopen the gate
+- Stop for the user's approval only when the plan decides something the user has not, or changes an element's contract or module boundary; otherwise show the plan in the design doc and proceed
+- Approval holds for the exact revision: an edit to the design doc, a saved comment, or a new, changed, or settled question or decision node targeting an element reopens the gate
+    - Creating, claiming, or resolving work nodes never reopens it
 - Keep `workflow.design_review` unchanged; it controls the separate frontend design pass
 - Retain canonical reviews in `<project folder>/design-reviews/` independently of `workflow.maps.persist`

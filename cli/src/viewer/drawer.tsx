@@ -8,7 +8,7 @@ import { type Annotation, diagramId, pack, targetLabel } from './pack.js';
 import { DesignApproval, ElementLock, useDesignReview } from './design-approval.js';
 import { DesignQuestions, type AnswerDraft } from './design-questions.js';
 import { questionScopeForSelection, questionsForScope } from './question-targets.js';
-import { ElementMetadata } from './element-metadata.js';
+import { ElementMetadata, ProgressList } from './element-metadata.js';
 import { CommentEditor } from './comment-editor.js';
 import { Dropdown, type DropdownOption } from './dropdown.js';
 import { MockContext, MocksTab, mocksFor, useMockCaptures, type MockLink } from './mocks-modal.js';
@@ -158,11 +158,12 @@ export function Details({
   return (
     <section className="section">
       <h2>{node.label}</h2>
-      <ElementMetadata kind={node.elementKind} channels={node.channels} />
+      <ElementMetadata kind={node.elementKind} channels={node.channels} progress={node.progress} change={node.change} />
       <ElementLock id={node.id} locked={node.locked} />
       <p data-annotate-type="node" data-annotate-id={node.id}>
         {node.summary}
       </p>
+      <ProgressList progress={node.progress} />
       {(node.technicalLabel || node.technicalSummary) && (
         // Collapsed by default: the business definition above is what most reviewers need.
         <details className="technical" open={expanded || undefined}>
