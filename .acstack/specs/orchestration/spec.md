@@ -145,8 +145,7 @@ ACStack chooses verification effort to fit changed behavior while preserving req
 - **Then**: It launches no fixed number of investigators, and chooses the model separately from the role without hardcoding a provider
 - **Then**: Each brief states the question, scope, access, and expected report; each report separates evidence from hypotheses and names what it searched
 - **Then**: The parent verifies the decisive evidence behind its conclusion
-- **Then**: It requests enforced read-only access only when the launcher reports it can enforce it, otherwise calls the no-edit instruction prompt-only
-- **Then**: After a failed enforced launch, it reports the failure and asks before launching without enforcement
+- **Then**: It tells the investigator not to edit project files
 - **Source**: `orchestrator/AGENTS.md`, Delegate investigation
 
 ## FR-013: Give lead and delegated sessions their own role

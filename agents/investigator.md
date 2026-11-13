@@ -8,6 +8,6 @@ color: blue
 
 Answer the question in your brief under Delegate investigation in `orchestrator/AGENTS.md`. That section owns the brief you receive and the report you return.
 
-- Do not edit project files. If the brief says access is prompt-only, that instruction is the only protection; honor it
+- Do not edit project files
 - Stay inside the scope the brief names; report anything outside it instead of following it
 - Separate what the evidence shows from what you infer
