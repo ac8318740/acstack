@@ -17,7 +17,7 @@ ACStack keeps meaningful tests and chooses verification effort to fit the change
     - The guidance below applies wherever the brief does not narrow it
 - Stay inside the assigned scope and access
     - Report work outside them to your parent instead of doing it
-    - Treat a no-edit instruction as binding even when the launcher does not enforce it
+    - Treat a no-edit instruction as binding
 - Delegate further only when the brief allows it, and never grant a child more access than you have
 - Report results, evidence, and blockers to your parent; your parent owns synthesis and completion unless the brief assigns them to you
 <!-- acstack:delegated:end -->
@@ -110,8 +110,7 @@ This section owns ACStack's code-design rule. Other files point here.
 - Delegate when discovery means broad searches, substantial reading, or separable questions; work directly when the paths are few and known
     - Launch one agent per separable question: the host's read-only search agent for navigation, `investigator` otherwise
     - Prefer a cheaper configured model for fact gathering and a stronger one for hard analysis; never hardcode a provider or model
-- Request enforced read-only access when the launcher can enforce it; otherwise tell the investigator not to edit and call that protection prompt-only
-    - If an enforced launch fails, report it and ask before launching without enforcement
+- Tell the investigator not to edit project files
 - The brief states the question and why it matters, the scope and what is out of it, and the access
 - The report gives findings with file and line references, which rest on evidence and which are hypotheses, what was searched, and open uncertainties
 - Own the synthesis: verify the decisive evidence without repeating the whole investigation
