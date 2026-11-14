@@ -29,6 +29,7 @@ Two layers:
 | `alt+c` | new tab |
 | `alt+w` | new workspace |
 | `alt+r` | new worktree |
+| `alt+shift+r` | remove worktree (asks first) |
 | `prefix+t` | go to a pane by name |
 
 ## Open a tool

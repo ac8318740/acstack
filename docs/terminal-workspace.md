@@ -119,7 +119,7 @@ Three terms, then the loop.
 3. **Review locally.** Press `alt+f` to see what the agent's branch adds to dev. Press `alt+x` to compare something else. Run the `pre-commit-review` skill in the agent's own pane for a deeper pass
 4. **Ship.** The agent commits, pushes, and opens the pull request from its worktree
 5. **Review the pull request.** Press `alt+i` for the dashboard. Press `p` then `]` to reach Files Changed. Press `D` to review it in tuicr, or `S` to hand it to an agent
-6. **Tear down.** Run `herdr worktree remove --workspace <id>`. Then delete the branch
+6. **Tear down.** Press `alt+shift+r`, or run `herdr worktree remove --workspace <id>`. Then delete the branch
 
 ## 3. Install
 
@@ -594,7 +594,7 @@ Each tool lists its own keys.
 | `alt+z` | Zoom pane |
 | `alt+c` | New tab |
 | `alt+w` | New workspace |
-| `alt+r` | New worktree workspace |
+| `alt+r` / `alt+shift+r` | New worktree workspace / remove this worktree (asks first) |
 | `alt+e` / `alt+minus` | Split right / down |
 | `alt+y` / `alt+shift+y` | File tree in a popup / in a new tab |
 | `alt+f` / `alt+shift+f` | Diff of your branch against dev, in a popup / in a new tab |
@@ -663,6 +663,8 @@ last_pane = "alt+a"
 new_tab = ["prefix+c", "alt+c"]
 new_workspace = ["prefix+shift+n", "alt+w"]
 new_worktree = "alt+r"
+# Removal asks for confirmation, so it can sit on a chord.
+remove_worktree = "alt+shift+r"
 split_vertical = ["prefix+v", "alt+e"]
 split_horizontal = ["prefix+minus", "alt+minus"]
 
