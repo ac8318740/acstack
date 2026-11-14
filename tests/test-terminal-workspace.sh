@@ -290,6 +290,10 @@ if grep -q 'key = "alt+q"' "$WORK/merged.toml" \
 then ok "the harlequin popup and its tab variant both reach the keymap"
 else no "the harlequin popup and its tab variant both reach the keymap"; fi
 
+if grep -q '^remove_worktree = "alt+shift+r"' "$WORK/merged.toml"
+then ok "remove_worktree sits on the shift chord of new_worktree"
+else no "remove_worktree sits on the shift chord of new_worktree"; fi
+
 if grep -q 'my-own-tool' "$WORK/merged.toml" && ! grep -q 'my-old-diff' "$WORK/merged.toml"
 then ok "a hand-written binding survives unless it collides with a managed key"
 else no "a hand-written binding survives unless it collides with a managed key"; fi

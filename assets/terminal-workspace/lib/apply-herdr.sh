@@ -124,6 +124,8 @@ if mod != "none":
         # Also off g, for the same reason, and back on it when lazygit is off.
         (f'new_worktree = "{m}+r"' if gitkey
          else f'new_worktree = ["prefix+shift+g", "{m}+r"]'),
+        # herdr asks for confirmation before removing, so a chord is safe here.
+        f'remove_worktree = "{m}+shift+r"',
         f'split_vertical = ["prefix+v", "{m}+e"]',
         f'split_horizontal = ["prefix+minus", "{m}+minus"]',
     ]
