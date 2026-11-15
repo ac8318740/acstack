@@ -70,45 +70,43 @@ These commands report configuration without changing settings.
 
 ### Where project data lives
 
-*Each repository has one project folder, outside the repository by default. All of its worktrees share it.*
+*Project data has two homes. Decisions and the glossary live in the repository; everything else lives in one project folder outside it, shared by every worktree.*
 
+| Home | What lives there | Where |
+| --- | --- | --- |
+| Repository | Architecture decisions and the glossary | `.acstack/decisions/` and `.acstack/CONTEXT.md` at the root of the current worktree |
+| Project folder | Everything else: configuration, maps on the files tracker, design reviews, handoffs, browser and verification state | `~/.acstack/projects/<key>/`, a real folder |
+
+- The repository records resolve from the current worktree (`git rev-parse --show-toplevel`), so an agent edits them on its own branch and they merge through a pull request like code
+    - Each is optional and is on only when it exists there
+    - ACStack writes no `.gitignore` rules for them; the developer commits them
 - `~/.claude/acstack/bin/acstack project-data path` prints the project folder's absolute path, even before the folder exists
     - It exits non-zero outside a Git repository
-    - It exits non-zero with a repair message for legacy, invalid, or conflicting data
+    - It exits non-zero with a repair message for legacy or invalid data
     - Orphan warnings do not block a valid current repository or adopt the orphan's settings
     - The session-start hook states the same path in the agent's context
-- This document writes a part inside it as `<project folder>/project.yaml`, `<project folder>/maps/`, and so on
+- This document writes a part inside the project folder as `<project folder>/project.yaml`, `<project folder>/maps/`, and so on
 - `/acstack:setup` creates the folder with `mkdir -p "$(~/.claude/acstack/bin/acstack project-data path)"`
-- No configuration key and no `.gitignore` rule controls where project data lives
-
-A project uses one of two modes.
-
-| Mode | Where the records live | What the repository holds |
-| --- | --- | --- |
-| Global (default) | `~/.acstack/projects/<key>/`, a real folder | No ACStack files, and no `.gitignore` rules |
-| Tracked (opt-in) | The main checkout's `.acstack/`; `~/.acstack/projects/<key>` is a link to it | `.acstack/`, which the developer commits |
-
+- No configuration key controls where project data lives
 - `<key>` is the main checkout's folder name, a hyphen, and a short hash of the repository's shared Git folder, for example `shop-3f9a2c`
     - Every worktree reports the same shared Git folder, so every worktree finds the same entry
-    - `ls -l ~/.acstack/projects/` lists every project and shows which are tracked
+    - `ls ~/.acstack/projects/` lists every project
 - `ACSTACK_HOME` replaces `~/.acstack` for every path in this section
-- In tracked mode the project folder resolves into the main checkout
-    - Edits to a feature branch's own `.acstack/` take effect only once they reach the main checkout
-    - A teammate's clone links its entry to the committed `.acstack/` automatically on first use
+- Maps on the GitHub tracker stay in GitHub issues; maps never live in Git
 
-Every part keeps its name inside the project folder.
+Every part keeps its name inside its home.
 
 | Part | Path |
 | --- | --- |
+| Architecture decisions | `.acstack/decisions/` in the current worktree |
+| Glossary | `.acstack/CONTEXT.md` in the current worktree |
 | Project configuration | `<project folder>/project.yaml` |
 | Maps | `<project folder>/maps/` |
 | Archives | `<project folder>/archive/` |
 | Legacy change records | `<project folder>/changes/` |
 | Legacy review artifacts | `<project folder>/alignment-packs/` |
-| Retired living specs and domain map, left untouched | `<project folder>/specs/`, `<project folder>/domain-map.yaml` |
-| Canonical design reviews | `<project folder>/design-reviews/` |
-| Architecture decisions | `<project folder>/decisions/` |
-| Glossary | `<project folder>/CONTEXT.md` |
+| Retired living specs and domain map; `migrate --retired delete` removes them | `<project folder>/specs/`, `<project folder>/domain-map.yaml` |
+| Design reviews, removed when their map is archived | `<project folder>/design-reviews/` |
 | Browser connection | `<project folder>/agent-browser.json` |
 | Verification knowledge | `<project folder>/verification/VERIFICATION-KNOWLEDGE.md` |
 | Test baseline | `<project folder>/.test-baseline` |
@@ -141,20 +139,19 @@ ACStack no longer reads the `XDG_CONFIG_HOME` or `XDG_DATA_HOME` variables.
 
 ### Project data commands
 
-*Four commands move project data, and only when the developer runs them.*
+*Two commands move project data, and only when the developer runs them.*
 
 | Command | What it does |
 | --- | --- |
-| `acstack project-data migrate` | Moves legacy machine-wide files and this repository's legacy `.acstack/` into the new layout |
-| `acstack project-data mode tracked` | Moves the project folder's contents into the main checkout's `.acstack/` and replaces the folder with a link; commit `.acstack/` from the main checkout afterwards |
-| `acstack project-data mode global` | Moves the main checkout's `.acstack/` into the project folder and removes the link; commit the removal of `.acstack/` afterwards |
+| `acstack project-data migrate` | Moves legacy machine-wide files and this repository's legacy project data into the two homes |
 | `acstack project-data relink <entry>` | Gives the named entry, orphaned by moving the repository on disk, the repository's current key; `project-data path` names the entry |
 
-Every command:
+Both commands:
 
-- Preflights every move and aborts on a collision without writing anything
-- Never changes the Git index, commits, or force-adds files
-- Reports any other worktree that still holds its own `.acstack/` changes, which ACStack no longer reads; move what you need from it, then delete it
+- Preflight every move and abort on a collision without writing anything
+- Never change the Git index, commit, or force-add files
+
+`migrate` also reports any other worktree whose `.acstack/` still holds changes beyond `decisions/` and `CONTEXT.md`, which ACStack no longer reads; move what you need from it, then delete it.
 
 ### Explicit migration from a legacy layout
 
@@ -163,7 +160,8 @@ Every command:
 Legacy data is any of:
 
 - `~/.config/acstack/` or `~/.local/share/acstack/`, or their `XDG_*` equivalents
-- A repository's `.acstack/` that no project entry links to
+- A tracked-mode project: `~/.acstack/projects/<key>` is a link to the main checkout's `.acstack/`
+- A repository `.acstack/` holding anything besides `decisions/` and `CONTEXT.md`
 - The older in-repository layout: `acstack/`, `docs/adr/`, `.decisions/`, and root `CONTEXT.md`, `.test-baseline`, or `agent-browser.json`
 
 Migrate each machine and each repository explicitly.
@@ -172,17 +170,20 @@ Migrate each machine and each repository explicitly.
 2. Stop old agent sessions and review servers; old CLI versions and hooks cannot read the new layout
 3. Back up the legacy locations
 4. From any worktree of each repository, run `~/.claude/acstack/bin/acstack project-data migrate`
-5. Review the result, then restart agents and review servers with the updated tools
+5. Review the result, commit the pending deletions and `.gitignore` change, then restart agents and review servers with the updated tools
 
 What migration does:
 
 - The first run on a machine moves `~/.config/acstack/*` to `~/.acstack/` and `~/.local/share/acstack/*` to `~/.acstack/cache/`
 - It moves the older in-repository layout into `.acstack/` first, including `docs/adr/` to `decisions/` and old decision logs to `decision-logs/`
     - It moves verification knowledge, not arbitrary helper directories or their programs
-- A main checkout whose `.acstack/` files are in the Git index becomes tracked mode; only the link is created
-- Otherwise the main checkout's `.acstack/` moves into its project folder, and the old ACStack-managed block in the root `.gitignore` is removed
-- Previously tracked paths that moved show up as pending deletions for the developer to commit
-- It preflights every move and aborts on a collision, such as an existing project folder, without overwriting anything
+- It removes a tracked-mode link and moves every part of the repository's `.acstack/` except `decisions/` and `CONTEXT.md` into a real project folder
+    - Previously committed paths that moved show up as pending deletions for the developer to commit
+    - It removes the old ACStack-managed block from the root `.gitignore`, so `decisions/` and `CONTEXT.md` can be committed
+- A project folder that holds `decisions/` or `CONTEXT.md` gets a choice for each: move it into the current worktree's `.acstack/`, or keep it where it is, where ACStack no longer reads it
+    - `--decisions move|keep` and `--glossary move|keep` choose ahead of time; in a terminal migrate asks, and otherwise it refuses without writing
+- `--retired delete` deletes the retired `specs/` and `domain-map.yaml` from the project folder; in a terminal migrate asks, and otherwise it keeps them
+- It preflights every move and aborts on a collision, such as a part that already exists in the project folder or a record that already exists in the worktree, without overwriting anything
 - Never migrate a repository silently, or work around legacy data by creating a partial project folder
 
 ### Design docs
@@ -190,7 +191,7 @@ What migration does:
 - ACStack removes legacy `map --map` and `align-viewer` without aliases
 - Use `design-doc <map>` to review a map's design doc; its elements are `element` nodes on that map
 - Use `node walk` and `node frontier` for map planning
-- Review evidence in `design-reviews/` outlives temporary map nodes regardless of `workflow.maps.persist`
+- Review evidence in `design-reviews/` belongs to its map and is removed when the map is archived
 
 ### 1.1. Which file a write lands in
 

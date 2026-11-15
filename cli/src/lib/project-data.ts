@@ -4,8 +4,8 @@ import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { parse } from 'yaml';
 import { replaceFileAtomically } from './atomic-file.js';
-import { checkoutRoot, findOrphans, hasTrackedProject, hasLegacyProjectData, linkTracked, locateProject, recordProject, type ProjectLocation } from './project.js';
-import { ACSTACK_DIR, ACSTACK_HOME, LEGACY_ACSTACK_DIR, DECISIONS_DIR, DECISION_LOGS_DIR, VERIFICATION_DIR, PROJECT_JSON_FILE } from './constants.js';
+import { checkoutRoot, findOrphans, hasLegacyData, hasLegacyProjectData, legacyParts, locateProject, recordProject, REPO_RECORDS, type ProjectLocation } from './project.js';
+import { ACSTACK_DIR, ACSTACK_HOME, LEGACY_ACSTACK_DIR, DECISIONS_DIR, DECISION_LOGS_DIR, VERIFICATION_DIR, PROJECT_JSON_FILE, SPECS_DIR, DOMAIN_MAP_FILE } from './constants.js';
 
 const BEGIN = '# >>> acstack project-data >>>';
 const END = '# <<< acstack project-data <<<';
@@ -154,7 +154,7 @@ export function migrateOldLayout(root: string): { moved: string[] } {
 }
 
 // ---------------------------------------------------------------------------
-// Global project data: migrate, mode, relink. Each preflights before writing
+// Global project data: migrate and relink. Each preflights before writing
 // and never touches the Git index.
 
 function git(cwd: string, args: string[]): string {
@@ -192,17 +192,13 @@ function safeStranded(location: ProjectLocation): string[] {
   catch (error) { return [`(could not list worktrees: ${(error as Error).message})`]; }
 }
 
-/** Refuse a `.acstack` that is a link or a file: moving it would carry a dangling or foreign target. */
-function requireRealDirectory(path: string): void {
-  if (!lstatSync(path).isDirectory()) throw new Error(`${path} is not a real folder; move its contents into a folder named ${ACSTACK_DIR} first.`);
-}
-
-/** Other worktrees still holding their own `.acstack/` changes, which ACStack no longer reads. */
+/** Other worktrees still holding `.acstack/` changes outside the repository records, which ACStack no longer reads. */
 export function strandedWorktrees(location: ProjectLocation): string[] {
   const paths = git(location.main, ['worktree', 'list', '--porcelain']).split('\n')
     .filter(line => line.startsWith('worktree ')).map(line => line.slice('worktree '.length));
+  const records = REPO_RECORDS.map(name => `:(exclude)${ACSTACK_DIR}/${name}`);
   return paths.filter(path => existsSync(path) && realpathSync(path) !== realpathSync(location.main)
-    && git(path, ['status', '--porcelain', '--ignored', '--untracked-files=all', '--', ACSTACK_DIR]).trim() !== '');
+    && git(path, ['status', '--porcelain', '--ignored', '--untracked-files=all', '--', ACSTACK_DIR, ...records]).trim() !== '');
 }
 
 /** Machine-wide files from before ACStack used one root: `XDG_*` still locates the old ones. */
@@ -217,70 +213,122 @@ export function legacyGlobalMoves(home: string = ACSTACK_HOME): Move[] {
 export function legacyWarnings(from: string = process.cwd()): string[] {
   const warnings = legacyGlobalMoves().length ? ['ACStack settings are still in ~/.config/acstack or ~/.local/share/acstack.'] : [];
   const location = locateProject(from);
-  if (location && !present(location.entry) && !hasTrackedProject(location)
-    && (present(join(location.main, ACSTACK_DIR)) || hasLegacyProjectData(location.main))) warnings.push(`${location.main} still holds its project data in the repository.`);
+  if (location && lstatSync(location.entry, { throwIfNoEntry: false })?.isSymbolicLink()) warnings.push(`${location.entry} is a link left by tracked mode.`);
+  else if (location && hasLegacyData(location, from)) warnings.push(`${location.main} still holds project data in the repository beyond ${ACSTACK_DIR}/${DECISIONS_DIR}/ and ${ACSTACK_DIR}/${GLOSSARY}.`);
   return warnings.length ? [...warnings, 'ACStack no longer reads these locations. Stop agents and review servers, back up, then run `acstack project-data migrate` from each repository.'] : [];
 }
 
-/** Explicit offline migration of legacy global files and this repository's `.acstack/`. */
-export function migrateProjectData(from: string): { moved: string[]; stranded: string[] } {
+/** Decisions the user must make before migrate writes: `decisions` and `glossary` move a global record into the repository, `retired` deletes specs/ and domain-map.yaml. */
+export type MigrateQuestion = 'decisions' | 'glossary' | 'retired';
+export interface MigrateChoices { decisions?: 'move' | 'keep'; glossary?: 'move' | 'keep'; retired?: 'delete' | 'keep' }
+
+const GLOSSARY = 'CONTEXT.md';
+const RECORD_NAMES: Record<'decisions' | 'glossary', string> = { decisions: DECISIONS_DIR, glossary: GLOSSARY };
+const RETIRED = [SPECS_DIR, DOMAIN_MAP_FILE];
+
+interface Plan {
+  location: ProjectLocation;
+  top: string | null;
+  global: Move[];
+  oldLayout: boolean;
+  /** The checkout `.acstack/` whose parts move to the project folder, or null. */
+  repoData: string | null;
+  /** The entry is a tracked-mode link to repoData, removed before the move. */
+  link: boolean;
+  questions: MigrateQuestion[];
+}
+
+/** Check every destination and work out what migrate would ask, without writing. */
+function planMigration(from: string): Plan {
   const location = requireLocation(from);
   const global = legacyGlobalMoves();
   for (const move of global) if (present(move.to)) throw new Error(`${move.to}: migration destination already exists; refusing to overwrite`);
-  // A repository whose only .acstack/ sits in this worktree migrates from here.
   const top = checkoutRoot(from);
-  const mainData = join(location.main, ACSTACK_DIR);
-  const repoData = !present(mainData) && top && top !== location.main && present(join(top, ACSTACK_DIR)) ? join(top, ACSTACK_DIR) : mainData;
-  const source = dirname(repoData);
-  if (present(repoData)) requireRealDirectory(repoData);
-  const oldLayout = !present(repoData) && (hasLegacyProjectData(location.main) || ['CONTEXT.md', join('docs', 'adr'), '.decisions'].some(name => present(join(location.main, name))));
+  // A repository whose only legacy .acstack/ sits in this worktree migrates from here.
+  const roots = [location.main, ...(top && top !== location.main ? [top] : [])];
+  let source = roots.find(root => legacyParts(root).length > 0) ?? null;
+  for (const root of roots) {
+    const data = join(root, ACSTACK_DIR);
+    if (present(data) && !lstatSync(data).isDirectory()) throw new Error(`${data} is not a real folder; move its contents into a folder named ${ACSTACK_DIR} first.`);
+  }
+  const oldLayout = !present(join(location.main, ACSTACK_DIR)) && (hasLegacyProjectData(location.main) || ['CONTEXT.md', join('docs', 'adr'), '.decisions'].some(name => present(join(location.main, name))));
+  if (oldLayout) source = location.main;
+  const repoData = source && join(source, ACSTACK_DIR);
   const entry = lstatSync(location.entry, { throwIfNoEntry: false });
-  if ((present(repoData) || oldLayout) && entry && !(entry.isSymbolicLink() && existsSync(location.entry) && realpathSync(location.entry) === realpathSync(repoData))) {
-    throw new Error(`${location.entry} already exists; refusing to merge ${repoData} into it. Choose with \`acstack project-data mode\`.`);
+  const link = !!entry?.isSymbolicLink();
+  const linkTarget = repoData ?? join(location.main, ACSTACK_DIR);
+  if (link && !(existsSync(location.entry) && present(linkTarget) && realpathSync(location.entry) === realpathSync(linkTarget))) {
+    throw new Error(`${location.entry} links to ${readlinkSync(location.entry)}, not to this repository's ${ACSTACK_DIR}/ holding project data. Check it, then remove the link.`);
   }
-  const moved: string[] = [];
-  if (oldLayout) moved.push(...migrateOldLayout(location.main).moved.map(path => join(location.main, path)));
-  if (present(repoData) && !entry) {
-    const tracked = git(source, ['ls-files', '--', ACSTACK_DIR]).trim() !== '';
-    if (tracked && source !== location.main) throw new Error(`${repoData} is committed on this worktree's branch only. Merge it into the main checkout's branch, then run migrate there.`);
-    if (tracked) {
-      // Keep the managed .gitignore block: its exceptions still decide which parts are committed.
-      linkTracked(location);
-    } else {
-      moveTree(repoData, location.entry);
-      recordProject(location);
-      removeManagedGitignoreBlock(source);
-    }
-    moved.push(location.entry);
+  const folder = entry && !link ? location.entry : null;
+  if (folder && oldLayout) throw new Error(`${folder} already exists; refusing to merge the old acstack/ layout into it.`);
+  if (folder && repoData) {
+    for (const part of legacyParts(source!)) if (part !== PROJECT_JSON_FILE && present(join(folder, part))) throw new Error(`${join(folder, part)} already exists; refusing to overwrite it with ${join(repoData, part)}. Nothing was moved.`);
   }
-  for (const move of global) { moveTree(move.from, move.to); moved.push(move.to); }
-  for (const dir of new Set(global.map(move => dirname(move.from)))) if (readdirSync(dir).length === 0) rmdirSync(dir);
-  return { moved, stranded: safeStranded(location) };
+  const questions: MigrateQuestion[] = [];
+  if (folder) {
+    for (const question of ['decisions', 'glossary'] as const) if (present(join(folder, RECORD_NAMES[question]))) questions.push(question);
+  }
+  const retiredHomes = [folder, repoData, oldLayout ? join(location.main, LEGACY_ACSTACK_DIR) : null];
+  if (RETIRED.some(name => retiredHomes.some(home => home && present(join(home, name))))) questions.push('retired');
+  return { location, top, global, oldLayout, repoData, link, questions };
 }
 
-/** Switch a project between its global folder and the main checkout's committed `.acstack/`. */
-export function setProjectMode(from: string, mode: 'tracked' | 'global'): { stranded: string[] } {
-  const location = requireLocation(from);
-  const repoData = join(location.main, ACSTACK_DIR);
-  const entry = lstatSync(location.entry, { throwIfNoEntry: false });
-  if (mode === 'tracked') {
-    if (entry?.isSymbolicLink()) throw new Error('This project is already in tracked mode.');
-    if (!entry) throw new Error(`No project folder at ${location.entry}.`);
-    if (location.bare) throw new Error('A bare repository has no main checkout to hold .acstack/.');
-    if (present(repoData)) throw new Error(`${repoData} already exists; refusing to overwrite it.`);
-    rmSync(join(location.entry, PROJECT_JSON_FILE), { force: true });
-    moveTree(location.entry, repoData);
-    try { linkTracked(location); }
-    catch (error) { moveTree(repoData, location.entry); recordProject(location); throw error; }
-  } else {
-    if (entry && !entry.isSymbolicLink()) throw new Error('This project is already in global mode.');
-    if (!lstatSync(repoData, { throwIfNoEntry: false })?.isDirectory()) throw new Error(`No ${ACSTACK_DIR}/ in ${location.main} to move.`);
-    if (entry) unlinkSync(location.entry);
-    try { moveTree(repoData, location.entry); }
-    catch (error) { if (entry) linkTracked(location); throw error; }
-    recordProject(location);
+/** What `migrate` would ask about in this repository. */
+export function migrationQuestions(from: string): MigrateQuestion[] {
+  return planMigration(from).questions;
+}
+
+/**
+ * Convert a project to the two homes: repository records (decisions/,
+ * CONTEXT.md) stay in or move into the current worktree's `.acstack/`, and
+ * every other part moves into the real project folder. Removes a tracked-mode
+ * link; parts that were committed stay behind as pending Git deletions.
+ * Also moves legacy machine-wide files. Throws before writing on any
+ * collision, or when a global record needs a choice and none was given.
+ */
+export function migrateProjectData(from: string, choices: MigrateChoices = {}): { moved: string[]; deleted: string[]; stranded: string[] } {
+  const plan = planMigration(from);
+  const { location, top } = plan;
+  for (const question of ['decisions', 'glossary'] as const) {
+    if (!plan.questions.includes(question) || choices[question] === 'keep') continue;
+    if (!choices[question]) throw new Error(`${join(location.entry, RECORD_NAMES[question])} belongs in the repository now. Choose with --${question} move or --${question} keep.`);
+    if (!top) throw new Error(`No checkout to move ${RECORD_NAMES[question]} into.`);
+    const to = join(top, ACSTACK_DIR, RECORD_NAMES[question]);
+    if (present(to)) throw new Error(`${to} already exists; refusing to overwrite it. Nothing was moved.`);
   }
-  return { stranded: safeStranded(location) };
+  const moved: string[] = [];
+  const deleted: string[] = [];
+  if (plan.oldLayout) moved.push(...migrateOldLayout(location.main).moved.map(path => join(location.main, path)));
+  if (plan.link) unlinkSync(location.entry);
+  const parts = plan.repoData ? legacyParts(dirname(plan.repoData)) : [];
+  if (parts.length) {
+    const repoData = plan.repoData!;
+    for (const part of parts) {
+      if (part === PROJECT_JSON_FILE) { rmSync(join(repoData, part)); continue; }
+      moveTree(join(repoData, part), join(location.entry, part));
+      moved.push(join(location.entry, part));
+    }
+    mkdirSync(location.entry, { recursive: true });
+    recordProject(location);
+    removeManagedGitignoreBlock(dirname(repoData));
+    if (readdirSync(repoData).length === 0) rmdirSync(repoData);
+  }
+  for (const question of ['decisions', 'glossary'] as const) {
+    if (!plan.questions.includes(question) || choices[question] !== 'move') continue;
+    const to = join(top!, ACSTACK_DIR, RECORD_NAMES[question]);
+    moveTree(join(location.entry, RECORD_NAMES[question]), to);
+    moved.push(to);
+  }
+  if (choices.retired === 'delete') {
+    for (const name of RETIRED) {
+      const path = join(location.entry, name);
+      if (present(path)) { rmSync(path, { recursive: true }); deleted.push(path); }
+    }
+  }
+  for (const move of plan.global) { moveTree(move.from, move.to); moved.push(move.to); }
+  for (const dir of new Set(plan.global.map(move => dirname(move.from)))) if (readdirSync(dir).length === 0) rmdirSync(dir);
+  return { moved, deleted, stranded: safeStranded(location) };
 }
 
 /** Give the named orphaned entry, left by a moved repository, this repository's key. */
@@ -290,14 +338,8 @@ export function relinkProject(from: string, name: string): { from: string; to: s
   const orphans = findOrphans(location);
   const orphan = orphans.find(path => basename(path) === name);
   if (!orphan) throw new Error(orphans.length ? `${name} is not an orphaned entry for this repository. Candidates: ${orphans.map(path => basename(path)).join(', ')}.` : 'No orphaned project entry found for this repository.');
-  if (lstatSync(orphan).isSymbolicLink()) {
-    if (!hasTrackedProject(location)) throw new Error(`${orphan} is a tracked-mode link, but ${location.main} commits no ${ACSTACK_DIR}/project.yaml.`);
-    linkTracked(location);
-    unlinkSync(orphan);
-  } else {
-    renameSync(orphan, location.entry);
-    recordProject(location);
-  }
+  renameSync(orphan, location.entry);
+  recordProject(location);
   return { from: orphan, to: location.entry };
 }
 

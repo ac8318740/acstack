@@ -559,6 +559,6 @@ describe('map-sourced design lifecycle through the shipped CLI and HTTP', () => 
     const failed = cli(root, ['design-doc', 'demo', '--check']);
     rejected(failed, 'isolated element');
     expect(failed.stderr).toContain('Element 104 has no connection or parent');
-    expect(readdirSync(join(root, '.acstack')).sort()).toEqual(['maps', 'project.yaml']);
+    expect(readdirSync(join(root, '.acstack')).filter(name => name !== 'project.json').sort()).toEqual(['maps', 'project.yaml']);
   });
 });
