@@ -481,6 +481,11 @@ for (const delegated of [false, true]) {
   check('reads flow-style thresholds',
     JSON.stringify(ext.readHandoffConfig('workflow:\n  handoff:\n    context_thresholds: [40%, 600000]\n').context_thresholds)
       === '["40%","600000"]');
+  check('reads handoff preferences from the user-level config.json',
+    JSON.stringify(ext.readUserHandoffConfig('{"workflow":{"handoff":{"nudge_warn":7,"context_thresholds":["40%",600000]}}}'))
+      === '{"nudge_warn":7,"context_thresholds":["40%","600000"]}');
+  check('ignores a malformed user-level config.json',
+    JSON.stringify(ext.readUserHandoffConfig('{not json')) === '{}');
 }
 
 // --- context pressure: parity with the Claude hook ------------------------------

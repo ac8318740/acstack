@@ -10,7 +10,7 @@ General implementation, investigation, and review work without setup. Without th
 Existing configuration keeps its gates. Unreadable or invalid configuration, legacy data, and project-data conflicts require the reported repair; they are not absent-config fallbacks. Orphan warnings alone do not block general work.
 
 - **It names what to run**: the test, build, lint, typecheck, and format commands
-- **It names where to look**: the source and test directories, and the frontend
+- **It names where to look**: the frontend
 - **It configures required gates**: frontend verification, and design review
 - **Agents read it when present** before running project checks
 - **A key you leave out takes the default** this document gives it
@@ -24,13 +24,14 @@ Three terms first.
 ```mermaid
 flowchart TD
     FILE["project.yaml in the project folder<br/>(written by /acstack:setup)"] --> WF["workflow.*<br/>switches, maps, handoff"]
-    FILE --> RUN["commands.*, directories.*,<br/>test_markers, venv"]
+    FILE --> RUN["commands.*, venv"]
     FILE --> FE["frontend.*<br/>dev server, browser"]
     WF --> SKILLS["commit, grilling, map,<br/>archive, handoff"]
     WF --> HOOK["hooks/context-pressure.sh"]
     RUN --> AGENTS["Completion owner<br/>and delegated agents"]
     FE --> FV["frontend-verifier"]
     HOST["~/.acstack/config.json<br/>host.* keys - see dev-setups.md"] --> FV
+    HOST -. "personal preferences,<br/>overridden by project.yaml" .-> WF
 ```
 
 | Step in the diagram | Detail |
@@ -40,7 +41,7 @@ flowchart TD
 | `workflow.*` switches | section 3 |
 | `workflow.maps` | section 4 |
 | `workflow.handoff` | sections 5 and 6 |
-| `commands`, `directories`, `test_markers`, `venv` | section 7 |
+| `commands`, `venv` | section 7 |
 | `frontend.*` | sections 8 and 9 |
 | `host.*`, and what is not a key here | section 10 |
 | Every default | section 11 |
@@ -328,22 +329,20 @@ Three refusals protect a file neither command can handle.
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `profile` | `node-typescript`, `python`, `fullstack-python` | none | `/acstack:setup` reads `profiles/<profile>.yaml` for its proposed commands and directories; `acstack config show` prints the name |
+| `profile` | `node-typescript`, `python`, `fullstack-python` | none | `/acstack:setup` reads `profiles/<profile>.yaml` for its proposed commands; `acstack config show` prints the name |
 
 - The profile decides nothing after setup has run
-- The commands and directories it proposed live in the file as their own keys, and those keys are what every later reader uses
+- The commands it proposed live in the file as their own keys, and those keys are what every later reader uses
 
 ## 3. workflow: the switches
 
-*Five booleans sit in the block. Each one changes how much discipline ACStack applies. A byte count tunes the large-read guard, and one more key decides how the agent asks you a question.*
+*Three booleans sit in the block. Each one changes how much discipline ACStack applies. A byte count tunes the large-read guard, and one more key decides how the agent asks you a question.*
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `workflow.tdd.strict` | `true`, `false` | none | deprecated compatibility boolean; no sequencing effect, including explicit `true` |
-| `workflow.tdd.orchestrator_strict` | `true`, `false` | none | deprecated compatibility boolean; no delegation effect, including explicit `true` |
 | `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, and the change touched frontend files |
 | `workflow.design_review` | `true`, `false` | `false` | a design review runs on a UI change only when this is `true`; it needs the impeccable plugin installed and switched on, which `acstack config check` reports on |
-| `workflow.read_guard` | `true`, `false` | `true` | `false` turns off the large-read guard; section 3.3 describes it |
+| `workflow.read_guard` | `true`, `false` | `true` | `false` turns off the large-read guard; section 3.2 describes it |
 | `workflow.read_guard_bytes` | a whole number, 1 or more | `32768` | the smallest file, in bytes, the large-read guard stops |
 
 How a boolean reads:
@@ -367,30 +366,17 @@ How a boolean reads:
         - An impeccable older than major 4, or one whose version it cannot read, warns on stderr and stays on
         - `--json` prints the same answer as `{"on": ..., "reasons": [...], "impeccable": ...}`
 
-### 3.1. Deprecated TDD booleans
-
-*Adaptive verification replaces the old sequencing and delegation guarantee.*
-
-- `workflow.tdd.strict` and `workflow.tdd.orchestrator_strict` remain known boolean keys for compatibility
-- Neither key has an effective default or controls sequencing or delegation, including explicit `true`
-- ACStack removes the former strict guarantee
-- The CLI still supports get, set, list, and unset for either key
-- Unrelated writes preserve existing values and comments
-- Deprecation alone does not trigger automatic config migration
-- New setup does not offer or generate either key
-- `orchestrator/AGENTS.md` owns the shared Implementation discipline
-- Explicit user requests for stronger process still apply
-
-### 3.2. How the agent asks you a question
+### 3.1. How the agent asks you a question
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
 | `workflow.grilling.questions` | `tool`, `inline` | `tool` | `tool` asks through the host's question tool, one call per round; `inline` asks in prose |
 
+- This is a personal preference: section 5.1 says where it lives
 - `tool` falls back to inline prose for any round it cannot hold
 - Two things exceed it: a round of more than four questions, and any question with no discrete options
 
-### 3.3. The large-read guard
+### 3.2. The large-read guard
 
 *The guard stops a main agent's first whole read of a large file once, and points it to a cheaper way to read.*
 
@@ -445,6 +431,17 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
 - `workflow.handoff.self_invoke` gets a behavioural check at the skill's first step, rather than a frontmatter flag
 - Frontmatter model-invocation flags are static
     - No project could turn one off for itself
+
+### 5.1. Personal preferences live in the user-level config
+
+*The `workflow.handoff.*` keys and `workflow.grilling.questions` follow the person, not the repository.*
+
+- `acstack config set` writes them to `~/.acstack/config.json` (or `$ACSTACK_HOME/config.json`), from any directory
+- A project's `project.yaml` may still state one, and that value wins for that project
+    - `config set` warns when the project you are in overrides the value it just wrote
+- `acstack config get` prints the resolved value: `project.yaml`, then the user-level config, then exit 2 naming the default
+- `acstack config unset` removes the user-level value; it leaves `project.yaml` alone
+- `hooks/context-pressure.sh` and the pi extension merge the two the same way, key by key
 
 ## 6. workflow.handoff: the context-pressure ladder
 
@@ -574,9 +571,9 @@ Two limits are worth knowing.
 - The hook opens `<project folder>/project.yaml`, finding the folder with `acstack project-data path`
     - A session running outside a Git repository therefore gets the defaults
 
-## 7. commands, directories, test_markers and venv
+## 7. commands and venv
 
-*What every agent runs, and where every agent looks.*
+*What every agent runs.*
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
@@ -586,9 +583,6 @@ Two limits are worth knowing.
 | `commands.lint` | a shell command, or `null` | from the profile | the verification owner lints with it, usually with a fix flag |
 | `commands.typecheck` | a shell command, or `null` | from the profile | the verification owner type-checks with it |
 | `commands.format` | a shell command, or `null` | from the profile | format touched files before final verification; `null` means no format step |
-| `directories.source` | a path | `src/` | where the implementer writes source |
-| `directories.tests` | a path | `tests/` | where tests live |
-| `test_markers.exclude` | comma-separated markers, or `null` | `null` for Node, `slow,integration` for Python | which markers a default test run leaves out, as in `pytest -m` |
 | `venv.activate` | a shell command, or `null` | `null` for Node, `source .venv/bin/activate` for Python | every agent prefixes each command with it when the file states one |
 
 - Run configured formatting over touched files before final verification
@@ -654,7 +648,7 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
 
 ## 10. What is not a project.yaml key
 
-*Two sets of settings look like they belong here. Neither set does.*
+*Two sets of settings look like they belong here, and some old keys used to. None of them is a key now.*
 
 - The `outputStyle` setting is not a `project.yaml` key
     - Claude Code owns it
@@ -669,10 +663,13 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
     - They live in the global config at `~/.acstack/config.json`
     - `acstack config set` is what writes them
     - [dev-setups.md](dev-setups.md) documents all nine axes
+- `workflow.spec_sync`, `workflow.tdd.*`, `directories.*`, and `test_markers.exclude` are no longer keys
+    - Nothing read them
+    - A file that still states one passes `acstack config check`; `acstack config list` marks it `(unknown key)`, and you can delete the line
 
 ## 11. Every default in one block
 
-*What ACStack does with a `project.yaml` that states none of these keys.*
+*What ACStack does with a `project.yaml` that states none of these keys. The `grilling` and `handoff` values are the defaults of personal preferences (section 5.1).*
 
 ```yaml
 workflow:
@@ -697,6 +694,6 @@ workflow:
     # context_thresholds and context_window have no default
 ```
 
-- The `commands`, `directories`, `test_markers`, `venv`, and `frontend` blocks have no defaults of their own
+- The `commands`, `venv`, and `frontend` blocks have no defaults of their own
 - `/acstack:setup` copies them from the profile it detects
 - Section 7 gives the values each profile proposes

@@ -10,8 +10,6 @@ Run the health check one last time, then report what stands:
 ## ACStack setup
 
 Profile:      [profile]
-Source:       [source dir]
-Tests:        [tests dir]
 Grilling:     [question tool/inline prose]
 Verification: adaptive (shared Implementation discipline)
 Frontend:     [configured/not configured]

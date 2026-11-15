@@ -65,8 +65,7 @@ session.
 
 ## Presentation
 
-`workflow.grilling.questions` in `<project folder>/project.yaml` picks the mode.
-The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints.
+`~/.claude/acstack/bin/acstack config get workflow.grilling.questions` picks the mode.
 
 | Value            | Behaviour                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------ |
