@@ -56,7 +56,7 @@ flowchart TD
     - On a project that already has the file, the skill leads with the health check and offers a menu of changes
 - `acstack config set <key> <value>` changes one key without an interview
 - A key the file omits takes the default the tables below give it
-    - The `commands`, `directories`, and `frontend` keys have no such default
+    - The `commands` and `frontend` keys have no such default
     - The setup skill copies them from a profile
         - An omitted one names nothing at all
 
@@ -205,6 +205,7 @@ What migration does:
 
 - A `host.*` key describes the machine
     - It goes to the global config at `~/.acstack/config.json`
+- A personal preference key (section 5.1) goes to the same global config
 - Every other key in this document describes the project
     - It goes to `<project folder>/project.yaml`
 - Section 10 covers the `host.*` keys
