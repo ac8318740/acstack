@@ -19,6 +19,10 @@ Scope argument: "all" commits everything (staged + unstaged + untracked), or des
 3. Run `git log --oneline -5` to see recent commit style
 4. Determine scope from `$ARGUMENTS`
 5. If the change is nontrivial and has not been reviewed since its last edit, run `/acstack:pre-commit-review` first (Review before commit in `orchestrator/AGENTS.md`)
+6. Check for project records left uncommitted: `git -C "$(~/.claude/acstack/bin/acstack project-data path)" status --short -- . 2>/dev/null`
+    - It prints nothing in global mode, where records live outside the repository
+    - In tracked mode, records written from any worktree land in the main checkout's `.acstack/`, so no worktree commit picks them up, and they block `git pull` there
+    - If it lists files, tell the user and offer to commit them on their own branch from the base with their own pull request. Never fold them into an unrelated commit
 
 ## Step 2: Plan Commits
 
