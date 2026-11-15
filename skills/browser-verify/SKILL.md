@@ -96,20 +96,26 @@ agent-browser eval "acstackMeasure.jiggle({allow: ['.spinner']})"
 
 ## 4. Check behavior
 
-Start the dev server bound to `127.0.0.1` when it is not running, and stop it when you started it. Then drive the change with agent-browser:
+Start the dev server bound to `127.0.0.1` when it is not running, and stop it when you started it. Then drive the change with agent-browser. Page output is the main cost, so act and assert on known targets first and read the page only when you need to find something:
 
 | Command | Purpose |
 |---|---|
 | `agent-browser open <url>` | Navigate |
-| `agent-browser snapshot -i` | Accessibility tree with interactive refs (`@e1`, ...) |
-| `agent-browser click @eN`, `fill @eN "text"`, `type @eN "text"`, `hover @eN`, `press <Key>` | Interact |
-| `agent-browser screenshot /abs/path.png` | Screenshot; use an absolute path |
-| `agent-browser console`, `agent-browser errors` | Console logs and page errors |
-| `agent-browser set viewport <w> <h>` | Resize the viewport |
-| `agent-browser wait <selector>` | Wait for an element instead of sleeping |
+| `find testid <id> click`, `find role button click --name Save`, `find label Email fill "a@b.c"` | Act on a known element without a snapshot |
+| `get text <sel>`, `get url`, `is visible <sel>`, `get count <sel>` | Assert without a snapshot |
+| `snapshot -i -c -s "<region selector>"` | Interactive refs (`@e1`, ...) for one region, compacted; drop `-s` only to see the whole page |
+| `diff snapshot` | Only what changed since the last snapshot |
+| `click @eN`, `fill @eN "text"`, `type @eN "text"`, `hover @eN`, `press <Key>` | Interact through a snapshot ref; `type` sends keystrokes for search-as-you-type fields |
+| `wait <sel>`, `wait --text "..."`, `wait --url <pattern>`, `wait --load networkidle` | Wait for a condition; never `wait <ms>` |
+| `batch --bail "open <url>" "wait <sel>" "get text <sel>"` | Several steps in one call, stopping at the first failure |
+| `console`, `errors` | Console logs and page errors |
+| `set viewport <w> <h>` | Resize the viewport |
+| `screenshot /abs/path.png` | Screenshot for step 5 or a `measure.js` finding; use an absolute path |
 
-- Re-run `snapshot -i` after anything that changes the DOM (navigation, a click that opens something, hot reload); old refs go stale
-- Prefer `data-testid`, then the accessible role and name from the snapshot, then text; CSS selectors are a last resort
+- Every command starts with `agent-browser`; the table omits it
+- Prefer `data-testid`, then role and accessible name, then label or text; CSS selectors are a last resort
+- Old refs go stale after anything that changes the DOM (navigation, a click that opens something, hot reload); use `diff snapshot` to see the change and get fresh refs
+- Take screenshots only to judge visuals; use `get` and `is` to learn what the page says
 - Report console errors even when the page looks right
 - Use a named session (`--session <task>`) and run `agent-browser close` at the end
 
@@ -125,14 +131,14 @@ Treat a fail as a finding to fix or to put to the user.
 
 ## Browser choice
 
-Use headless Chrome through agent-browser by default (install with `npm install -g agent-browser`, then `agent-browser install` when no Chrome is present). `agent-browser open` launches it; no CDP port or config file is needed. Add `--args "--no-sandbox"` on VMs and containers where Chrome reports "No usable sandbox".
+Use headless Chrome through agent-browser by default (install with `npm install -g agent-browser`, then `agent-browser install` when no Chrome is present). `agent-browser open` launches it; no CDP port or config file is needed. On VMs and containers where Chrome reports "No usable sandbox", write `{"args": "--no-sandbox"}` to `~/.agent-browser/config.json` once instead of passing `--args` on every call. Never set `AGENT_BROWSER_CDP` or `AGENT_BROWSER_CONFIG` in a shell profile: it sends every headless run to the bridge, which fails whenever the bridge is down.
 
 Use the user's real Chrome only for checks headless cannot do: a real profile or single sign-on, platform fonts or scrollbars, Windows rendering, or a GPU. Then:
 
 1. Run `~/.claude/acstack/bin/acstack config browser-mode --json`. It answers from the project's `frontend.browser.mode` and the host's declared modes, and prints `{mode, preferred, reason, fallback}`
     - Exit 1 prints one message on stderr naming the fix (`/acstack:setup` or `/acstack:host`). Report it verbatim
     - When `mode` is not `remote`, the real-Chrome check cannot run here; use the fallbacks below
-2. When `mode` is `remote`, connect once: `export AGENT_BROWSER_CONFIG="<project folder>/agent-browser.json"`, then `curl -sf --max-time 3 http://127.0.0.1:<cdp_port>/json/version` (port `19988` by default)
+2. When `mode` is `remote`, pass `--config "<project folder>/agent-browser.json"` to each agent-browser command (an `export AGENT_BROWSER_CONFIG` lasts only for the shell call it runs in). Check the bridge once first: `curl -sf --max-time 3 http://127.0.0.1:<cdp_port>/json/version` (port `19988` by default)
 3. If that fails, do not retry or wait. Report that the bridge is down, point to the `bridge` skill (it owns bridge setup and diagnosis), and continue headless with the fallbacks below
 
 When real Chrome is unavailable, check as much as headless can and keep going:
