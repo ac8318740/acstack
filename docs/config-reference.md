@@ -83,7 +83,8 @@ These commands report configuration without changing settings.
     - ACStack writes no `.gitignore` rules for them; the developer commits them
 - `~/.claude/acstack/bin/acstack project-data path` prints the project folder's absolute path, even before the folder exists
     - It exits non-zero outside a Git repository
-    - It exits non-zero with a repair message for legacy or invalid data
+    - It exits non-zero with a repair message for invalid data, or for legacy data when no project folder exists yet
+    - Legacy data beside an existing project folder only warns; the project folder wins
     - Orphan warnings do not block a valid current repository or adopt the orphan's settings
     - The session-start hook states the same path in the agent's context
 - This document writes a part inside the project folder as `<project folder>/project.yaml`, `<project folder>/maps/`, and so on

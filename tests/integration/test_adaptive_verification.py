@@ -18,58 +18,48 @@ class AdaptiveVerificationTests(unittest.TestCase):
         self.work = tempfile.TemporaryDirectory(prefix="acstack-verification-")
         self.addCleanup(self.work.cleanup)
         self.root = Path(self.work.name)
-        (self.root / ".acstack").mkdir()
-        self.project = self.root / ".acstack/project.yaml"
-        self.project.write_text("profile: node-typescript\n")
-        # A committed .acstack/ makes it this repository's project folder.
         subprocess.run(["git", "init", "-q"], cwd=self.root, check=True)
-        subprocess.run(["git", "add", ".acstack/project.yaml"], cwd=self.root, check=True)
+        # Project data lives in the global project folder under the test's ACSTACK_HOME.
+        folder = Path(self.cli_raw("project-data", "path").stdout.strip())
+        folder.mkdir(parents=True)
+        self.project = folder / "project.yaml"
+        self.project.write_text("profile: node-typescript\n")
 
-    def cli(self, *args):
+    def cli_raw(self, *args, check=True):
         return subprocess.run(
-            ["node", str(ROOT / "cli/bin/acstack.js"), "config", *args],
+            ["node", str(ROOT / "cli/bin/acstack.js"), *args],
             cwd=self.root,
             env={**os.environ, "HOME": str(self.root),
                  "ACSTACK_HOME": str(self.root / "acstack-home"),
                  "XDG_CONFIG_HOME": str(self.root / "config")},
-            capture_output=True, text=True, timeout=30,
+            capture_output=True, text=True, timeout=30, check=check,
         )
 
-    def test_legacy_booleans_remain_readable_writable_and_unsettable(self):
+    def cli(self, *args):
+        return self.cli_raw("config", *args, check=False)
+
+    def test_removed_legacy_booleans_survive_unrelated_writes(self):
         for strict, orchestrator in ((True, False), (False, True)):
             with self.subTest(strict=strict, orchestrator=orchestrator):
+                legacy = (f"  tdd:\n    strict: {str(strict).lower()}\n"
+                          f"    orchestrator_strict: {str(orchestrator).lower()}\n")
                 self.project.write_text(
-                    "# keep this comment\nprofile: node-typescript\nworkflow:\n"
-                    f"  tdd:\n    strict: {str(strict).lower()}\n"
-                    f"    orchestrator_strict: {str(orchestrator).lower()}\n"
-                )
-                # An unrelated write must preserve hand-authored legacy values.
+                    "# keep this comment\nprofile: node-typescript\nworkflow:\n" + legacy)
+                # The keys are gone from the schema, but an unrelated write must keep hand-authored values.
                 self.assertEqual(self.cli("set", "commands.test", "npm test").returncode, 0)
-                for key, value in zip(KEYS, (strict, orchestrator), strict=True):
-                    read = self.cli("get", key)
-                    self.assertEqual((read.returncode, read.stdout.strip()),
-                                     (0, str(value).lower()))
-                    written = self.cli("set", key, str(not value).lower())
-                    self.assertEqual(written.returncode, 0, written.stderr)
-                    read = self.cli("get", key)
-                    self.assertEqual((read.returncode, read.stdout.strip()),
-                                     (0, str(not value).lower()))
-                listed = self.cli("list", "--json")
-                self.assertEqual(listed.returncode, 0, listed.stderr)
-                entries = {row["key"]: row for row in json.loads(listed.stdout)["project"]}
-                for key, value in zip(KEYS, (not strict, not orchestrator), strict=True):
-                    self.assertEqual(entries[key], {"key": key, "value": value, "known": True})
-                    self.assertEqual(self.cli("unset", key).returncode, 0)
-                    self.assertEqual(self.cli("get", key).returncode, 2)
                 self.assertIn("# keep this comment", self.project.read_text())
+                self.assertIn(legacy, self.project.read_text())
                 self.assertEqual(self.cli("get", "commands.test").stdout.strip(), "npm test")
+                for key in KEYS:
+                    for args in (("get", key), ("set", key, "true"), ("unset", key)):
+                        self.assertNotEqual(self.cli(*args).returncode, 0, args)
 
-    def test_unset_legacy_keys_do_not_advertise_an_effective_boolean_default(self):
+    def test_removed_legacy_keys_do_not_advertise_an_effective_boolean_default(self):
         for key in KEYS:
             with self.subTest(key=key):
                 result = self.cli("get", key)
-                self.assertEqual(result.returncode, 2)
-                self.assertIn("unset", result.stderr.lower())
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("unknown config key", result.stderr.lower())
                 self.assertNotRegex(
                     result.stderr.lower(), r"default\s+(?:is\s+|[:=]\s*)?(?:true|false)\b"
                 )

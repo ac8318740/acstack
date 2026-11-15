@@ -137,9 +137,10 @@ export function recordProject(location: ProjectLocation): void {
  * except the repository records is joined onto, or null when the repo has no
  * ACStack data yet or `from` is not in a Git repository.
  *
- * Throws, naming `acstack project-data migrate`, on legacy data: a tracked-mode
- * link, or a checkout `.acstack/` holding more than the repository records. A
- * possible orphan is only a warning (see orphanWarnings): it may belong to
+ * Throws, naming `acstack project-data migrate`, on a tracked-mode link, or when
+ * no project folder exists yet and a checkout `.acstack/` holds more than the
+ * repository records. An existing project folder wins: stray repository data
+ * then only warns (see legacyWarnings). A possible orphan is only a warning (see orphanWarnings): it may belong to
  * another repository with the same folder name, or sit on an unmounted drive.
  */
 export function findProjectRoot(from: string = process.cwd()): string | null {
