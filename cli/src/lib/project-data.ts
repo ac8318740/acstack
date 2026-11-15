@@ -4,7 +4,7 @@ import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { parse } from 'yaml';
 import { replaceFileAtomically } from './atomic-file.js';
-import { checkoutRoot, findOrphans, hasLegacyData, hasLegacyProjectData, legacyParts, locateProject, recordProject, REPO_RECORDS, type ProjectLocation } from './project.js';
+import { checkoutRoot, findOrphans, hasLegacyProjectData, legacyRoots, legacyParts, locateProject, recordProject, REPO_RECORDS, type ProjectLocation } from './project.js';
 import { ACSTACK_DIR, ACSTACK_HOME, LEGACY_ACSTACK_DIR, DECISIONS_DIR, DECISION_LOGS_DIR, VERIFICATION_DIR, PROJECT_JSON_FILE, SPECS_DIR, DOMAIN_MAP_FILE } from './constants.js';
 
 const BEGIN = '# >>> acstack project-data >>>';
@@ -213,9 +213,17 @@ export function legacyGlobalMoves(home: string = ACSTACK_HOME): Move[] {
 export function legacyWarnings(from: string = process.cwd()): string[] {
   const warnings = legacyGlobalMoves().length ? ['ACStack settings are still in ~/.config/acstack or ~/.local/share/acstack.'] : [];
   const location = locateProject(from);
-  if (location && lstatSync(location.entry, { throwIfNoEntry: false })?.isSymbolicLink()) warnings.push(`${location.entry} is a link left by tracked mode.`);
-  else if (location && hasLegacyData(location, from)) warnings.push(`${location.main} still holds project data in the repository beyond ${ACSTACK_DIR}/${DECISIONS_DIR}/ and ${ACSTACK_DIR}/${GLOSSARY}.`);
-  return warnings.length ? [...warnings, 'ACStack no longer reads these locations. Stop agents and review servers, back up, then run `acstack project-data migrate` from each repository.'] : [];
+  const entry = location && lstatSync(location.entry, { throwIfNoEntry: false });
+  const roots = location ? legacyRoots(location, from) : [];
+  const holds = (root: string) => `${root} still holds project data in the repository beyond ${ACSTACK_DIR}/${DECISIONS_DIR}/ and ${ACSTACK_DIR}/${GLOSSARY}.`;
+  if (entry && entry.isSymbolicLink()) warnings.push(`${location.entry} is a link left by tracked mode.`);
+  else if (!entry) warnings.push(...roots.map(holds));
+  const result = warnings.length ? [...warnings, 'ACStack no longer reads these locations. Stop agents and review servers, back up, then run `acstack project-data migrate` from each repository.'] : [];
+  // The project folder already exists, so migrate ran elsewhere: leftovers here are stale copies, and migrate would refuse them.
+  if (entry && !entry.isSymbolicLink()) {
+    for (const root of roots) result.push(`${holds(root)} ACStack reads ${location.entry} instead. Merge the branch where \`acstack project-data migrate\` ran, or delete the leftover files.`);
+  }
+  return result;
 }
 
 /** Decisions the user must make before migrate writes: `decisions` and `glossary` move a global record into the repository, `retired` deletes specs/ and domain-map.yaml. */
@@ -297,6 +305,8 @@ export function migrateProjectData(from: string, choices: MigrateChoices = {}): 
     const to = join(top, ACSTACK_DIR, RECORD_NAMES[question]);
     if (present(to)) throw new Error(`${to} already exists; refusing to overwrite it. Nothing was moved.`);
   }
+  const records = (['decisions', 'glossary'] as const).filter(question => plan.questions.includes(question) && choices[question] === 'move');
+  if (records.length) requireTrackable(top!, records.map(question => RECORD_NAMES[question]), location.entry);
   const moved: string[] = [];
   const deleted: string[] = [];
   if (plan.oldLayout) moved.push(...migrateOldLayout(location.main).moved.map(path => join(location.main, path)));
@@ -329,6 +339,31 @@ export function migrateProjectData(from: string, choices: MigrateChoices = {}): 
   for (const move of plan.global) { moveTree(move.from, move.to); moved.push(move.to); }
   for (const dir of new Set(plan.global.map(move => dirname(move.from)))) if (readdirSync(dir).length === 0) rmdirSync(dir);
   return { moved, deleted, stranded: safeStranded(location) };
+}
+
+/**
+ * Remove the managed .gitignore block from `root`, then make sure Git would
+ * track every file of the named records once moved from `folder` into
+ * `<root>/.acstack/`. Otherwise restores .gitignore and throws: an ignored
+ * record is lost when its worktree is removed.
+ */
+function requireTrackable(root: string, names: string[], folder: string): void {
+  const files = names.flatMap(name => {
+    const from = join(folder, name);
+    if (!lstatSync(from).isDirectory()) return [join(ACSTACK_DIR, name)];
+    return readdirSync(from, { recursive: true, encoding: 'utf8' })
+      .filter(rel => !lstatSync(join(from, rel)).isDirectory()).map(rel => join(ACSTACK_DIR, name, rel));
+  });
+  const gitignore = join(root, '.gitignore');
+  const stat = lstatSync(gitignore, { throwIfNoEntry: false });
+  const before = stat?.isFile() ? readFileSync(gitignore, 'utf8') : null;
+  removeManagedGitignoreBlock(root);
+  if (!files.length) return;
+  const result = spawnSync('git', ['check-ignore', '--', ...files], { cwd: root, encoding: 'utf8' });
+  if (result.status === 1) return;
+  if (before !== null && readFileSync(gitignore, 'utf8') !== before) replaceFileAtomically(gitignore, before, temp => chmodSync(temp, stat!.mode));
+  if (result.status !== 0) throw new Error(`git check-ignore failed: ${result.stderr.trim()}`);
+  throw new Error(`Git would ignore ${result.stdout.trim().split('\n').map(path => join(root, path)).join(', ')}, so the moved records could not be committed. Find the rule with \`git check-ignore -v\`, change it, then rerun. Nothing was moved.`);
 }
 
 /** Give the named orphaned entry, left by a moved repository, this repository's key. */

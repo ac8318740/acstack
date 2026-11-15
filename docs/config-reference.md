@@ -153,6 +153,10 @@ Both commands:
 - Preflight every move and abort on a collision without writing anything
 - Never change the Git index, commit, or force-add files
 
+Before `migrate` moves `decisions/` or `CONTEXT.md` into the repository, it removes the managed `.gitignore` block older releases wrote. If Git would still ignore a moved record, it refuses and moves nothing.
+
+Once a project folder exists, a checkout whose `.acstack/` still holds other project data only gets a warning naming that checkout. Its branch predates the migration: merge the branch where `migrate` ran, or delete the leftover files.
+
 `migrate` also reports any other worktree whose `.acstack/` still holds changes beyond `decisions/` and `CONTEXT.md`, which ACStack no longer reads; move what you need from it, then delete it.
 
 ### Explicit migration from a legacy layout

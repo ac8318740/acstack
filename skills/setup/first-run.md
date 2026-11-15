@@ -91,6 +91,7 @@ paths reach Step 10 through the health check.
     - Glossary yes: create `.acstack/CONTEXT.md` there, holding only a `# Glossary` heading
     - No: create nothing. A record that does not exist is off, and the skills skip it
     - Create them on the current branch, then tell the user to commit them. Never stage or commit `.acstack/` yourself
+    - Then run `git check-ignore -v .acstack/decisions/index.md .acstack/CONTEXT.md` for the created files. If it prints a rule, the team cannot commit them: tell the user which `.gitignore` line hides them and ask before changing it
 4. Leave the project CLAUDE.md alone. The SessionStart hook loads the
    orchestrator instructions.
 

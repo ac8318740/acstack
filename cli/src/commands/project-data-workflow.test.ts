@@ -186,6 +186,20 @@ describe('migrating tracked mode', () => {
     expect(existsSync(join(f.root, '.acstack/decisions/0001.md'))).toBe(true);
   });
 
+  it('warns about leftovers in a worktree branched before migrating, naming that worktree', () => {
+    const { f, entry } = tracked();
+    const old = join(f.base, 'old');
+    git(f.root, ['worktree', 'add', '--quiet', old, '-b', 'old']);
+    ok(f, ['project-data', 'migrate']);
+    const result = cli(f, ['project-data', 'path'], old);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe(realpathSync(entry));
+    expect(result.stderr).toContain(`${old} still holds project data`);
+    expect(result.stderr).not.toContain(`${f.root} still holds`);
+    expect(result.stderr).toMatch(/Merge the branch where `acstack project-data migrate` ran, or delete the leftover files/);
+    expect(result.stderr).not.toMatch(/run `acstack project-data migrate` from each/);
+  });
+
   it('aborts on a collision without moving anything', () => {
     const { f, entry } = tracked();
     rmSync(entry);
@@ -235,6 +249,26 @@ describe('records and retired files in a global project', () => {
     expect(existsSync(join(folder, 'specs'))).toBe(false);
     expect(existsSync(join(folder, 'domain-map.yaml'))).toBe(false);
     expect(existsSync(join(folder, 'project.yaml'))).toBe(true);
+  });
+
+  it('removes the managed ignore block when only records move, so they stay committable', () => {
+    const { f } = global();
+    put(f.root, '.gitignore', '# >>> acstack project-data >>>\n!/.acstack/\n/.acstack/**\n# <<< acstack project-data <<<\nnode_modules/\n');
+    ok(f, ['project-data', 'migrate', '--decisions', 'move', '--glossary', 'move', '--retired', 'keep']);
+    expect(readFileSync(join(f.root, '.gitignore'), 'utf8')).toBe('node_modules/\n');
+    expect(git(f.root, ['status', '--porcelain', '--untracked-files=all', '.acstack'])).toBe('?? .acstack/CONTEXT.md\n?? .acstack/decisions/0001.md\n');
+  });
+
+  it('refuses to move records where Git would ignore them, changing nothing', () => {
+    const { f, folder } = global();
+    const ignore = '# >>> acstack project-data >>>\n/.acstack/**\n# <<< acstack project-data <<<\n.acstack/\n';
+    put(f.root, '.gitignore', ignore);
+    const result = cli(f, ['project-data', 'migrate', '--decisions', 'move', '--glossary', 'keep', '--retired', 'keep']);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/would ignore .*decisions\/0001\.md.*Nothing was moved/);
+    expect(readFileSync(join(f.root, '.gitignore'), 'utf8')).toBe(ignore);
+    expect(existsSync(join(folder, 'decisions/0001.md'))).toBe(true);
+    expect(existsSync(join(f.root, '.acstack'))).toBe(false);
   });
 
   it('refuses to overwrite a record already in the repository', () => {

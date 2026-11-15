@@ -153,8 +153,8 @@ for (const host of ['shell', 'pi']) {
     const started = await start(invalid);
     const diagnostic = host === 'shell' ? stderr : notes.join('\n');
     if (error === 'conflict') {
-      check(`${host}: conflict warns to migrate and keeps using the project folder`,
-        started.includes(invalidFolder) && /project-data migrate/.test(diagnostic));
+      check(`${host}: conflict warns about leftovers and keeps using the project folder`,
+        started.includes(invalidFolder) && /delete the leftover files/.test(diagnostic));
     } else {
       check(`${host}: broken-link is an explicit refusal, not absent setup`, started === ''
         && /project-data migrate/.test(diagnostic) && !diagnostic.includes('no project config found'));

@@ -159,8 +159,13 @@ export function findProjectRoot(from: string = process.cwd()): string | null {
 
 /** Legacy data in the main checkout or this worktree: a `.acstack/` holding more than the repository records, or the older `acstack/` layout. */
 export function hasLegacyData(location: ProjectLocation, from: string = process.cwd()): boolean {
+  return legacyRoots(location, from).length > 0;
+}
+
+/** The checkouts, among the main one and the one holding `from`, that hold legacy data. */
+export function legacyRoots(location: ProjectLocation, from: string = process.cwd()): string[] {
   const top = checkoutRoot(from);
-  return [location.main, ...(top ? [top] : [])].some(root => legacyParts(root).length > 0 || hasLegacyProjectData(root));
+  return [...new Set([location.main, ...(top ? [top] : [])])].filter(root => legacyParts(root).length > 0 || hasLegacyProjectData(root));
 }
 
 /**
