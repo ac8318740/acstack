@@ -10,7 +10,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { trackProject } from '../test-project.js';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -1135,7 +1135,7 @@ describe('a map directory that does not exist', () => {
 
       it.each(MISSING_MAP_COMMANDS)('$name names the missing directory', ({ args }) => {
         const result = runCli(args, { cwd: root });
-        expect(result.stderr).toContain(join(root, '.acstack', 'maps', 'nope'));
+        expect(result.stderr).toContain(join(realpathSync(join(root, '.acstack')), 'maps', 'nope'));
         expect(result.stderr).toContain('directory');
       });
 

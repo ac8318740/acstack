@@ -115,7 +115,7 @@ describe('live design review CLI and HTTP contract', () => {
     const instructions = stripVTControlCharacters(server.output());
     expect(instructions).toMatch(/\bssh\b/);
     expect(instructions).toMatch(/-L\s*\S*19990/);
-    expect(server.output()).toContain('.acstack/design-reviews');
+    expect(server.output()).toContain('/design-reviews/');
     expect(server.output()).toContain('review.json');
     const markdown = readFileSync(join(root, 'design.md'), 'utf8');
     expect(markdown).toContain('Runs commands');

@@ -89,7 +89,7 @@ function makeProject(yaml: string): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
   mkdirSync(join(root, '.acstack'), { recursive: true });
   writeFileSync(join(root, '.acstack', 'project.yaml'), yaml);
-  return trackProject(root);
+  return trackProject(root, acstackHome);
 }
 
 /** A project stating `workflow.design_review: true` - the on-key half of the answer. */

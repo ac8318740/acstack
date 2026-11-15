@@ -13,6 +13,7 @@ import {
   readdirSync,
   symlinkSync,
   lstatSync,
+  realpathSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, delimiter } from 'node:path';
@@ -203,6 +204,10 @@ function runCli(args: string[], opts: { cwd?: string; path?: string[]; env?: Nod
     env.PATH = [...opts.path, gitOnlyDir()].join(delimiter);
   }
   Object.assign(env, opts.env ?? {});
+  // Fixtures keep their project folders in the suite's home; every per-test home shares them.
+  const projects = join(env.ACSTACK_HOME!, 'projects');
+  mkdirSync(join(process.env.ACSTACK_HOME!, 'projects'), { recursive: true });
+  if (!lstatSync(projects, { throwIfNoEntry: false })) { mkdirSync(env.ACSTACK_HOME!, { recursive: true }); symlinkSync(join(process.env.ACSTACK_HOME!, 'projects'), projects); }
   return spawnSync(process.execPath, [CLI_BIN, ...args], {
     encoding: 'utf-8',
     env,
@@ -315,7 +320,7 @@ function noProjectDir(): string {
 function projectWithoutYaml(): string {
   const root = mkdtempSync(join(tmpdir(), 'acstack-project-'));
   mkdirSync(join(root, '.acstack'), { recursive: true });
-  return linkProject(root, xdgConfigHome);
+  return linkProject(root, process.env.ACSTACK_HOME!);
 }
 
 /**
@@ -2262,7 +2267,7 @@ describe('acstack config set on a file that is not valid UTF-8', () => {
     expect(result.status).toBe(1);
     expectNoStackTrace(result);
     expect(result.stderr).toMatch(/UTF-?8/i);
-    expect(result.stderr).toContain(join(root, '.acstack', 'project.yaml'));
+    expect(result.stderr).toContain(realpathSync(join(root, '.acstack', 'project.yaml')));
   });
 
   it('leaves the file byte-identical, the undecodable byte included', () => {
@@ -2299,7 +2304,7 @@ describe('acstack config set on a file it may not write', () => {
   it.skipIf(asRoot)('refuses with exit 1, naming the file and the reason', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
     const before = readProjectYaml(root);
-    const file = join(root, '.acstack', 'project.yaml');
+    const file = realpathSync(join(root, '.acstack', 'project.yaml'));
     chmodSync(file, 0o444);
 
     try {
@@ -2533,7 +2538,7 @@ describe('acstack config set on a document that is not a mapping', () => {
 
     const lines = result.stderr.trim().split('\n');
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toContain(join(root, '.acstack', 'project.yaml'));
+    expect(lines[0]).toContain(realpathSync(join(root, '.acstack', 'project.yaml')));
     expect(lines[0]).toMatch(/mapping|block|keys|collection|section/i);
   });
 
@@ -2658,7 +2663,7 @@ describe('acstack config set replaces .acstack/project.yaml atomically', () => {
 
   /** Everything `acstack/` holds after the write, sorted. */
   function acstackDirEntries(root: string): string[] {
-    return readdirSync(join(root, '.acstack')).sort();
+    return readdirSync(join(root, '.acstack')).filter(name => name !== 'project.json').sort();
   }
 
   it('puts a different file in place, rather than rewriting the one it was given', () => {
@@ -2703,7 +2708,7 @@ describe('acstack config set replaces .acstack/project.yaml atomically', () => {
 
   it.skipIf(asRoot)('still refuses a read-only file, and leaves no temp file behind', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
-    const file = join(root, '.acstack', 'project.yaml');
+    const file = realpathSync(join(root, '.acstack', 'project.yaml'));
     const before = readProjectYaml(root);
     chmodSync(file, 0o444);
 
@@ -5537,7 +5542,7 @@ describe('acstack config check', () => {
       });
 
       it('passes the verification knowledge base row at the canonical project path', () => {
-        const line = lineContaining(result.stdout, '.acstack/verification');
+        const line = lineContaining(result.stdout, 'verification/VERIFICATION-KNOWLEDGE.md');
         expect(line).toBeDefined();
         expect(line).toContain('PASS');
       });
@@ -5603,7 +5608,7 @@ describe('acstack config check', () => {
       expect(result.status).toBe(1);
       const fails = failLines(result.stdout);
       expect(fails).toHaveLength(1);
-      expect(fails[0]).toContain('.acstack/verification');
+      expect(fails[0]).toContain('verification/VERIFICATION-KNOWLEDGE.md');
     });
 
     it('fails a project with no frontend for none of the frontend-only rows, with nothing at all on PATH', () => {
