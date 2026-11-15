@@ -86,10 +86,12 @@ paths reach Step 10 through the health check.
     ```
 
 2. Write `<project folder>/project.yaml` from the profile and the answers.
-3. Ask where the project's records should live, with a structured question.
-    - **Outside the repository (Recommended)** – global mode, the default. The repository holds no ACStack files and needs no `.gitignore` rules
-    - **Committed with the repository** – tracked mode. Run `~/.claude/acstack/bin/acstack project-data mode tracked`, then tell the user to commit `.acstack/` from the main checkout
-    - Never stage or commit `.acstack/` yourself
+3. Ask two separate structured questions: should the project keep architecture decision records (ADRs), and should it keep a glossary?
+    - Both records live in the repository, and the team commits them like code; everything else stays in the project folder
+    - ADRs yes: create `.acstack/decisions/index.md` (empty) at the repository root, the path `git rev-parse --show-toplevel` prints
+    - Glossary yes: create `.acstack/CONTEXT.md` there, holding only a `# Glossary` heading
+    - No: create nothing. A record that does not exist is off, and the skills skip it
+    - Create them on the current branch, then tell the user to commit them. Never stage or commit `.acstack/` yourself
 4. Leave the project CLAUDE.md alone. The SessionStart hook loads the
    orchestrator instructions.
 

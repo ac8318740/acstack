@@ -38,11 +38,14 @@ ACStack keeps meaningful tests and chooses verification effort to fit the change
 
 - `~/.claude/acstack/bin/acstack project-data path` prints the project folder, which every worktree of a repository shares
     - These files write its parts as `<project folder>/project.yaml`, `<project folder>/maps/`, and so on
-    - Storage modes, migration, and every key are in `docs/config-reference.md` in the plugin root
+    - Storage, migration, and every key are in `docs/config-reference.md` in the plugin root
+- Architecture decisions (`.acstack/decisions/`) and the glossary (`.acstack/CONTEXT.md`) live in the repository, at the root of the current worktree
+    - Each is on only when it exists; edit them on the current branch so they merge like code
+- Maps never live in Git: files-tracker maps sit in the project folder, and GitHub-tracker maps are issues
 - When `<project folder>/project.yaml` exists, read it before running build, test, or lint commands, keep its gates, and prefix commands with `venv.activate` when set
 - Without it, discover commands from repository instructions, manifests, existing tests, and CI
     - Do not invent commands or create configuration; report when no useful check is discoverable
-- Never change the Git index or force-add files to track project data; move data between storage modes only when the developer asks
+- Never change the Git index or force-add files to track project data
 - Invalid configuration or a failed project-data resolution is not absent configuration: report the repair and stop work that depends on it
 - Setup is optional; offer `/acstack:setup` only when the user wants saved settings, maps, or browser verification
 

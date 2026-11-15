@@ -77,7 +77,9 @@ answers. Come back to Step 2 when it finishes.
 ACStack keeps project data in the project folder, one per repository and shared
 by all of its worktrees. `acstack project-data path` prints its absolute path,
 even before the folder exists. These files write its parts as
-`<project folder>/project.yaml` and so on.
+`<project folder>/project.yaml` and so on. Architecture decisions and the
+glossary are the exception. They live in the repository, and the first-run
+path asks whether to keep them.
 
 ```bash
 project="$(~/.claude/acstack/bin/acstack project-data path)" &&

@@ -6,9 +6,9 @@ CLI. Nodes here are transient working state – scratch discarded once the map
 clears.
 
 The project folder is the path `~/.claude/acstack/bin/acstack project-data path`
-prints. In global mode, the default, it sits outside the repository, so nodes
-are never committed. In tracked mode it is the main checkout's committed
-`.acstack/`, and the developer decides what to commit.
+prints. It sits outside the repository, and every worktree shares it, so
+parallel agents see each other's claims. Maps never live in Git; teams that
+want shared, visible maps use the GitHub tracker.
 
 CLI path: `~/.claude/acstack/bin/acstack`
 

@@ -124,8 +124,8 @@ belong in git:
 ```markdown
 ## Answer
 
-On the files backend, map nodes live under `<project folder>/maps/`.
-In global mode, the default, that folder sits outside the repository, so nodes are never committed.
+On the files backend, map nodes live under `<project folder>/maps/`, outside the repository.
+On the GitHub backend they are issues. Maps never live in Git.
 
 The durable output is the tests, the architecture decision records and
 the glossary. The `record-context` skill extracts each one as a node

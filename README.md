@@ -59,10 +59,12 @@ Then, in your Git repository, use `/acstack:implement`, `/acstack:fix`, or `/acs
 
 - Optional: `/acstack:setup` detects the project type and writes `project.yaml` for saved workflow settings and storage-backed features such as maps
     - Existing configuration keeps its gates; invalid configuration or project-data conflicts require repair, not an unconfigured fallback
-- All ACStack-owned project records live in one project folder per repository, shared by all of its worktrees
-    - `~/.claude/acstack/bin/acstack project-data path` prints it; by default it is `~/.acstack/projects/<key>/`, outside the repository
-    - Run `acstack project-data mode tracked` to keep the records in the repository's `.acstack/` and commit them instead
-    - See [Where project data lives](docs/config-reference.md#where-project-data-lives) for paths, modes, and commands
+- ACStack keeps live project state in one project folder per repository, shared by all of its worktrees
+    - `~/.claude/acstack/bin/acstack project-data path` prints it: `~/.acstack/projects/<key>/`, outside the repository
+    - It holds `project.yaml`, files-tracker maps, design reviews, and handoffs; maps never live in Git
+- Architecture decisions (`.acstack/decisions/`) and the glossary (`.acstack/CONTEXT.md`) live in the repository and merge like code
+    - Each is optional and on only when it exists; `/acstack:setup` asks whether to create them
+- See [Where project data lives](docs/config-reference.md#where-project-data-lives) for paths and commands
 - Update installed ACStack tools before migrating an older project
     - Stop old agents and reviews, run `~/.claude/acstack/bin/acstack project-data migrate`, then restart with updated tools
     - Migration aborts on collisions without overwrites or Git index changes; tracked old paths become pending deletions
@@ -151,7 +153,7 @@ The three commands:
     - Each question comes with the agent's recommended answer
     - You provide feedback on the agent's recommended answer instead of prompting from scratch
     - Some requests only need one question
-    - The agent writes that decision down as a short note under `<project folder>/decisions/`
+    - If the repository keeps decisions, the agent writes each one down as a short note under `.acstack/decisions/`
     - A big feature may need dozens of questions
     - The agent stores those questions as a **map**
     - You work through the map across several sessions
@@ -237,7 +239,7 @@ For work with open decisions, chart it with `/acstack:map` first.
 | Skill | Description |
 |-------|-------------|
 | `/acstack:commit` | Commit in MECE groups through the project's hooks |
-| `/acstack:archive` | Verify tests, decisions, and current design approval, retain review evidence, then dispose of temporary map nodes |
+| `/acstack:archive` | Verify tests, decisions, and current design approval, then dispose of the map's nodes and design reviews |
 | `/acstack:handoff` | Hand work to a visible agent, a new one in its own pane or one already running, with acknowledgement |
 | `/acstack:compact-and-continue` | Anchor the session's load-bearing state to survive compaction, then continue in place |
 

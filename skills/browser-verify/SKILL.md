@@ -162,4 +162,4 @@ verification/
 - Replace entries; never append an incident log. Rewrite a wrong entry, delete a stale one, and merge duplicates. Dates, run narratives, and "learned on" notes do not belong
 - Record what the next run would otherwise rediscover, not what happened this run
 - Follow the `writing` skill
-- Git tracking follows the project's global or tracked mode; keep no knowledge files elsewhere
+- The project folder sits outside Git; keep no knowledge files elsewhere

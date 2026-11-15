@@ -18,7 +18,7 @@ flowchart LR
     F --> B
     E -->|revise| B
     E -->|ready| G[Approve the exact revision]
-    G --> H[Implement and retain review evidence]
+    G --> H[Implement, then archive the map with its reviews]
 ```
 
 ## Agree on the design scope
@@ -241,4 +241,4 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
 - Approval holds for the exact revision: an edit to the design doc, a saved comment, or a new, changed, or settled question or decision node targeting an element reopens the gate
     - Creating, claiming, or resolving work nodes never reopens it
 - Keep `workflow.design_review` unchanged; it controls the separate frontend design pass
-- Retain canonical reviews in `<project folder>/design-reviews/` independently of `workflow.maps.persist`
+- Canonical reviews live in `<project folder>/design-reviews/<map>/` and belong to their map; `/acstack:archive` removes them with the map

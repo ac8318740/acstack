@@ -190,7 +190,7 @@ What migration does:
 - ACStack removes legacy `map --map` and `align-viewer` without aliases
 - Use `design-doc <map>` to review a map's design doc; its elements are `element` nodes on that map
 - Use `node walk` and `node frontier` for map planning
-- Review evidence in `design-reviews/` outlives temporary map nodes regardless of `workflow.maps.persist`
+- Review evidence in `design-reviews/<map>/` belongs to its map; archiving the map removes it
 
 ### 1.1. Which file a write lands in
 
@@ -431,6 +431,8 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
     - The GitHub tracker has nothing to dispose of
         - A closed issue is already the archive
     - The default deletes, because keeping the nodes leaves a second copy of every decision and the two copies drift apart
+- Maps never live in Git: files-tracker maps sit in the project folder, and GitHub-tracker maps are issues
+- Archiving a map deletes `<project folder>/design-reviews/<name>/` on either tracker, whatever `workflow.maps.persist` says
 
 ## 5. workflow.handoff: launching and acknowledging
 

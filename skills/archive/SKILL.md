@@ -1,6 +1,6 @@
 ---
 name: archive
-description: Close out a cleared map – one whose frontier is empty with no fog and no claims left – by verifying the durable residue, meaning what the effort leaves behind in tests, ADRs and the glossary, was extracted, then closing the root and disposing of the nodes per workflow.maps.persist. Invoke when a map has just been cleared, when the last node on a map resolves, or when the user asks to archive or close out a map. Refuses and asks first if anything is still open. Also archives legacy changes/ directories from the pre-map workflow.
+description: Close out a cleared map – one whose frontier is empty with no fog and no claims left – by verifying the durable residue, meaning what the effort leaves behind in tests, ADRs and the glossary, was extracted, then closing the root, disposing of the nodes per workflow.maps.persist, and deleting the map's design reviews. Invoke when a map has just been cleared, when the last node on a map resolves, or when the user asks to archive or close out a map. Refuses and asks first if anything is still open. Also archives legacy changes/ directories from the pre-map workflow.
 argument-hint: "[map or legacy change name]"
 ---
 
@@ -14,7 +14,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 ## Purpose
 
-Archive verifies tested behavior, durable decisions, and retained review evidence before closing the root and disposing of temporary map nodes.
+Archive verifies tested behavior and durable decisions before closing the root and disposing of the map's nodes and design reviews.
 
 ## Step 1: Locate the map
 
@@ -64,13 +64,14 @@ Ask the user to resolve them or explicitly mark dropped scope out of scope befor
 Do not dispose of an uncleared map.
 
 For a map whose design needed the user's approval (When to stop for the user
-in `orchestrator/AGENTS.md`), run:
+in `orchestrator/AGENTS.md`), or that has a `<project folder>/design-reviews/<map>/`
+folder, run:
 
 ```bash
 ~/.claude/acstack/bin/acstack design-review status <map>
 ```
 
-- Require `approval.valid: true` for the current exact revision tuple
+- Require `approval.valid: true` for the current exact revision tuple when the design needed approval
 - Require completed reconciliation of saved feedback
 - Approval locks every element, so a loose element means the design was never approved
 - Return invalid approval or unresolved reconciliation to `/acstack:design-doc`
@@ -92,6 +93,9 @@ Check each resolution left what it should have:
 2. **ADRs and glossary** – apply `record-context`'s existing tests to unrecorded decisions.
    An ADR requires a hard-to-reverse, surprising decision with a real trade-off.
    A glossary entry requires an agreed term; neither is the common outcome.
+
+   Each record is on only when it exists in the current worktree (`.acstack/decisions/` or `.acstack/CONTEXT.md` at the repository root); skip one that is off.
+   Write them on the current branch; they merge like code.
 
 3. **Scope and provenance** – record dropped scope, unresolved limits, and reopening conditions before disposal.
    Keep durable node identities and their provenance with the affected decision records.
@@ -127,7 +131,7 @@ A root the map already resolved or closed stays that way. Never reopen it.
 `/acstack:archive` has already asked for disposal – proceed.
 
 If you reached this skill on your own after a map cleared, name what you
-will delete or move. Then wait for the user's go-ahead. Deletion is
+will delete or move, including the map's design reviews. Then wait for the user's go-ahead. Deletion is
 irreversible and they never asked for it.
 
 `workflow.maps.persist` in `<project folder>/project.yaml` decides (default `false`):
@@ -138,28 +142,32 @@ irreversible and they never asked for it.
 | `true`            | move the nodes to `<project folder>/archive/[YYYY-MM-DD]-[name]/nodes/` |
 
 Default is delete because keeping the nodes leaves a second copy of every
-decision, and the two drift. On the GitHub tracker there is nothing to
-dispose – closed issues are already the archive.
+decision, and the two drift. On the GitHub tracker there are no nodes to
+dispose of – closed issues are already the archive.
 
-Retain these records independently of `workflow.maps.persist`:
+Design reviews belong to their map. On either tracker, and whatever
+`workflow.maps.persist` says, delete `<project folder>/design-reviews/<name>/`.
+Step 2 already checked approval, and Step 3 moved anything lasting into tests
+and records.
+
+Retain these records:
 
 - Authored design entries and referenced source files
-- Canonical `review.json` files, posted feedback, reconciliation, and exact-revision approval evidence
 - Imported legacy history and original `<project folder>/alignment-packs/` artifacts
 - `<project folder>/decision-logs/<name>.tsv` files
-- Handoffs that contain review evidence or provenance not retained elsewhere
+- Handoffs that contain provenance not retained elsewhere
 
-Never recursively delete alignment, review, decision-log, or handoff directories as archive cleanup.
+Never recursively delete alignment, decision-log, or handoff directories as archive cleanup.
 Do not invoke a cleanup helper that erases those records.
 
-If a retained source or review record sits inside the proposed node disposal path, stop and resolve its safe retention first.
+If a retained source record sits inside a proposed disposal path, stop and resolve its safe retention first.
 Never change the Git index or force-add records to commit them.
 
 ## Step 6: Report
 
 - Nodes resolved / out-of-scope counts
 - Residue: tests spot-checked, ADRs and glossary entries written
-- Disposal: node deletion or archive path, plus retained review evidence and provenance
+- Disposal: node deletion or archive path, removed design reviews, and retained provenance
 - Reminder: commit with `/acstack:commit`
 
 ## Legacy: archiving a `<project folder>/changes/` directory
