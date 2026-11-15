@@ -51,12 +51,13 @@ npm install -g agent-browser
 ```
 
 The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints from the repository.
-Select the config explicitly before browser commands:
+Pass the config to each browser command:
 
 ```bash
-export AGENT_BROWSER_CONFIG="$(~/.claude/acstack/bin/acstack project-data path)/agent-browser.json"
+agent-browser --config "$(~/.claude/acstack/bin/acstack project-data path)/agent-browser.json" open https://example.com
 ```
 
+Never export `AGENT_BROWSER_CONFIG` or `AGENT_BROWSER_CDP` in a shell profile; a global export sends headless runs to the bridge too.
 For manual CDP checks without project configuration, use `agent-browser --cdp 19988 ...` instead; do not pass a missing config.
 
 ### 3. Accept the laptop's key
