@@ -15,7 +15,6 @@ Show a summary:
 
 ```
 Profile:      [detected]
-Directories:  src/, tests/
 Commands:     [from profile]
 Frontend:     [if applicable]
 Workflow:     adaptive verification, grilling via question tool
@@ -35,7 +34,7 @@ numbered list. It holds two questions in one call:
       "header": "Setup",
       "multiSelect": true,
       "options": [
-        {"label": "Profile & paths", "description": "Change language/framework, source dir, test dir"},
+        {"label": "Profile", "description": "Change language/framework"},
         {"label": "Commands", "description": "Adjust test, build, lint, typecheck, format commands"},
         {"label": "Frontend", "description": "Change directory, dev server, commands"}
       ]
@@ -60,13 +59,13 @@ selections. An empty selection means the defaults stand.
 Ask one follow-up question at a time through the question tool. Skip every item the
 user did not select.
 
-- **Profile & paths** – ask the language or framework, then the source and test
-  directories.
+- **Profile** – ask the language or framework.
 
 - **Commands** – show the proposed commands and ask what to adjust.
 - **Frontend** – show the proposed frontend settings and ask what to adjust.
 - **Grilling** – ask `tool`, the host's question tool, against `inline` prose.
-  Recommend `tool`. It writes `workflow.grilling.questions`.
+  Recommend `tool`. It writes the personal preference to the user-level config with
+  `~/.claude/acstack/bin/acstack config set workflow.grilling.questions <value>`.
 
 - Apply the shared Implementation discipline in `orchestrator/AGENTS.md` without adding workflow switches
 - Do not offer or generate the deprecated TDD booleans or retired `workflow.alignment_packs` settings

@@ -1432,6 +1432,26 @@ BILLION_REASON="$(reason_of "$OUT")"
 check "continuity route names billion-context when the model exposes a large context window"  'printf %s "$BILLION_REASON" | grep -qi "billion-context"'
 
 # ---------------------------------------------------------------------------
+# Case 32b: the user-level config.json sets handoff preferences; project.yaml overrides
+# ---------------------------------------------------------------------------
+echo "Case 32b: user-level handoff preferences, overridden by project.yaml"
+enter_case 32b
+T="$CASE_DIR/transcript.jsonl"
+mk_transcript "$T" "$(user_line)" "$(usage_line 150000)"
+mkdir -p "$ACSTACK_HOME"
+printf '{"workflow":{"handoff":{"nudge_warn":100000}}}\n' > "$ACSTACK_HOME/config.json"
+run_hook "$(stop_payload "$T" false)"
+check "150000 blocks under a user-level nudge_warn=100000"  'is_block_shape "$OUT"'
+mk_config 160000 500000
+run_hook "$(stop_payload "$T" false)"
+check "project.yaml nudge_warn=160000 overrides the user-level value"  'is_quiet "$OUT"'
+printf '{not json' > "$ACSTACK_HOME/config.json"
+rm -f .acstack/project.yaml
+run_hook "$(stop_payload "$T" false)"
+check "a malformed user-level config.json falls back to defaults"  'is_quiet "$OUT"'
+rm -f "$ACSTACK_HOME/config.json"
+
+# ---------------------------------------------------------------------------
 # Case 33: nothing in this suite made the hook write to stderr
 # ---------------------------------------------------------------------------
 echo "Case 33: no hook run in this suite wrote to stderr"

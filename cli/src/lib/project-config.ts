@@ -130,8 +130,6 @@ export const PROJECT_KEYS: Readonly<Record<string, ProjectKeySpec>> = {
   profile: { kind: 'profile' },
 
   'workflow.grilling.questions': { kind: 'enum', values: ['tool', 'inline'] },
-  'workflow.tdd.strict': { kind: 'boolean' },
-  'workflow.tdd.orchestrator_strict': { kind: 'boolean' },
   [FRONTEND_VERIFICATION_KEY]: { kind: 'boolean' },
   [DESIGN_REVIEW_KEY]: { kind: 'boolean' },
   'workflow.maps.tracker': { kind: 'enum', values: ['github', 'files'] },
@@ -154,10 +152,6 @@ export const PROJECT_KEYS: Readonly<Record<string, ProjectKeySpec>> = {
   'commands.typecheck': { kind: 'string' },
   'commands.format': { kind: 'string' },
 
-  'directories.source': { kind: 'string' },
-  'directories.tests': { kind: 'string' },
-
-  'test_markers.exclude': { kind: 'string' },
   'venv.activate': { kind: 'string' },
 
   'frontend.directory': { kind: 'string' },
@@ -175,6 +169,16 @@ export const PROJECT_KEYS: Readonly<Record<string, ProjectKeySpec>> = {
   'frontend.browser.fallback': { kind: 'enum', values: BROWSER_FALLBACK_VALUES },
   'frontend.browser.cdp_port': { kind: 'number', integer: true, min: 1, max: 65535 },
 };
+
+/**
+ * Whether `key` is a personal preference rather than a project setting.
+ *
+ * A preference lives in the user-level config so it follows the person across
+ * projects; a project.yaml that states it still overrides it there.
+ */
+export function isUserPreferenceKey(key: string): boolean {
+  return key === 'workflow.grilling.questions' || key.startsWith('workflow.handoff.');
+}
 
 /** Every project key, in schema order, for a message that has to name them. */
 export const PROJECT_KEY_LIST: readonly string[] = Object.keys(PROJECT_KEYS);
@@ -845,9 +849,6 @@ export const PROJECT_KEY_DEFAULTS: Readonly<Record<string, string>> = {
   'workflow.handoff.nudge_warn': '200000',
   'workflow.handoff.nudge_severe': '500000',
   'workflow.handoff.nudge_step': '100000',
-
-  'directories.source': 'src/',
-  'directories.tests': 'tests/',
 
   'frontend.directory': 'frontend/',
   'frontend.dev_server_url': 'http://localhost:3000',

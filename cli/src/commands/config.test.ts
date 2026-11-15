@@ -54,7 +54,6 @@ interface StoredProjectYaml {
     frontend_verification?: unknown;
     design_review?: unknown;
     grilling?: { questions?: unknown };
-    tdd?: { strict?: unknown; orchestrator_strict?: unknown };
     maps?: { tracker?: unknown; persist?: unknown };
     handoff?: {
       self_invoke?: unknown;
@@ -218,6 +217,11 @@ function runCli(args: string[], opts: { cwd?: string; path?: string[]; env?: Nod
 
 function configFilePath(): string {
   return join(xdgConfigHome, 'config.json');
+}
+
+/** The user-level config a `runSet`-style run wrote, parsed. */
+function storedGlobal(result: { globalConfigFile: string }): unknown {
+  return JSON.parse(readFileSync(result.globalConfigFile, 'utf-8'));
 }
 
 /** An empty directory to use as PATH when a test wants NOTHING resolvable. */
@@ -1110,9 +1114,9 @@ const HAND_EDITED_PROJECT = [
   '  read_guard: true',
   '  grilling:',
   '    questions: tool      # tool | inline',
-  '  tdd:',
-  '    strict: true',
-  '    orchestrator_strict: true',
+  '  maps:',
+  '    persist: true',
+  '    tracker: files',
   '',
   'commands:',
   '  test: "npm --prefix cli test"',
@@ -1129,11 +1133,11 @@ describe('acstack config set, project keys', () => {
     it('writes a project key to .acstack/project.yaml and creates no global config file at all', () => {
       const root = makeProject('name: routed-project\n');
 
-      const result = runSet('workflow.tdd.strict', 'false', root);
+      const result = runSet('workflow.maps.persist', 'false', root);
 
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('workflow.tdd.strict');
-      expect(atKey(parseProjectYaml(root), 'workflow.tdd.strict')).toBe(false);
+      expect(result.stdout).toContain('workflow.maps.persist');
+      expect(atKey(parseProjectYaml(root), 'workflow.maps.persist')).toBe(false);
       // The bug this replaces: the value landed in the global config, under a
       // key nothing ever reads back out of that file.
       expect(existsSync(result.globalConfigFile)).toBe(false);
@@ -1181,7 +1185,7 @@ describe('acstack config set, project keys', () => {
     it('refuses a project key outside an ACStack project, writing nothing anywhere', () => {
       const cwd = noProjectDir();
 
-      const result = runSet('workflow.tdd.strict', 'false', cwd);
+      const result = runSet('workflow.maps.persist', 'false', cwd);
 
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/no ACStack project/i);
@@ -1198,7 +1202,7 @@ describe('acstack config set, project keys', () => {
 
     beforeAll(() => {
       const root = makeProject(HAND_EDITED_PROJECT);
-      expect(runSet('workflow.tdd.strict', 'false', root).status).toBe(0);
+      expect(runSet('workflow.maps.persist', 'false', root).status).toBe(0);
       text = readProjectYaml(root);
       parsed = parseProjectYaml(root);
     });
@@ -1212,7 +1216,7 @@ describe('acstack config set, project keys', () => {
      * go green against a file nobody touched.
      */
     function expectTheWriteLanded(): void {
-      expect(atKey(parsed, 'workflow.tdd.strict')).toBe(false);
+      expect(atKey(parsed, 'workflow.maps.persist')).toBe(false);
     }
 
     it('keeps the header comment on the first line', () => {
@@ -1241,7 +1245,7 @@ describe('acstack config set, project keys', () => {
       expectTheWriteLanded();
 
       expect(text.indexOf('read_guard')).toBeLessThan(text.indexOf('grilling'));
-      expect(text.indexOf('grilling')).toBeLessThan(text.indexOf('tdd'));
+      expect(text.indexOf('grilling')).toBeLessThan(text.indexOf('maps'));
     });
 
     it('keeps the quoting of the values it did not touch', () => {
@@ -1252,8 +1256,8 @@ describe('acstack config set, project keys', () => {
     });
 
     it('changes the one key it was given and no other', () => {
-      expect(atKey(parsed, 'workflow.tdd.strict')).toBe(false);
-      expect(atKey(parsed, 'workflow.tdd.orchestrator_strict')).toBe(true);
+      expect(atKey(parsed, 'workflow.maps.persist')).toBe(false);
+      expect(atKey(parsed, 'workflow.maps.tracker')).toBe('files');
       expect(atKey(parsed, 'workflow.read_guard')).toBe(true);
       expect(atKey(parsed, 'profile')).toBe('node-typescript');
       expect(atKey(parsed, 'commands.test')).toBe('npm --prefix cli test');
@@ -1446,35 +1450,35 @@ describe('acstack config set, project keys', () => {
       });
 
       it('writes a comma into a flow mapping nested inside another flow mapping', () => {
-        const root = makeProject('workflow: { handoff: { agent: claude, ack_turns: 5 } }\n');
+        const root = makeProject('frontend: { commands: { test: vitest, build: vite } }\n');
 
-        const result = runSet('workflow.handoff.agent', 'claude, then codex', root);
+        const result = runSet('frontend.commands.test', 'lint, then vitest', root);
 
         expect(result.status).toBe(0);
         const parsed = parseProjectYamlShowingFile(root);
-        expect(atKey(parsed, 'workflow.handoff.agent')).toBe('claude, then codex');
-        expect(atKey(parsed, 'workflow.handoff.ack_turns')).toBe(5);
+        expect(atKey(parsed, 'frontend.commands.test')).toBe('lint, then vitest');
+        expect(atKey(parsed, 'frontend.commands.build')).toBe('vite');
         // Both levels, because a value that escapes the inner mapping lands as
-        // a key of the outer one, where `workflow.handoff` still reads back
+        // a key of the outer one, where `frontend.commands` still reads back
         // whole and only the outer key set says anything is wrong.
-        expect(keysAt(parsed, 'workflow.handoff')).toEqual(['ack_turns', 'agent']);
-        expect(keysAt(parsed, 'workflow')).toEqual(['handoff']);
+        expect(keysAt(parsed, 'frontend.commands')).toEqual(['build', 'test']);
+        expect(keysAt(parsed, 'frontend')).toEqual(['commands']);
       });
 
       it('writes a bracket into a flow mapping that holds a flow sequence', () => {
-        // The sibling is the one list-shaped key, stated in flow style, so a
-        // `]` in the value has a real sequence to be confused with.
+        // The sibling is a list stated in flow style, so a `]` in the value
+        // has a real sequence to be confused with.
         const root = makeProject(
-          'workflow: { handoff: { agent: claude, context_thresholds: [150000, 300000] } }\n'
+          'frontend: { commands: { test: vitest, ports: [3000, 3001] } }\n'
         );
 
-        const result = runSet('workflow.handoff.agent', 'claude] fallback', root);
+        const result = runSet('frontend.commands.test', 'vitest] fallback', root);
 
         expect(result.status).toBe(0);
         const parsed = parseProjectYamlShowingFile(root);
-        expect(atKey(parsed, 'workflow.handoff.agent')).toBe('claude] fallback');
-        expect(atKey(parsed, 'workflow.handoff.context_thresholds')).toEqual([150000, 300000]);
-        expect(keysAt(parsed, 'workflow.handoff')).toEqual(['agent', 'context_thresholds']);
+        expect(atKey(parsed, 'frontend.commands.test')).toBe('vitest] fallback');
+        expect(atKey(parsed, 'frontend.commands.ports')).toEqual([3000, 3001]);
+        expect(keysAt(parsed, 'frontend.commands')).toEqual(['ports', 'test']);
       });
 
       it('writes a comma into a document that is one flow mapping from the first byte', () => {
@@ -1811,16 +1815,13 @@ describe('acstack config set, project keys', () => {
 
   describe('boolean project keys', () => {
     // Every boolean key the reference documents, each set with a different
-    // one of the six spellings the host axes accept, in one project. Read
-    // once at the end, so the file also has to survive six writes in a row.
+    // one of the spellings the host axes accept, in one project. Read once
+    // at the end, so the file also has to survive several writes in a row.
     const BOOLEAN_CASES: [string, string, boolean][] = [
       ['workflow.read_guard', 'yes', true],
-      ['workflow.tdd.strict', 'ON', true],
-      ['workflow.tdd.orchestrator_strict', 'false', false],
       ['workflow.frontend_verification', 'no', false],
-      ['workflow.maps.persist', 'true', true],
-      ['workflow.handoff.self_invoke', 'OFF', false],
-      ['workflow.design_review', 'yes', true],
+      ['workflow.maps.persist', 'ON', true],
+      ['workflow.design_review', 'OFF', false],
     ];
 
     let text: string;
@@ -1844,7 +1845,7 @@ describe('acstack config set, project keys', () => {
       // the parsed assertions above would pass even if the raw spelling were
       // written straight through. The file itself has to say true or false.
       expect(text).toMatch(/read_guard:\s*true\s*$/m);
-      expect(text).toMatch(/self_invoke:\s*false\s*$/m);
+      expect(text).toMatch(/design_review:\s*false\s*$/m);
       expect(text).not.toMatch(/\bON\b|\bOFF\b/);
       expect(text).not.toMatch(/:\s*(yes|no)\s*$/im);
     });
@@ -1903,7 +1904,6 @@ describe('acstack config set, project keys', () => {
 
   describe('enumerated project keys', () => {
     const ENUM_CASES: [string, string][] = [
-      ['workflow.grilling.questions', 'inline'],
       ['workflow.maps.tracker', 'github'],
       ['frontend.browser.mode', 'headless'],
       ['frontend.browser.fallback', 'none'],
@@ -1951,13 +1951,11 @@ describe('acstack config set, project keys', () => {
 
     beforeAll(() => {
       const root = makeProject('name: number-project\n');
-      expect(runSet('workflow.handoff.ack_turns', '8', root).status).toBe(0);
       expect(runSet('frontend.browser.cdp_port', '19988', root).status).toBe(0);
       parsed = parseProjectYaml(root);
     });
 
     const NUMBER_CASES: [string, number][] = [
-      ['workflow.handoff.ack_turns', 8],
       ['frontend.browser.cdp_port', 19988],
     ];
 
@@ -1979,11 +1977,11 @@ describe('acstack config set, project keys', () => {
   });
 
   describe('workflow.handoff.context_thresholds, the one list-shaped key', () => {
-    /** The parsed `context_thresholds` after setting it to `raw` in a fresh project. */
+    /** The stored `context_thresholds` after setting it to `raw`; a preference, so in the user-level config. */
     function setThresholds(raw: string): unknown {
-      const root = makeProject('name: thresholds-project\n');
-      expect(runSet('workflow.handoff.context_thresholds', raw, root).status).toBe(0);
-      return atKey(parseProjectYaml(root), 'workflow.handoff.context_thresholds');
+      const result = runSet('workflow.handoff.context_thresholds', raw, makeProject('name: thresholds-project\n'));
+      expect(result.status).toBe(0);
+      return atKey(storedGlobal(result), 'workflow.handoff.context_thresholds');
     }
 
     it('stores a comma-separated list of token counts as a list of numbers', () => {
@@ -2018,7 +2016,7 @@ describe('acstack config set, project keys', () => {
       const root = makeProject(HAND_EDITED_PROJECT);
       const before = readProjectYaml(root);
 
-      const result = runSet('workflow.grilling.questions', 'nonesuch-value', root);
+      const result = runSet('workflow.maps.tracker', 'nonesuch-value', root);
 
       expect(result.status).toBe(1);
       // Not "the key is unchanged" but "the file is unchanged": a write that
@@ -2080,7 +2078,7 @@ describe('acstack config set when the path descends through a value', () => {
    */
   const SCALAR_ON_THE_PATH: [string, string, string][] = [
     ['workflow.read_guard', 'workflow', 'workflow: fast\n'],
-    ['workflow.tdd.strict', 'workflow.tdd', 'workflow:\n  tdd: strict\n'],
+    ['workflow.maps.persist', 'workflow.maps', 'workflow:\n  maps: files\n'],
     ['commands.test', 'commands', 'profile: node-typescript\ncommands: "npm test"\n'],
   ];
 
@@ -2097,7 +2095,7 @@ describe('acstack config set when the path descends through a value', () => {
       // library's frames and the user never learns which key to fix.
       expectNoStackTrace(result);
       // Named by its full dotted path, the way the user would type it: the
-      // leaf alone ("tdd") does not say where in the file to look.
+      // leaf alone ("maps") does not say where in the file to look.
       expect(result.stderr).toContain(blocked);
       expect(result.stderr).toMatch(/value|scalar/i);
       expect(result.stderr).toMatch(/block|mapping|section/i);
@@ -2146,12 +2144,12 @@ describe('acstack config set into a block left empty', () => {
     // sequence cannot pass because the removal quietly stopped doing this.
     expect(atKey(parseProjectYaml(root), 'workflow')).toBeNull();
 
-    const result = runSet('workflow.tdd.strict', 'true', root);
+    const result = runSet('workflow.maps.persist', 'true', root);
 
     expect(result.status).toBe(0);
     expectNoStackTrace(result);
     const parsed = parseProjectYamlShowingFile(root);
-    expect(atKey(parsed, 'workflow.tdd.strict')).toBe(true);
+    expect(atKey(parsed, 'workflow.maps.persist')).toBe(true);
     expect(atKey(parsed, 'profile')).toBe('node-typescript');
     // Both, in the file's own text: the block that was emptied and the key now
     // under it. The data assertion above is satisfied by a file that dropped
@@ -2159,21 +2157,21 @@ describe('acstack config set into a block left empty', () => {
     // different file from the one the user had.
     const text = readProjectYaml(root);
     expect(text).toMatch(/^workflow:\s*$/m);
-    expect(text).toMatch(/^\s+strict: true\s*$/m);
+    expect(text).toMatch(/^\s+persist: true\s*$/m);
   });
 
   it('sets the same key back after config unset emptied the block that held it', () => {
-    const root = makeProject('workflow:\n  tdd:\n    strict: true\n');
+    const root = makeProject('workflow:\n  maps:\n    persist: true\n');
 
-    expect(runUnset('workflow.tdd.strict', root).status).toBe(0);
+    expect(runUnset('workflow.maps.persist', root).status).toBe(0);
 
-    const result = runSet('workflow.tdd.strict', 'false', root);
+    const result = runSet('workflow.maps.persist', 'false', root);
 
     expect(result.status).toBe(0);
     expectNoStackTrace(result);
     // Set, removed, set again is the shortest sequence a user runs by
     // accident: change your mind, change it back.
-    expect(atKey(parseProjectYamlShowingFile(root), 'workflow.tdd.strict')).toBe(false);
+    expect(atKey(parseProjectYamlShowingFile(root), 'workflow.maps.persist')).toBe(false);
   });
 
   it.each([
@@ -2257,7 +2255,7 @@ describe('acstack config set on a file that is not valid UTF-8', () => {
   beforeAll(() => {
     root = makeProject('# replaced below\n');
     writeProjectYamlBytes(root, LATIN1_PROJECT);
-    result = runSet('workflow.tdd.strict', 'false', root);
+    result = runSet('workflow.maps.persist', 'false', root);
   });
 
   it('refuses with exit 1, saying the file is not valid UTF-8', () => {
@@ -2280,7 +2278,7 @@ describe('acstack config set on a file that is not valid UTF-8', () => {
   });
 
   it('does not write the key it was asked to set', () => {
-    expect(atKey(parseProjectYaml(root), 'workflow.tdd.strict')).toBeUndefined();
+    expect(atKey(parseProjectYaml(root), 'workflow.maps.persist')).toBeUndefined();
     expect(existsSync(result.globalConfigFile)).toBe(false);
   });
 });
@@ -2305,7 +2303,7 @@ describe('acstack config set on a file it may not write', () => {
     chmodSync(file, 0o444);
 
     try {
-      const result = runSet('workflow.tdd.strict', 'false', root);
+      const result = runSet('workflow.maps.persist', 'false', root);
 
       expect(result.status).toBe(1);
       expectNoStackTrace(result);
@@ -2668,20 +2666,20 @@ describe('acstack config set replaces .acstack/project.yaml atomically', () => {
     const file = join(root, '.acstack', 'project.yaml');
     const before = statSync(file).ino;
 
-    const result = runSet('workflow.tdd.strict', 'false', root);
+    const result = runSet('workflow.maps.persist', 'false', root);
 
     expect(result.status).toBe(0);
     // The inode is the evidence, and the only evidence a test can collect
     // without racing the write: truncating keeps the file it was handed, and
     // renaming puts a file that was built elsewhere in its place.
     expect(statSync(file).ino).not.toBe(before);
-    expect(atKey(parseProjectYamlShowingFile(root), 'workflow.tdd.strict')).toBe(false);
+    expect(atKey(parseProjectYamlShowingFile(root), 'workflow.maps.persist')).toBe(false);
   });
 
   it('leaves no temp file behind in acstack/ after the write lands', () => {
     const root = makeProject(HAND_EDITED_PROJECT);
 
-    const result = runSet('workflow.tdd.strict', 'false', root);
+    const result = runSet('workflow.maps.persist', 'false', root);
 
     expect(result.status).toBe(0);
     // A half-written file the user has to find and delete themselves is its
@@ -2694,7 +2692,7 @@ describe('acstack config set replaces .acstack/project.yaml atomically', () => {
     const file = join(root, '.acstack', 'project.yaml');
     chmodSync(file, 0o640);
 
-    const result = runSet('workflow.tdd.strict', 'false', root);
+    const result = runSet('workflow.maps.persist', 'false', root);
 
     expect(result.status).toBe(0);
     // A temp file is created with whatever the process umask gives it, not
@@ -2710,7 +2708,7 @@ describe('acstack config set replaces .acstack/project.yaml atomically', () => {
     chmodSync(file, 0o444);
 
     try {
-      const result = runSet('workflow.tdd.strict', 'false', root);
+      const result = runSet('workflow.maps.persist', 'false', root);
 
       // Renaming over a read-only file SUCCEEDS whenever the directory allows
       // it, because the mode being checked is the directory's. So a write
@@ -2782,13 +2780,13 @@ describe('acstack config set and unset through a symlinked .acstack/project.yaml
   it('removes a key through the link, deleting the line the file states it on', () => {
     const { root, link, target } = makeSymlinkedProject(HAND_EDITED_PROJECT);
 
-    const result = runUnset('workflow.tdd.strict', root);
+    const result = runUnset('workflow.maps.persist', root);
 
     expect(result.status).toBe(0);
     expect(lstatSync(link).isSymbolicLink()).toBe(true);
     const parsed = parseTarget(target);
-    expect(atKey(parsed, 'workflow.tdd.strict')).toBeUndefined();
-    expect(atKey(parsed, 'workflow.tdd.orchestrator_strict')).toBe(true);
+    expect(atKey(parsed, 'workflow.maps.persist')).toBeUndefined();
+    expect(atKey(parsed, 'workflow.maps.tracker')).toBe('files');
   });
 
   it('removes a key through the link on the re-emitting path too', () => {
@@ -2894,7 +2892,7 @@ describe('acstack config set, the range a numeric project key accepts', () => {
       const result = runSet(key, '0', root);
 
       expect(result.status).toBe(0);
-      expect(atKey(parseProjectYaml(root), key)).toBe(0);
+      expect(atKey(storedGlobal(result), key)).toBe(0);
     });
 
     it.each(COUNT_KEYS)('accepts an ordinary whole count for %s', key => {
@@ -2903,7 +2901,7 @@ describe('acstack config set, the range a numeric project key accepts', () => {
       const result = runSet(key, '12', root);
 
       expect(result.status).toBe(0);
-      expect(atKey(parseProjectYaml(root), key)).toBe(12);
+      expect(atKey(storedGlobal(result), key)).toBe(12);
     });
   });
 });
@@ -3178,7 +3176,7 @@ describe('acstack config get, project keys', () => {
     // has to be written through the CLI before it can be read back.
     it.each([
       ['workflow.read_guard', 'true'],
-      ['workflow.tdd.orchestrator_strict', 'true'],
+      ['workflow.maps.tracker', 'files'],
     ])('prints %s as %s, read out of .acstack/project.yaml', (key, printed) => {
       const result = runGet(key, makeProject(HAND_EDITED_PROJECT));
 
@@ -3199,12 +3197,12 @@ describe('acstack config get, project keys', () => {
     });
 
     it('prints a string key, without the quoting the file happens to use', () => {
-      // The file states `tests: "tests/"`. What the user asked for is the
-      // path, not the YAML source that holds it.
-      const result = runGet('directories.tests', makeProject(HAND_EDITED_PROJECT));
+      // The file states `test: "npm --prefix cli test"`. What the user asked
+      // for is the command, not the YAML source that holds it.
+      const result = runGet('commands.test', makeProject(HAND_EDITED_PROJECT));
 
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('tests/');
+      expect(result.stdout.trim()).toBe('npm --prefix cli test');
     });
   });
 
@@ -3228,18 +3226,6 @@ describe('acstack config get, project keys', () => {
       expect(result.stderr).toContain(fallback);
     });
 
-    it.each(['workflow.tdd.strict', 'workflow.tdd.orchestrator_strict'])(
-      'exits 2 for the unstated %s without advertising a boolean default',
-      (key) => {
-        const result = runGet(key, makeProject('name: no-default-project\n'));
-
-        expect(result.status).toBe(2);
-        expect(result.stderr).toContain(key);
-        expect(result.stderr).toContain('unset');
-        expect(result.stderr).not.toMatch(/\b(?:true|false)\b/i);
-      },
-    );
-
     it('exits 2 and reports unset for a key the reference gives no default at all', () => {
       // `workflow.maps.tracker` has no default: the map skill picks one at
       // the moment it first writes a map down, and writes the key. So there
@@ -3256,7 +3242,7 @@ describe('acstack config get, project keys', () => {
     it('refuses a project key outside an ACStack project with exit 1, writing nothing', () => {
       const cwd = noProjectDir();
 
-      const result = runGet('workflow.tdd.strict', cwd);
+      const result = runGet('workflow.maps.persist', cwd);
 
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/no ACStack project/i);
@@ -3289,26 +3275,26 @@ describe('acstack config unset, project keys', () => {
 
     beforeAll(() => {
       const root = makeProject(HAND_EDITED_PROJECT);
-      result = runUnset('workflow.tdd.strict', root);
+      result = runUnset('workflow.maps.persist', root);
       text = readProjectYaml(root);
       parsed = parseProjectYaml(root);
     });
 
     it('exits 0 and says which key it removed', () => {
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain('Removed workflow.tdd.strict');
+      expect(result.stdout).toContain('Removed workflow.maps.persist');
     });
 
     it('leaves the key stated nowhere in the file', () => {
-      expect(atKey(parsed, 'workflow.tdd.strict')).toBeUndefined();
+      expect(atKey(parsed, 'workflow.maps.persist')).toBeUndefined();
       // Not only absent from the parsed data: absent from the text. A value
       // rewritten to `false` would read back as a decision nobody made.
-      expect(text).not.toMatch(/^\s*strict:/m);
+      expect(text).not.toMatch(/^\s*persist:/m);
     });
 
     it('keeps the sibling stated inside the same block', () => {
-      expect(atKey(parsed, 'workflow.tdd.orchestrator_strict')).toBe(true);
-      expect(keysAt(parsed, 'workflow.tdd')).toEqual(['orchestrator_strict']);
+      expect(atKey(parsed, 'workflow.maps.tracker')).toBe('files');
+      expect(keysAt(parsed, 'workflow.maps')).toEqual(['tracker']);
     });
 
     it('keeps the header comment and the inline comment on another key', () => {
@@ -3329,16 +3315,16 @@ describe('acstack config unset, project keys', () => {
   });
 
   describe('reading a key once it is gone', () => {
-    it.each(['workflow.tdd.strict', 'workflow.tdd.orchestrator_strict'])(
+    it.each(['workflow.maps.tracker'])(
       'round-trips %s: set it, get it, unset it, get it back as unset without a default',
       (key) => {
         const root = makeProject(HAND_EDITED_PROJECT);
 
-        expect(runSet(key, 'false', root).status).toBe(0);
+        expect(runSet(key, 'github', root).status).toBe(0);
 
         const stated = runGet(key, root);
         expect(stated.status).toBe(0);
-        expect(stated.stdout.trim()).toBe('false');
+        expect(stated.stdout.trim()).toBe('github');
 
         expect(runUnset(key, root).status).toBe(0);
 
@@ -3376,7 +3362,7 @@ describe('acstack config unset, project keys', () => {
       const root = makeProject(HAND_EDITED_PROJECT);
       const before = readProjectYaml(root);
 
-      const result = runUnset('workflow.maps.persist', root);
+      const result = runUnset('commands.lint', root);
 
       // Not an error: the state the user asked for is the state the file is
       // already in, the same way an unset host axis reports and exits 0.
@@ -3393,7 +3379,7 @@ describe('acstack config unset, project keys', () => {
     it('refuses a project key outside an ACStack project with exit 1, writing nothing', () => {
       const cwd = noProjectDir();
 
-      const result = runUnset('workflow.tdd.strict', cwd);
+      const result = runUnset('workflow.maps.persist', cwd);
 
       expect(result.status).toBe(1);
       expect(result.stderr).toMatch(/no ACStack project/i);
@@ -3510,8 +3496,8 @@ describe('acstack config list', () => {
   /** A project stating two keys, in two different blocks. */
   const LISTED_PROJECT = [
     'workflow:',
-    '  tdd:',
-    '    strict: false',
+    '  maps:',
+    '    persist: false',
     '',
     'commands:',
     '  test: "npm --prefix cli test"',
@@ -3550,7 +3536,7 @@ describe('acstack config list', () => {
     it('prints the keys the project states, by the dotted paths config set takes', () => {
       // The dotted path is the spelling every other command uses, so a key
       // read out of this listing can be pasted straight into a `set`.
-      expect(result.stdout).toContain('workflow.tdd.strict');
+      expect(result.stdout).toContain('workflow.maps.persist');
       expect(result.stdout).toContain('commands.test');
       expect(result.stdout).toContain('npm --prefix cli test');
     });
@@ -3573,7 +3559,7 @@ describe('acstack config list', () => {
       // file omits takes its default, and printing it here would read as a
       // decision this project made.
       expect(result.stdout).not.toContain('workflow.read_guard');
-      expect(result.stdout).not.toContain('workflow.maps.persist');
+      expect(result.stdout).not.toContain('workflow.design_review');
     });
   });
 
@@ -3613,8 +3599,8 @@ describe('acstack config list', () => {
     /** A project stating a known key, then an unknown one, then a known one. */
     const UNKNOWN_KEY_PROJECT = [
       'workflow:',
-      '  tdd:',
-      '    strict: false',
+      '  maps:',
+      '    persist: false',
       '',
       `venv: "${VENV_ACTIVATE}"`,
       '',
@@ -3650,7 +3636,7 @@ describe('acstack config list', () => {
         .split('\n')
         .filter(line => /^(workflow\.|venv|commands\.)/.test(line))
         .map(line => line.split(' ')[0]);
-      expect(keys).toEqual(['workflow.tdd.strict', 'venv', 'commands.test']);
+      expect(keys).toEqual(['workflow.maps.persist', 'venv', 'commands.test']);
     });
 
     it('marks that row, and still prints the value the file states', () => {
@@ -3662,7 +3648,7 @@ describe('acstack config list', () => {
 
     it('leaves the rows a schema does know unmarked', () => {
       // The mark means something only if most rows do not carry it.
-      expect(lineContaining(text.stdout, 'workflow.tdd.strict')).not.toContain(UNKNOWN_MARK);
+      expect(lineContaining(text.stdout, 'workflow.maps.persist')).not.toContain(UNKNOWN_MARK);
       expect(lineContaining(text.stdout, 'commands.test')).not.toContain(UNKNOWN_MARK);
     });
 
@@ -3672,7 +3658,7 @@ describe('acstack config list', () => {
       // Asserted as the whole array, because the rows ARE the answer - a
       // fourth row nobody asked for is as wrong as a missing field.
       expect(json.project).toEqual([
-        { key: 'workflow.tdd.strict', value: false, known: true },
+        { key: 'workflow.maps.persist', value: false, known: true },
         { key: 'venv', value: VENV_ACTIVATE, known: false },
         { key: 'commands.test', value: 'npm --prefix cli test', known: true },
       ]);
@@ -3854,27 +3840,27 @@ describe('acstack config list', () => {
     });
 
     it('leaves no mark on an emptied block nested inside another', () => {
-      // `workflow.handoff` is a path several keys are stated under, and the
+      // `frontend.browser` is a path several keys are stated under, and the
       // same removal empties it. A rule written only for a top-level block
       // still marks this one.
       const root = makeProject(
         [
-          'workflow:',
-          '  handoff:',
-          '    ack_turns: 5',
+          'frontend:',
+          '  browser:',
+          '    mode: headless',
           '',
           'commands:',
           '  test: "npm test"',
           '',
         ].join('\n')
       );
-      expect(runUnset('workflow.handoff.ack_turns', root).status).toBe(0);
+      expect(runUnset('frontend.browser.mode', root).status).toBe(0);
 
       const { text, json } = listBothWays(root);
 
-      expect(rowLine(text, 'workflow.handoff')).not.toContain(UNKNOWN_MARK);
-      expect(projectRows(json, 'workflow.handoff')).toEqual([
-        { key: 'workflow.handoff', value: null, known: true },
+      expect(rowLine(text, 'frontend.browser')).not.toContain(UNKNOWN_MARK);
+      expect(projectRows(json, 'frontend.browser')).toEqual([
+        { key: 'frontend.browser', value: null, known: true },
       ]);
     });
 
@@ -6910,5 +6896,113 @@ describe('acstack config browser-mode', () => {
       expect(result.status).toBe(0);
       expect(() => JSON.parse(result.stdout) as ConfigBrowserModeJson).not.toThrow();
     });
+  });
+});
+
+describe('personal preferences live in the user-level config', () => {
+  /** Run `config <args>` in `cwd` against the user-level config `xdg`, shared across runs. */
+  function runWith(xdg: string, args: string[], cwd: string) {
+    return runCli(['config', ...args], { cwd, env: { ACSTACK_HOME: xdg } });
+  }
+
+  it('set writes to the user-level config and leaves project.yaml alone', () => {
+    const root = makeProject(HAND_EDITED_PROJECT);
+    const before = readProjectYaml(root);
+
+    const result = runSet('workflow.handoff.ack_turns', '9', root);
+
+    expect(result.status).toBe(0);
+    expect(atKey(storedGlobal(result), 'workflow.handoff.ack_turns')).toBe(9);
+    expect(readProjectYaml(root)).toBe(before);
+  });
+
+  it('set works outside any project, since a preference belongs to the person', () => {
+    const result = runSet('workflow.grilling.questions', 'inline', noProjectDir());
+
+    expect(result.status).toBe(0);
+    expect(atKey(storedGlobal(result), 'workflow.grilling.questions')).toBe('inline');
+  });
+
+  it('set still validates against the schema, writing nothing on a bad value', () => {
+    const result = runSet('workflow.grilling.questions', 'nonesuch', noProjectDir());
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('tool');
+    expect(existsSync(result.globalConfigFile)).toBe(false);
+  });
+
+  it('get reads the user-level value when project.yaml states none', () => {
+    const xdg = mkdtempSync(join(tmpdir(), 'acstack-pref-xdg-'));
+    const root = makeProject('name: pref-project\n');
+    expect(runWith(xdg, ['set', 'workflow.grilling.questions', 'inline'], root).status).toBe(0);
+
+    const result = runWith(xdg, ['get', 'workflow.grilling.questions'], root);
+
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe('inline');
+  });
+
+  it('get prefers a value project.yaml states over the user-level one, and set says so', () => {
+    const xdg = mkdtempSync(join(tmpdir(), 'acstack-pref-xdg-'));
+    const root = makeProject('workflow:\n  handoff:\n    ack_turns: 3\n');
+
+    const set = runWith(xdg, ['set', 'workflow.handoff.ack_turns', '9'], root);
+    expect(set.status).toBe(0);
+    expect(set.stderr).toMatch(/overrides/);
+
+    const result = runWith(xdg, ['get', 'workflow.handoff.ack_turns'], root);
+    expect(result.stdout.trim()).toBe('3');
+  });
+
+  it('unset removes the user-level value, so get falls back to the default', () => {
+    const xdg = mkdtempSync(join(tmpdir(), 'acstack-pref-xdg-'));
+    const cwd = noProjectDir();
+    expect(runWith(xdg, ['set', 'workflow.handoff.self_invoke', 'false'], cwd).status).toBe(0);
+
+    expect(runWith(xdg, ['unset', 'workflow.handoff.self_invoke'], cwd).status).toBe(0);
+
+    const result = runWith(xdg, ['get', 'workflow.handoff.self_invoke'], cwd);
+    expect(result.status).toBe(2);
+    expect(result.stderr).toContain('true');
+  });
+});
+
+describe('keys removed from the project.yaml schema', () => {
+  const OLD_PROJECT = [
+    'workflow:',
+    '  spec_sync: true',
+    '  tdd:',
+    '    strict: true',
+    '    orchestrator_strict: false',
+    'directories:',
+    '  source: "src/"',
+    '  tests: "tests/"',
+    'test_markers:',
+    '  exclude: null',
+    'commands:',
+    '  test: "npm test"',
+    '',
+  ].join('\n');
+
+  it.each(['workflow.tdd.strict', 'workflow.tdd.orchestrator_strict', 'directories.source', 'test_markers.exclude'])(
+    'config set refuses %s as unknown',
+    key => {
+      expect(runSet(key, 'x', makeProject('name: x\n')).status).toBe(1);
+    }
+  );
+
+  it('config check exits as it would for the same file without them', () => {
+    const old = runCheck({ cwd: makeProject(OLD_PROJECT) });
+    const clean = runCheck({ cwd: makeProject('commands:\n  test: "npm test"\n') });
+
+    expect(old.status).toBe(clean.status);
+    expectNoStackTrace(old);
+  });
+
+  it('config list still shows them, marked unknown', () => {
+    const result = runProjectConfig(['list'], makeProject(OLD_PROJECT));
+
+    expect(result.status).toBe(0);
+    expect(lineContaining(result.stdout, 'workflow.tdd.strict')).toContain('(unknown key)');
   });
 });

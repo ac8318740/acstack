@@ -30,6 +30,7 @@ import {
 } from '../lib/host-status.js';
 import {
   getProjectKey,
+  isUserPreferenceKey,
   listProjectKeys,
   parseProjectValue,
   PROJECT_KEY_LIST,
@@ -231,7 +232,8 @@ function browserModeReason(resolved: ResolvedBrowserMode): string {
 
 /**
  * Which file a key belongs in. A `host.*` key describes the machine, so it
- * goes to the global config; every other key ACStack knows describes the
+ * goes to the global config, as does a personal preference
+ * (`isUserPreferenceKey`); every other key ACStack knows describes the
  * project, so it goes to `.acstack/project.yaml`. Bare `host` counts as a host
  * key so the "that is a section" message keeps coming from the host schema.
  */
@@ -340,8 +342,8 @@ function getHostKey(key: string): void {
   printConfigValue(result.value);
 }
 
-/** Remove one `host.*` axis from the global config. */
-function unsetHostKey(key: string): void {
+/** Remove one key from the global config: a `host.*` axis or a personal preference. */
+function unsetGlobalKey(key: string): void {
   const { config, removed } = unsetKey(readGlobalConfig(GLOBAL_CONFIG_FILE), key);
   if (!removed) {
     console.log(chalk.dim(`${key} was not set`));
@@ -371,6 +373,49 @@ function getProjectFileKey(key: string): void {
     process.exit(2);
   }
   printConfigValue(result.value);
+}
+
+/** What the project.yaml here states for `key`, or unset when there is no project. */
+function projectOverride(key: string): ReturnType<typeof getProjectKey> {
+  const root = findProjectRoot();
+  return root ? getProjectKey(projectFile(root), key) : { status: 'unset' };
+}
+
+/** Warn when this project's project.yaml overrides the user-level `key`. */
+function warnIfOverridden(key: string): void {
+  if (projectOverride(key).status === 'set') {
+    console.error(chalk.yellow(`Note: this project's project.yaml sets ${key}, which overrides the user-level value here.`));
+  }
+}
+
+/** Write one personal preference to the user-level config, validated by the project schema. */
+function setPreferenceKey(key: string, value: string): void {
+  const parsed = parseProjectValue(key, value);
+  writeGlobalConfig(setKey(readGlobalConfig(GLOBAL_CONFIG_FILE), key, parsed), GLOBAL_CONFIG_FILE);
+  console.log(chalk.green(`Set ${key} = ${JSON.stringify(parsed)}`));
+  warnIfOverridden(key);
+}
+
+/**
+ * Print the value a personal preference resolves to: project.yaml, then the
+ * user-level config, exiting 2 with the documented default when neither states it.
+ */
+function getPreferenceKey(key: string): void {
+  const project = projectOverride(key);
+  const result = project.status === 'set' ? project : getKey(readGlobalConfig(GLOBAL_CONFIG_FILE), key);
+  if (result.status === 'unset') {
+    const fallback = projectKeyDefault(key);
+    const note = fallback === undefined ? '' : ` - the documented default is ${fallback}`;
+    console.error(chalk.yellow(`${key} is unset${note}`));
+    process.exit(2);
+  }
+  printConfigValue(result.value);
+}
+
+/** Remove one personal preference from the user-level config. */
+function unsetPreferenceKey(key: string): void {
+  unsetGlobalKey(key);
+  warnIfOverridden(key);
 }
 
 /** Remove one key from the project's `.acstack/project.yaml`. */
@@ -595,6 +640,7 @@ export function register(program: Command): void {
     .action((key: string) => {
       reportingUserErrors(() => {
         if (isHostKey(key)) getHostKey(key);
+        else if (isUserPreferenceKey(key)) getPreferenceKey(key);
         else getProjectFileKey(key);
       });
     });
@@ -609,11 +655,13 @@ export function register(program: Command): void {
     .addHelpText(
       'after',
       '\nReference: docs/dev-setups.md for the host.* axes, ' +
-        'docs/config-reference.md for the .acstack/project.yaml keys.\n'
+        'docs/config-reference.md for the project.yaml keys and the personal preferences ' +
+        '(workflow.handoff.*, workflow.grilling.questions) kept in the user-level config.\n'
     )
     .action((key: string, value: string) => {
       reportingUserErrors(() => {
         if (isHostKey(key)) setHostKey(key, value);
+        else if (isUserPreferenceKey(key)) setPreferenceKey(key, value);
         else setProjectFileKey(key, value);
       });
     });
@@ -624,7 +672,8 @@ export function register(program: Command): void {
     .argument('<key>', 'config key')
     .action((key: string) => {
       reportingUserErrors(() => {
-        if (isHostKey(key)) unsetHostKey(key);
+        if (isHostKey(key)) unsetGlobalKey(key);
+        else if (isUserPreferenceKey(key)) unsetPreferenceKey(key);
         else unsetProjectFileKey(key);
       });
     });

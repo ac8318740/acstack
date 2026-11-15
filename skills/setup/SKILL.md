@@ -200,7 +200,7 @@ Read [`report.md`](report.md) on every run, as the last step.
   shell commands of your own.
 
 - `acstack config show` owns printing the current setup. It reports the profile,
-  the commands, the directories and what the project says about its browser. This
+  the commands and what the project says about its browser. This
   skill never re-prints those itself.
 
 - `docs/config-reference.md` owns the key reference. It lists each key, its

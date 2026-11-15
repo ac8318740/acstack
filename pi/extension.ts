@@ -385,6 +385,27 @@ export function readHandoffConfig(yaml: string | undefined): HandoffConfig {
 }
 
 /**
+ * workflow.handoff from the user-level config.json, the personal default that
+ * project.yaml overrides key by key. Mirrors read_user_config in the hook.
+ */
+export function readUserHandoffConfig(json: string | undefined): HandoffConfig {
+	const cfg: HandoffConfig = {};
+	let handoff: unknown;
+	try {
+		handoff = json === undefined ? undefined : JSON.parse(json)?.workflow?.handoff;
+	} catch {
+		return cfg;
+	}
+	if (!handoff || typeof handoff !== "object") return cfg;
+	const h = handoff as Record<string, unknown>;
+	for (const key of ["nudge_warn", "nudge_severe", "nudge_step", "context_window"] as const) {
+		if (Number.isInteger(h[key])) cfg[key] = h[key] as number;
+	}
+	if (Array.isArray(h.context_thresholds)) cfg.context_thresholds = h.context_thresholds.map(String);
+	return cfg;
+}
+
+/**
  * The nudge for `tokens`, or undefined when no new rung was crossed. Same
  * ladder as hooks/context-pressure.sh. pi reports the model's real context
  * window, so a percentage rung resolves against that instead of a guess from
@@ -717,7 +738,11 @@ export default function acstack(pi: ExtensionAPI): void {
 		const lastText = readText(lastFile)?.trim();
 		const lastRung = lastText && /^\d+$/.test(lastText) ? Number.parseInt(lastText, 10) : undefined;
 
-		const cfg = readHandoffConfig(readText(path.join(projectFolder(undefined, ctx.cwd) ?? "/nonexistent", "project.yaml")));
+		const acstackHome = process.env.ACSTACK_HOME || path.join(os.homedir(), ".acstack");
+		const cfg = {
+			...readUserHandoffConfig(readText(path.join(acstackHome, "config.json"))),
+			...readHandoffConfig(readText(path.join(projectFolder(undefined, ctx.cwd) ?? "/nonexistent", "project.yaml"))),
+		};
 		const nudge = contextNudge(usage.tokens, usage.contextWindow, cfg, lastRung, process.env.HERDR_ENV === "1");
 		if (!nudge) return;
 
