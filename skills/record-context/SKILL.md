@@ -8,6 +8,20 @@ description: Write durable records when a decision lands – an architecture dec
 A decision just landed. Two independent tests decide what, if anything, it
 leaves behind. Apply both; they share a trigger and nothing else.
 
+## Where the records live
+
+Both records live in the repository, in the current worktree. Each is
+optional and is on only when it exists:
+
+- ADRs: `<repo root>/.acstack/decisions/`
+- Glossary: `<repo root>/.acstack/CONTEXT.md`
+
+`<repo root>` is the path `git rev-parse --show-toplevel` prints. Write on the
+current branch, so the records merge through a pull request like code.
+
+If the directory or file is absent, that record is off: write nothing for it and
+create nothing. Setup creates them when the project wants them.
+
 ## ADR – all three, or no ADR
 
 An ADR is an architecture decision record: a short file that states one
@@ -25,8 +39,8 @@ an obvious choice buries the ones that matter.
 
 ### Writing one
 
-- Path: `<project folder>/decisions/NNNN-slug.md`, in the project folder, the path `~/.claude/acstack/bin/acstack project-data path` prints. The number is the highest existing number plus
-  one, zero-padded to four digits. Create the directory lazily.
+- Path: `<repo root>/.acstack/decisions/NNNN-slug.md`. The number is the highest existing number plus
+  one, zero-padded to four digits. Skip the ADR when the directory is absent.
 
     If the file for that number appeared since you scanned (a parallel teammate
     wrote one), renumber to the new highest plus one. In Team mode, coordinate
@@ -41,7 +55,7 @@ an obvious choice buries the ones that matter.
 
 ### Example
 
-`<project folder>/decisions/0004-invariant-tool-path.md`:
+`<repo root>/.acstack/decisions/0004-invariant-tool-path.md`:
 
 ```markdown
 # One invariant path for the command line tool
@@ -64,7 +78,7 @@ the hook has not run. The fix is to restart the agent session.
 
 ### You generate the index
 
-After writing any ADR, rewrite `<project folder>/decisions/index.md` in full, with one line
+After writing any ADR, rewrite `<repo root>/.acstack/decisions/index.md` in full, with one line
 per ADR. Sort the lines by number, ascending. Each line takes its number
 and slug from the filename, and its title from the file's first heading:
 
@@ -80,7 +94,8 @@ If you find hand edits in it, regenerate; the files are the truth.
 If the decision fixed what a word means – picked between competing names,
 sharpened a fuzzy term, coined one – record it:
 
-Terms go in `<project folder>/CONTEXT.md`. Create it lazily.
+Terms go in `<repo root>/.acstack/CONTEXT.md`. Skip the entry when the file is absent.
+If the file exists but is empty, start it with the format below.
 
 Format: a `# Glossary` heading, then one `**term** – definition` line per
 term, alphabetical, one or two sentences each. Each definition follows the

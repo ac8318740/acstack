@@ -10,8 +10,6 @@ Run the health check one last time, then report what stands:
 ## ACStack setup
 
 Profile:      [profile]
-Source:       [source dir]
-Tests:        [tests dir]
 Grilling:     [question tool/inline prose]
 Verification: adaptive (shared Implementation discipline)
 Frontend:     [configured/not configured]
@@ -19,7 +17,7 @@ Browser:      [project's preferred mode / not configured]
 Design:       [on / off / not asked]
 Host:         [orchestrators + browser modes declared / not declared]
 Workspace:    [yes / yes, n updates available / not installed / declined / not asked]
-Mode:         [global / tracked]
+Records:      [ADRs on/off], [glossary on/off] (in the repository)
 Project data: [absolute path from acstack project-data path]
 Config:       <project folder>/project.yaml
 Output style: acstack:ac-writing-style (global) | (project) | not set

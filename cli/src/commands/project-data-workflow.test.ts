@@ -81,7 +81,6 @@ describe('locating the project folder', () => {
     const tree = join(f.base, 'tree');
     git(bare, ['worktree', 'add', '--quiet', tree, '-b', 'feature']);
     expect(ok(f, ['project-data', 'path'], tree)).toMatch(/\/projects\/store\.git-[0-9a-f]{6}$/);
-    expect(cli(f, ['project-data', 'mode', 'tracked'], tree).status).not.toBe(0);
   });
 
   it('refuses outside a Git repository', () => {
@@ -118,38 +117,167 @@ describe('locating the project folder', () => {
   });
 });
 
-describe('tracked mode', () => {
-  it('moves the folder into the main checkout, and back, without touching the Git index', () => {
+describe('repository records', () => {
+  it('leaves decisions and the glossary in each worktree, without treating them as legacy data', () => {
     const f = fixture();
-    const folder = setup(f);
-    ok(f, ['project-data', 'mode', 'tracked']);
-    expect(lstatSync(folder).isSymbolicLink()).toBe(true);
-    expect(readFileSync(join(f.root, '.acstack/project.yaml'), 'utf8')).toBe('profile: python\n');
-    expect(existsSync(join(f.root, '.acstack/project.json'))).toBe(false);
-    expect(git(f.root, ['status', '--porcelain'])).toBe('?? .acstack/\n');
-    ok(f, ['project-data', 'mode', 'global']);
-    expect(lstatSync(folder).isDirectory()).toBe(true);
-    expect(existsSync(join(f.root, '.acstack'))).toBe(false);
+    setup(f);
+    put(f.root, '.acstack/decisions/0001.md', '# Decision\n');
+    put(f.root, '.acstack/CONTEXT.md', '# Glossary\n');
+    expect(cli(f, ['project-data', 'path']).stderr).toBe('');
+    expect(ok(f, ['config', 'get', 'profile'])).toBe('python');
+    ok(f, ['project-data', 'migrate']);
+    expect(readFileSync(join(f.root, '.acstack/decisions/0001.md'), 'utf8')).toBe('# Decision\n');
+  });
+
+  it('removes the mode command', () => {
+    const f = fixture();
+    const result = spawnSync(process.execPath, [bin, 'project-data', 'mode', 'tracked'], { cwd: f.root, encoding: 'utf8', env: { ...process.env, ...f.env } });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/unknown command/);
+  });
+});
+
+describe('migrating tracked mode', () => {
+  /** A project in tracked mode: committed `.acstack/` in the main checkout, linked from the entry. */
+  function tracked() {
+    const f = fixture();
+    const entry = ok(f, ['project-data', 'path']);
+    put(f.root, '.gitignore', '# >>> acstack project-data >>>\n!/.acstack/\n/.acstack/**\n!/.acstack/project.yaml\n!/.acstack/decisions/**\n# <<< acstack project-data <<<\nnode_modules/\n');
+    put(f.root, '.acstack/project.yaml', 'profile: python\n');
+    put(f.root, '.acstack/maps/m/node.md', 'node\n');
+    put(f.root, '.acstack/decisions/0001.md', '# Decision\n');
+    put(f.root, '.acstack/CONTEXT.md', '# Glossary\n');
+    put(f.root, '.acstack/HANDOFF.md', 'private\n');
+    git(f.root, ['add', '-f', '.gitignore', '.acstack/project.yaml', '.acstack/maps', '.acstack/decisions', '.acstack/CONTEXT.md']);
+    git(f.root, ['commit', '--quiet', '-m', 'track']);
+    mkdirSync(dirname(entry), { recursive: true });
+    symlinkSync(join(f.root, '.acstack'), entry);
+    return { f, entry };
+  }
+
+  it('refuses a tracked-mode link until migrated', () => {
+    const { f } = tracked();
+    const result = cli(f, ['config', 'get', 'profile']);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/project-data migrate/);
+  });
+
+  it('moves everything but the records into a real folder, leaving pending deletions', () => {
+    const { f, entry } = tracked();
+    ok(f, ['project-data', 'migrate']);
+    expect(lstatSync(entry).isDirectory()).toBe(true);
+    expect(readFileSync(join(entry, 'maps/m/node.md'), 'utf8')).toBe('node\n');
+    expect(readFileSync(join(entry, 'HANDOFF.md'), 'utf8')).toBe('private\n');
+    expect(readdirSync(join(f.root, '.acstack')).sort()).toEqual(['CONTEXT.md', 'decisions']);
+    expect(readFileSync(join(f.root, '.gitignore'), 'utf8')).toBe('node_modules/\n');
+    expect(git(f.root, ['diff', '--cached', '--name-only'])).toBe('');
+    expect(git(f.root, ['status', '--porcelain']).split('\n').filter(Boolean).sort()).toEqual([' D .acstack/maps/m/node.md', ' D .acstack/project.yaml', ' M .gitignore']);
     expect(ok(f, ['config', 'get', 'profile'])).toBe('python');
   });
 
-  it('links committed project data automatically on a machine that has no entry', () => {
+  it('removes a link to a checkout that holds only records', () => {
     const f = fixture();
-    put(f.root, '.acstack/project.yaml', 'profile: node-typescript\n');
-    git(f.root, ['add', '.acstack']);
-    git(f.root, ['commit', '--quiet', '-m', 'track']);
-    expect(ok(f, ['config', 'get', 'profile'])).toBe('node-typescript');
-    expect(realpathSync(ok(f, ['project-data', 'path']))).toBe(join(f.root, '.acstack'));
+    const entry = ok(f, ['project-data', 'path']);
+    put(f.root, '.acstack/decisions/0001.md', '# Decision\n');
+    mkdirSync(dirname(entry), { recursive: true });
+    symlinkSync(join(f.root, '.acstack'), entry);
+    ok(f, ['project-data', 'migrate']);
+    expect(existsSync(entry)).toBe(false);
+    expect(existsSync(join(f.root, '.acstack/decisions/0001.md'))).toBe(true);
   });
 
-  it('refuses when both a global folder and committed project data exist', () => {
-    const f = fixture();
-    setup(f);
-    put(f.root, '.acstack/project.yaml', 'profile: python\n');
-    git(f.root, ['add', '.acstack']);
-    const result = cli(f, ['config', 'get', 'profile']);
+  it('warns about leftovers in a worktree branched before migrating, naming that worktree', () => {
+    const { f, entry } = tracked();
+    const old = join(f.base, 'old');
+    git(f.root, ['worktree', 'add', '--quiet', old, '-b', 'old']);
+    ok(f, ['project-data', 'migrate']);
+    const result = cli(f, ['project-data', 'path'], old);
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).toBe(realpathSync(entry));
+    expect(result.stderr).toContain(`${old} still holds project data`);
+    expect(result.stderr).not.toContain(`${f.root} still holds`);
+    expect(result.stderr).toMatch(/Merge the branch where `acstack project-data migrate` ran, or delete the leftover files/);
+    expect(result.stderr).not.toMatch(/run `acstack project-data migrate` from each/);
+  });
+
+  it('aborts on a collision without moving anything', () => {
+    const { f, entry } = tracked();
+    rmSync(entry);
+    put(entry, 'maps/m/node.md', 'global\n');
+    const result = cli(f, ['project-data', 'migrate']);
     expect(result.status).not.toBe(0);
-    expect(result.stderr).toMatch(/project-data mode/);
+    expect(result.stderr).toMatch(/already exists/);
+    expect(readFileSync(join(entry, 'maps/m/node.md'), 'utf8')).toBe('global\n');
+    expect(readFileSync(join(f.root, '.acstack/project.yaml'), 'utf8')).toBe('profile: python\n');
+    expect(existsSync(join(entry, 'project.yaml'))).toBe(false);
+  });
+});
+
+describe('records and retired files in a global project', () => {
+  function global() {
+    const f = fixture();
+    git(f.root, ['commit', '--allow-empty', '--quiet', '-m', 'init']);
+    const folder = setup(f);
+    put(folder, 'decisions/0001.md', '# Decision\n');
+    put(folder, 'CONTEXT.md', '# Glossary\n');
+    put(folder, 'specs/app/spec.md', '# Spec\n');
+    put(folder, 'domain-map.yaml', 'domains: []\n');
+    return { f, folder };
+  }
+
+  it('never moves records silently', () => {
+    const { f, folder } = global();
+    const result = cli(f, ['project-data', 'migrate']);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/--decisions move/);
+    expect(existsSync(join(folder, 'decisions/0001.md'))).toBe(true);
+    expect(existsSync(join(f.root, '.acstack'))).toBe(false);
+  });
+
+  it('moves each record into the current worktree and deletes retired files only when asked', () => {
+    const { f, folder } = global();
+    const feature = join(f.base, 'feature');
+    git(f.root, ['worktree', 'add', '--quiet', feature, '-b', 'feature']);
+    ok(f, ['project-data', 'migrate', '--decisions', 'move', '--glossary', 'keep', '--retired', 'keep'], feature);
+    expect(readFileSync(join(feature, '.acstack/decisions/0001.md'), 'utf8')).toBe('# Decision\n');
+    expect(existsSync(join(folder, 'decisions'))).toBe(false);
+    expect(existsSync(join(folder, 'CONTEXT.md'))).toBe(true);
+    expect(existsSync(join(folder, 'specs'))).toBe(true);
+    expect(existsSync(join(f.root, '.acstack'))).toBe(false);
+    ok(f, ['project-data', 'migrate', '--glossary', 'move', '--retired', 'delete'], feature);
+    expect(readFileSync(join(feature, '.acstack/CONTEXT.md'), 'utf8')).toBe('# Glossary\n');
+    expect(existsSync(join(folder, 'specs'))).toBe(false);
+    expect(existsSync(join(folder, 'domain-map.yaml'))).toBe(false);
+    expect(existsSync(join(folder, 'project.yaml'))).toBe(true);
+  });
+
+  it('removes the managed ignore block when only records move, so they stay committable', () => {
+    const { f } = global();
+    put(f.root, '.gitignore', '# >>> acstack project-data >>>\n!/.acstack/\n/.acstack/**\n# <<< acstack project-data <<<\nnode_modules/\n');
+    ok(f, ['project-data', 'migrate', '--decisions', 'move', '--glossary', 'move', '--retired', 'keep']);
+    expect(readFileSync(join(f.root, '.gitignore'), 'utf8')).toBe('node_modules/\n');
+    expect(git(f.root, ['status', '--porcelain', '--untracked-files=all', '.acstack'])).toBe('?? .acstack/CONTEXT.md\n?? .acstack/decisions/0001.md\n');
+  });
+
+  it('refuses to move records where Git would ignore them, changing nothing', () => {
+    const { f, folder } = global();
+    const ignore = '# >>> acstack project-data >>>\n/.acstack/**\n# <<< acstack project-data <<<\n.acstack/\n';
+    put(f.root, '.gitignore', ignore);
+    const result = cli(f, ['project-data', 'migrate', '--decisions', 'move', '--glossary', 'keep', '--retired', 'keep']);
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toMatch(/would ignore .*decisions\/0001\.md.*Nothing was moved/);
+    expect(readFileSync(join(f.root, '.gitignore'), 'utf8')).toBe(ignore);
+    expect(existsSync(join(folder, 'decisions/0001.md'))).toBe(true);
+    expect(existsSync(join(f.root, '.acstack'))).toBe(false);
+  });
+
+  it('refuses to overwrite a record already in the repository', () => {
+    const { f, folder } = global();
+    put(f.root, '.acstack/decisions/0002.md', '# Other\n');
+    const result = cli(f, ['project-data', 'migrate', '--decisions', 'move', '--glossary', 'move']);
+    expect(result.status).not.toBe(0);
+    expect(existsSync(join(folder, 'decisions/0001.md'))).toBe(true);
+    expect(existsSync(join(folder, 'CONTEXT.md'))).toBe(true);
   });
 });
 
@@ -162,7 +290,7 @@ describe('explicit migration', () => {
     const refused = cli(f, ['list', '--json']);
     expect(refused.status).not.toBe(0);
     expect(refused.stderr).toMatch(/project-data migrate/);
-    expect(cli(f, ['project-data', 'path']).stderr).toMatch(/still holds its project data/);
+    expect(cli(f, ['project-data', 'path']).stderr).toMatch(/still holds project data/);
     ok(f, ['project-data', 'migrate']);
     const folder = ok(f, ['project-data', 'path']);
     expect(readFileSync(join(folder, 'specs/app/spec.md'), 'utf8')).toBe('# Spec\n');
@@ -172,26 +300,14 @@ describe('explicit migration', () => {
     expect(ok(f, ['config', 'get', 'profile'])).toBe('python');
   });
 
-  it('keeps data already in the Git index in the repository and links it', () => {
+  it('moves committed data with no link out of the repository, leaving a pending deletion', () => {
     const f = fixture();
     put(f.root, '.acstack/project.yaml', 'profile: python\n');
     git(f.root, ['add', '.acstack/project.yaml']);
+    expect(cli(f, ['config', 'get', 'profile']).stderr).toMatch(/project-data migrate/);
     ok(f, ['project-data', 'migrate']);
-    expect(realpathSync(ok(f, ['project-data', 'path']))).toBe(join(f.root, '.acstack'));
-  });
-
-  it('keeps the managed ignore block when tracked data stays in the repository', () => {
-    const f = fixture();
-    const block = '# >>> acstack project-data >>>\n!/.acstack/\n/.acstack/**\n!/.acstack/project.yaml\n# <<< acstack project-data <<<\n';
-    put(f.root, '.gitignore', block);
-    put(f.root, '.acstack/project.yaml', 'profile: python\n');
-    put(f.root, '.acstack/HANDOFF.md', 'private\n');
-    git(f.root, ['add', '.gitignore', '.acstack/project.yaml']);
-    git(f.root, ['commit', '--quiet', '-m', 'track']);
-    ok(f, ['project-data', 'migrate']);
-    expect(readFileSync(join(f.root, '.gitignore'), 'utf8')).toBe(block);
-    // HANDOFF.md stays ignored, so `git add -A` cannot publish it.
-    expect(git(f.root, ['status', '--porcelain'])).toBe('');
+    expect(git(f.root, ['status', '--porcelain'])).toBe('AD .acstack/project.yaml\n');
+    expect(ok(f, ['config', 'get', 'profile'])).toBe('python');
   });
 
   it('moves untracked data that exists only in a linked worktree', () => {
@@ -230,14 +346,15 @@ describe('explicit migration', () => {
     expect(readFileSync(join(f.root, '.acstack/project.yaml'), 'utf8')).toBe('profile: python\n');
   });
 
-  it('migrates the oldest acstack/ layout straight into the project folder', () => {
+  it('migrates the oldest acstack/ layout, keeping decisions in the repository', () => {
     const f = fixture();
     put(f.root, 'acstack/project.yaml', 'profile: python\n');
     put(f.root, 'docs/adr/0001.md', '# Decision\n');
     ok(f, ['project-data', 'migrate']);
     const folder = ok(f, ['project-data', 'path']);
-    expect(readFileSync(join(folder, 'decisions/0001.md'), 'utf8')).toBe('# Decision\n');
-    expect(readdirSync(f.root).sort()).toEqual(['.git', 'docs']);
+    expect(readFileSync(join(folder, 'project.yaml'), 'utf8')).toBe('profile: python\n');
+    expect(readFileSync(join(f.root, '.acstack/decisions/0001.md'), 'utf8')).toBe('# Decision\n');
+    expect(readdirSync(f.root).sort()).toEqual(['.acstack', '.git', 'docs']);
   });
 
   it('does not follow an external legacy metadata link', () => {

@@ -15,7 +15,6 @@ Show a summary:
 
 ```
 Profile:      [detected]
-Directories:  src/, tests/
 Commands:     [from profile]
 Frontend:     [if applicable]
 Workflow:     adaptive verification, grilling via question tool
@@ -35,7 +34,7 @@ numbered list. It holds two questions in one call:
       "header": "Setup",
       "multiSelect": true,
       "options": [
-        {"label": "Profile & paths", "description": "Change language/framework, source dir, test dir"},
+        {"label": "Profile", "description": "Change language/framework"},
         {"label": "Commands", "description": "Adjust test, build, lint, typecheck, format commands"},
         {"label": "Frontend", "description": "Change directory, dev server, commands"}
       ]
@@ -60,13 +59,13 @@ selections. An empty selection means the defaults stand.
 Ask one follow-up question at a time through the question tool. Skip every item the
 user did not select.
 
-- **Profile & paths** – ask the language or framework, then the source and test
-  directories.
+- **Profile** – ask the language or framework.
 
 - **Commands** – show the proposed commands and ask what to adjust.
 - **Frontend** – show the proposed frontend settings and ask what to adjust.
 - **Grilling** – ask `tool`, the host's question tool, against `inline` prose.
-  Recommend `tool`. It writes `workflow.grilling.questions`.
+  Recommend `tool`. It writes the personal preference to the user-level config with
+  `~/.claude/acstack/bin/acstack config set workflow.grilling.questions <value>`.
 
 - Apply the shared Implementation discipline in `orchestrator/AGENTS.md` without adding workflow switches
 - Do not offer or generate the deprecated TDD booleans or retired `workflow.alignment_packs` settings
@@ -86,10 +85,13 @@ paths reach Step 10 through the health check.
     ```
 
 2. Write `<project folder>/project.yaml` from the profile and the answers.
-3. Ask where the project's records should live, with a structured question.
-    - **Outside the repository (Recommended)** – global mode, the default. The repository holds no ACStack files and needs no `.gitignore` rules
-    - **Committed with the repository** – tracked mode. Run `~/.claude/acstack/bin/acstack project-data mode tracked`, then tell the user to commit `.acstack/` from the main checkout
-    - Never stage or commit `.acstack/` yourself
+3. Ask two separate structured questions: should the project keep architecture decision records (ADRs), and should it keep a glossary?
+    - Both records live in the repository, and the team commits them like code; everything else stays in the project folder
+    - ADRs yes: create `.acstack/decisions/index.md` (empty) at the repository root, the path `git rev-parse --show-toplevel` prints
+    - Glossary yes: create `.acstack/CONTEXT.md` there, holding only a `# Glossary` heading
+    - No: create nothing. A record that does not exist is off, and the skills skip it
+    - Create them on the current branch, then tell the user to commit them. Never stage or commit `.acstack/` yourself
+    - Then run `git check-ignore -v .acstack/decisions/index.md .acstack/CONTEXT.md` for the created files. If it prints a rule, the team cannot commit them: tell the user which `.gitignore` line hides them and ask before changing it
 4. Leave the project CLAUDE.md alone. The SessionStart hook loads the
    orchestrator instructions.
 

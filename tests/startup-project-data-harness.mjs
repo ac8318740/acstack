@@ -138,21 +138,27 @@ for (const host of ['shell', 'pi']) {
     fs.mkdirSync(path.dirname(invalidFolder), { recursive: true });
     let payload;
     if (error === 'conflict') {
+      // A project folder exists, but the repository still holds legacy data ACStack no longer reads.
       fs.mkdirSync(invalidFolder);
       fs.mkdirSync(path.join(invalid, '.acstack'));
       fs.writeFileSync(path.join(invalid, '.acstack/project.yaml'), 'profile: generic\n');
       execFileSync('git', ['add', '.acstack/project.yaml'], { cwd: invalid });
-      payload = path.join(invalidFolder, 'HANDOFF.md');
+      payload = path.join(invalid, '.acstack/HANDOFF.md');
       fs.writeFileSync(payload, handoffText);
     } else {
       fs.symlinkSync(path.join(invalid, '.acstack'), invalidFolder);
     }
     const before = execFileSync('git', ['status', '--porcelain'], { cwd: invalid, encoding: 'utf8' });
     notes.length = 0;
-    const rejected = await start(invalid);
+    const started = await start(invalid);
     const diagnostic = host === 'shell' ? stderr : notes.join('\n');
-    check(`${host}: ${error} is an explicit refusal, not absent setup`, rejected === ''
-      && /project-data mode/.test(diagnostic) && !diagnostic.includes('no project config found'));
+    if (error === 'conflict') {
+      check(`${host}: conflict warns about leftovers and keeps using the project folder`,
+        started.includes(invalidFolder) && /delete the leftover files/.test(diagnostic));
+    } else {
+      check(`${host}: broken-link is an explicit refusal, not absent setup`, started === ''
+        && /project-data migrate/.test(diagnostic) && !diagnostic.includes('no project config found'));
+    }
     check(`${host}: ${error} does not consume handoff or change project data`, !(await compact(invalid)).includes('Resume work')
       && before === execFileSync('git', ['status', '--porcelain'], { cwd: invalid, encoding: 'utf8' })
       && (payload ? fs.readFileSync(payload, 'utf8') === handoffText : fs.lstatSync(invalidFolder).isSymbolicLink()));

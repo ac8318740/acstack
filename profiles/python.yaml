@@ -9,14 +9,6 @@ commands:
   typecheck: "mypy ."
   format: "ruff format"
 
-directories:
-  source: "src/"
-  tests: "tests/"
-
-test_markers:
-  # Markers to exclude from default test runs (comma-separated for pytest -m)
-  exclude: "slow,integration"
-
 venv:
   # If set, commands are prefixed with activation
   activate: "source .venv/bin/activate"

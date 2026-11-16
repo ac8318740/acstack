@@ -9,13 +9,6 @@ commands:
   typecheck: "npx tsc --noEmit"
   format: "npx prettier --write ."
 
-directories:
-  source: "src/"
-  tests: "tests/"
-
-test_markers:
-  exclude: null
-
 venv: null
 
 frontend:

@@ -159,25 +159,24 @@ ladder_step() {
   run_hook "$(stop_payload_session "$T" "$SID")" -u HERDR_ENV
 }
 
-# Write a committed .acstack/project.yaml from stdin, which makes .acstack the
-# project folder, for the cases whose config is richer than mk_config's two thresholds.
+# The case repository's project folder under the test's ACSTACK_HOME.
+project_folder() { node "$SCRIPT_DIR/../cli/bin/acstack.js" project-data path; }
+
+# Write the project folder's project.yaml from stdin, for the cases whose
+# config is richer than mk_config's two thresholds.
 mk_config_raw() {
-  mkdir -p .acstack
-  cat > .acstack/project.yaml
-  git add .acstack/project.yaml
+  local folder
+  folder="$(project_folder)" && mkdir -p "$folder" && cat > "$folder/project.yaml"
 }
 
-# Write a committed .acstack/project.yaml with threshold overrides.
+# Write the project folder's project.yaml with threshold overrides.
 mk_config() {
-  local warn="$1" severe="$2"
-  mkdir -p .acstack
-  cat > .acstack/project.yaml <<EOF
+  mk_config_raw <<EOF
 workflow:
   handoff:
-    nudge_warn: $warn
-    nudge_severe: $severe
+    nudge_warn: $1
+    nudge_severe: $2
 EOF
-  git add .acstack/project.yaml
 }
 
 # Build a Stop payload. $1 = transcript path, $2 = stop_hook_active (true/false)
@@ -1430,6 +1429,26 @@ mk_transcript "$T_BILLION" "$(user_line)" "$(usage_line_model 250000 "claude-opu
 run_hook "$(stop_payload "$T_BILLION" false)" -u HERDR_ENV
 BILLION_REASON="$(reason_of "$OUT")"
 check "continuity route names billion-context when the model exposes a large context window"  'printf %s "$BILLION_REASON" | grep -qi "billion-context"'
+
+# ---------------------------------------------------------------------------
+# Case 32b: the user-level config.json sets handoff preferences; project.yaml overrides
+# ---------------------------------------------------------------------------
+echo "Case 32b: user-level handoff preferences, overridden by project.yaml"
+enter_case 32b
+T="$CASE_DIR/transcript.jsonl"
+mk_transcript "$T" "$(user_line)" "$(usage_line 150000)"
+mkdir -p "$ACSTACK_HOME"
+printf '{"workflow":{"handoff":{"nudge_warn":100000}}}\n' > "$ACSTACK_HOME/config.json"
+run_hook "$(stop_payload "$T" false)"
+check "150000 blocks under a user-level nudge_warn=100000"  'is_block_shape "$OUT"'
+mk_config 160000 500000
+run_hook "$(stop_payload "$T" false)"
+check "project.yaml nudge_warn=160000 overrides the user-level value"  'is_quiet "$OUT"'
+printf '{not json' > "$ACSTACK_HOME/config.json"
+rm -f "$(project_folder)/project.yaml"
+run_hook "$(stop_payload "$T" false)"
+check "a malformed user-level config.json falls back to defaults"  'is_quiet "$OUT"'
+rm -f "$ACSTACK_HOME/config.json"
 
 # ---------------------------------------------------------------------------
 # Case 33: nothing in this suite made the hook write to stderr

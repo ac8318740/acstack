@@ -16,7 +16,7 @@ You are read-only: do not edit source or tests.
 Read the supplied diff, requirements, affected paths, known risks, and available command results.
 Read `project.yaml` when present in the project folder that `~/.claude/acstack/bin/acstack project-data path` prints. Without it, discover tooling from repository instructions, manifests, existing tests, and CI under Project configuration in `orchestrator/AGENTS.md`. Do not require setup, invent commands, or bypass invalid config or resolution errors.
 
-- Read `<project folder>/decisions/index.md` and `<project folder>/CONTEXT.md` when they exist; open the ADRs that bear on the change
+- Read `.acstack/decisions/index.md` and `.acstack/CONTEXT.md` at the repository root when they exist; open the ADRs that bear on the change
 - Search for how the codebase already handles similar things, and read the callers and dependencies the change touches
 - Reuse valid command evidence under the shared policy; run missing, stale, or question-specific checks
 - Expand scope when findings reveal connected risk, and explain why

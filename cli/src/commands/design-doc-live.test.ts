@@ -1,6 +1,6 @@
 import { afterEach, expect, it } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -21,7 +21,7 @@ async function start() {
   mkdirSync(join(checkout, '.acstack'));
   writeFileSync(join(checkout, '.acstack/project.yaml'), 'name: live-test\n');
   trackProject(checkout);
-  const root = join(checkout, '.acstack');
+  const root = realpathSync(join(checkout, '.acstack'));
   createNode(root, 'demo', { title: 'Demo', kind: 'destination', label: 'Demo', summary: 'A live design' });
   createNode(root, 'demo', { title: 'App', kind: 'element', label: 'App', summary: 'Runs commands', answers: '001', body: block('kind: component\nconnections: [{to: "003", direction: one-way, label: Writes}]') });
   createNode(root, 'demo', { title: 'Data', kind: 'element', label: 'Data', summary: 'Keeps records', answers: '001', body: block('kind: store') });

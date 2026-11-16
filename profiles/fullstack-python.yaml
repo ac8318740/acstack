@@ -9,13 +9,6 @@ commands:
   typecheck: null
   format: "ruff format"
 
-directories:
-  source: "src/"
-  tests: "tests/"
-
-test_markers:
-  exclude: "slow,integration"
-
 venv:
   activate: "source .venv/bin/activate"
 

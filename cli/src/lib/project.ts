@@ -1,10 +1,13 @@
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
-import { ACSTACK_DIR, LEGACY_ACSTACK_DIR, PROJECT_FILE, DOMAIN_MAP_FILE, MAPS_DIR, SPECS_DIR, CHANGES_DIR, ARCHIVE_DIR, DECISION_LOGS_DIR, PROJECTS_DIR, PROJECT_JSON_FILE } from './constants.js';
+import { ACSTACK_DIR, LEGACY_ACSTACK_DIR, PROJECT_FILE, DOMAIN_MAP_FILE, MAPS_DIR, SPECS_DIR, CHANGES_DIR, ARCHIVE_DIR, DECISION_LOGS_DIR, PROJECTS_DIR, PROJECT_JSON_FILE, DECISIONS_DIR } from './constants.js';
 
 const PLUGIN_MARKER = join('.claude-plugin', 'plugin.json');
+
+/** The parts of `.acstack/` that live in the repository, read from the current worktree: decisions and the glossary. */
+export const REPO_RECORDS: readonly string[] = [DECISIONS_DIR, 'CONTEXT.md'];
 
 /**
  * Walk up from startDir, inclusive, for the nearest directory holding marker.
@@ -45,7 +48,8 @@ export class ProjectDataError extends Error {
   }
 }
 
-export const LEGACY_MESSAGE = 'Legacy ACStack project data found. Stop review servers and agents, back up the project, then run `acstack project-data migrate` from the repository.';
+const MIGRATE_ADVICE = 'Stop review servers and agents, back up the project, then run `acstack project-data migrate` from the repository.';
+export const LEGACY_MESSAGE = `Legacy ACStack project data found. ${MIGRATE_ADVICE}`;
 
 function git(cwd: string, args: string[]): string | null {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
@@ -67,7 +71,7 @@ export interface ProjectLocation {
   main: string;
   /** True for a bare repository, whose main checkout holds no files. */
   bare: boolean;
-  /** `<ACSTACK_HOME>/projects/<key>`: a real folder in global mode, a link in tracked mode. */
+  /** `<ACSTACK_HOME>/projects/<key>`, a real folder. */
   entry: string;
 }
 
@@ -91,10 +95,11 @@ function mainCheckout(commonDir: string, from: string): { main: string; bare: bo
   return { main: realpathSync.native(checkoutRoot(from) ?? from), bare: false };
 }
 
-/** True when the main checkout commits `.acstack/project.yaml`, the tracked-mode marker. */
-export function hasTrackedProject(location: ProjectLocation): boolean {
-  return !location.bare && existsSync(join(location.main, ACSTACK_DIR, PROJECT_FILE))
-    && !!git(location.main, ['ls-files', '--', `${ACSTACK_DIR}/${PROJECT_FILE}`]);
+/** The parts of a checkout's `.acstack/` that belong in the project folder: everything except the repository records. */
+export function legacyParts(root: string): string[] {
+  const dir = join(root, ACSTACK_DIR);
+  if (!lstatSync(dir, { throwIfNoEntry: false })?.isDirectory()) return [];
+  return readdirSync(dir).filter(name => !REPO_RECORDS.includes(name));
 }
 
 /** A sibling entry for the same folder name whose recorded repository no longer exists. */
@@ -105,7 +110,7 @@ export function findOrphans(location: ProjectLocation): string[] {
   return readdirSync(projects).filter(name => name.startsWith(prefix) && /^[0-9a-f]{6}$/.test(name.slice(prefix.length)) && name !== location.key)
     .map(name => join(projects, name))
     .filter(path => {
-      if (lstatSync(path).isSymbolicLink()) return !existsSync(path);
+      if (lstatSync(path).isSymbolicLink()) return false;
       const recorded = recordedCommonDir(path);
       return recorded !== null && !existsSync(recorded);
     });
@@ -127,48 +132,40 @@ export function recordProject(location: ProjectLocation): void {
   writeFileSync(join(location.entry, PROJECT_JSON_FILE), JSON.stringify({ commonDir: location.commonDir }, null, 2) + '\n');
 }
 
-/** Link a project entry to a tracked `.acstack/`; Windows gets a junction, which needs no privilege. */
-export function linkTracked(location: ProjectLocation): void {
-  mkdirSync(dirname(location.entry), { recursive: true });
-  symlinkSync(join(location.main, ACSTACK_DIR), location.entry, process.platform === 'win32' ? 'junction' : 'dir');
-}
-
 /**
- * Find this repository's project folder: the real path every project file is
- * joined onto, or null when the repo has no ACStack data yet or `from` is not
- * in a Git repository.
+ * Find this repository's project folder: the real path every project file
+ * except the repository records is joined onto, or null when the repo has no
+ * ACStack data yet or `from` is not in a Git repository.
  *
- * Throws, naming the command that fixes it, on legacy data and on a repo
- * holding both a global folder and a committed `.acstack/`. A possible orphan
- * is only a warning (see orphanWarnings): it may belong to another repository
- * with the same folder name, or sit on an unmounted drive.
+ * Throws, naming `acstack project-data migrate`, on a tracked-mode link, or when
+ * no project folder exists yet and a checkout `.acstack/` holds more than the
+ * repository records. An existing project folder wins: stray repository data
+ * then only warns (see legacyWarnings). A possible orphan is only a warning (see orphanWarnings): it may belong to
+ * another repository with the same folder name, or sit on an unmounted drive.
  */
 export function findProjectRoot(from: string = process.cwd()): string | null {
   const location = locateProject(from);
   if (!location) return null;
   const entry = lstatSync(location.entry, { throwIfNoEntry: false });
-  if (entry?.isSymbolicLink()) {
-    if (!existsSync(location.entry)) throw new ProjectDataError(`${location.entry} links to ${join(location.main, ACSTACK_DIR)}, which does not exist. Restore it or run \`acstack project-data mode global\`.`);
-    return realpathSync(location.entry);
-  }
+  if (entry?.isSymbolicLink()) throw new ProjectDataError(`${location.entry} is a link left by tracked mode, which ACStack no longer supports. ${MIGRATE_ADVICE}`);
   if (entry) {
-    if (hasTrackedProject(location)) throw new ProjectDataError(`This repository has both a project folder (${location.entry}) and a committed ${ACSTACK_DIR}/. Choose one with \`acstack project-data mode tracked\` or \`acstack project-data mode global\`.`);
     // Setup only creates the folder; record the repo here so a later move can be relinked.
     if (!existsSync(join(location.entry, PROJECT_JSON_FILE))) recordProject(location);
-    return realpathSync(location.entry);
-  }
-  if (hasTrackedProject(location)) {
-    linkTracked(location);
     return realpathSync(location.entry);
   }
   if (hasLegacyData(location, from)) throw new ProjectDataError(LEGACY_MESSAGE);
   return null;
 }
 
-/** Legacy data in the main checkout or this worktree: an untracked `.acstack/`, or the older `acstack/` layout. */
+/** Legacy data in the main checkout or this worktree: a `.acstack/` holding more than the repository records, or the older `acstack/` layout. */
 export function hasLegacyData(location: ProjectLocation, from: string = process.cwd()): boolean {
-  const top = git(from, ['rev-parse', '--show-toplevel']);
-  return [location.main, ...(top ? [top] : [])].some(root => existsSync(join(root, ACSTACK_DIR)) || hasLegacyProjectData(root));
+  return legacyRoots(location, from).length > 0;
+}
+
+/** The checkouts, among the main one and the one holding `from`, that hold legacy data. */
+export function legacyRoots(location: ProjectLocation, from: string = process.cwd()): string[] {
+  const top = checkoutRoot(from);
+  return [...new Set([location.main, ...(top ? [top] : [])])].filter(root => legacyParts(root).length > 0 || hasLegacyProjectData(root));
 }
 
 /**

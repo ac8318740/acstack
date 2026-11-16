@@ -77,7 +77,9 @@ answers. Come back to Step 2 when it finishes.
 ACStack keeps project data in the project folder, one per repository and shared
 by all of its worktrees. `acstack project-data path` prints its absolute path,
 even before the folder exists. These files write its parts as
-`<project folder>/project.yaml` and so on.
+`<project folder>/project.yaml` and so on. Architecture decisions and the
+glossary are the exception. They live in the repository, and the first-run
+path asks whether to keep them.
 
 ```bash
 project="$(~/.claude/acstack/bin/acstack project-data path)" &&
@@ -198,7 +200,7 @@ Read [`report.md`](report.md) on every run, as the last step.
   shell commands of your own.
 
 - `acstack config show` owns printing the current setup. It reports the profile,
-  the commands, the directories and what the project says about its browser. This
+  the commands and what the project says about its browser. This
   skill never re-prints those itself.
 
 - `docs/config-reference.md` owns the key reference. It lists each key, its

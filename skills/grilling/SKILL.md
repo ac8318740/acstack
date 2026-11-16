@@ -65,8 +65,7 @@ session.
 
 ## Presentation
 
-`workflow.grilling.questions` in `<project folder>/project.yaml` picks the mode.
-The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints.
+`~/.claude/acstack/bin/acstack config get workflow.grilling.questions` picks the mode.
 
 | Value            | Behaviour                                                                            |
 | ---------------- | ------------------------------------------------------------------------------------ |
@@ -124,8 +123,8 @@ belong in git:
 ```markdown
 ## Answer
 
-On the files backend, map nodes live under `<project folder>/maps/`.
-In global mode, the default, that folder sits outside the repository, so nodes are never committed.
+On the files backend, map nodes live under `<project folder>/maps/`, outside the repository.
+On the GitHub backend they are issues. Maps never live in Git.
 
 The durable output is the tests, the architecture decision records and
 the glossary. The `record-context` skill extracts each one as a node

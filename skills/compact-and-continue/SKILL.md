@@ -136,10 +136,8 @@ note.
 Tell them to run that `/compact` line, then to type `continue`. The hook
 re-injects the anchor and retires it, so the anchor never loads twice.
 
-`<project folder>/HANDOFF.md` holds conversation content. In global mode, the
-default, it sits outside the repository. In tracked mode it sits in the main
-checkout's committed `.acstack/`, so warn the user not to commit the anchor or
-consumed handoffs.
+`<project folder>/HANDOFF.md` holds conversation content. It sits outside the
+repository, so Git never sees it.
 
 ## Notes
 

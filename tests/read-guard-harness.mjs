@@ -20,12 +20,12 @@ function check(name, cond, detail = '') {
 
 function project(name, yaml) {
   const dir = path.join(tmp, name);
-  fs.mkdirSync(path.join(dir, '.acstack'), { recursive: true });
-  // A committed .acstack/ is the repository's project folder (tracked mode).
   execFileSync('git', ['init', '-q', dir]);
   if (yaml !== undefined) {
-    fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'), yaml);
-    execFileSync('git', ['add', '.acstack/project.yaml'], { cwd: dir });
+    // project.yaml lives in the repository's project folder under the test's ACSTACK_HOME.
+    const folder = execFileSync('node', [path.join(root, 'cli/bin/acstack.js'), 'project-data', 'path'], { cwd: dir, encoding: 'utf8' }).trim();
+    fs.mkdirSync(folder, { recursive: true });
+    fs.writeFileSync(path.join(folder, 'project.yaml'), yaml);
   }
   fs.writeFileSync(path.join(dir, 'big.txt'), 'x'.repeat(DEFAULT_MIN_BYTES));
   fs.writeFileSync(path.join(dir, 'small.txt'), 'x'.repeat(DEFAULT_MIN_BYTES - 1));

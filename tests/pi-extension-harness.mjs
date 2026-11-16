@@ -59,15 +59,19 @@ async function fire(reg, event, payload, ctx) {
   return result;
 }
 
-// A Git repository; with `acstack`, a committed .acstack/ makes dir/.acstack its project folder.
+/** The repository's project folder under the test's ACSTACK_HOME. */
+function projectFolder(dir) {
+  return execFileSync('node', [path.join(root, 'cli/bin/acstack.js'), 'project-data', 'path'], { cwd: dir, encoding: 'utf8' }).trim();
+}
+
+// A Git repository; with `acstack`, its project folder holds a project.yaml.
 function newProject(name, { acstack = true } = {}) {
   const dir = path.join(work, name);
   fs.mkdirSync(dir, { recursive: true });
   execFileSync('git', ['init', '-q'], { cwd: dir });
   if (acstack) {
-    fs.mkdirSync(path.join(dir, '.acstack'));
-    fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'), 'profile: generic\n');
-    execFileSync('git', ['add', '.acstack/project.yaml'], { cwd: dir });
+    fs.mkdirSync(projectFolder(dir), { recursive: true });
+    fs.writeFileSync(path.join(projectFolder(dir), 'project.yaml'), 'profile: generic\n');
   }
   return dir;
 }
@@ -190,7 +194,7 @@ const humanLink = path.join(home, '.local', 'bin', 'acstack');
   const ctx = makeCtx(newProject('links'));
   await fire(reg, 'session_start', { reason: 'startup' }, ctx);
   check('startup leaves the repository untouched',
-    fs.readdirSync(ctx.cwd).sort().join() === '.acstack,.git' && !ctx.notes.some(n => n.level === 'error'));
+    fs.readdirSync(ctx.cwd).sort().join() === '.git' && !ctx.notes.some(n => n.level === 'error'));
   check('creates the agent CLI symlink', fs.readlinkSync(agentLink) === wrapper);
   check('creates the human CLI symlink', fs.readlinkSync(humanLink) === wrapper);
 
@@ -462,7 +466,7 @@ for (const delegated of [false, true]) {
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir, { sessionId: 'press-1' }));
   check('a compaction restarts the ladder', (await settle(250000))?.continue === true);
 
-  fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'),
+  fs.writeFileSync(path.join(projectFolder(dir), 'project.yaml'),
     'workflow:\n  handoff:\n    context_thresholds:\n      - "10%"\n    nudge_step: 0\n');
   const pct = await fire(reg, 'agent_before_settle', { outcome: 'completed' },
     makeCtx(dir, { tokens: 120000, contextWindow: 1000000, sessionId: 'press-3' }));
@@ -481,6 +485,11 @@ for (const delegated of [false, true]) {
   check('reads flow-style thresholds',
     JSON.stringify(ext.readHandoffConfig('workflow:\n  handoff:\n    context_thresholds: [40%, 600000]\n').context_thresholds)
       === '["40%","600000"]');
+  check('reads handoff preferences from the user-level config.json',
+    JSON.stringify(ext.readUserHandoffConfig('{"workflow":{"handoff":{"nudge_warn":7,"context_thresholds":["40%",600000]}}}'))
+      === '{"nudge_warn":7,"context_thresholds":["40%","600000"]}');
+  check('ignores a malformed user-level config.json',
+    JSON.stringify(ext.readUserHandoffConfig('{not json')) === '{}');
 }
 
 // --- context pressure: parity with the Claude hook ------------------------------
@@ -490,7 +499,7 @@ for (const delegated of [false, true]) {
   // through the extension must produce the same nudge.
   const reg = load();
   const dir = newProject('pressure-parity');
-  fs.writeFileSync(path.join(dir, '.acstack', 'project.yaml'),
+  fs.writeFileSync(path.join(projectFolder(dir), 'project.yaml'),
     'workflow:\n  handoff:\n    context_window: 400000\n    nudge_severe: 300000\n' +
     '    context_thresholds:\n      - "50%"\n      - "75%"\n');
   const hookState = path.join(work, 'hook-pressure');
@@ -527,11 +536,11 @@ for (const delegated of [false, true]) {
 {
   const reg = load();
   const dir = newProject('handoff');
-  const active = path.join(dir, '.acstack', 'HANDOFF.md');
+  const active = path.join(projectFolder(dir), 'HANDOFF.md');
   fs.writeFileSync(active, '---\nacstack_handoff: 1\nmap: my map\ncreated: 2026-10-11T04:00:00Z\n---\n\n## Next action\nShip it\n');
 
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir));
-  const archived = path.join(dir, '.acstack', 'handoffs', 'my-map', '2026-10-11T04-00-00Z.md');
+  const archived = path.join(projectFolder(dir), 'handoffs', 'my-map', '2026-10-11T04-00-00Z.md');
   check('moves the handoff into the archive', !fs.existsSync(active) && fs.existsSync(archived));
   const msg = reg.sent[0];
   check('injects the handoff on the next turn',
@@ -539,7 +548,7 @@ for (const delegated of [false, true]) {
 
   // The message must match what the Claude hook injects from the same file.
   const parity = newProject('handoff-parity');
-  const parityFile = path.join(parity, '.acstack', 'HANDOFF.md');
+  const parityFile = path.join(projectFolder(parity), 'HANDOFF.md');
   const anchor = '---\nacstack_handoff: 1\nmap: parity\ncreated: 2026-10-11T05:00:00Z\n---\n\n## Next action\nShip it\n';
   fs.writeFileSync(parityFile, anchor);
   const hookOut = execFileSync('bash', [path.join(root, 'hooks', 'session-start-handoff.sh')], {
@@ -547,7 +556,7 @@ for (const delegated of [false, true]) {
   }).toString();
   const hookContext = JSON.parse(hookOut).hookSpecificOutput.additionalContext;
   fs.writeFileSync(parityFile, anchor);
-  check('the handoff message matches hooks/session-start-handoff.sh', ext.consumeHandoff(path.join(parity, '.acstack')) === hookContext);
+  check('the handoff message matches hooks/session-start-handoff.sh', ext.consumeHandoff(path.join(projectFolder(parity))) === hookContext);
 
   fs.writeFileSync(active, '# my own notes\n');
   await fire(reg, 'session_compact', { type: 'session_compact' }, makeCtx(dir));

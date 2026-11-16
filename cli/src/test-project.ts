@@ -1,17 +1,22 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, renameSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { locateProject } from './lib/project.js';
 
 /**
- * Make `root` a Git repository whose `.acstack/` is in the index, so the CLI
- * resolves its project folder to `root/.acstack` (tracked mode). Fixtures can
- * then keep writing project data under `root/.acstack/`.
+ * Make `root` a Git repository whose project folder, under `home`, is a real
+ * folder that `root/.acstack` links to. Fixtures can then keep writing project
+ * data under `root/.acstack/`; the CLI reads it from the project folder.
  */
-export function trackProject(root: string): string {
+export function trackProject(root: string, home: string = process.env.ACSTACK_HOME!): string {
   execFileSync('git', ['init', '-q'], { cwd: root });
-  execFileSync('git', ['add', '.acstack'], { cwd: root });
+  const data = join(root, '.acstack');
+  mkdirSync(data, { recursive: true });
+  const location = locateProject(root, join(home, 'projects'))!;
+  mkdirSync(dirname(location.entry), { recursive: true });
+  renameSync(data, location.entry);
+  symlinkSync(location.entry, data);
   return root;
 }
 
@@ -27,15 +32,7 @@ export function gitOnlyDir(): string {
   return gitDir;
 }
 
-/**
- * Make `root` a Git repository whose project folder, under `home`, links to
- * `root/.acstack`, for a fixture with no committed project.yaml to track.
- */
+/** trackProject for a fixture whose CLI runs with `home` as its ACStack home. */
 export function linkProject(root: string, home: string): string {
-  execFileSync('git', ['init', '-q'], { cwd: root });
-  mkdirSync(join(root, '.acstack'), { recursive: true });
-  const location = locateProject(root, join(home, 'projects'))!;
-  mkdirSync(dirname(location.entry), { recursive: true });
-  symlinkSync(join(root, '.acstack'), location.entry);
-  return root;
+  return trackProject(root, home);
 }

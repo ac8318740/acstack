@@ -61,5 +61,5 @@ operation. First the root:
     - Hang questions about an element off that element with `answers:`
     - Leave elements open; only the user locks them
     - Reconcile saved feedback explicitly; surface conflicts as decision nodes
-- On the files backend, nodes live in `<project folder>/maps/`, outside the repository unless the project uses tracked mode
+- On the files backend, nodes live in `<project folder>/maps/`, outside the repository; on the GitHub backend they are issues. Maps never live in Git
   ([`trackers/files.md`](trackers/files.md) gives the details).

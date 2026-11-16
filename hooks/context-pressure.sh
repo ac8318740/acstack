@@ -40,6 +40,7 @@
 #   nudge when it crosses each rung rather than on every single stop.
 #
 #   The default rungs are workflow.handoff.nudge_warn and nudge_severe from
+#   the user-level ~/.acstack/config.json, overridden per key by
 #   <project folder>/project.yaml (defaulting to 200000 / 500000), and then one rung
 #   every workflow.handoff.nudge_step tokens (default 100000) above the last
 #   one. Setting workflow.handoff.context_thresholds replaces the default rungs
@@ -350,20 +351,40 @@ def flow_list(value):
     return items
 
 
+def read_user_config(cfg):
+    """Fill cfg from workflow.handoff in the user-level config.json, the
+    personal default that project.yaml then overrides key by key."""
+    home = os.environ.get("ACSTACK_HOME") or os.path.join(os.path.expanduser("~"), ".acstack")
+    try:
+        with open(os.path.join(home, "config.json"), encoding="utf-8") as f:
+            handoff = json.load(f).get("workflow", {}).get("handoff", {})
+    except (OSError, ValueError, AttributeError):
+        return cfg
+    if not isinstance(handoff, dict):
+        return cfg
+    for key in ("nudge_warn", "nudge_severe", "nudge_step", "context_window"):
+        if isinstance(handoff.get(key), int) and not isinstance(handoff.get(key), bool):
+            cfg[key] = handoff[key]
+    if isinstance(handoff.get("context_thresholds"), list):
+        cfg["context_thresholds"] = [str(item) for item in handoff["context_thresholds"]]
+    return cfg
+
+
 def read_config():
-    """Read the workflow.handoff keys this hook understands from project.yaml.
+    """Read the workflow.handoff keys this hook understands: the user-level
+    config first, then project.yaml, whose values win.
 
     Hand-rolled because pyyaml is not guaranteed to be installed. Walks
     indentation to find the workflow: -> handoff: block and reads scalars from
     it, plus the block-style items under context_thresholds. Anything
     unexpected is left as None so the caller falls back to its defaults."""
-    cfg = {
+    cfg = read_user_config({
         "nudge_warn": None,
         "nudge_severe": None,
         "nudge_step": None,
         "context_window": None,
         "context_thresholds": None,
-    }
+    })
     try:
         with open(os.path.join(os.environ.get("ACSTACK_PROJECT_FOLDER") or "/nonexistent", "project.yaml"), encoding="utf-8", errors="replace") as f:
             lines = f.read().split("\n")

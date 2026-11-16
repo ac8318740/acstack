@@ -135,6 +135,14 @@ run_detect() {
   ERR="$(cat "$stderr_file" 2>/dev/null)"
 }
 
+# Write $1 to the case repository's project.yaml, in its project folder under
+# $HOME_DIR/.acstack, where the script's CLI looks it up.
+mk_project_yaml() {
+  local folder
+  folder="$(cd "$CWD_DIR" && env -i PATH="$RUN_PATH" HOME="$HOME_DIR" node "$SCRIPT_DIR/../cli/bin/acstack.js" project-data path)" || return 1
+  mkdir -p "$folder" && printf "$1" > "$folder/project.yaml"
+}
+
 # Recursive content+size snapshot of a directory, for the "writes nothing" check.
 snapshot_dir() {
   find "$1" 2>/dev/null | sort | while read -r p; do
@@ -427,9 +435,7 @@ echo "Case 11: project.root and project.has_frontend"
 
 new_case
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/.acstack"
-printf 'frontend:\n  framework: react\n' > "$CWD_DIR/.acstack/project.yaml"
-git -C "$CWD_DIR" add .acstack/project.yaml
+mk_project_yaml 'frontend:\n  framework: react\n'
 EXPECTED_ROOT="$(git -C "$CWD_DIR" rev-parse --show-toplevel)"
 run_detect
 check "root matches the git repo top-level"           'field_is ".project.root" "'"$EXPECTED_ROOT"'"'
@@ -437,17 +443,13 @@ check "top-level frontend key -> has_frontend true"     'field_is ".project.has_
 
 new_case
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/.acstack"
-printf 'name: backend-only\n' > "$CWD_DIR/.acstack/project.yaml"
-git -C "$CWD_DIR" add .acstack/project.yaml
+mk_project_yaml 'name: backend-only\n'
 run_detect
 check "no frontend key -> has_frontend false"            'field_is ".project.has_frontend" "false"'
 
 new_case
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/.acstack"
-printf 'workflow:\n  frontend: true\n' > "$CWD_DIR/.acstack/project.yaml"
-git -C "$CWD_DIR" add .acstack/project.yaml
+mk_project_yaml 'workflow:\n  frontend: true\n'
 run_detect
 check "indented frontend key (not column 0) -> has_frontend false" 'field_is ".project.has_frontend" "false"'
 
@@ -459,9 +461,7 @@ check "root still resolves when no project.yaml"          '[ "$(jval ".project.r
 
 new_case
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/.acstack"
-printf 'frontend:\n  framework: vue\n' > "$CWD_DIR/.acstack/project.yaml"
-git -C "$CWD_DIR" add .acstack/project.yaml
+mk_project_yaml 'frontend:\n  framework: vue\n'
 mkdir -p "$CWD_DIR/nested/deeper"
 EXPECTED_ROOT="$(git -C "$CWD_DIR" rev-parse --show-toplevel)"
 CWD_DIR="$CWD_DIR/nested/deeper"
@@ -485,10 +485,8 @@ fake_systemctl "$BIN" active
 mkdir -p "$HOME_DIR/.claude"
 printf 'orca hooks\n' > "$HOME_DIR/.claude/settings.json"
 git init -q "$CWD_DIR"
-mkdir -p "$CWD_DIR/.acstack"
-printf 'frontend:\n  framework: react\n' > "$CWD_DIR/.acstack/project.yaml"
-git -C "$CWD_DIR" add .acstack/project.yaml
-# The CLI links a committed .acstack/ into ~/.acstack on first lookup; do that
+mk_project_yaml 'frontend:\n  framework: react\n'
+# The CLI records the repository in its project folder on first lookup; do that
 # before the snapshot so it is not counted as a write by this script.
 (cd "$CWD_DIR" && env -i PATH="$RUN_PATH" HOME="$HOME_DIR" node "$SCRIPT_DIR/../cli/bin/acstack.js" project-data path >/dev/null)
 ENV_EXTRA=(DISPLAY=":0")

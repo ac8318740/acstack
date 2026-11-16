@@ -10,7 +10,7 @@ General implementation, investigation, and review work without setup. Without th
 Existing configuration keeps its gates. Unreadable or invalid configuration, legacy data, and project-data conflicts require the reported repair; they are not absent-config fallbacks. Orphan warnings alone do not block general work.
 
 - **It names what to run**: the test, build, lint, typecheck, and format commands
-- **It names where to look**: the source and test directories, and the frontend
+- **It names where to look**: the frontend
 - **It configures required gates**: frontend verification, and design review
 - **Agents read it when present** before running project checks
 - **A key you leave out takes the default** this document gives it
@@ -24,13 +24,14 @@ Three terms first.
 ```mermaid
 flowchart TD
     FILE["project.yaml in the project folder<br/>(written by /acstack:setup)"] --> WF["workflow.*<br/>switches, maps, handoff"]
-    FILE --> RUN["commands.*, directories.*,<br/>test_markers, venv"]
+    FILE --> RUN["commands.*, venv"]
     FILE --> FE["frontend.*<br/>dev server, browser"]
     WF --> SKILLS["commit, grilling, map,<br/>archive, handoff"]
     WF --> HOOK["hooks/context-pressure.sh"]
     RUN --> AGENTS["Completion owner<br/>and delegated agents"]
     FE --> FV["frontend-verifier"]
     HOST["~/.acstack/config.json<br/>host.* keys - see dev-setups.md"] --> FV
+    HOST -. "personal preferences,<br/>overridden by project.yaml" .-> WF
 ```
 
 | Step in the diagram | Detail |
@@ -40,7 +41,7 @@ flowchart TD
 | `workflow.*` switches | section 3 |
 | `workflow.maps` | section 4 |
 | `workflow.handoff` | sections 5 and 6 |
-| `commands`, `directories`, `test_markers`, `venv` | section 7 |
+| `commands`, `venv` | section 7 |
 | `frontend.*` | sections 8 and 9 |
 | `host.*`, and what is not a key here | section 10 |
 | Every default | section 11 |
@@ -55,7 +56,7 @@ flowchart TD
     - On a project that already has the file, the skill leads with the health check and offers a menu of changes
 - `acstack config set <key> <value>` changes one key without an interview
 - A key the file omits takes the default the tables below give it
-    - The `commands`, `directories`, and `frontend` keys have no such default
+    - The `commands` and `frontend` keys have no such default
     - The setup skill copies them from a profile
         - An omitted one names nothing at all
 
@@ -70,45 +71,44 @@ These commands report configuration without changing settings.
 
 ### Where project data lives
 
-*Each repository has one project folder, outside the repository by default. All of its worktrees share it.*
+*Project data has two homes. Decisions and the glossary live in the repository; everything else lives in one project folder outside it, shared by every worktree.*
 
+| Home | What lives there | Where |
+| --- | --- | --- |
+| Repository | Architecture decisions and the glossary | `.acstack/decisions/` and `.acstack/CONTEXT.md` at the root of the current worktree |
+| Project folder | Everything else: configuration, maps on the files tracker, design reviews, handoffs, browser and verification state | `~/.acstack/projects/<key>/`, a real folder |
+
+- The repository records resolve from the current worktree (`git rev-parse --show-toplevel`), so an agent edits them on its own branch and they merge through a pull request like code
+    - Each is optional and is on only when it exists there
+    - ACStack writes no `.gitignore` rules for them; the developer commits them
 - `~/.claude/acstack/bin/acstack project-data path` prints the project folder's absolute path, even before the folder exists
     - It exits non-zero outside a Git repository
-    - It exits non-zero with a repair message for legacy, invalid, or conflicting data
+    - It exits non-zero with a repair message for invalid data, or for legacy data when no project folder exists yet
+    - Legacy data beside an existing project folder only warns; the project folder wins
     - Orphan warnings do not block a valid current repository or adopt the orphan's settings
     - The session-start hook states the same path in the agent's context
-- This document writes a part inside it as `<project folder>/project.yaml`, `<project folder>/maps/`, and so on
+- This document writes a part inside the project folder as `<project folder>/project.yaml`, `<project folder>/maps/`, and so on
 - `/acstack:setup` creates the folder with `mkdir -p "$(~/.claude/acstack/bin/acstack project-data path)"`
-- No configuration key and no `.gitignore` rule controls where project data lives
-
-A project uses one of two modes.
-
-| Mode | Where the records live | What the repository holds |
-| --- | --- | --- |
-| Global (default) | `~/.acstack/projects/<key>/`, a real folder | No ACStack files, and no `.gitignore` rules |
-| Tracked (opt-in) | The main checkout's `.acstack/`; `~/.acstack/projects/<key>` is a link to it | `.acstack/`, which the developer commits |
-
+- No configuration key controls where project data lives
 - `<key>` is the main checkout's folder name, a hyphen, and a short hash of the repository's shared Git folder, for example `shop-3f9a2c`
     - Every worktree reports the same shared Git folder, so every worktree finds the same entry
-    - `ls -l ~/.acstack/projects/` lists every project and shows which are tracked
+    - `ls ~/.acstack/projects/` lists every project
 - `ACSTACK_HOME` replaces `~/.acstack` for every path in this section
-- In tracked mode the project folder resolves into the main checkout
-    - Edits to a feature branch's own `.acstack/` take effect only once they reach the main checkout
-    - A teammate's clone links its entry to the committed `.acstack/` automatically on first use
+- Maps on the GitHub tracker stay in GitHub issues; maps never live in Git
 
-Every part keeps its name inside the project folder.
+Every part keeps its name inside its home.
 
 | Part | Path |
 | --- | --- |
+| Architecture decisions | `.acstack/decisions/` in the current worktree |
+| Glossary | `.acstack/CONTEXT.md` in the current worktree |
 | Project configuration | `<project folder>/project.yaml` |
 | Maps | `<project folder>/maps/` |
 | Archives | `<project folder>/archive/` |
 | Legacy change records | `<project folder>/changes/` |
 | Legacy review artifacts | `<project folder>/alignment-packs/` |
-| Retired living specs and domain map, left untouched | `<project folder>/specs/`, `<project folder>/domain-map.yaml` |
-| Canonical design reviews | `<project folder>/design-reviews/` |
-| Architecture decisions | `<project folder>/decisions/` |
-| Glossary | `<project folder>/CONTEXT.md` |
+| Retired living specs and domain map; `migrate --retired delete` removes them | `<project folder>/specs/`, `<project folder>/domain-map.yaml` |
+| Design reviews, removed when their map is archived | `<project folder>/design-reviews/` |
 | Browser connection | `<project folder>/agent-browser.json` |
 | Verification knowledge | `<project folder>/verification/VERIFICATION-KNOWLEDGE.md` |
 | Test baseline | `<project folder>/.test-baseline` |
@@ -141,20 +141,23 @@ ACStack no longer reads the `XDG_CONFIG_HOME` or `XDG_DATA_HOME` variables.
 
 ### Project data commands
 
-*Four commands move project data, and only when the developer runs them.*
+*Two commands move project data, and only when the developer runs them.*
 
 | Command | What it does |
 | --- | --- |
-| `acstack project-data migrate` | Moves legacy machine-wide files and this repository's legacy `.acstack/` into the new layout |
-| `acstack project-data mode tracked` | Moves the project folder's contents into the main checkout's `.acstack/` and replaces the folder with a link; commit `.acstack/` from the main checkout afterwards |
-| `acstack project-data mode global` | Moves the main checkout's `.acstack/` into the project folder and removes the link; commit the removal of `.acstack/` afterwards |
+| `acstack project-data migrate` | Moves legacy machine-wide files and this repository's legacy project data into the two homes |
 | `acstack project-data relink <entry>` | Gives the named entry, orphaned by moving the repository on disk, the repository's current key; `project-data path` names the entry |
 
-Every command:
+Both commands:
 
-- Preflights every move and aborts on a collision without writing anything
-- Never changes the Git index, commits, or force-adds files
-- Reports any other worktree that still holds its own `.acstack/` changes, which ACStack no longer reads; move what you need from it, then delete it
+- Preflight every move and abort on a collision without writing anything
+- Never change the Git index, commit, or force-add files
+
+Before `migrate` moves `decisions/` or `CONTEXT.md` into the repository, it removes the managed `.gitignore` block older releases wrote. If Git would still ignore a moved record, it refuses and moves nothing.
+
+Once a project folder exists, a checkout whose `.acstack/` still holds other project data only gets a warning naming that checkout. Its branch predates the migration: merge the branch where `migrate` ran, or delete the leftover files.
+
+`migrate` also reports any other worktree whose `.acstack/` still holds changes beyond `decisions/` and `CONTEXT.md`, which ACStack no longer reads; move what you need from it, then delete it.
 
 ### Explicit migration from a legacy layout
 
@@ -163,7 +166,8 @@ Every command:
 Legacy data is any of:
 
 - `~/.config/acstack/` or `~/.local/share/acstack/`, or their `XDG_*` equivalents
-- A repository's `.acstack/` that no project entry links to
+- A tracked-mode project: `~/.acstack/projects/<key>` is a link to the main checkout's `.acstack/`
+- A repository `.acstack/` holding anything besides `decisions/` and `CONTEXT.md`
 - The older in-repository layout: `acstack/`, `docs/adr/`, `.decisions/`, and root `CONTEXT.md`, `.test-baseline`, or `agent-browser.json`
 
 Migrate each machine and each repository explicitly.
@@ -172,17 +176,20 @@ Migrate each machine and each repository explicitly.
 2. Stop old agent sessions and review servers; old CLI versions and hooks cannot read the new layout
 3. Back up the legacy locations
 4. From any worktree of each repository, run `~/.claude/acstack/bin/acstack project-data migrate`
-5. Review the result, then restart agents and review servers with the updated tools
+5. Review the result, commit the pending deletions and `.gitignore` change, then restart agents and review servers with the updated tools
 
 What migration does:
 
 - The first run on a machine moves `~/.config/acstack/*` to `~/.acstack/` and `~/.local/share/acstack/*` to `~/.acstack/cache/`
 - It moves the older in-repository layout into `.acstack/` first, including `docs/adr/` to `decisions/` and old decision logs to `decision-logs/`
     - It moves verification knowledge, not arbitrary helper directories or their programs
-- A main checkout whose `.acstack/` files are in the Git index becomes tracked mode; only the link is created
-- Otherwise the main checkout's `.acstack/` moves into its project folder, and the old ACStack-managed block in the root `.gitignore` is removed
-- Previously tracked paths that moved show up as pending deletions for the developer to commit
-- It preflights every move and aborts on a collision, such as an existing project folder, without overwriting anything
+- It removes a tracked-mode link and moves every part of the repository's `.acstack/` except `decisions/` and `CONTEXT.md` into a real project folder
+    - Previously committed paths that moved show up as pending deletions for the developer to commit
+    - It removes the old ACStack-managed block from the root `.gitignore`, so `decisions/` and `CONTEXT.md` can be committed
+- A project folder that holds `decisions/` or `CONTEXT.md` gets a choice for each: move it into the current worktree's `.acstack/`, or keep it where it is, where ACStack no longer reads it
+    - `--decisions move|keep` and `--glossary move|keep` choose ahead of time; in a terminal migrate asks, and otherwise it refuses without writing
+- `--retired delete` deletes the retired `specs/` and `domain-map.yaml` from the project folder; in a terminal migrate asks, and otherwise it keeps them
+- It preflights every move and aborts on a collision, such as a part that already exists in the project folder or a record that already exists in the worktree, without overwriting anything
 - Never migrate a repository silently, or work around legacy data by creating a partial project folder
 
 ### Design docs
@@ -190,7 +197,7 @@ What migration does:
 - ACStack removes legacy `map --map` and `align-viewer` without aliases
 - Use `design-doc <map>` to review a map's design doc; its elements are `element` nodes on that map
 - Use `node walk` and `node frontier` for map planning
-- Review evidence in `design-reviews/` outlives temporary map nodes regardless of `workflow.maps.persist`
+- Review evidence in `design-reviews/<map>/` belongs to its map; archiving the map removes it
 
 ### 1.1. Which file a write lands in
 
@@ -198,6 +205,7 @@ What migration does:
 
 - A `host.*` key describes the machine
     - It goes to the global config at `~/.acstack/config.json`
+- A personal preference key (section 5.1) goes to the same global config
 - Every other key in this document describes the project
     - It goes to `<project folder>/project.yaml`
 - Section 10 covers the `host.*` keys
@@ -328,22 +336,20 @@ Three refusals protect a file neither command can handle.
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `profile` | `node-typescript`, `python`, `fullstack-python` | none | `/acstack:setup` reads `profiles/<profile>.yaml` for its proposed commands and directories; `acstack config show` prints the name |
+| `profile` | `node-typescript`, `python`, `fullstack-python` | none | `/acstack:setup` reads `profiles/<profile>.yaml` for its proposed commands; `acstack config show` prints the name |
 
 - The profile decides nothing after setup has run
-- The commands and directories it proposed live in the file as their own keys, and those keys are what every later reader uses
+- The commands it proposed live in the file as their own keys, and those keys are what every later reader uses
 
 ## 3. workflow: the switches
 
-*Five booleans sit in the block. Each one changes how much discipline ACStack applies. A byte count tunes the large-read guard, and one more key decides how the agent asks you a question.*
+*Three booleans sit in the block. Each one changes how much discipline ACStack applies. A byte count tunes the large-read guard, and one more key decides how the agent asks you a question.*
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `workflow.tdd.strict` | `true`, `false` | none | deprecated compatibility boolean; no sequencing effect, including explicit `true` |
-| `workflow.tdd.orchestrator_strict` | `true`, `false` | none | deprecated compatibility boolean; no delegation effect, including explicit `true` |
 | `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, and the change touched frontend files |
 | `workflow.design_review` | `true`, `false` | `false` | a design review runs on a UI change only when this is `true`; it needs the impeccable plugin installed and switched on, which `acstack config check` reports on |
-| `workflow.read_guard` | `true`, `false` | `true` | `false` turns off the large-read guard; section 3.3 describes it |
+| `workflow.read_guard` | `true`, `false` | `true` | `false` turns off the large-read guard; section 3.2 describes it |
 | `workflow.read_guard_bytes` | a whole number, 1 or more | `32768` | the smallest file, in bytes, the large-read guard stops |
 
 How a boolean reads:
@@ -367,30 +373,17 @@ How a boolean reads:
         - An impeccable older than major 4, or one whose version it cannot read, warns on stderr and stays on
         - `--json` prints the same answer as `{"on": ..., "reasons": [...], "impeccable": ...}`
 
-### 3.1. Deprecated TDD booleans
-
-*Adaptive verification replaces the old sequencing and delegation guarantee.*
-
-- `workflow.tdd.strict` and `workflow.tdd.orchestrator_strict` remain known boolean keys for compatibility
-- Neither key has an effective default or controls sequencing or delegation, including explicit `true`
-- ACStack removes the former strict guarantee
-- The CLI still supports get, set, list, and unset for either key
-- Unrelated writes preserve existing values and comments
-- Deprecation alone does not trigger automatic config migration
-- New setup does not offer or generate either key
-- `orchestrator/AGENTS.md` owns the shared Implementation discipline
-- Explicit user requests for stronger process still apply
-
-### 3.2. How the agent asks you a question
+### 3.1. How the agent asks you a question
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
 | `workflow.grilling.questions` | `tool`, `inline` | `tool` | `tool` asks through the host's question tool, one call per round; `inline` asks in prose |
 
+- This is a personal preference: section 5.1 says where it lives
 - `tool` falls back to inline prose for any round it cannot hold
 - Two things exceed it: a round of more than four questions, and any question with no discrete options
 
-### 3.3. The large-read guard
+### 3.2. The large-read guard
 
 *The guard stops a main agent's first whole read of a large file once, and points it to a cheaper way to read.*
 
@@ -431,6 +424,8 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
     - The GitHub tracker has nothing to dispose of
         - A closed issue is already the archive
     - The default deletes, because keeping the nodes leaves a second copy of every decision and the two copies drift apart
+- Maps never live in Git: files-tracker maps sit in the project folder, and GitHub-tracker maps are issues
+- Archiving a map deletes `<project folder>/design-reviews/<name>/` on either tracker, whatever `workflow.maps.persist` says
 
 ## 5. workflow.handoff: launching and acknowledging
 
@@ -445,6 +440,17 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
 - `workflow.handoff.self_invoke` gets a behavioural check at the skill's first step, rather than a frontmatter flag
 - Frontmatter model-invocation flags are static
     - No project could turn one off for itself
+
+### 5.1. Personal preferences live in the user-level config
+
+*The `workflow.handoff.*` keys and `workflow.grilling.questions` follow the person, not the repository.*
+
+- `acstack config set` writes them to `~/.acstack/config.json` (or `$ACSTACK_HOME/config.json`), from any directory
+- A project's `project.yaml` may still state one, and that value wins for that project
+    - `config set` warns when the project you are in overrides the value it just wrote
+- `acstack config get` prints the resolved value: `project.yaml`, then the user-level config, then exit 2 naming the default
+- `acstack config unset` removes the user-level value; it leaves `project.yaml` alone
+- `hooks/context-pressure.sh` and the pi extension merge the two the same way, key by key
 
 ## 6. workflow.handoff: the context-pressure ladder
 
@@ -574,9 +580,9 @@ Two limits are worth knowing.
 - The hook opens `<project folder>/project.yaml`, finding the folder with `acstack project-data path`
     - A session running outside a Git repository therefore gets the defaults
 
-## 7. commands, directories, test_markers and venv
+## 7. commands and venv
 
-*What every agent runs, and where every agent looks.*
+*What every agent runs.*
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
@@ -586,9 +592,6 @@ Two limits are worth knowing.
 | `commands.lint` | a shell command, or `null` | from the profile | the verification owner lints with it, usually with a fix flag |
 | `commands.typecheck` | a shell command, or `null` | from the profile | the verification owner type-checks with it |
 | `commands.format` | a shell command, or `null` | from the profile | format touched files before final verification; `null` means no format step |
-| `directories.source` | a path | `src/` | where the implementer writes source |
-| `directories.tests` | a path | `tests/` | where tests live |
-| `test_markers.exclude` | comma-separated markers, or `null` | `null` for Node, `slow,integration` for Python | which markers a default test run leaves out, as in `pytest -m` |
 | `venv.activate` | a shell command, or `null` | `null` for Node, `source .venv/bin/activate` for Python | every agent prefixes each command with it when the file states one |
 
 - Run configured formatting over touched files before final verification
@@ -654,7 +657,7 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
 
 ## 10. What is not a project.yaml key
 
-*Two sets of settings look like they belong here. Neither set does.*
+*Two sets of settings look like they belong here, and some old keys used to. None of them is a key now.*
 
 - The `outputStyle` setting is not a `project.yaml` key
     - Claude Code owns it
@@ -669,10 +672,13 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
     - They live in the global config at `~/.acstack/config.json`
     - `acstack config set` is what writes them
     - [dev-setups.md](dev-setups.md) documents all nine axes
+- `workflow.spec_sync`, `workflow.tdd.*`, `directories.*`, and `test_markers.exclude` are no longer keys
+    - Nothing read them
+    - A file that still states one passes `acstack config check`; `acstack config list` marks it `(unknown key)`, and you can delete the line
 
 ## 11. Every default in one block
 
-*What ACStack does with a `project.yaml` that states none of these keys.*
+*What ACStack does with a `project.yaml` that states none of these keys. The `grilling` and `handoff` values are the defaults of personal preferences (section 5.1).*
 
 ```yaml
 workflow:
@@ -697,6 +703,6 @@ workflow:
     # context_thresholds and context_window have no default
 ```
 
-- The `commands`, `directories`, `test_markers`, `venv`, and `frontend` blocks have no defaults of their own
+- The `commands`, `venv`, and `frontend` blocks have no defaults of their own
 - `/acstack:setup` copies them from the profile it detects
 - Section 7 gives the values each profile proposes
