@@ -13,7 +13,9 @@
  *                        add the writing style and its per-turn reminder
  *                        from the SSOT style file   (hooks/ac-writing-style-reminder.sh)
  *   agent_before_settle  nudge with a continuity-versus-freshness checkpoint
- *                        as context fills          (hooks/context-pressure.sh)
+ *                        as context fills          (hooks/context-pressure.sh),
+ *                        and suggest a restart as process memory grows
+ *   agent_settled        run a restart that acstack_restart_session scheduled
  *   session_compact      re-inject <project folder>/HANDOFF.md after a compaction, and
  *                        restart the nudge ladder   (hooks/session-start-handoff.sh,
  *                                                    hooks/context-pressure.sh)
@@ -33,7 +35,7 @@ import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
 import { fileURLToPath } from "node:url";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 // @ts-ignore -- plain ESM shared with hooks/read-guard.mjs, no type declarations
 import { decide, envSaysNotMain, readGuardSettings } from "../hooks/lib/read-guard.mjs";
@@ -320,6 +322,7 @@ interface HandoffConfig {
 	nudge_step?: number;
 	context_window?: number;
 	context_thresholds?: string[];
+	memory_mb?: number;
 }
 
 function flowList(value: string): string[] {
@@ -376,7 +379,7 @@ export function readHandoffConfig(yaml: string | undefined): HandoffConfig {
 		if (keyPath.length !== 3 || keyPath[0] !== "workflow" || keyPath[1] !== "handoff") continue;
 		if (key === "context_thresholds") {
 			cfg.context_thresholds = flowList(value);
-		} else if (key === "nudge_warn" || key === "nudge_severe" || key === "nudge_step" || key === "context_window") {
+		} else if (key === "nudge_warn" || key === "nudge_severe" || key === "nudge_step" || key === "context_window" || key === "memory_mb") {
 			const n = Number.parseInt(value, 10);
 			if (/^-?\d+$/.test(value) && Number.isFinite(n)) cfg[key] = n;
 		}
@@ -398,7 +401,7 @@ export function readUserHandoffConfig(json: string | undefined): HandoffConfig {
 	}
 	if (!handoff || typeof handoff !== "object") return cfg;
 	const h = handoff as Record<string, unknown>;
-	for (const key of ["nudge_warn", "nudge_severe", "nudge_step", "context_window"] as const) {
+	for (const key of ["nudge_warn", "nudge_severe", "nudge_step", "context_window", "memory_mb"] as const) {
 		if (Number.isInteger(h[key])) cfg[key] = h[key] as number;
 	}
 	if (Array.isArray(h.context_thresholds)) cfg.context_thresholds = h.context_thresholds.map(String);
@@ -469,6 +472,86 @@ export function contextNudge(
 	return { rung, reason: `${head} ${DECIDE_TAIL}` };
 }
 
+const DEFAULT_MEMORY_MB = 2048;
+const MEMORY_STEP_MB = 1024;
+export const RESTART_TOOL = "acstack_restart_session";
+
+/** Resident plus swapped memory in MB from a /proc/<pid>/status text, or undefined when absent. */
+export function processMemoryMb(status: string): number | undefined {
+	const kb = (field: string) => Number(new RegExp(`^${field}:\\s*(\\d+)\\s*kB`, "m").exec(status)?.[1] ?? Number.NaN);
+	const rss = kb("VmRSS");
+	if (!Number.isFinite(rss)) return undefined;
+	const swap = kb("VmSwap");
+	return Math.round((rss + (Number.isFinite(swap) ? swap : 0)) / 1024);
+}
+
+/**
+ * The restart suggestion for a process holding `mb`, or undefined when no new
+ * rung was crossed. Rungs start at workflow.handoff.memory_mb (default 2048,
+ * below 1 disables) and repeat every 1024 MB.
+ */
+export function memoryNudge(
+	mb: number,
+	cfg: HandoffConfig,
+	lastRung: number | undefined,
+	inHerdr: boolean,
+	sessionId: string,
+): { rung: number; reason: string } | undefined {
+	const threshold = cfg.memory_mb ?? DEFAULT_MEMORY_MB;
+	if (threshold < 1 || mb < threshold) return undefined;
+	const rung = threshold + Math.floor((mb - threshold) / MEMORY_STEP_MB) * MEMORY_STEP_MB;
+	if (lastRung !== undefined && rung <= lastRung) return undefined;
+	const gb = (n: number) => (n < 1024 ? `${Math.round(n)} MB` : `${(n / 1024).toFixed(1)} GB`);
+	const how = inHerdr
+		? `call ${RESTART_TOOL}. It restarts Pi in this pane once your turn ends, and ac-teams members pause and rejoin automatically.`
+		: `ask the user to quit Pi and run \`pi --session ${sessionId}\` in this directory.`;
+	return {
+		rung,
+		reason:
+			`Memory check: this Pi process holds about ${gb(mb)} (RAM plus swap), past the ${gb(rung)} mark. ` +
+			"Restarting it on the same session frees that memory and keeps the transcript and compressed context. " +
+			"A restart loses only in-process work: running tools, background jobs, and timers. " +
+			`At a natural break with none of those in flight, ${how} ` +
+			"Otherwise keep going; the next reminder comes 1 GB later.",
+	};
+}
+
+const PI_VALUE_FLAGS = new Set([
+	"--provider", "--model", "--api-key", "--system-prompt", "--append-system-prompt", "--mode",
+	"--session", "--session-id", "--fork", "--session-dir", "--name", "-n", "--models", "--tools", "-t",
+	"--exclude-tools", "-xt", "--thinking", "--extension", "-e", "--skill", "--prompt-template",
+	"--theme", "--use-theme", "--tui-mode",
+]);
+const PI_BOOLEAN_FLAGS = new Set([
+	"--approve", "-a", "--no-approve", "-na", "--continue", "-c", "--resume", "-r", "--no-session", "--print", "-p",
+	"--help", "-h", "--version", "-v", "--verbose", "--offline", "--list-models", "--no-tools", "-nt",
+	"--no-builtin-tools", "-nbt", "--no-extensions", "-ne", "--no-skills", "-ns", "--no-prompt-templates", "-np",
+	"--no-themes", "--no-context-files", "-nc", "--no-mcp",
+]);
+const PI_SESSION_FLAGS = new Set(["--session", "--session-id", "--fork", "--continue", "-c", "--resume", "-r", "--no-session", "--print", "-p"]);
+
+/**
+ * Pi's launch options to repeat on a restart: everything except the session
+ * selector, print mode, and the original messages and @files.
+ * An unknown --flag takes the next argument as its value unless that starts
+ * with - or @, the same rule Pi's own parser applies to extension flags.
+ */
+export function relaunchArgs(argv: string[]): string[] {
+	const kept: string[] = [];
+	for (let i = 0; i < argv.length; i++) {
+		const arg = argv[i];
+		if (arg === "--") break;
+		if (!arg.startsWith("-")) continue;
+		const name = arg.split("=")[0];
+		const next = argv[i + 1];
+		const takesValue = PI_VALUE_FLAGS.has(name)
+			|| (name.startsWith("--") && !PI_BOOLEAN_FLAGS.has(name) && next !== undefined && !next.startsWith("-") && !next.startsWith("@"));
+		const value = !arg.includes("=") && takesValue && next !== undefined ? [argv[++i]] : [];
+		if (!PI_SESSION_FLAGS.has(name)) kept.push(arg, ...value);
+	}
+	return kept;
+}
+
 /**
  * Ladder state shares its directory and file names with
  * hooks/context-pressure.sh. The handoff skill writes <session id>.quiet
@@ -476,6 +559,28 @@ export function contextNudge(
  */
 function pressureStateDir(): string {
 	return process.env.ACSTACK_CONTEXT_PRESSURE_DIR || path.join(process.env.TMPDIR || "/tmp", "acstack-context-pressure");
+}
+
+/** Why this process cannot replace itself in its herdr pane, or undefined when it can. */
+function restartBlocker(ctx: ExtensionContext): string | undefined {
+	if (process.env.HERDR_ENV !== "1" || !process.env.HERDR_PANE_ID) return "Pi is not running in a herdr pane";
+	const file = ctx.sessionManager.getSessionFile();
+	if (!file || !fs.existsSync(file)) return "this session is not saved to a file";
+	// The pane must fall back to a shell prompt when Pi exits, or herdr cannot start the new Pi there.
+	const parent = readText(`/proc/${process.ppid}/comm`)?.trim() ?? "";
+	if (!["bash", "zsh", "sh", "fish", "dash"].includes(parent)) return "Pi was not started from a shell in this pane";
+	return undefined;
+}
+
+/** The herdr agent name of `pane`, or "pi" when herdr does not report one. */
+function herdrAgentName(pane: string): string {
+	const result = spawnSync(process.env.HERDR_BIN_PATH || "herdr", ["agent", "get", pane], { encoding: "utf-8", timeout: 5000 });
+	try {
+		const name = JSON.parse(result.stdout).result.agent.name;
+		return typeof name === "string" && name ? name : "pi";
+	} catch {
+		return "pi";
+	}
 }
 
 function sessionKey(ctx: ExtensionContext): string | undefined {
@@ -725,39 +830,121 @@ export default function acstack(pi: ExtensionAPI): void {
 		return { message: { customType: "acstack-writing-style-reminder", content: reminder, display: false } };
 	});
 
+	let restartPending = false;
+
 	if (!delegated) pi.on("agent_before_settle", async (event, ctx) => {
-		if (event.outcome !== "completed") return;
-		const usage = ctx.getContextUsage();
-		if (!usage || usage.tokens === null) return;
+		if (event.outcome !== "completed" || restartPending) return;
 		const key = sessionKey(ctx);
 		if (!key) return;
-
 		const dir = pressureStateDir();
 		if (fs.existsSync(path.join(dir, `${key}.quiet`))) return;
-		const lastFile = path.join(dir, `${key}.last`);
-		const lastText = readText(lastFile)?.trim();
-		const lastRung = lastText && /^\d+$/.test(lastText) ? Number.parseInt(lastText, 10) : undefined;
-
 		const acstackHome = process.env.ACSTACK_HOME || path.join(os.homedir(), ".acstack");
 		const cfg = {
 			...readUserHandoffConfig(readText(path.join(acstackHome, "config.json"))),
 			...readHandoffConfig(readText(path.join(projectFolder(undefined, ctx.cwd) ?? "/nonexistent", "project.yaml"))),
 		};
-		const nudge = contextNudge(usage.tokens, usage.contextWindow, cfg, lastRung, process.env.HERDR_ENV === "1");
-		if (!nudge) return;
 
-		// Record the rung before speaking. A nudge it cannot remember firing
+		// Record each rung before speaking. A nudge it cannot remember firing
 		// would repeat on every settle.
-		try {
-			fs.mkdirSync(dir, { recursive: true });
-			fs.writeFileSync(lastFile, `${nudge.rung}\n`, "utf-8");
-		} catch {
+		const entries: Array<{ type: "custom_message"; customType: string; content: string; display: boolean }> = [];
+		const ladder = (suffix: string, customType: string, nudge: (last: number | undefined) => { rung: number; reason: string } | undefined) => {
+			const file = path.join(dir, key + suffix);
+			const text = readText(file)?.trim();
+			const found = nudge(text && /^\d+$/.test(text) ? Number.parseInt(text, 10) : undefined);
+			if (!found) return;
+			try {
+				fs.mkdirSync(dir, { recursive: true });
+				fs.writeFileSync(file, `${found.rung}\n`, "utf-8");
+			} catch {
+				return;
+			}
+			entries.push({ type: "custom_message", customType, content: found.reason, display: true });
+		};
+
+		const usage = ctx.getContextUsage();
+		if (usage && usage.tokens !== null) {
+			const tokens = usage.tokens;
+			ladder(".last", "acstack-context-pressure", (last) => contextNudge(tokens, usage.contextWindow, cfg, last, process.env.HERDR_ENV === "1"));
+		}
+		const mb = processMemoryMb(readText("/proc/self/status") ?? "");
+		// The rung survives a restart, so a process that starts above the
+		// threshold is not told to restart again; dropping below re-arms it.
+		if (mb !== undefined && mb < (cfg.memory_mb ?? DEFAULT_MEMORY_MB)) fs.rmSync(path.join(dir, `${key}.mem`), { force: true });
+		else if (mb !== undefined) {
+			ladder(".mem", "acstack-memory-pressure", (last) => memoryNudge(mb, cfg, last, process.env.HERDR_ENV === "1", ctx.sessionManager.getSessionId()));
+		}
+		if (entries.length) return { entries, continue: true };
+	});
+
+	// A restart replaces this process with `pi --session` in the same herdr
+	// pane. The tool only schedules it: the swap runs after the turn settles,
+	// when no tool is running and no input is queued.
+	if (!delegated) pi.registerTool({
+		name: RESTART_TOOL,
+		label: "Restart session",
+		description:
+			"Restart this Pi process on the same session to free memory, after the current turn ends. " +
+			"Keeps the transcript and billion-context compressed context; ac-teams members pause and rejoin automatically. " +
+			"Loses in-process work that is still running: background jobs, timers, and async work started by other extensions. " +
+			"Works only in a herdr pane where Pi was started from a shell. After calling it, end your turn.",
+		parameters: { type: "object", properties: {}, additionalProperties: false } as never,
+		async execute(_id, _params, _signal, _onUpdate, ctx) {
+			const blocker = restartBlocker(ctx);
+			const text = blocker
+				? `Cannot restart automatically: ${blocker}. Ask the user to quit Pi and run \`pi --session ${ctx.sessionManager.getSessionId()}\` in ${ctx.cwd}.`
+				: "Restart scheduled. It runs once this turn ends, unless new input arrives first. End your turn now with a one-line note; do not start new work.";
+			restartPending = !blocker;
+			return { content: [{ type: "text", text }], details: undefined };
+		},
+	});
+
+	if (!delegated) pi.on("agent_settled", async (event, ctx) => {
+		if (!restartPending) return;
+		restartPending = false;
+		if (event.aborted || !ctx.isIdle() || ctx.hasPendingMessages()) {
+			report(ctx, "acstack: restart skipped because the turn was interrupted or new input is queued", "warning");
 			return;
 		}
-		return {
-			entries: [{ type: "custom_message", customType: "acstack-context-pressure", content: nudge.reason, display: true }],
-			continue: true,
-		};
+		const blocker = restartBlocker(ctx);
+		if (blocker) return report(ctx, `acstack: restart skipped: ${blocker}`, "warning");
+
+		// ac-teams pauses its members and records that the next process on this
+		// session should rejoin without asking. A version that cannot answer
+		// would leave live teammates orphaned, so refuse instead.
+		// Everything that can fail runs before the team pauses: once paused, this process must exit.
+		const pane = process.env.HERDR_PANE_ID as string;
+		const log = path.join(process.env.TMPDIR || "/tmp", `acstack-restart-${process.pid}.log`);
+		let out: number;
+		try {
+			out = fs.openSync(log, "a", 0o600);
+		} catch (error) {
+			return report(ctx, `acstack: restart skipped: cannot write ${log}: ${error instanceof Error ? error.message : String(error)}`, "warning");
+		}
+		const waiterArgs = [path.join(packageRoot, "pi", "restart-session.mjs"), String(process.pid), pane, herdrAgentName(pane), ctx.sessionManager.getSessionFile() as string, ...relaunchArgs(process.argv.slice(2))];
+
+		const request: { ctx: ExtensionContext; reply?: Promise<void> } = { ctx };
+		pi.events.emit("ac-teams:prepare-restart", request);
+		if (request.reply) {
+			try {
+				await request.reply;
+			} catch (error) {
+				fs.closeSync(out);
+				return report(ctx, `acstack: restart skipped: ${error instanceof Error ? error.message : String(error)}`, "warning");
+			}
+		} else if (pi.getAllTools().some((tool) => tool.name === "team_agent")) {
+			fs.closeSync(out);
+			return report(ctx, "acstack: restart skipped: the installed ac-teams cannot pause its team for a restart; update ac-teams", "warning");
+		}
+
+		try {
+			spawn(process.execPath, waiterArgs, { detached: true, stdio: ["ignore", out, out] }).unref();
+			report(ctx, `acstack: restarting Pi on this session (log: ${log})`);
+		} catch (error) {
+			// The team is already paused, so exit anyway; a manual `pi --session` rejoins it.
+			report(ctx, `acstack: could not start the restart helper (${error instanceof Error ? error.message : String(error)}); run pi --session ${ctx.sessionManager.getSessionFile()} yourself`, "error");
+		}
+		fs.closeSync(out);
+		ctx.shutdown();
 	});
 
 	if (!delegated) pi.on("session_compact", async (_event, ctx) => {

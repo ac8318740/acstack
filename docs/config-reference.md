@@ -580,6 +580,30 @@ Two limits are worth knowing.
 - The hook opens `<project folder>/project.yaml`, finding the folder with `acstack project-data path`
     - A session running outside a Git repository therefore gets the defaults
 
+### 6.6 Memory on pi: restart the process on the same session
+
+| Key | Values | Default | What changes |
+| --- | --- | --- | --- |
+| `workflow.handoff.memory_mb` | a whole number of MB | `2048` | the first rung of a second ladder, measured in the Pi process's RAM plus swap; below 1 turns it off |
+
+Only pi has this ladder.
+
+- A long Pi session can grow to several GB of memory that only a new process frees
+- Restarting Pi on the same session (`pi --session <id>`) keeps the transcript and billion-context's compressed context, which is keyed on the session id
+- The ladder fires at `memory_mb`, then every 1024 MB above it, and records its rung in a `<session id>.mem` file
+    - A compaction does not reset it, because a compaction frees no process memory
+    - A restart does not reset it either, so a process that starts above `memory_mb` is not told to restart again; settling below `memory_mb` clears it
+    - The `.quiet` marker silences it, like the context ladder
+- In a herdr pane the nudge points the agent at the `acstack_restart_session` tool; elsewhere it asks the user to restart
+
+The tool restarts only when nothing in flight would be lost.
+
+- It waits until the turn settles, and cancels if the turn was aborted or new input is queued
+- It asks ac-teams to pause the team first, as `/teams reload` does, so the new process rejoins and resumes the team without asking
+    - A failed pause, or an ac-teams version too old to answer, cancels the restart
+- Pi then exits, and a small detached script starts `pi --session` in the same pane, with the original launch options (`-e`, `--no-extensions`, and so on) but not the original messages, under the same herdr agent name
+- Background jobs and timers that other extensions started are not tracked, and a restart loses them
+
 ## 7. commands and venv
 
 *What every agent runs.*
@@ -700,6 +724,7 @@ workflow:
     nudge_warn: 200000
     nudge_severe: 500000
     nudge_step: 100000
+    memory_mb: 2048      # pi only
     # context_thresholds and context_window have no default
 ```
 

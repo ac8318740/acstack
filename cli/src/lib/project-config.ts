@@ -144,6 +144,7 @@ export const PROJECT_KEYS: Readonly<Record<string, ProjectKeySpec>> = {
   'workflow.handoff.nudge_step': COUNT,
   'workflow.handoff.context_thresholds': { kind: 'thresholds' },
   'workflow.handoff.context_window': { kind: 'number', integer: true, min: 1 },
+  'workflow.handoff.memory_mb': COUNT,
 
   'commands.test': { kind: 'string' },
   'commands.test_collect': { kind: 'string' },
@@ -849,6 +850,7 @@ export const PROJECT_KEY_DEFAULTS: Readonly<Record<string, string>> = {
   'workflow.handoff.nudge_warn': '200000',
   'workflow.handoff.nudge_severe': '500000',
   'workflow.handoff.nudge_step': '100000',
+  'workflow.handoff.memory_mb': '2048',
 
   'frontend.directory': 'frontend/',
   'frontend.dev_server_url': 'http://localhost:3000',
