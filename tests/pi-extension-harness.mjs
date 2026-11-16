@@ -24,9 +24,11 @@ function load({ tools = ['subagent'], extensions = [ext], events } = {}) {
   const commands = {};
   const sent = [];
   const userSent = [];
+  const registeredTools = {};
   const pi = {
     on: (event, fn) => { (handlers[event] ??= []).push(fn); return () => {}; },
     registerCommand: (name, opts) => { commands[name] = opts; },
+    registerTool: (tool) => { registeredTools[tool.name] = tool; },
     getAllTools: () => tools.map((name) => ({ name })),
     sendMessage: (message, options) => { sent.push({ message, options }); },
     sendUserMessage: (content, options) => { userSent.push({ content, options }); },
@@ -37,20 +39,24 @@ function load({ tools = ['subagent'], extensions = [ext], events } = {}) {
       emit: (name, payload) => events.emit(name, payload),
     } } : {}) });
   }
-  return { handlers, commands, sent, userSent };
+  return { handlers, commands, sent, userSent, tools: registeredTools };
 }
 
-function makeCtx(cwd, { tokens = null, contextWindow = 1000000, sessionId = 'sess-1' } = {}) {
+function makeCtx(cwd, { tokens = null, contextWindow = 1000000, sessionId = 'sess-1', sessionFile } = {}) {
   const notes = [];
-  return {
+  const ctx = {
     notes,
     cwd,
     hasUI: true,
+    shutdowns: 0,
     isIdle: () => true,
+    hasPendingMessages: () => false,
+    shutdown: () => { ctx.shutdowns++; },
     ui: { notify: (msg, level) => notes.push({ msg, level }) },
     getContextUsage: () => ({ tokens, contextWindow, percent: null }),
-    sessionManager: { getSessionId: () => sessionId },
+    sessionManager: { getSessionId: () => sessionId, getSessionFile: () => sessionFile },
   };
+  return ctx;
 }
 
 async function fire(reg, event, payload, ctx) {
@@ -492,6 +498,103 @@ for (const delegated of [false, true]) {
     JSON.stringify(ext.readUserHandoffConfig('{not json')) === '{}');
 }
 
+// --- memory pressure and the restart tool -----------------------------------------
+
+{
+  check('reads RSS plus swap in MB', ext.processMemoryMb('Name:\tpi\nVmRSS:\t 2097152 kB\nVmSwap:\t 1048576 kB\n') === 3072);
+  check('memory without swap is RSS alone', ext.processMemoryMb('VmRSS:\t 1048576 kB\n') === 1024);
+  check('no memory reading without VmRSS', ext.processMemoryMb('') === undefined);
+  check('reads memory_mb', ext.readHandoffConfig('workflow:\n  handoff:\n    memory_mb: 4096\n').memory_mb === 4096);
+  check('memory nudge shows MB below 1 GB', ext.memoryNudge(200, { memory_mb: 1 }, undefined, true, 's')?.reason.includes('about 200 MB'));
+  check('restart keeps launch options but not the session or messages',
+    JSON.stringify(ext.relaunchArgs(['-ne', '-e', 'x.ts', '--session', 'old', '--model=m', '-c', '@f.md', 'hello', '--', '--tools']))
+      === JSON.stringify(['-ne', '-e', 'x.ts', '--model=m']));
+  check('restart keeps an extension flag value the way Pi parses it',
+    JSON.stringify(ext.relaunchArgs(['--plan', 'x', '--verbose', 'msg', '--flag', '@f.md'])) === JSON.stringify(['--plan', 'x', '--verbose', '--flag']));
+  check('no memory nudge below 2 GB', ext.memoryNudge(2000, {}, undefined, true, 's') === undefined);
+  const first = ext.memoryNudge(2100, {}, undefined, true, 's');
+  check('memory nudge at the 2 GB mark names the restart tool',
+    first?.rung === 2048 && first.reason.includes('past the 2.0 GB mark') && first.reason.includes('acstack_restart_session'));
+  check('memory nudge does not repeat its rung', ext.memoryNudge(3000, {}, 2048, true, 's') === undefined);
+  check('memory nudge fires again every 1 GB', ext.memoryNudge(3500, {}, 2048, true, 's')?.rung === 3072);
+  check('memory_mb below 1 disables the memory nudge', ext.memoryNudge(9000, { memory_mb: 0 }, undefined, true, 's') === undefined);
+  check('outside herdr the memory nudge gives the manual restart command',
+    ext.memoryNudge(2100, {}, undefined, false, 'abc')?.reason.includes('pi --session abc'));
+
+  const dir = newProject('memory');
+  fs.writeFileSync(path.join(projectFolder(dir), 'project.yaml'), 'workflow:\n  handoff:\n    memory_mb: 1\n');
+  const sessionFile = path.join(work, 'memory-session.jsonl');
+  fs.writeFileSync(sessionFile, '');
+  const events = new EventEmitter();
+  const reg = load({ events });
+  const settle = (sessionId) => fire(reg, 'agent_before_settle', { outcome: 'completed' }, makeCtx(dir, { sessionId }));
+  const nudged = await settle('mem-1');
+  check('the settle hook adds the memory nudge past memory_mb',
+    nudged?.continue === true && nudged.entries.some((e) => e.customType === 'acstack-memory-pressure'));
+  check('the memory nudge does not repeat on the next settle', (await settle('mem-1')) === undefined);
+
+  const herdrLog = path.join(work, 'herdr-calls');
+  const herdrStub = path.join(work, 'herdr-stub');
+  fs.writeFileSync(herdrStub, `#!/bin/sh\necho "$@" >> '${herdrLog}'\n[ "$1" = agent ] && [ "$2" = get ] && echo '{"result":{"agent":{"name":"worker-x"}}}'\nexit 0\n`, { mode: 0o755 });
+  const restart = (ctx) => reg.tools.acstack_restart_session.execute('t', {}, undefined, undefined, ctx);
+  const settled = (ctx) => fire(reg, 'agent_settled', { type: 'agent_settled', aborted: false }, ctx);
+
+  const outside = makeCtx(dir, { sessionId: 'mem-2', sessionFile });
+  check('outside herdr the restart tool refuses and gives the manual command',
+    (await restart(outside)).content[0].text.includes('pi --session mem-2'));
+  await settled(outside);
+  check('a refused restart does not shut Pi down', outside.shutdowns === 0);
+
+  Object.assign(process.env, { HERDR_ENV: '1', HERDR_PANE_ID: 'w:p1', HERDR_BIN_PATH: herdrStub });
+  const parent = fs.readFileSync(`/proc/${process.ppid}/comm`, 'utf-8').trim();
+  check('the harness runs under a shell, as Pi does in a herdr pane', ['bash', 'sh', 'zsh', 'dash'].includes(parent), parent);
+
+  const refused = makeCtx(dir, { sessionId: 'mem-3', sessionFile });
+  const refusal = (data) => { data.reply = Promise.reject(new Error('Team restart preparation was cancelled or failed')); };
+  events.on('ac-teams:prepare-restart', refusal);
+  check('the restart tool schedules a restart in herdr', (await restart(refused)).content[0].text.startsWith('Restart scheduled'));
+  check('a scheduled restart holds back nudges so the turn can end', (await settle('mem-3')) === undefined);
+  await settled(refused);
+  events.off('ac-teams:prepare-restart', refusal);
+  check('a failed team pause cancels the restart',
+    refused.shutdowns === 0 && refused.notes.some((n) => n.msg.includes('cancelled or failed')));
+
+  const oldTeams = load({ tools: ['team_agent'], events: new EventEmitter() });
+  const unpaused = makeCtx(dir, { sessionId: 'mem-4', sessionFile });
+  await oldTeams.tools.acstack_restart_session.execute('t', {}, undefined, undefined, unpaused);
+  await fire(oldTeams, 'agent_settled', { aborted: false }, unpaused);
+  check('an ac-teams that cannot pause its team blocks the restart',
+    unpaused.shutdowns === 0 && unpaused.notes.some((n) => n.msg.includes('update ac-teams')));
+
+  const busy = makeCtx(dir, { sessionId: 'mem-5', sessionFile });
+  busy.hasPendingMessages = () => true;
+  await restart(busy);
+  await settled(busy);
+  check('queued input cancels the restart', busy.shutdowns === 0);
+
+  const ok = makeCtx(dir, { sessionId: 'mem-1', sessionFile });
+  let paused = 0;
+  events.on('ac-teams:prepare-restart', (data) => { paused++; data.reply = Promise.resolve(); });
+  await restart(ok);
+  await settled(ok);
+  check('a restart pauses the team and shuts Pi down', paused === 1 && ok.shutdowns === 1);
+  check('a process that starts above the threshold after a restart is not told to restart again',
+    (await settle('mem-1')) === undefined);
+  fs.writeFileSync(path.join(projectFolder(dir), 'project.yaml'), 'workflow:\n  handoff:\n    memory_mb: 999999\n');
+  await settle('mem-1');
+  check('dropping below the threshold re-arms the memory nudge',
+    !fs.existsSync(path.join(process.env.TMPDIR, 'acstack-context-pressure', 'mem-1.mem')));
+  for (const name of ['HERDR_ENV', 'HERDR_PANE_ID']) delete process.env[name];
+
+  // The waiter starts Pi in the same pane once the old process is gone.
+  const gone = execFileSync('sh', ['-c', 'echo $$']).toString().trim();
+  fs.rmSync(herdrLog, { force: true });
+  execFileSync(process.execPath, [path.join(root, 'pi', 'restart-session.mjs'), gone, 'w:p1', 'worker-x', sessionFile]);
+  delete process.env.HERDR_BIN_PATH;
+  check('the waiter starts Pi on the same session in the same pane',
+    fs.readFileSync(herdrLog, 'utf-8').startsWith(`agent start worker-x --kind pi --pane w:p1 --timeout 60000 -- --session ${sessionFile} acstack restarted`));
+}
+
 // --- context pressure: parity with the Claude hook ------------------------------
 
 {
@@ -605,7 +708,7 @@ for (const [variable, value] of [['PI_SUBAGENT_CHILD', '1'], ['PI_SUBAGENTS_HERD
   check(`${variable}: a delegated session gets the delegated role, not the lead role`,
     orchestrator.includes('You are a delegated session') && !orchestrator.includes('/acstack:compact-and-continue') && !orchestrator.includes('<!-- acstack:'));
   check(`${variable}: a delegated session gets no context nudges or handoff reload`,
-    !reg.handlers.agent_before_settle && !reg.handlers.session_compact);
+    !reg.handlers.agent_before_settle && !reg.handlers.session_compact && !reg.tools.acstack_restart_session && !reg.handlers.agent_settled);
   check(`${variable}: a delegated session leaves CLI symlinks and launcher warnings to the lead`,
     !fs.existsSync(agentLink) && !ctx.notes.some((n) => n.msg.includes('no supported subagent tool')));
 }

@@ -2853,8 +2853,8 @@ describe('acstack config set, the range a numeric project key accepts', () => {
 
   describe('the handoff counts take a count', () => {
     /**
-     * The four `workflow.handoff` keys that hold a count: one of turns, three
-     * of tokens. All four are compared and counted rather than measured, so a
+     * The five `workflow.handoff` keys that hold a count: one of turns, three
+     * of tokens, one of megabytes. All five are compared and counted rather than measured, so a
      * fraction is meaningless and a negative is a threshold that can never be
      * crossed - or, for `ack_turns`, a wait that is over before it starts.
      */
@@ -2863,6 +2863,7 @@ describe('acstack config set, the range a numeric project key accepts', () => {
       'workflow.handoff.nudge_warn',
       'workflow.handoff.nudge_severe',
       'workflow.handoff.nudge_step',
+      'workflow.handoff.memory_mb',
     ] as const;
 
     const REFUSED = ['-1', '-200000', '2.5', '0.5'];
