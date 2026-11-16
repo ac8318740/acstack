@@ -39,7 +39,7 @@ for (const host of ['shell', 'pi']) {
   const handlers = {};
   extension.default({
     on: (name, fn) => { handlers[name] = fn; },
-    registerCommand() {}, sendMessage: (message) => notes.push(message.content), getAllTools: () => [{ name: 'subagent' }],
+    registerCommand() {}, registerTool() {}, sendMessage: (message) => notes.push(message.content), getAllTools: () => [{ name: 'subagent' }],
   });
   const ctx = { cwd: project, hasUI: true, ui: { notify: (msg) => notes.push(msg) } };
   let stderr = '';
