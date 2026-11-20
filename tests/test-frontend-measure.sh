@@ -13,7 +13,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 MEASURE="${ROOT}/skills/browser-verify/measure.js"
 FIXTURE="${ROOT}/tests/fixtures/frontend-measure.html"
-CHECKS=10
+CHECKS=14
 
 pass=0
 fail=0
@@ -53,6 +53,11 @@ expect '#lone' 'lone-word' 'lone last-line word'
 expect '#edges' 'edge' 'near-miss shared edge'
 expect '#contrast' 'contrast' 'low contrast'
 expect '#target' 'target-size' 'small target'
+expect '#gaps' 'uneven-gap' 'uneven sibling gaps'
+expect '#overlap' 'overlap' 'overlapping text'
+expect '#clipped' 'clipped' 'clipped text'
+got="$(ab --json eval "acstackMeasure.run({scope: '#clean'}).contentCoverage")"
+[[ "$got" =~ \"[0-9]+%\" ]] && ok "content coverage reported" || no "content coverage reported (got '$got')"
 
 # Jiggle: a 300ms transition must be awaited, not measured on the same tick.
 ab eval "acstackMeasure.snapshot({scope: '#moving'})" >/dev/null

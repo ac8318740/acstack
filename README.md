@@ -254,7 +254,7 @@ What an effort leaves behind is what matters: tests, decision notes, and glossar
 | `/acstack:explore` | Thinking partner mode, read-only |
 | `/acstack:fix` | Find the root cause of a bug, then route the fix |
 | `/acstack:pre-commit-review` | Clean-context review of uncommitted changes; `/acstack:commit` runs it for nontrivial changes |
-| `/acstack:browser-verify` | The frontend skill: UI rules before an edit, then measure, behavior checks in headless Chrome, and a judge when hierarchy changes |
+| `/acstack:browser-verify` | The frontend skill: UI rules before an edit, quick checks after it, then a hand-back to you with the local URL; full browser checks only when you are away |
 | `/acstack:bridge` | Set up and operate the Playwriter cross-device browser bridge |
 | `/acstack:visual-docs` | Write docs that lead with a diagram and derive structure from it (Minto pyramid) |
 | `/acstack:new-worktree` | Create a git worktree off the remote base branch and continue the task inside it |
@@ -270,7 +270,7 @@ What an effort leaves behind is what matters: tests, decision notes, and glossar
 | `investigator` | Read-only answer to one bounded question, keeping raw discovery out of the lead's context |
 | `reviewer` | Clean-context review of a change from the diff and the requirements |
 | `scope-worker` | Owns one independent scope in its own checkout, in Team mode |
-| `frontend-verifier` | Configured real-browser verification on final frontend code |
+| `frontend-verifier` | Configured browser verification on final frontend code, when you are away |
 
 `orchestrator/AGENTS.md` owns when to use each: Delegate investigation, Review before commit, and Solo and Team modes.
 

@@ -2,7 +2,7 @@
 # Do not edit. Change the markdown and re-run the generator.
 
 name = "frontend-verifier"
-description = "Frontend verification agent. Runs the browser-verify skill's measure, behavior, and judge steps on final frontend code in headless Chrome through agent-browser, and keeps the project's verification memory current. Runs after required static and design gates pass."
+description = "Frontend verification agent. Runs the browser-verify skill's measure, behavior, and judge steps on final frontend code in headless Chrome through agent-browser, and keeps the project's verification memory current. Runs only in the skill's full mode (the user is away or asked the agent to finish alone), after required static and design gates pass."
 
 developer_instructions = """
 # Frontend verifier
