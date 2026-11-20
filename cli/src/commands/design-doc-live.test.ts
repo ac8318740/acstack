@@ -97,7 +97,7 @@ it('reports element folder edits, such as fixtures, to change listeners before p
   expect(seen.flat().some(change => change.elementId === '003' && change.file.endsWith('records.json'))).toBe(true);
 });
 
-it('keeps comments from before a design change as obligations and names them in the handoff prompt', async () => {
+it('keeps comments from before a design change as obligations, listed by status rather than the handoff prompt', async () => {
   const { root, next, url, token, live } = await start();
   const first = live.lifecycle().review.reviewPath;
   const snapshot = await (await fetch(`${url}/api/annotations`, { headers: { 'x-review-token': token } })).json() as { packVersion: string; revision: number };
@@ -109,7 +109,8 @@ it('keeps comments from before a design change as obligations and names them in 
   if (event.type !== 'design') throw new Error('Expected a rebuilt design');
   expect(event.pack.packVersion).not.toBe(snapshot.packVersion);
   expect(live.lifecycle().review.reviewPath).not.toBe(first);
-  expect(event.handoffPrompt).toContain(JSON.stringify(first));
+  expect(event.handoffPrompt).toContain(JSON.stringify(live.lifecycle().review.reviewPath));
+  expect(event.handoffPrompt).not.toContain(JSON.stringify(first));
   const status = live.lifecycle().status();
   expect(status.feedbackPaths).toContain(first);
   expect(status.approval.reason).toBe('The agent must finish addressing your saved feedback before you can approve.');

@@ -207,7 +207,7 @@ highlights: ["Refreshes the preview after a conflict"]  # passages quoted from t
 - Choose Send to agent to finish pending saves and copy the feedback prompt
 - Read the prompt's `review.json` file, resolve each comment against the map, and revise element nodes
 - Comments do not approve a design or authorize implementation
-- A design change moves new comments to the new revision; comments on the earlier one stay listed in Comments, tagged with the change (for example, "On an earlier version, before App changed"), appear in the handoff prompt, and still need reconciling, even after a restart
+- A design change moves new comments to the new revision; comments on the earlier one stay listed in Comments, tagged with the change (for example, "On an earlier version, before App changed"), and still need reconciling, even after a restart. The handoff prompt names only the latest review; `design-review status` lists earlier ones under `pendingFeedback`
 - The page refuses writes made against a design it no longer shows
 
 ## Reconcile feedback and approve
