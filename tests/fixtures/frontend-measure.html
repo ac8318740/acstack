@@ -24,6 +24,7 @@
   #slide { display: inline-block; transition: transform 300ms linear; }
   .busy #slide { transform: translateX(16px); }
   #steady-save { min-width: 16ch; }
+  .col > * { margin: 0 0 var(--space-2); font-size: var(--font-size-md); }
 </style>
 </head>
 <body>
@@ -32,6 +33,12 @@
     <p style="font-size: var(--font-size-sm)">small print</p>
     <div class="bar"><button>One</button><button>Two</button><button>Six</button></div>
     <div class="bar" id="steady"><button id="steady-save">Save</button><span>status</span></div>
+    <!-- Not violations: hidden text, interleaved siblings, a y-scroll box, a card with a wide child, a faded slide. -->
+    <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap">screen reader text</span>
+    <div class="col"><h3>Head</h3><p>body one</p><p>body two words</p><h3>Next</h3><p>body three</p></div>
+    <div style="overflow-x: hidden; height: 24px">line one<br>line two<br>line three</div>
+    <div style="overflow: hidden; width: 20ch">card text<div style="width: 40ch; height: 4px; background: #ddd"></div></div>
+    <div style="position: relative"><p>shown slide</p><p style="position: absolute; top: 0; left: 0; opacity: 0">hidden slide</p></div>
   </section>
 
   <section id="off-font"><p style="font-size: 15px">fifteen pixels</p></section>
@@ -47,6 +54,14 @@
   <section id="contrast"><p style="color: #bbb">pale text</p></section>
 
   <section id="target"><button style="padding: 0; font-size: var(--font-size-sm); line-height: 1">x</button></section>
+
+  <section id="gaps">
+    <div class="bar"><button>One</button><button style="margin-left: var(--space-2)">Two</button><button>Six</button></div>
+  </section>
+
+  <section id="overlap" style="position: relative"><p>under text</p><span style="position: absolute; top: 0; left: 0">over</span></section>
+
+  <section id="clipped"><p style="width: 6ch; overflow: hidden; white-space: nowrap">clipped words here</p></section>
 
   <section id="moving" class="bar"><button id="save">Save</button><span id="slide">status</span></section>
 </body>

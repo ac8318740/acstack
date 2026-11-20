@@ -1,32 +1,59 @@
 ---
 name: browser-verify
-description: The frontend skill. Before a UI edit it loads design context and the generic UI rules; after the edit it measures the rendered page with the bundled measure.js, checks behavior in headless Chrome through agent-browser, and runs a judge only when hierarchy or the primary action changed. Use whenever frontend files change, before running agent-browser commands, when choosing between headless Chrome and the Playwriter bridge, and when reading or updating verification memory.
+description: The frontend skill. Before a UI edit it loads design context and the generic UI rules; after the edit it runs quick checks (static commands and the bundled measure.js) and, by default, hands the running page to the user with a short list of what to check. Full verification (behavior in headless Chrome through agent-browser, the frontend-verifier, and a judge when hierarchy changed) runs only when the user is away or asks the agent to finish alone. Use whenever frontend files change, before running agent-browser commands, when choosing between headless Chrome and the Playwriter bridge, and when reading or updating verification memory.
 ---
 
 # Frontend verification
 
-Frontend work follows one loop: load the rules before the edit, then measure, check behavior, and judge only when the change warrants it.
+Frontend work is quick by default: load the rules, edit, run the quick checks, then hand the page to the user to look at. The agent drives the browser itself only when the user is away.
 
 ```mermaid
 flowchart LR
     R["1. Before the edit<br/>design context and UI rules"] --> E["Edit"]
     E --> S["2. Static checks"]
     S --> M["3. Measure<br/>measure.js"]
-    M --> B["4. Check behavior<br/>agent-browser"]
+    M --> MO{"User away or<br/>asked for full?"}
+    MO -->|no, the default| H["Hand back<br/>URL and what to check"]
+    MO -->|yes| B["4. Check behavior<br/>agent-browser"]
     B --> J{"Hierarchy or primary<br/>action changed?"}
     J -->|yes| JU["5. Judge"]
     J -->|no| W["6. Update memory"]
     JU --> W
 ```
 
-The parent session runs steps 1 and 2. Steps 3 to 6 run in the parent, or in the `frontend-verifier` agent when the project enables configured browser verification.
+## Choose the mode
+
+The mode belongs to the session, or to the team when several agents work together. Set it at the first frontend change, say which in one line, and keep it for later tasks until the user signals otherwise. A team lead sets it and states it in each teammate's brief; teammates use the lead's mode and never ask.
+
+- **Hand back (default)**: steps 1 to 3, then hand back. No behavior driving, no screenshots, no judge, no `frontend-verifier`
+- **Full**: steps 1 to 6 with no hand-back. Use it only when the user signals they will be away
+    - They say so: "do everything", "only come back when it is done", "work through the whole map"
+    - The work is a long autonomous run, such as afk map nodes or an overnight batch
+- When the signal is unclear, ask one question before the first frontend change of the session (the host's question tool), with hand back as the recommended answer
+- Switch when the user's signal changes, such as "I'm heading out, finish it" or "I'm back"
+
+The parent session runs steps 1 to 3. In full mode, steps 4 to 6 run in the parent, or in the `frontend-verifier` agent when the project sets `workflow.frontend_verification: true`.
+
+## Hand back
+
+Leave the dev server running on `127.0.0.1` and end with a short message:
+
+```text
+Ready to check: http://127.0.0.1:<port>/<page>
+- <the one or two behaviors the change is for, e.g. "Save shows Saving, then Saved">
+- <anything measure.js flagged as intended or could not judge>
+- <a narrow-width or state to try, when the change affects one>
+Quick checks: build, lint, test, measure.js <pass, or what is open>
+```
+
+Keep it to what only a person looking at the page can confirm, three or four items at most. Fix any measure.js violation before handing back unless it is intended.
 
 ## Project configuration
 
 The project folder is the path `~/.claude/acstack/bin/acstack project-data path` prints. `<project folder>/project.yaml` may set:
 
 - `frontend.directory` (default `frontend/`), `frontend.dev_server_url`, `frontend.dev_server_check`, and `frontend.commands.dev|build|lint|test`
-- `workflow.frontend_verification: true`, which makes the `frontend-verifier` agent run on final frontend code
+- `workflow.frontend_verification: true`, which makes the `frontend-verifier` agent run on final frontend code in full mode
 - `workflow.design_review`, the design gate that adds impeccable's checks (see [`impeccable.md`](impeccable.md))
 - `frontend.browser.mode`, `frontend.browser.fallback`, and `frontend.browser.cdp_port`, used only for a real-Chrome connection (see Browser choice)
 
@@ -48,6 +75,8 @@ Load design context once per task, before your first edit under `frontend.direct
 - Make hierarchy and the primary action obvious without explanation
 - Render dropdown menus with the shared project component and tokens, never browser-native option menus or per-screen copies
     - Keep keyboard navigation (arrows, Home/End, Enter/Space, Escape, Tab), screen-reader semantics, visible focus, dismissal, and viewport fit
+- No text overlaps other text or is clipped by its box
+- Match whitespace to the screen's purpose: generous on a marketing or simple page, tight on a dense tool or data view
 - Meet WCAG AA contrast and a 24x24px minimum target size
 
 ## 2. Static checks
@@ -57,6 +86,8 @@ When configured frontend files changed (`git status --porcelain -- <frontend.dir
 ## 3. Measure
 
 `measure.js` (beside this file) reads computed styles and geometry in the page and reports violations. Run it first; it is cheaper and more exact than reading screenshots.
+
+Start the dev server bound to `127.0.0.1` when it is not running. In full mode, stop it at the end when you started it; in hand-back mode, leave it running for the user.
 
 ```bash
 MEASURE="<this skill's directory>/measure.js"
@@ -73,16 +104,21 @@ Loading the file defines `window.acstackMeasure` and returns a report for `<body
 | `spacing` | Padding, vertical margin, or gap off the spacing scale |
 | `sibling-padding`, `sibling-height` | Same-role siblings with unequal padding, or unequal height within one row |
 | `edge` | Sibling left or right edges within 4px of each other but not equal |
+| `uneven-gap` | Three or more same-role siblings in one row or column with unequal gaps |
+| `overlap`, `clipped` | Text drawn over other text, or cut off by its own box (ellipsis and line clamps are exempt) |
 | `lone-word` | A wrapped text block whose last line holds one word |
 | `contrast` | Text below WCAG AA (4.5:1, or 3:1 for large text) |
 | `target-size` | An interactive element smaller than 24x24px (inline links are exempt) |
 | `jiggle` | A box that moved or resized across a state change |
 
 - Each violation is `{rule, selector, actual, expected}`
+- `contentCoverage` is the share of the region covered by text, media, and controls. Judge it against the screen's purpose and against a similar screen in the project: a low share suits a marketing page, and a dense tool should run higher
 - The scale comes from the custom properties on `:root`. Token names choose the category (`font-size`, `space`, `font-family`, `weight`); without tokens, values used by two or more elements on the page form the scale, so outliers stand out
 - Fix each violation or state why it is intended. A heuristic can be wrong; an unexplained violation is not done
 
 ### Jiggle across states
+
+Jiggle needs clicks, so it runs in full mode. In hand-back mode, list the state changes for the user to try instead.
 
 Record boxes, change the state, then compare. `jiggle` waits for every finite animation and transition to finish plus two animation frames before measuring, so a same-tick reading cannot pass by accident. Never replace this with a fixed sleep.
 
@@ -96,7 +132,7 @@ agent-browser eval "acstackMeasure.jiggle({allow: ['.spinner']})"
 
 ## 4. Check behavior
 
-Start the dev server bound to `127.0.0.1` when it is not running, and stop it when you started it. Then drive the change with agent-browser. Page output is the main cost, so act and assert on known targets first and read the page only when you need to find something:
+Drive the change with agent-browser. Page output is the main cost, so act and assert on known targets first and read the page only when you need to find something:
 
 | Command | Purpose |
 |---|---|

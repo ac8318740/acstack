@@ -46,6 +46,12 @@
   }
 
   const ownText = (el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+  // Line boxes of el's own text, so a wide block's empty area never counts as text.
+  const textRects = (el) => [...el.childNodes].filter((n) => n.nodeType === 3 && n.textContent.trim()).flatMap((n) => {
+    const range = document.createRange();
+    range.selectNodeContents(n);
+    return [...range.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+  });
 
   // Tokens: custom properties declared on :root or html, resolved to px through a probe.
   function tokens() {
@@ -213,6 +219,22 @@
         const pads = group.map(pad);
         const common = mode(pads);
         group.forEach((k, i) => { if (pads[i] !== common) add('sibling-padding', k, pads[i], common); });
+        // Even spacing: gaps between adjacent same-role siblings, all in one row or one column.
+        const rs = group.map((k) => k.getBoundingClientRect());
+        const oneRow = rs.every((r) => near(r.top, rs[0].top));
+        const oneCol = !oneRow && rs.every((r) => near(r.left, rs[0].left));
+        if (oneRow || oneCol) {
+          const pairs = [];
+          for (let i = 1; i < group.length; i++) {
+            if (kids.indexOf(group[i]) !== kids.indexOf(group[i - 1]) + 1) continue; // something else sits between
+            const [a, b] = [rs[i - 1], rs[i]];
+            pairs.push([group[i - 1], group[i], px(oneRow ? Math.max(a.left, b.left) - Math.min(a.right, b.right) : Math.max(a.top, b.top) - Math.min(a.bottom, b.bottom))]);
+          }
+          if (pairs.length >= 2) {
+            const g = mode(pairs.map((p) => p[2]));
+            for (const [a, b, d] of pairs) if (!near(d, g)) add('uneven-gap', b, `${d}px after ${cssPath(a)}`, `${g}px`);
+          }
+        }
         // Height only for siblings sharing a row: stacked rows may hold different content.
         const rows = new Map();
         for (const k of group) { const t = Math.round(k.getBoundingClientRect().top); rows.set(t, [...(rows.get(t) || []), k]); }
@@ -259,8 +281,66 @@
       if (r.width < 24 || r.height < 24) add('target-size', el, `${px(r.width)}x${px(r.height)}px`, 'at least 24x24px');
     }
 
+    // 7. Overlapping and clipped text, skipping text no one sees (sr-only, clipped away, opacity 0).
+    const seen = (el) => {
+      const r = el.getBoundingClientRect();
+      if (r.width <= 1 || r.height <= 1) return false;
+      for (let n = el; n; n = n.parentElement) {
+        const s = getComputedStyle(n);
+        if (+s.opacity === 0 || s.clipPath !== 'none' || (s.clip && s.clip !== 'auto')) return false;
+      }
+      return true;
+    };
+    const lines = textEls.filter(seen).map((el) => [el, textRects(el)]);
+    // What remains visible of each line once scroll and overflow boxes clip it.
+    const clipTo = (el, r) => {
+      let { left, top, right, bottom } = r;
+      for (let n = el; n && n !== document.documentElement; n = n.parentElement) {
+        const s = getComputedStyle(n);
+        if (s.overflowX === 'visible' && s.overflowY === 'visible') continue;
+        const c = n.getBoundingClientRect();
+        if (s.overflowX !== 'visible') { left = Math.max(left, c.left); right = Math.min(right, c.right); }
+        if (s.overflowY !== 'visible') { top = Math.max(top, c.top); bottom = Math.min(bottom, c.bottom); }
+      }
+      return { left, top, right, bottom };
+    };
+    const shown = lines.map(([el, rects]) => [el, rects.map((r) => clipTo(el, r))]);
+    for (let i = 0; i < shown.length; i++) for (let j = i + 1; j < shown.length; j++) {
+      const [a, ra] = shown[i]; const [b, rb] = shown[j];
+      if (a.contains(b) || b.contains(a)) continue;
+      const hit = ra.some((p) => rb.some((q) =>
+        Math.min(p.right, q.right) - Math.max(p.left, q.left) > 1 && Math.min(p.bottom, q.bottom) - Math.max(p.top, q.top) > 1));
+      if (hit) add('overlap', b, `text overlaps ${cssPath(a)}`, 'no overlapping text');
+    }
+    for (const [el, rects] of lines) {
+      const s = style.get(el);
+      if (s.textOverflow === 'ellipsis' || (s.webkitLineClamp && s.webkitLineClamp !== 'none')) continue; // intended truncation
+      // Only an axis that hides overflow clips; overflow-x: hidden alone leaves y scrollable.
+      const cutX = /hidden|clip/.test(s.overflowX); const cutY = /hidden|clip/.test(s.overflowY);
+      if (!cutX && !cutY) continue;
+      const b = el.getBoundingClientRect();
+      const box = { left: b.left + el.clientLeft, top: b.top + el.clientTop };
+      box.right = box.left + el.clientWidth; box.bottom = box.top + el.clientHeight;
+      const out = rects.some((r) => (cutX && (r.left < box.left - 1 || r.right > box.right + 1)) || (cutY && (r.top < box.top - 1 || r.bottom > box.bottom + 1)));
+      if (out) add('clipped', el, `text runs past its ${el.clientWidth}x${el.clientHeight}px box`, 'text fits its box');
+    }
+
+    // 8. Whitespace: share of the region covered by text, media, and controls, on an 8px grid.
+    const area = els[0].getBoundingClientRect();
+    const C = 8;
+    const cols = Math.ceil(area.width / C); const rowsN = Math.ceil(area.height / C);
+    const covered = new Set();
+    const content = [...textEls.flatMap(textRects),
+      ...els.filter((e) => e.matches('img,svg,video,canvas,input,select,textarea,button,[role=img]')).map((e) => e.getBoundingClientRect())];
+    for (const r of content) {
+      for (let y = Math.max(0, Math.floor((r.top - area.top) / C)); y < Math.min(rowsN, Math.ceil((r.bottom - area.top) / C)); y++) {
+        for (let x = Math.max(0, Math.floor((r.left - area.left) / C)); x < Math.min(cols, Math.ceil((r.right - area.left) / C)); x++) covered.add(y * cols + x);
+      }
+    }
+
     return {
       tokens: toks.length,
+      contentCoverage: cols && rowsN ? `${Math.round((covered.size / (cols * rowsN)) * 100)}%` : null,
       scale: { fontSize: sizeScale, spacing: spaceScale, family: famScale, weight: weightScale, fromTokens: !!(sc.fontSize || sc.spacing) },
       distinctFontSizes: [...new Set(sizes)].sort((a, b) => a - b),
       violations: v,

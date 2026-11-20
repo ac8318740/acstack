@@ -347,7 +347,7 @@ Three refusals protect a file neither command can handle.
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
-| `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, and the change touched frontend files |
+| `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, the change touched frontend files, and the agent is in full mode (the user is away or asked it to finish alone); by default the agent hands the page back to the user |
 | `workflow.design_review` | `true`, `false` | `false` | a design review runs on a UI change only when this is `true`; it needs the impeccable plugin installed and switched on, which `acstack config check` reports on |
 | `workflow.read_guard` | `true`, `false` | `true` | `false` turns off the large-read guard; section 3.2 describes it |
 | `workflow.read_guard_bytes` | a whole number, 1 or more | `32768` | the smallest file, in bytes, the large-read guard stops |
@@ -361,7 +361,7 @@ How a boolean reads:
     - That is what the file holds after `acstack config set` writes one
 - `workflow.frontend_verification` reads as off unless the file states one of the three true spellings outright
     - The frontend-verifier is the only reader
-    - `orchestrator/AGENTS.md` and the `browser-verify` skill both run it on an explicit `true` alone
+    - `orchestrator/AGENTS.md` and the `browser-verify` skill both run it only on an explicit `true`, and only in full mode
     - The defaults block in section 11 shows `true` for this key
     - That is what `/acstack:setup` writes for a project with a frontend
     - That is what setup writes, and not what an absent key means

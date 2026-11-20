@@ -119,7 +119,7 @@ Apply the shared Implementation discipline to the claimed node or bare request.
 - Test, implement, format, and verify against requirements
 - Get independent review when the shared policy requires it
 - Follow the `browser-verify` skill when configured frontend files changed
-- Delegate configured real-browser verification after the required gates pass
+- Hand frontend changes back to the user to check; delegate configured browser verification only in the skill's full mode, after the required gates pass
 - Fix failures and repeat the affected checks
 - Release a stalled claim (`--status open`) when the session must stop
 

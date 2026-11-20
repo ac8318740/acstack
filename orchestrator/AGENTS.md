@@ -26,7 +26,7 @@ ACStack keeps meaningful tests and chooses verification effort to fit the change
 
 - Preserve security, validation, accessibility, and data-loss checks
 - Never declare consequential behavior safe without evidence; report evidence and blocked checks instead of phase narration
-- Run project-required completion and release checks, including configured browser verification
+- Run project-required completion and release checks, including configured browser verification in full mode (see Frontend verification)
 - When structure changes, keep the repository's own structure doc current, in whatever convention it uses; ACStack mandates no particular file
 - Commits, pushes, branch deletion, opening pull requests, and history rewrites need user authorization; read-only git needs none
 - Commit through `/acstack:commit`
@@ -169,5 +169,7 @@ Use focused checks per change or map node, and do not rerun every completion com
 
 ## Frontend verification
 
-When `<project folder>/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`, a change to frontend files needs real-browser evidence.
-The `browser-verify` skill owns the procedure, run by the `frontend-verifier` agent on the final code.
+A frontend change gets quick checks (static commands and `measure.js`), then goes back to the user with the local URL and what to check.
+The agent verifies in the browser itself only when the user is away or asks it to finish alone; when unsure, it asks once per session. A team lead sets the mode for the team.
+In that full mode, when `<project folder>/project.yaml` sets `frontend` and `workflow.frontend_verification` is `true`, the `frontend-verifier` agent runs on the final code.
+The `browser-verify` skill owns the procedure.
