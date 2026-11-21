@@ -31,9 +31,8 @@ export function liveDesignDoc(root: string, map: string, orientation: DiagramOri
   const build = () => designDocToPack(lifecycle.doc, orientation);
   let html = renderAlignmentPackHtml(build());
   const events = createEventHub();
-  // A corrupt review file names no carried reviews; the page reports the file itself.
-  const carried = () => { try { return lifecycle.carried(); } catch (error) { if (error instanceof ReviewHttpError) return []; throw error; } };
-  const prompt = () => `Read the review JSON at ${[lifecycle.review.reviewPath, ...carried().map(entry => entry.path)].map(path => JSON.stringify(path)).join(', ')}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status, explicitly reconcile every comment with design-review reconcile (using --review-file for an earlier review), then reopen the review with design-doc for approval of the resulting revision.`;
+  // Only the latest review: design-review status lists earlier reviews that still need reconciling.
+  const prompt = () => `Read the review JSON at ${JSON.stringify(lifecycle.review.reviewPath)}. Resolve each comment against the design doc on map ${JSON.stringify(map)} and update the map's element nodes to address the saved feedback. Answers the reviewer gave are already on the map as resolved question nodes; pick up their follow-ups at your next frontier recompute. Never lock an element yourself. Run design-review status; its pendingFeedback lists every review still to reconcile, including earlier versions. Reconcile every comment in each missing or stale entry with design-review reconcile (using --review-file for an earlier review), and ask the reviewer about any needs-human entry, then reopen the review with design-doc for approval of the resulting revision.`;
   const reload = () => {
     try {
       const previous = lifecycle;
