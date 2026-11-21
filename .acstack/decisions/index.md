@@ -21,4 +21,6 @@
 - [0021](0021-retire-legacy-review-through-explicit-migration.md) – Retire legacy review through explicit migration
 - [0022](0022-design-elements-are-a-sixth-node-kind.md) – Design elements are a sixth node kind, and the frontier skips them
 - [0023](0023-the-map-is-the-only-design-doc-source.md) – The map is the only design-doc source
+- [0024](0024-name-agents-by-delegation-purpose.md) – Name agents by why you delegate, not by persona
+- [0025](0025-retire-living-specs.md) – Retire living specs and spec sync
 - [0026](0026-durable-records-in-the-repo-live-state-global.md) – Durable records live in the repository; live state lives globally

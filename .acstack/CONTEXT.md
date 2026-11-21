@@ -40,12 +40,18 @@ A host declares its dev setup, and a project does not.
 
 **orchestrator** – A tool that hosts agent terminal panes and git worktrees. Herdr and Orca are the two, and one host can run both at once.
 
+**progressive understanding** – The code-design goal ACStack pushes agents toward. A reviewer can understand an entry point and its collaborators from their contracts (outputs, failure behavior, side effects, and rules that always hold) without reading their implementations.
+
 **relay** – The process on the laptop that the Playwriter extension connects to, and that a development virtual machine reaches through the **reverse tunnel**. It is the laptop-side half of the **bridge**.
 
 **reverse tunnel** – An SSH forward that lets a development virtual machine reach a port on the user's laptop. The laptop opens it, not the machine. `tunnel.ps1` holds one per machine for the **bridge**, and a second per machine for the **opener**.
 
 **route** – The single named answer to "how does this machine reach a browser", decided in one place and printed by `acstack-open --why`. Every script asks for the route instead of working it out again.
 
+**shipped path** – A file that an installed copy of the plugin loads or runs, so a change to it must roll out to every machine. The inert list in CONTRIBUTING.md names every path that does not ship. Every other path ships.
+
+**Solo mode** – One agent writes all the code. It may launch read-only investigators and a clean-context reviewer, but no other writer.
+
 **stale acknowledgement** – A `<handoff-file>.ack` sidecar written before the round the watcher is watching, reported as `staleAck`. A handoff file outlives the round that produced it, so the previous target's answer is still lying beside it. The watcher never counts one, and always reports it, so nobody calls a handoff unacknowledged while an answer sits on disk.
 
-**shipped path** – A file that an installed copy of the plugin loads or runs, so a change to it must roll out to every machine. The inert list in CONTRIBUTING.md names every path that does not ship. Every other path ships.
+**Team mode** – Several agents each own an independent scope in separate files or worktrees, and a lead integrates their work. ACStack favors neither this nor **Solo mode**.
