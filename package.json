@@ -1,6 +1,6 @@
 {
   "name": "acstack",
-  "version": "0.62.1",
+  "version": "0.62.2",
   "private": false,
   "description": "Agentic coding stack for Claude Code, Codex, and pi: skills, orchestrator instructions, CLI, and verification agents.",
   "scripts": {
