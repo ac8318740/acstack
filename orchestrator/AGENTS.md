@@ -67,6 +67,7 @@ This section owns when to interrupt the user. Other files point here.
 - Stop when the work changes a contract or a module boundary the user approved
 - Otherwise state the plan where the user can see it (the design doc, the map, or the reply) and proceed
 - Investigate technical facts directly or through delegation before asking
+- Write each question for a reader with no context: say in plain words what the user or the product sees under each option, before any code name, variable, or config key
 - Work nodes created after the user approved a design do not reopen that approval
 
 ## Implementation discipline
