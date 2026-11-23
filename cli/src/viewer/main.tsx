@@ -5,7 +5,7 @@ import { Check, CircleCheck, Copy } from 'lucide-react';
 import '@xyflow/react/dist/style.css';
 import './viewer.css';
 import { buildDiagram, type Diagram as DiagramModel, initialExpandedGroups, projectDiagram, reconcileSelection, revealElement, type MeasuredGeometry } from './alignment-graph.js';
-import { Diagram, MeasureDiagram, type MeasureDiagramHandle, type ViewportAnchor, type Zoom } from './diagram.js';
+import { Diagram, MeasureDiagram, type ViewportAnchor, type Zoom } from './diagram.js';
 import { CommentForm, Drawer, commentScopeForSelection, type CommentScope, type DrawerView } from './drawer.js';
 import { commentPosition } from './comment-position.js';
 import { bindTextSelection } from './text-selection.js';
@@ -72,9 +72,6 @@ function App() {
   const requestedKey = `${[...expanded].sort().join('|')}:${zoom}`;
   const previousLayout = useRef<{ key: string; diagram: DiagramModel } | null>(null);
   const acceptedLayout = useRef<DiagramModel | undefined>(undefined);
-  const acceptedExpanded = useRef<string[] | undefined>(undefined);
-  // Shown when an expansion cannot be drawn; the view returns to the last one that could.
-  const [layoutNotice, setLayoutNotice] = useState<string | null>(null);
   const viewportAnchor = useRef<ViewportAnchor | null>(null);
   const changeExpanded = (ids: string[], anchorId?: string) => {
     generation.current += 1;
@@ -82,7 +79,6 @@ function App() {
     const node = diagram.nodes.find(node => node.id === anchorId);
     previousLayout.current = { key, diagram };
     viewportAnchor.current = node ? { key, before: diagram, node: { id: node.id, x: node.x, y: node.y } } : null;
-    setLayoutNotice(null);
     setExpanded(ids);
   };
   const projection = useMemo(() => projectDiagram(pack.graph, expanded), [expanded, packRevision]);
@@ -92,7 +88,6 @@ function App() {
     setMeasurement(previous => previous?.key === requestedKey && previous.revision === packRevision && JSON.stringify(previous.geometry) === JSON.stringify(geometry) ? previous : { key: requestedKey, revision: packRevision, geometry });
   }, [requestedKey, packRevision]);
   const generation = useRef(0);
-  const measurementTree = useRef<MeasureDiagramHandle>(null);
   const popover = useRef<HTMLDivElement>(null);
   const dismissDraft = useTextSelection(popover, setDraft);
   const editComment = (id: string, comment: string) => {
@@ -150,32 +145,17 @@ function App() {
     // A swapped pack waits for its own measurement, so new cards never lay out with stale sizes.
     if (measurement?.key !== requestedKey || measurement.revision !== packRevision) return;
     const previous = previousLayout.current?.key === requestedKey ? previousLayout.current.diagram : acceptedLayout.current;
-    const measurer = measurementTree.current;
-    void buildDiagram(pack.graph, expanded, measurement.geometry, previous, orientation, nodes => {
-      if (request !== generation.current || measurementTree.current !== measurer) throw new Error('Layout request superseded');
-      return measurer?.measureHeaders(nodes) ?? {};
-    }).then(next => {
+    void buildDiagram(pack.graph, expanded, measurement.geometry, previous, orientation).then(next => {
       if (request !== generation.current) return;
-      if (measurementTree.current !== measurer) return;
       previousLayout.current = null;
       acceptedLayout.current = next;
-      acceptedExpanded.current = expanded;
       setDiagram(next);
       setLayoutKey(requestedKey);
       setLayoutZoom(zoom);
       setSelected(previous => reconcileSelection(previous, next, pack.graph));
       setLayoutError(null);
     }).catch((error: unknown) => {
-      if (measurementTree.current !== measurer) return;
-      if (request !== generation.current) return;
-      const message = error instanceof Error ? error.message : String(error);
-      const last = acceptedExpanded.current;
-      // An expansion the layout cannot draw falls back to the last drawn view, so the canvas never breaks.
-      if (last && [...last].sort().join('|') !== [...expanded].sort().join('|')) {
-        previousLayout.current = null;
-        setLayoutNotice(message);
-        setExpanded(last);
-      } else setLayoutError(message);
+      if (request === generation.current) setLayoutError(error instanceof Error ? error.message : String(error));
     });
     return () => { generation.current += 1; };
   }, [expanded, measurement, requestedKey, zoom, commentCounts, questionCounts, packRevision]);
@@ -300,12 +280,8 @@ function App() {
         </div>
       </header>
       <main className="canvas">
-        <MeasureDiagram ref={measurementTree} diagram={projection} zoom={zoom} commentCounts={commentCounts} onMeasured={onMeasured} />
-        {layoutError && <div className="layout-error" role="alert" data-tooltip={layoutError}>This version cannot be drawn without overlapping arrows, so the previous layout stays.</div>}
-        {layoutNotice && <div className="layout-notice" role="status" data-tooltip={layoutNotice}>
-          <span>Those groups cannot all be open at once without overlapping arrows, so the previous view stays. Open fewer groups together.</span>
-          <button type="button" className="btn" onClick={() => setLayoutNotice(null)}>Dismiss</button>
-        </div>}
+        <MeasureDiagram diagram={projection} zoom={zoom} commentCounts={commentCounts} onMeasured={onMeasured} />
+        {layoutError && <div className="layout-error" role="alert" data-tooltip={layoutError}>This view could not be drawn, so the previous layout stays.</div>}
         {liveComments && syncState?.error && <div className="layout-error" role="alert">{syncState.error}</div>}
         {liveError && <div className="layout-error" role="alert">The map has a problem, so this page stopped updating: {liveError}</div>}
         <ReactFlowProvider>

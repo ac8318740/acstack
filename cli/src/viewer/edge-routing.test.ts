@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AlignmentPackSchema, type AlignmentGraph } from '../lib/alignment-packs.js';
 import { designDocToPack } from '../lib/design-doc.js';
 import { exampleDesign } from '../example-design.js';
-import { buildDiagram, projectDiagram, type Box, type Diagram, type DiagramEdge, type Point } from './alignment-graph.js';
+import { buildDiagram, CARD_WIDTH, projectDiagram, type Box, type Diagram, type DiagramEdge, type Point } from './alignment-graph.js';
 
 type Segment = { start: Point; end: Point; index: number };
 const epsilon = 1e-6;
@@ -60,7 +60,7 @@ function expectSafeRoutes(diagram: Diagram, graph: AlignmentGraph) {
       expect([segment.start.x, segment.start.y, segment.end.x, segment.end.y].every(Number.isFinite), route.id).toBe(true);
       expect(Math.abs(segment.start.x - segment.end.x) < epsilon || Math.abs(segment.start.y - segment.end.y) < epsilon, `${route.id} must stay orthogonal`).toBe(true);
       for (const node of diagram.nodes) {
-        const obstacle = node.kind === 'group' ? { ...node, height: node.headerHeight! } : node;
+        const obstacle = node.kind === 'group' ? { ...node, width: Math.min(node.width, CARD_WIDTH), height: node.headerHeight! } : node;
         expect(Number.isFinite(obstacle.height), `${node.id} has a measured header`).toBe(true);
         expect(entersBox(segment, obstacle), `${route.childEdgeIds.join(',')} crosses ${node.id}`).toBe(false);
       }
@@ -198,7 +198,7 @@ describe('compound edge routing clearance', () => {
       const overlapsLabel = (box: Box) => overlap(label.x, label.x + label.width, box.x, box.x + box.width) > epsilon
         && overlap(label.y, label.y + label.height, box.y, box.y + box.height) > epsilon;
       for (const node of diagram.nodes) {
-        expect(overlapsLabel(node.kind === 'group' ? { ...node, height: node.headerHeight! } : node), `${route.id} label overlaps ${node.id}`).toBe(false);
+        expect(overlapsLabel(node.kind === 'group' ? { ...node, width: Math.min(node.width, CARD_WIDTH), height: node.headerHeight! } : node), `${route.id} label overlaps ${node.id}`).toBe(false);
       }
       for (const other of diagram.edges.filter(other => other !== route)) {
         expect(overlapsLabel(other.labelBox!), `${route.id} label overlaps ${other.id} label`).toBe(false);

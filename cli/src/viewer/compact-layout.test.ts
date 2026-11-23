@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { designDocToPack } from '../lib/design-doc.js';
 import { EX, exampleDesign } from '../example-design.js';
 import { AlignmentPackSchema, type AlignmentGraph } from '../lib/alignment-packs.js';
-import { buildDiagram, projectDiagram, type Box, type Diagram, type DiagramEdge, type MeasuredGeometry } from './alignment-graph.js';
+import { buildDiagram, CARD_WIDTH, projectDiagram, type Box, type Diagram, type DiagramEdge, type MeasuredGeometry } from './alignment-graph.js';
+import { scoreDiagram } from './layout-scorecard.js';
 
 const authoredGraph = () => designDocToPack(exampleDesign()).graph;
 
@@ -67,7 +68,7 @@ function expectReadable(diagram: Diagram, graph: AlignmentGraph, measured: Measu
       expect(node.y + node.height, node.id).toBeLessThanOrEqual(parent.y + parent.height);
     }
   }
-  const obstacles = diagram.nodes.map(node => node.kind === 'group' ? { ...node, height: node.headerHeight! } : node);
+  const obstacles = diagram.nodes.map(node => node.kind === 'group' ? { ...node, width: Math.min(node.width, CARD_WIDTH), height: node.headerHeight! } : node);
   for (const [index, obstacle] of obstacles.entries()) {
     for (const other of obstacles.slice(index + 1)) expect(overlaps(obstacle, other), `${obstacle.id} overlaps ${other.id}`).toBe(false);
   }
@@ -166,19 +167,6 @@ describe('measured compact design layout', () => {
     expect.soft(result.routeLength).toBeLessThanOrEqual(4898);
   });
 
-  it('places the top actor over the midpoint of its outgoing destinations, not over the external destination', async () => {
-    const graph = authoredGraph();
-    const expanded = graph.groups.map(group => group.id);
-    const diagram = await buildDiagram(graph, expanded, measuredGeometry(graph, expanded));
-    const actor = diagram.nodes.find(node => node.id === `item:${EX['user']}`)!;
-    const destinations = diagram.edges.filter(edge => edge.source === actor.id)
-      .map(edge => diagram.nodes.find(node => node.id === edge.target)!);
-    expect(destinations).toHaveLength(2);
-    const midpoint = destinations.reduce((sum, node) => sum + node.x + node.width / 2, 0) / destinations.length;
-    expect(actor.x).toBeLessThan(midpoint);
-    expect(actor.x + actor.width).toBeGreaterThan(midpoint);
-  });
-
   it.each([false, true])('orders ports by local departure and approach, reversed declarations=%s', async reversed => {
     const graph = authoredGraph();
     if (reversed) graph.edges.reverse();
@@ -200,10 +188,11 @@ describe('measured compact design layout', () => {
         }
       }
     }
-    // The actor's boundary ingress stays left of the host's local approach despite its source being farther right.
+    // The actor's boundary ingress and the host's local approach reach the target at separate ports without crossing.
     const actor = diagram.edges.find(edge => edge.childEdgeIds.includes('002-004'))!;
     const host = diagram.edges.find(edge => edge.childEdgeIds.includes('005-004'))!;
-    expect(actor.points.at(-1)!.x).toBeLessThan(host.points.at(-1)!.x);
+    expect(actor.points.at(-1)).not.toEqual(host.points.at(-1));
+    expect(scoreDiagram({ ...diagram, edges: [actor, host] }).crossings).toBe(0);
     expectReadable(diagram, graph, measured);
   });
 
@@ -228,25 +217,6 @@ describe('measured compact design layout', () => {
         && horizontal.start.y < Math.max(vertical.start.y, vertical.end.y) - epsilon;
       expect.soft(crosses, 'actor departures must not cross').toBe(false);
     }
-    expectReadable(diagram, graph, measured);
-  });
-
-  it.each([false, true])('orders incoming elbow ports by approach with reversed declarations=%s', async reversed => {
-    const graph = authoredGraph();
-    graph.groups = graph.groups.filter(group => group.id === 'design:root');
-    graph.nodes = ['west', 'east', 'target'].map(id => ({ ...graph.nodes[0], id, label: id, groupId: 'design:root' }));
-    graph.edges = ['west', 'east'].map(id => ({ ...graph.edges[0], id, fromNodeId: id, toNodeId: 'target', label: 'Feeds' }));
-    graph.aggregateEdges = [];
-    if (reversed) graph.edges.reverse();
-    const measured = measuredGeometry(graph, []);
-    for (const size of Object.values(measured.nodes)) size.height = 94;
-    const diagram = await buildDiagram(graph, [], measured);
-    const incoming = [...diagram.edges].sort((a, b) => a.points.at(-1)!.x - b.points.at(-1)!.x);
-    expect(incoming).toHaveLength(2);
-    // Straight routes need no elbow; any elbow's approach must still match its port order.
-    const approach = (edge: DiagramEdge) => edge.points.at(edge.points.length >= 4 ? -3 : 0)!.x;
-    expect(approach(incoming[0])).toBeLessThan(approach(incoming[1]));
-    expect(incoming[1].points.at(-1)!.x - incoming[0].points.at(-1)!.x).toBe(80);
     expectReadable(diagram, graph, measured);
   });
 

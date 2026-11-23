@@ -2,17 +2,16 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { designDocToPack } from '../lib/design-doc.js';
 import { EX, exampleDesign } from '../example-design.js';
-import { buildDiagram, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
+import { buildDiagram, type MeasuredGeometry } from './alignment-graph.js';
 
-// Real Chrome measurements of the worked example at 1920x1080, with headers in the order the layout asked for them.
-const measured = JSON.parse(readFileSync(new URL('./__tests__/fixtures/expand-all-measured.json', import.meta.url), 'utf8')) as { geometry: MeasuredGeometry; headers: ReturnType<HeaderMeasurer>[] };
-const replay = (): HeaderMeasurer => { let call = 0; return () => measured.headers[Math.min(call++, measured.headers.length - 1)]; };
+// Real Chrome measurements of the worked example at 1920x1080.
+const measured = JSON.parse(readFileSync(new URL('./__tests__/fixtures/expand-all-measured.json', import.meta.url), 'utf8')) as { geometry: MeasuredGeometry };
 const overlaps = (a: { x: number; y: number; width: number; height: number }, b: typeof a) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
 describe('expanding every group of the worked example with measured sizes', () => {
   it('lays out, and slides the review-session label off-centre to clear the neighbouring route', async () => {
     const graph = designDocToPack(exampleDesign()).graph;
-    const diagram = await buildDiagram(graph, graph.groups.map(group => group.id), measured.geometry, undefined, 'top-to-bottom', replay());
+    const diagram = await buildDiagram(graph, graph.groups.map(group => group.id), measured.geometry, undefined, 'top-to-bottom');
     expect(diagram.edges).toHaveLength(6);
     const session = diagram.edges.find(edge => edge.childEdgeIds.includes(`${EX['review-runtime']}-${EX.viewer}`))!;
     const box = session.labelBox!;
@@ -33,7 +32,7 @@ describe('expanding every group of the worked example with measured sizes', () =
     const graph = designDocToPack(exampleDesign()).graph;
     const states = [['design:root'], ['design:root', `design:container:${EX.acstack}`], graph.groups.map(group => group.id)];
     for (const expanded of states) {
-      const diagram = await buildDiagram(graph, expanded, measured.geometry, undefined, 'top-to-bottom', replay());
+      const diagram = await buildDiagram(graph, expanded, measured.geometry, undefined, 'top-to-bottom');
       expect(diagram.edges.length, expanded.join(', ')).toBeGreaterThan(0);
     }
   });
@@ -55,7 +54,7 @@ describe('comment counts on a collapsed container', () => {
   it('totals the comments on everything the container hides', async () => {
     const { commentsOn } = await import('./alignment-graph.js');
     const graph = designDocToPack(exampleDesign()).graph;
-    const diagram = await buildDiagram(graph, [], measured.geometry, undefined, 'top-to-bottom', replay());
+    const diagram = await buildDiagram(graph, [], measured.geometry, undefined, 'top-to-bottom');
     const plugin = diagram.nodes.find(node => node.id === `group:design:container:${EX.acstack}`)!;
     const github = diagram.nodes.find(node => node.id === `item:${EX.github}`)!;
     const counts = new Map([[`item:${EX.viewer}`, 2], [`item:${EX.skills}`, 1], [`item:${EX.github}`, 4]]);
