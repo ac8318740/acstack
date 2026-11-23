@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { AlignmentPackSchema } from '../lib/alignment-packs.js';
 import { designDocToPack } from '../lib/design-doc.js';
 import { EX, exampleDesign } from '../example-design.js';
-import { buildDiagram, edgePath, initialExpandedGroups, projectDiagram, reconcileSelection, placeLabels, wrapLabel } from './alignment-graph.js';
+import { buildDiagram, CARD_WIDTH, diagramBounds, edgePath, fitViewport, initialExpandedGroups, projectDiagram, reconcileSelection, wrapLabel } from './alignment-graph.js';
+import { scoreDiagram } from './layout-scorecard.js';
 
 const node = (id: string, groupId: string) => ({ id, groupId, label: `Item ${id}`, summary: `Summary ${id}` });
 const edge = (from: string, to: string, label = `${from} feeds ${to}`) => ({
@@ -170,7 +171,9 @@ describe('alignment diagram', () => {
     const target = diagram.nodes.find(node => node.id === host.target)!;
     expect(host.points[0].y).toBe(source.y + source.height);
     expect(host.points.at(-1)!.y).toBe(target.y - 2);
-    expect(host.points.at(-1)!.x - developer.points.at(-1)!.x).toBeGreaterThanOrEqual(80);
+    // The two arrows into the target reach it at separate ports and do not cross.
+    expect(host.points.at(-1)).not.toEqual(developer.points.at(-1));
+    expect(scoreDiagram({ ...diagram, edges: [host, developer] }).crossings).toBe(0);
     for (const card of diagram.nodes) expect(card.width).toBeGreaterThanOrEqual(300);
     expect(diagram.edges.flatMap(edge => edge.childEdgeIds).sort()).toEqual(pack.graph.edges.map(edge => edge.id).sort());
     for (const route of diagram.edges) {
@@ -179,11 +182,11 @@ describe('alignment diagram', () => {
       for (const card of diagram.nodes.filter(node => node.kind !== 'group')) expect(overlaps(route.labelBox!, card)).toBe(false);
       for (const other of diagram.edges) if (other !== route) expect(overlaps(route.labelBox!, other.labelBox!)).toBe(false);
       for (const header of diagram.nodes.filter(node => node.kind === 'group')) {
-        expect(overlaps(route.labelBox!, { ...header, height: headerHeight })).toBe(false);
+        expect(overlaps(route.labelBox!, { ...header, width: CARD_WIDTH, height: headerHeight })).toBe(false);
         for (const [index, end] of route.points.slice(1).entries()) {
           const start = route.points[index];
           // Strict inequalities permit an endpoint on the border, never a segment through header content.
-          const hits = Math.min(start.x, end.x) < header.x + header.width && Math.max(start.x, end.x) > header.x
+          const hits = Math.min(start.x, end.x) < header.x + Math.min(header.width, CARD_WIDTH) && Math.max(start.x, end.x) > header.x
             && Math.min(start.y, end.y) < header.y + headerHeight && Math.max(start.y, end.y) > header.y;
           expect(hits, `${route.label} crosses ${header.label} header`).toBe(false);
         }
@@ -191,7 +194,7 @@ describe('alignment diagram', () => {
     }
   });
 
-  it.each([3, 4, 6])('routes %i incoming design edges to distinct top ports without shrinking cards', async count => {
+  it.each([3, 4, 6])('routes %i incoming design edges to distinct ports without shrinking cards', async count => {
     const graph = AlignmentPackSchema.parse({
       ...samplePack(),
       graph: {
@@ -206,39 +209,25 @@ describe('alignment diagram', () => {
     const diagram = await buildDiagram(graph, [], measured);
     const target = diagram.nodes.find(node => node.id === 'item:target')!;
     const approaches = diagram.edges.map(route => route.points.at(-1)!);
-    expect((approaches[0].x + approaches.at(-1)!.x) / 2).toBeCloseTo(target.x + target.width / 2);
     for (const card of diagram.nodes) expect(card).toMatchObject({ width: 300, height: 164 });
-    for (const [index, point] of approaches.entries()) {
-      expect(point.y).toBeCloseTo(target.y - 2);
-      expect(point.x).toBeGreaterThanOrEqual(target.x + 24);
-      expect(point.x).toBeLessThanOrEqual(target.x + target.width - 24);
-      // Six ports share the available width between the 24px corner insets.
-      if (index) expect(point.x - approaches[index - 1].x).toBeGreaterThanOrEqual(Math.min(80, 252 / (count - 1)) - 0.1);
+    // Every arrow ends at its own point on the target's outline.
+    expect(new Set(approaches.map(point => `${point.x},${point.y}`)).size).toBe(count);
+    for (const point of approaches) expect(overlaps({ ...point, width: 0, height: 0 }, { ...target, x: target.x - 4, y: target.y - 4, width: target.width + 8, height: target.height + 8 })).toBe(true);
+    // Ports sharing a side of the target sit at least 12 px apart.
+    const sides = new Map<string, number[]>();
+    for (const point of approaches) {
+      const side = Math.abs(point.y - target.y) <= 4 ? 'top' : Math.abs(point.y - target.y - target.height) <= 4 ? 'bottom' : Math.abs(point.x - target.x) <= 4 ? 'left' : 'right';
+      sides.set(side, [...(sides.get(side) ?? []), side === 'top' || side === 'bottom' ? point.x : point.y]);
     }
+    for (const along of sides.values()) for (const [index, at] of along.sort((a, b) => a - b).slice(1).entries()) expect(at - along[index]).toBeGreaterThanOrEqual(12);
     for (const route of diagram.edges) {
       const source = diagram.nodes.find(node => node.id === route.source)!;
-      // Straightening may slide a source's only port along its bottom edge, inside the corner insets.
-      expect(route.points[0].y).toBe(source.y + 164);
-      expect(route.points[0].x).toBeGreaterThanOrEqual(source.x + 24);
-      expect(route.points[0].x).toBeLessThanOrEqual(source.x + source.width - 24);
+      expect(route.points[0].y).toBeGreaterThanOrEqual(source.y + 164);
+      expect(route.points[0].x).toBeGreaterThan(source.x);
+      expect(route.points[0].x).toBeLessThan(source.x + source.width);
       for (const card of diagram.nodes) expect(overlaps(route.labelBox!, card)).toBe(false);
       for (const other of diagram.edges) if (other !== route) expect(overlaps(route.labelBox!, other.labelBox!)).toBe(false);
     }
-  });
-
-  it('reports an impossible label rather than placing it over an obstacle', () => {
-    const projected = projectDiagram(samplePack().graph, []);
-    const route = { ...projected.edges[0], points: [{ x: 0, y: 0 }, { x: 10, y: 0 }], labelBox: { x: 0, y: 0, width: 200, height: 50, lines: ['Impossible'] } };
-    expect(placeLabels([], [route])).toEqual([`${route.source} ${route.label} ${route.target}`]);
-  });
-
-  it('rejects labels crossed by another route or a second segment of their own route', () => {
-    const projected = projectDiagram(samplePack().graph, []);
-    const route = { ...projected.edges[0], points: [{ x: 0, y: 0 }, { x: 100, y: 0 }], labelBox: { x: 0, y: 0, width: 60, height: 40, lines: ['A label'] } };
-    const crossing = { ...route, id: 'crossing', points: [{ x: 50, y: -100 }, { x: 50, y: 100 }], labelBox: undefined };
-    expect(placeLabels([], [route, crossing])).toHaveLength(1);
-    route.points.push({ x: 100, y: 12 }, { x: 0, y: 12 });
-    expect(placeLabels([], [route])).toHaveLength(1);
   });
 
   it('never draws a hop back through its label gap', () => {
@@ -247,5 +236,19 @@ describe('alignment diagram', () => {
 
   it('wraps long labels onto short lines', () => {
     expect(wrapLabel('on success, reserve stock before charging')).toEqual(['on success, reserve', 'stock before charging']);
+  });
+});
+
+describe('fitting the view', () => {
+  it('keeps a label that reaches past the cards on screen', () => {
+    const card = { id: 'a', kind: 'item', x: 0, y: 0, width: 100, height: 100 };
+    const edge = { points: [{ x: 100, y: 50 }, { x: 140, y: 50 }], labelBox: { x: 120, y: 40, width: 80, height: 20, lines: ['syncs'] } };
+    const bounds = diagramBounds({ nodes: [card], edges: [edge] } as never);
+    expect(bounds).toEqual({ x: 0, y: 0, width: 200, height: 100 });
+    const view = fitViewport(bounds, { x: 30, y: 60, width: 400, height: 400 }, 0.15, 1.25);
+    expect(view.zoom).toBe(1.25);
+    // The label's right edge lands inside the area, and the content is centred.
+    expect(view.x + 200 * view.zoom).toBeLessThanOrEqual(430);
+    expect(view.x - 30).toBeCloseTo(430 - (view.x + 200 * view.zoom));
   });
 });

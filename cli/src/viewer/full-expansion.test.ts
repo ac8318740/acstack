@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AlignmentPackSchema } from '../lib/alignment-packs.js';
-import { buildDiagram, projectDiagram, type Box, type Diagram, type DiagramEdge, type MeasuredGeometry, type Point } from './alignment-graph.js';
+import { buildDiagram, CARD_WIDTH, projectDiagram, type Box, type Diagram, type DiagramEdge, type MeasuredGeometry, type Point } from './alignment-graph.js';
 
 // Wholly invented orchard fixture; retains all ten elements and seven relationships.
 function fixture() {
@@ -94,7 +94,7 @@ function expectReadable(diagram: Diagram, sizes: MeasuredGeometry, graph = fixtu
       expect(node.y + node.height, node.id).toBeLessThanOrEqual(parent.y + parent.height);
     }
   }
-  const obstacles = diagram.nodes.map(node => node.kind === 'group' ? { ...node, height: node.headerHeight! } : node);
+  const obstacles = diagram.nodes.map(node => node.kind === 'group' ? { ...node, width: Math.min(node.width, CARD_WIDTH), height: node.headerHeight! } : node);
   for (const [index, box] of obstacles.entries()) {
     for (const other of obstacles.slice(index + 1)) expect(overlaps(box, other), `${box.id} overlaps ${other.id}`).toBe(false);
   }

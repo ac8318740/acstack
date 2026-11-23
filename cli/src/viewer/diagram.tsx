@@ -1,4 +1,4 @@
-import { useEffect, useImperativeHandle, useLayoutEffect, useRef, useState, type Ref, type RefObject } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react';
 import {
   Background, BaseEdge, type Edge, EdgeLabelRenderer, type EdgeProps,
   Handle, MarkerType, type Node, type NodeProps, Panel, Position, ReactFlow, useInternalNode, useReactFlow,
@@ -6,7 +6,7 @@ import {
 import { ChevronDown, ListTodo, MessageSquarePlus, Minus, Plus } from 'lucide-react';
 import { useQuestionCounts } from './design-questions.js';
 import { ElementMetadata } from './element-metadata.js';
-import { CARD_WIDTH, commentsOn, LABEL_WIDTH, revealViewport, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type HeaderMeasurer, type MeasuredGeometry } from './alignment-graph.js';
+import { CARD_WIDTH, commentsOn, diagramBounds, fitViewport, LABEL_WIDTH, revealViewport, type Diagram as DiagramModel, type DiagramEdge, type DiagramNode, type MeasuredGeometry } from './alignment-graph.js';
 import type { DiagramOrientation } from '../lib/alignment-packs.js';
 import { pack } from './pack.js';
 
@@ -80,73 +80,9 @@ function LabelContent({ edge, actions = noActions, comments = 0, questions = 0 }
     {comments > 0 && <span className="count-pill">{comments}</span>}
   </div>;
 }
-export type MeasureDiagramHandle = { measureHeaders: HeaderMeasurer };
-
-export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts, ref }: { diagram: DiagramModel; zoom: Zoom; onMeasured: (geometry: MeasuredGeometry) => void; commentCounts?: Map<string, number>; ref?: Ref<MeasureDiagramHandle> }) {
+export function MeasureDiagram({ diagram, zoom, onMeasured, commentCounts }: { diagram: DiagramModel; zoom: Zoom; onMeasured: (geometry: MeasuredGeometry) => void; commentCounts?: Map<string, number> }) {
   const questionCounts = useQuestionCounts(diagram);
   const tree = useRef<HTMLDivElement>(null);
-  useImperativeHandle(ref, () => ({
-    measureHeaders: nodes => {
-      const headers: ReturnType<HeaderMeasurer> = {};
-      if (!tree.current) return headers;
-      const elements = new Map([...tree.current.querySelectorAll<HTMLElement>('[data-measure="node"]')].map(element => [element.dataset.key, element]));
-      const frames = nodes.flatMap(node => {
-        const element = elements.get(node.id);
-        return element ? [{ node, element, style: element.getAttribute('style'), className: element.className }] : [];
-      });
-      try {
-        // Batch writes before reading geometry; match the live border and floating control origin.
-        for (const { node, element } of frames) {
-          element.className = node.kind === 'group' ? 'frame' : 'box';
-          element.style.width = `${node.width}px`;
-          element.style.height = `${node.height}px`;
-        }
-        for (const { node, element } of frames) {
-          try {
-            const origin = element.getBoundingClientRect();
-            // Browser subpixel rounding must not turn the requested frame width into stale input.
-            if (origin.height <= 0 || Math.abs(origin.width - node.width) >= 0.5) continue;
-            const local = (rect: DOMRect) => ({ x: rect.x - origin.x, y: rect.y - origin.y, width: rect.width, height: rect.height });
-            if (node.kind !== 'group') {
-              const hardObstacles = [...element.querySelectorAll('.annotation-actions button, .question-badge')].map(control => local(control.getBoundingClientRect()));
-              if (hardObstacles.length && hardObstacles.every(box => Object.values(box).every(Number.isFinite) && box.width > 0 && box.height > 0)) headers[node.id] = { width: node.width, hardObstacles, subtitleLines: [] };
-              continue;
-            }
-            if (!element.querySelector('.group-content') || !element.querySelector('.box-sub')) continue;
-            const textRects = (selector: string) => [...element.querySelectorAll(selector)].flatMap(content => {
-              const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
-              const boxes = [];
-              for (let text = walker.nextNode(); text; text = walker.nextNode()) {
-                if (!text.textContent?.trim()) continue;
-                const range = document.createRange();
-                range.selectNodeContents(text);
-                boxes.push(...[...range.getClientRects()].map(local));
-              }
-              return boxes;
-            });
-            const titles = textRects('.header-select');
-            const hardObstacles = [
-              ...titles,
-              ...textRects('.box-meta, .box-kind'),
-              ...[...element.querySelectorAll('.type-pill, .channel-pill, .progress-pill, .change-pill, .card-controls button, .count-pill, .annotation-actions button, .question-badge')].map(control => local(control.getBoundingClientRect())),
-            ];
-            const subtitleLines = textRects('.box-sub');
-            if (!titles.length || [...hardObstacles, ...subtitleLines].some(box => !Object.values(box).every(Number.isFinite) || box.width <= 0 || box.height <= 0)) continue;
-            headers[node.id] = { width: node.width, hardObstacles, subtitleLines };
-          } catch {
-            // Missing DOM geometry keeps this header conservatively blocked.
-          }
-        }
-      } finally {
-        for (const { element, style, className } of frames) {
-          element.className = className;
-          if (style === null) element.removeAttribute('style');
-          else element.setAttribute('style', style);
-        }
-      }
-      return headers;
-    },
-  }), [diagram, zoom, commentCounts, questionCounts]);
   useLayoutEffect(() => {
     let current = true;
     void document.fonts.ready.then(() => {
@@ -169,7 +105,7 @@ function RoutedEdge({ id, data, markerEnd, markerStart }: EdgeProps<Edge<RouteDa
   if (!data) return null;
   const box = data.labelBox;
   return <>
-    <BaseEdge id={id} path={data.path} className={data.state} interactionWidth={16} />
+    <BaseEdge id={id} path={data.path} className={data.unrouted ? `${data.state} unrouted` : data.state} interactionWidth={16} />
     <path d={data.points.map((point, index) => `${index ? 'L' : 'M'} ${point.x} ${point.y}`).join(' ')} fill="none" stroke="none" strokeWidth={data.state === 'active' ? 2 : 1.5} opacity={data.state === 'dimmed' ? 0.2 : 1} markerStart={markerStart} markerEnd={markerEnd} pointerEvents="none" />
     {box && <EdgeLabelRenderer><div className={`edge-label ${data.state}`} data-selected={data.selected} data-tooltip={data.summary} style={{ transform: `translate(${box.x}px, ${box.y}px)`, width: box.width, height: box.height }}><LabelContent edge={data} actions={data} comments={data.comments} questions={data.questions} /></div></EdgeLabelRenderer>}
   </>;
@@ -228,6 +164,9 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
   // Fades what does not exist in the chosen state; the layout stays put so both states read in the same places.
   const [phase, setPhase] = useState<'changes' | 'before' | 'after'>('changes');
   const { fitView, zoomIn, zoomOut, getViewport, setViewport } = useReactFlow();
+  // fit() runs from long-lived callbacks, so it reads the latest diagram here.
+  const latest = useRef(diagram);
+  latest.current = diagram;
   const revealed = useRef<{ id: string } | undefined>(undefined);
   const revealedIn = useRef<DiagramModel | undefined>(undefined);
   const fitted = useRef(false);
@@ -242,7 +181,7 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     revealedIn.current = diagram;
     const { top, bottom, x } = fitPadding();
     const area = { x, y: top, width: (canvas.current?.clientWidth ?? 0) - 2 * x, height: (canvas.current?.clientHeight ?? 0) - top - bottom };
-    const view = revealViewport(node, diagram.nodes, area);
+    const view = revealViewport(node, [diagramBounds(diagram)], area);
     if (view === 'fit') fit(true, true);
     else void setViewport(view, { duration: reducedMotion() ? 0 : 200 });
   }, [reveal, diagram, setViewport]);
@@ -254,7 +193,10 @@ export function Diagram({ diagram, expanded, setExpanded, zoom, setZoom, selecte
     if (!keepFocus) pending.current = null;
     userMoved.current = false;
     const { top, bottom, x } = fitPadding();
-    void fitView({ padding: { top: `${top}px`, bottom: `${bottom}px`, x: `${x}px` }, minZoom: 0.15, maxZoom: 1.25, duration: animate && !reducedMotion() ? 200 : 0 });
+    if (!latest.current.nodes.length || !canvas.current) return;
+    // React Flow's fitView sees only cards, so labels beside them could fall off screen.
+    const area = { x, y: top, width: canvas.current.clientWidth - 2 * x, height: canvas.current.clientHeight - top - bottom };
+    void setViewport(fitViewport(diagramBounds(latest.current), area, 0.15, 1.25), { duration: animate && !reducedMotion() ? 200 : 0 });
   };
   // The canvas narrows when the drawer opens and with the window, so the fitted view follows it.
   useEffect(() => {
