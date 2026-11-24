@@ -41,7 +41,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { decide, envSaysNotMain, readGuardSettings } from "../hooks/lib/read-guard.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const troubleshoot = path.join(packageRoot, "TROUBLESHOOTING.md");
+const troubleshoot = path.join(packageRoot, "docs", "troubleshooting.md");
 
 /**
  * Ask the bundled CLI for this repository's project folder, the way the
@@ -168,7 +168,7 @@ function linkCli(ctx: ExtensionContext, src: string, link: string, label: string
 		// A repoint is routine after every upgrade, so it stays off the UI.
 		process.stderr.write(`acstack: updated ${label} at ${link} -> ${src}\n`);
 	} catch {
-		report(ctx, `acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale cache).`, "warning");
+		report(ctx, `acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale symlink).`, "warning");
 	}
 }
 

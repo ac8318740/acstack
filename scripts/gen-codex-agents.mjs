@@ -24,44 +24,14 @@
 //            child agent may never escalate past its parent. Emitting them
 //            would imply a guarantee that does not exist.
 
-import { readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readCommunicationStandard } from '../hooks/lib/communication-standard.mjs';
+import { readAgents } from './read-agents.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const srcDir = join(root, 'agents');
-const outDir = join(srcDir, 'codex');
-
-/**
- * Read YAML frontmatter as flat key/value pairs.
- *
- * Hand-rolled rather than pulled from a library because this script must run
- * with no node_modules, in CI and from a plugin checkout alike. It only has to
- * handle `key: scalar` lines, and it throws on anything else rather than
- * quietly returning a half-parsed object.
- */
-function parseFrontmatter(text, file) {
-  const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
-  if (!match) throw new Error(`${file}: no YAML frontmatter`);
-
-  const fields = {};
-  for (const line of match[1].split('\n')) {
-    if (line.trim() === '') continue;
-    const sep = line.indexOf(':');
-    if (sep === -1) throw new Error(`${file}: cannot parse frontmatter line: ${line}`);
-    const key = line.slice(0, sep).trim();
-    let value = line.slice(sep + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    fields[key] = value;
-  }
-  return { fields, body: match[2].trim() };
-}
+const outDir = join(root, 'agents', 'codex');
 
 /** Emit a TOML basic string. */
 function tomlString(value) {
@@ -86,17 +56,7 @@ rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 const written = [];
-for (const file of readdirSync(srcDir).filter((f) => f.endsWith('.md')).sort()) {
-  const { fields, body } = parseFrontmatter(
-    readFileSync(join(srcDir, file), 'utf-8'),
-    file
-  );
-
-  for (const required of ['name', 'description']) {
-    if (!fields[required]) throw new Error(`${file}: missing ${required}`);
-  }
-  if (!body) throw new Error(`${file}: empty body, nothing to instruct with`);
-
+for (const { file, fields, body } of readAgents(root)) {
   const toml = [
     '# Generated from agents/' + file + ' by scripts/gen-codex-agents.mjs.',
     '# Do not edit. Change the markdown and re-run the generator.',

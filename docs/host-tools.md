@@ -27,4 +27,4 @@ ACStack runs on Claude Code, Codex, and pi. Skills name each capability once, in
 - **The ACStack CLI**: always call it by its absolute path, `~/.claude/acstack/bin/acstack <subcommand>`
     - The SessionStart hook keeps this symlink pointed at the current plugin version
     - A bare `acstack` depends on the shell's PATH and breaks in subshells, fresh agent contexts, and CI
-    - If the symlink is missing, the hook did not run. Tell the user to restart the session; if that fails, point them at `TROUBLESHOOTING.md` in the plugin root
+    - If the symlink is missing, the hook did not run. Tell the user to restart the session; if that fails, point them at `docs/troubleshooting.md` in the plugin root

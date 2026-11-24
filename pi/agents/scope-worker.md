@@ -11,7 +11,7 @@ tools: read, grep, find, ls, bash, edit, write
 
 # Scope worker
 
-Deliver the one scope in your brief under the Implementation discipline in `orchestrator/AGENTS.md`. Team mode in that file says how a team divides and merges work.
+Deliver the one scope in your brief under the Implementation discipline in `orchestrator/AGENTS.md`. The Solo and Team modes section of that file says how a team divides and merges work.
 
 - Work only in your own checkout and only on the files your scope owns
 - Keep to the interfaces the brief names; if one must change, tell the lead before you rely on the change

@@ -24,7 +24,7 @@
 set -u
 
 plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
-troubleshoot="${plugin_root}/TROUBLESHOOTING.md"
+troubleshoot="${plugin_root}/docs/troubleshooting.md"
 cli_wrapper="${plugin_root}/cli/bin/acstack.js"
 cli_dist="${plugin_root}/cli/dist/index.js"
 
@@ -52,7 +52,7 @@ link_cli() {
       if ln -sfn "$src" "$link" 2>/dev/null; then
         echo "acstack: updated ${label} at ${link} -> ${src}" >&2
       else
-        echo "acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale cache)." >&2
+        echo "acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale symlink)." >&2
       fi
     fi
   elif [ -e "$link" ]; then
@@ -190,8 +190,8 @@ if [ -n "$plugin_root" ]; then
   esac
 fi
 
-source "${plugin_root}/hooks/project-data.sh"
-if ! project_folder=$(acstack_project_folder "$cli_wrapper"); then
+# Fails outside Git or when the CLI names a fix; its message reaches the user on stderr.
+if ! project_folder=$("$cli_wrapper" project-data path); then
   exit 0
 fi
 

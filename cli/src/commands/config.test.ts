@@ -1176,7 +1176,7 @@ describe('acstack config set, project keys', () => {
       ['workflow.bogus', 'workflow.read_guard'],
       ['frontend.browser.bogus', 'frontend.browser.mode'],
       ['bogus', 'workflow.read_guard'],
-      // Claude Code owns outputStyle, and section 10 of the reference
+      // Claude Code owns outputStyle, and "What is not a project.yaml key" in the reference
       // promises `config set` cannot change it. It is neither schema's key,
       // so the unknown-key path is what has to say so.
       ['outputStyle', 'workflow.read_guard'],

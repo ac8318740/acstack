@@ -31,7 +31,7 @@ import {
   impeccableLauncher,
   impeccableVersionNote,
 } from '../lib/impeccable.js';
-import { DESIGN_REVIEW_KEY, projectKeyDefaultFlag } from '../lib/project-config.js';
+import { DESIGN_REVIEW_KEY, projectKeyDefaultFlag } from '../lib/project-keys.js';
 import { findProjectRoot } from '../lib/project.js';
 import { fail, readYaml } from '../lib/utils.js';
 

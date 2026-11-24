@@ -5,7 +5,7 @@ Windows, macOS, or Linux desktop you SSH *from*. You cannot do this from the
 remote host. The local terminal emulator intercepts the keys before they ever
 reach the other end.
 
-## 1. The emulator claims the same alt chords the remote host binds
+## The emulator claims the same alt chords the remote host binds
 
 On the remote host the user runs herdr, a terminal multiplexer. One program
 holds many terminal sessions and keeps them running after the user
@@ -27,7 +27,7 @@ To tell an emulator collision from a remote misconfiguration, run `cat -v` in
 any pane and press the chord. One that arrives prints an escape sequence such
 as `^[Z`. One that prints nothing never left your machine.
 
-## 2. Unbind, in the terminal emulator only
+## Unbind, in the terminal emulator only
 
 Work in the terminal emulator config only. Unbind every chord in the table
 below that the emulator currently claims. Change nothing on the remote host,
@@ -40,6 +40,7 @@ and do not touch the remote configuration.
 | `alt+i` / `alt+shift+i` | pull request dashboard, popup and tab |
 | `alt+y` / `alt+shift+y` | file manager, popup and tab |
 | `alt+g` / `alt+shift+g` | git TUI, popup and tab |
+| `alt+q` / `alt+shift+q` | SQL editor, popup and tab |
 | `alt+h` `alt+j` `alt+k` `alt+l` | move between panes |
 | `alt+left` / `alt+right` | previous and next tab |
 | `alt+up` / `alt+down` | previous and next workspace |
@@ -67,7 +68,7 @@ Windows Terminal binds three more chords from the same family. Check
 - **Ghostty**: `keybind = alt+shift+d=ignore` in the config
 - **GNOME Terminal / Konsole**: check the shortcut editor for the chord
 
-## 3. What never to change
+## What never to change
 
 - **Back up the config before editing**, and show the change before saving.
 - Unbind only. Do not remap these chords to something else, and do not touch
@@ -75,7 +76,7 @@ Windows Terminal binds three more chords from the same family. Check
 
 - Leave a chord alone when the terminal emulator does not bind it locally.
 
-## 4. Confirm exactly one thing happens
+## Confirm exactly one thing happens
 
 Reload or restart the terminal, then SSH in and press `alt+shift+f`. Exactly
 one thing should happen.

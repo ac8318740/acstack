@@ -47,13 +47,13 @@
 // lines that are not key: value, so the generated marker sits in the
 // frontmatter as a YAML comment and never reaches the agent's prompt.
 
-import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readCommunicationStandard } from '../hooks/lib/communication-standard.mjs';
+import { readAgents } from './read-agents.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const srcDir = join(root, 'agents');
 const outDir = join(root, 'pi', 'agents');
 const tools = 'read, grep, find, ls, bash, edit, write';
 
@@ -63,51 +63,13 @@ const SKILLS = {
   'frontend-verifier': ['browser-verify', 'bridge'],
 };
 
-/**
- * Read YAML frontmatter as flat key/value pairs.
- *
- * Same hand-rolled reader as gen-codex-agents.mjs, for the same reason: this
- * script must run with no node_modules. It throws on anything it cannot read.
- */
-function parseFrontmatter(text, file) {
-  const match = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/.exec(text);
-  if (!match) throw new Error(`${file}: no YAML frontmatter`);
-
-  const fields = {};
-  for (const line of match[1].split('\n')) {
-    if (line.trim() === '') continue;
-    const sep = line.indexOf(':');
-    if (sep === -1) throw new Error(`${file}: cannot parse frontmatter line: ${line}`);
-    const key = line.slice(0, sep).trim();
-    let value = line.slice(sep + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    fields[key] = value;
-  }
-  return { fields, body: match[2].trim() };
-}
-
 const standard = readCommunicationStandard(root);
 
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
 const written = [];
-for (const file of readdirSync(srcDir).filter((f) => f.endsWith('.md')).sort()) {
-  const { fields, body } = parseFrontmatter(
-    readFileSync(join(srcDir, file), 'utf-8'),
-    file
-  );
-
-  for (const required of ['name', 'description']) {
-    if (!fields[required]) throw new Error(`${file}: missing ${required}`);
-  }
-  if (!body) throw new Error(`${file}: empty body, nothing to instruct with`);
-
+for (const { file, fields, body } of readAgents(root)) {
   const md = [
     '---',
     '# Generated from agents/' + file + ' by scripts/gen-pi-agents.mjs.',

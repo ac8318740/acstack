@@ -2,7 +2,7 @@
 
 `SKILL.md` decides when to read this file: after `apply`, and whenever the user reports a key doing nothing.
 
-## 6. Free the keys the user's terminal emulator swallows
+## Free the keys the user's terminal emulator swallows
 
 *`apply` binds keys on this machine. The emulator the user types in may claim the same ones first.*
 
