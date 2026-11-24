@@ -52,7 +52,7 @@ link_cli() {
       if ln -sfn "$src" "$link" 2>/dev/null; then
         echo "acstack: updated ${label} at ${link} -> ${src}" >&2
       else
-        echo "acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale cache)." >&2
+        echo "acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale symlink)." >&2
       fi
     fi
   elif [ -e "$link" ]; then

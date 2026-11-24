@@ -168,7 +168,7 @@ function linkCli(ctx: ExtensionContext, src: string, link: string, label: string
 		// A repoint is routine after every upgrade, so it stays off the UI.
 		process.stderr.write(`acstack: updated ${label} at ${link} -> ${src}\n`);
 	} catch {
-		report(ctx, `acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale cache).`, "warning");
+		report(ctx, `acstack: failed to update stale symlink at ${link} (was: ${current}) – see ${troubleshoot} (section: stale symlink).`, "warning");
 	}
 }
 

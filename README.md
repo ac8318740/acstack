@@ -44,7 +44,7 @@ After installing, use `/acstack:implement`, `/acstack:fix`, or `/acstack:map` in
 
 ### Codex
 
-You also need the Codex CLI with npm plugin support, and npm.
+You also need the Codex CLI with npm plugin support, and npm. ACStack is tested with Codex 0.163.0.
 
 ```sh
 codex plugin marketplace add ac8318740/ac-agentic-coding
@@ -108,7 +108,7 @@ A **map** is a to-do graph ACStack keeps for one piece of work. Each **node** on
 - Each node has a status (`fog`, `open`, `claimed`, `resolved`, or `out-of-scope`) and says who answers it
 - Each node links to the answer that raised it and to the nodes that must finish first
 - The **frontier** is the open nodes with nothing unfinished blocking them: what is ready to start
-- Nodes live in GitHub issues, or in markdown files under `<project folder>/maps/` when GitHub is unavailable; `workflow.maps.tracker` in `project.yaml` records the choice
+- Nodes live in GitHub issues, or in markdown files under `<project folder>/maps/`, chosen with you on first use; `workflow.maps.tracker` in `project.yaml` records the choice
 
 [docs/workflows.md](docs/workflows.md) links each step to the skill that owns it and defines the map vocabulary.
 
