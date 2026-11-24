@@ -2,7 +2,7 @@
 
 Publish useful outputs early so related work can proceed before every upstream task finishes. State what is settled, what remains uncertain, and which work would change if an input changes. Accept the combined result only after upstream acceptance, integration checks, and required review.
 
-The active rules live under Implementation discipline in [`orchestrator/AGENTS.md`](../orchestrator/AGENTS.md). This document explains how to apply them and the practices they draw on.
+The active rules live under Solo and Team modes in [`orchestrator/AGENTS.md`](../orchestrator/AGENTS.md). This document explains how to apply them and the practices they draw on.
 
 ## Start when inputs support useful work
 

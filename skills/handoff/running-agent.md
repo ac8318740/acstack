@@ -15,8 +15,8 @@ already running*, below, gives the way to propose the work to such a session.
 **Agent already running** – one reached by cross-session message. It runs the
 same command.
 
-A reply through the agent-messaging tool is no longer required. A reply that begins ACCEPT or
-DECLINE is the recognised fallback:
+The ack command is the expected acknowledgement. A reply through the
+agent-messaging tool that begins ACCEPT or DECLINE is the recognised fallback:
 
 > Before any other tool call, acknowledge this handoff by running ~/.claude/acstack/bin/acstack handoff ack accept --file <handoff-file> "<one-line reason>", or ack decline --file <handoff-file> "<one-line reason>". You may read <handoff-file> first to judge whether the work suits you, and nothing else until the command has run – the sender watches for the file it writes and cannot report this work as yours until it exists. A reply through the agent-messaging tool beginning ACCEPT or DECLINE is a recognised fallback, but the command is what this handoff expects. Then continue that work.
 
@@ -30,8 +30,8 @@ acknowledgement instruction above. That variant asks for the ack command, and
 names a reply beginning ACCEPT or DECLINE as the fallback.
 
 Generate a short token – a random string that appears nowhere else, say
-`ack-7f3a91c4` – and include it in the message text. The token still belongs in
-the message, even though the acknowledgement no longer travels back over this
+`ack-7f3a91c4` – and include it in the message text. The token belongs in
+the message even though the acknowledgement does not travel back over this
 channel.
 
 The watcher anchors on it, so counting starts when the target **receives** the

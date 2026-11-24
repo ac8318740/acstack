@@ -278,7 +278,7 @@ The opener is a small service on the laptop. It takes a page from the VM and
 puts it in the default browser there. Because it runs on the laptop, it can also
 restart the scheduled tasks the VM cannot reach.
 
-See section 9.5, "The opener", of `docs/terminal-workspace.md`.
+See the opener section of `docs/terminal-workspace.md`.
 
 ```bash
 acstack-bridge status            # both machines' view, including the tasks
