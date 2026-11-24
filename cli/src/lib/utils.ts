@@ -60,14 +60,6 @@ export function listSpecs(root: string): string[] {
     .map(e => e.name);
 }
 
-export function listArchivedChanges(root: string): string[] {
-  const dir = join(root, CHANGES_DIR, ARCHIVE_DIR);
-  if (!existsSync(dir)) return [];
-  return readdirSync(dir, { withFileTypes: true })
-    .filter(e => e.isDirectory())
-    .map(e => e.name);
-}
-
 export function requireProject(root: string | null): asserts root is string {
   if (!root) fail('Not in an ACStack project. Run `/acstack:setup` first.');
 }
