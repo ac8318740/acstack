@@ -19,13 +19,13 @@ flowchart LR
     H --> O["Orchestrator instructions<br/>(orchestrator/AGENTS.md, via python3)"]
 ```
 
-| The broken link | Sections |
-| --- | --- |
-| Agent path | 1, 4 |
-| Human path | 2 |
-| The bundled CLI | 3 |
-| SessionStart hook | 5 |
-| Orchestrator instructions | 6 |
+Each symptom below maps to one broken link:
+
+- Agent path: [Agents report no such file](#agents-report-claudeacstackbinacstack-no-such-file-or-directory) and [Stale symlink](#stale-symlink-pointing-at-an-old-version)
+- Human path: [`acstack: command not found`](#acstack-command-not-found-human-typed-it-at-a-terminal)
+- The bundled CLI: [`ERR_MODULE_NOT_FOUND`](#error-err_module_not_found-cannot-find-module-clidistindexjs)
+- SessionStart hook: [The SessionStart hook did not run](#the-sessionstart-hook-did-not-run)
+- Orchestrator instructions: [`python3 not found`](#python3-not-found-warning-at-session-start)
 
 Where the plugin lives, and what points at it:
 
@@ -41,9 +41,7 @@ Where the plugin lives, and what points at it:
 - Fix the agent-facing path first
     - Nothing in the plugin works without it
 
----
-
-## 1. Agents report `~/.claude/acstack/bin/acstack: No such file or directory`
+## Agents report `~/.claude/acstack/bin/acstack: No such file or directory`
 
 **Symptom**: a skill or agent fails because it cannot find the CLI at `~/.claude/acstack/bin/acstack`.
 
@@ -71,9 +69,7 @@ ls -d ~/.claude/plugins/cache/ac-agentic-coding/acstack/*/ 2>&1
     - Fix: the user has not installed the plugin
     - Run `/plugin marketplace add ac8318740/ac-agentic-coding`, then `/plugin install acstack@ac-agentic-coding` in Claude Code
 
----
-
-## 2. `acstack: command not found` (human typed it at a terminal)
+## `acstack: command not found` (human typed it at a terminal)
 
 **Symptom**: the user runs `acstack --help` at the terminal and the shell reports `command not found`, while agents continue to work.
 
@@ -102,9 +98,7 @@ echo "PATH=$PATH" | tr ':' '\n' | grep -F "$HOME/.local/bin" || echo "MISSING"
         - bash on macOS: `~/.bash_profile`
         - fish: `~/.config/fish/config.fish`, and use `set -gx PATH $HOME/.local/bin $PATH`
 
----
-
-## 3. `Error [ERR_MODULE_NOT_FOUND]: Cannot find module '.../cli/dist/index.js'`
+## `Error [ERR_MODULE_NOT_FOUND]: Cannot find module '.../cli/dist/index.js'`
 
 **Symptom**: the CLI runs but Node throws `ERR_MODULE_NOT_FOUND` for `dist/index.js`.
 
@@ -129,9 +123,7 @@ ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/$ACSTACK_VERSION/cli/dist/i
     ```
 - If a fresh npm-backed install still lacks the bundle, report the package version and missing path. Release packaging tests should reject that artifact.
 
----
-
-## 4. Stale symlink, pointing at an old version
+## Stale symlink, pointing at an old version
 
 **Symptom**: `~/.claude/acstack/bin/acstack --version` prints an older number than expected, or commands behave like an older release.
 
@@ -155,9 +147,7 @@ ls ~/.claude/plugins/cache/ac-agentic-coding/acstack/
     ln -sfn ~/.claude/plugins/cache/ac-agentic-coding/acstack/$NEW/cli/bin/acstack.js ~/.local/bin/acstack
     ```
 
----
-
-## 5. The SessionStart hook did not run
+## The SessionStart hook did not run
 
 **Symptom**: no `acstack:` lines appear in Claude Code's startup logs. `~/.claude/acstack/bin/acstack` is missing.
 
@@ -173,11 +163,9 @@ cat ~/.claude/plugins/cache/ac-agentic-coding/acstack/*/hooks/hooks.json
 
 - Confirm the user has enabled the plugin, with `/plugin list`
 - Check that the user has not disabled hooks in `~/.claude/settings.json`, meaning no `"hooks": false` and no per-event suppression
-- Install the symlinks by hand as a fallback, using the commands in section 1 and section 4
+- Install the symlinks by hand as a fallback, using the commands under [Agents report no such file](#agents-report-claudeacstackbinacstack-no-such-file-or-directory) and [Stale symlink](#stale-symlink-pointing-at-an-old-version)
 
----
-
-## 6. `python3 not found` warning at session start
+## `python3 not found` warning at session start
 
 **Symptom**: the hook prints `acstack: python3 not found; skipping orchestrator injection`.
 
@@ -199,11 +187,7 @@ sudo apt install python3
 brew install python3
 ```
 
----
-
-## 7. When none of the above matches
-
-*This section describes the document, not the plugin. No box in the diagram holds it.*
+## When none of the above matches
 
 The CLI is a normal Node.js ESM package. To validate the install end to end:
 
@@ -213,4 +197,4 @@ node ~/.claude/plugins/cache/ac-agentic-coding/acstack/$ACSTACK_VERSION/cli/bin/
 ```
 
 - If that prints help, the CLI is fine and the issue is the symlink
-- If that errors, the issue is the cache contents (see section 3)
+- If that errors, the issue is the cache contents (see [`ERR_MODULE_NOT_FOUND`](#error-err_module_not_found-cannot-find-module-clidistindexjs))

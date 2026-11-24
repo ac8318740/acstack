@@ -41,7 +41,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { decide, envSaysNotMain, readGuardSettings } from "../hooks/lib/read-guard.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const troubleshoot = path.join(packageRoot, "TROUBLESHOOTING.md");
+const troubleshoot = path.join(packageRoot, "docs", "troubleshooting.md");
 
 /**
  * Ask the bundled CLI for this repository's project folder, the way the

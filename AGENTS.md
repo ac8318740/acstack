@@ -12,7 +12,7 @@ CLI build discipline, the release process, and the writing standards.
 |---|---|
 | `orchestrator/AGENTS.md` | What ACStack tells an agent **using** the plugin – shipped to users, not guidance for you |
 | `skills/`, `agents/` | Skills and subagent definitions the plugin ships |
-| `cli/` | The `acstack` CLI. `dist/` is committed – see CONTRIBUTING |
+| `cli/` | The `acstack` CLI. `npm pack` builds `dist/`; Git ignores it (see CONTRIBUTING) |
 | `hooks/` | SessionStart wiring: CLI symlinks and orchestrator injection |
 | `docs/`, `assets/` | Documentation and installable helper scripts |
 
