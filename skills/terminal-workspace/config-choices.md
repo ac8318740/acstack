@@ -2,7 +2,7 @@
 
 `SKILL.md` decides when to read this file: before walking the user through the config, on a first setup or when they change a setting.
 
-## 3. Copy the config, then walk the user through the choices
+## Copy the config, then walk the user through the choices
 
 Then ask about these settings, in this order:
 

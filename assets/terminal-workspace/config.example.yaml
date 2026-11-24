@@ -278,8 +278,8 @@ neovim:
   # The colour of the dot. The default is the catppuccin red.
   unsaved_dot_color: "#f38ba8"
   # Over SSH, :%y+ fails because neovim finds no clipboard. This sends every
-  # copy to the machine you sit at over OSC 52. Section 3.5 of
-  # docs/terminal-workspace.md covers paste. Left out when a file of yours
+  # copy to the machine you sit at over OSC 52. The LazyVim part of
+  # docs/terminal-workspace/install.md covers paste. Left out when a file of yours
   # already sets vim.g.clipboard.
   osc52_clipboard: true
 

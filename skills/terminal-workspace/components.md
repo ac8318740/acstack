@@ -2,7 +2,7 @@
 
 Read this file when the user asks what a component does, which key turns it on, or why a key sits where it does.
 
-## 1. Twelve components, installed for a user account and not for a project
+## Twelve components, installed for a user account and not for a project
 
 | Component | What it gives the user | Config key |
 |---|---|---|
@@ -26,7 +26,7 @@ The `neovim` row names an editor this setup never installs, and only configures.
 The `pi` row and the `neovim` row both start off, because each writes into a
 config the user built.
 
-### 1.1. `g` belongs to git, and `e` means edit
+### `g` belongs to git, and `e` means edit
 
 The setup reserves two letters across the whole workspace, so the same key does
 the same thing wherever the user is standing:
