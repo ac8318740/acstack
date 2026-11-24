@@ -17,14 +17,19 @@ TW_DIR="${ROOT}/assets/terminal-workspace"
 SETUP="${TW_DIR}/setup.sh"
 TW_LIB="${TW_DIR}/lib"
 TW_HELPERS="${TW_DIR}/helpers"
-DOCS="${ROOT}/docs/terminal-workspace.md"
+# The docs are an entry page plus the pages under docs/terminal-workspace/,
+# checked as one text.
+DOC_FILES=("${ROOT}/docs/terminal-workspace.md" "${ROOT}/docs/terminal-workspace/"*.md)
 
-for f in "$SETUP" "$DOCS"; do
+for f in "$SETUP" "${DOC_FILES[@]}"; do
   [ -f "$f" ] || { echo "FATAL: missing $f" >&2; exit 1; }
 done
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
+DOCS="$WORK/docs.md"
+# Link targets go: an anchor such as #acstack-open-the-browser names no helper.
+sed -E 's/\]\([^)]*\)/]()/g' "${DOC_FILES[@]}" > "$DOCS"
 # Every helper roots its files at $ACSTACK_HOME, so one set by the caller would
 # point a test at the real machine-wide folder.
 unset ACSTACK_HOME

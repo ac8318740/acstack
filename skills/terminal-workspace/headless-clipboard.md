@@ -2,7 +2,7 @@
 
 `SKILL.md` decides when to read this file: when the user asks how to copy, open or download from this machine, or `o`, `y` or `Y` fails.
 
-## 7. Copy, open and download, on a machine with no display
+## Copy, open and download, on a machine with no display
 
 *Three gh-dash keys break there, and a file has no way off the machine at all. `apply` writes a route for each. The last lines of `status` say where a copy and an open will land.*
 
@@ -106,7 +106,7 @@ paste on the client. Believe that test over the measurement.
 If it does not cross, say so plainly. The link is still on screen, and herdr's
 own drag-select copies it.
 
-### 7.1. When `o` claims it opened something nobody saw
+### When `o` claims it opened something nobody saw
 
 *A successful open proves nothing. Ask what sits on the other end of the endpoint.*
 
@@ -132,9 +132,9 @@ find a stray headless Chrome holding pages, say so. It is a leftover, and
 killing it is the user's call, not yours.
 
 Detail, and why OSC 52 rather than a clipboard daemon:
-[docs/terminal-workspace.md](../../docs/terminal-workspace.md).
+[docs/terminal-workspace/clipboard-and-browser.md](../../docs/terminal-workspace/clipboard-and-browser.md).
 
-### 7.2. Getting a file off the machine
+### Getting a file off the machine
 
 *A third gap has nothing to do with gh-dash. OSC 52 carries text, and a file needs Taildrop.*
 

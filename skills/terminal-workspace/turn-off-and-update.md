@@ -2,7 +2,7 @@
 
 `SKILL.md` decides when to read this file: when the user asks to turn a component off or uninstall, or `outdated` reports something.
 
-## 8. Turning one component off, or all of them
+## Turning one component off, or all of them
 
 *`disable` undoes one component. `uninstall` undoes the managed config. harlequin is the one binary either of them removes.*
 
@@ -53,7 +53,7 @@ owns whole rather than as one file in `$BIN`.
 pi stays too. It holds the user's logins and sessions, and the user may run it
 without ACStack. `uninstall` prints the npm command that removes it.
 
-## 9. Keeping it current
+## Keeping it current
 
 *`outdated` reports what has moved on. `upgrade` fetches it.*
 
@@ -72,7 +72,7 @@ answers in its exit code:
 
 Four kinds of finding:
 
-- `missing` – this machine has never applied the workspace, so run section 4 of `SKILL.md` rather than `upgrade`
+- `missing` – this machine has never applied the workspace, so run `apply` as `SKILL.md` describes rather than `upgrade`
 - `new` – a component this plugin version ships that the user's last `apply` never saw
 - `stale` – an installed tool behind its published release
 - `unknown` – the script cannot compare, so there is nothing to act on

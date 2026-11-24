@@ -39,20 +39,20 @@ flowchart TD
     UP --> AP
 ```
 
-| Step in the diagram                   | Detail    |
-| ------------------------------------- | --------- |
-| Twelve components, one YAML file      | section 1 |
-| See what this machine has             | section 2 |
-| Copy the config, walk the choices     | section 3 |
-| Install binaries, write the keys      | section 4 |
-| How does the user reach this machine? | section 5 |
-| Attach with the server keymap         | section 5 |
-| Free the keys the emulator swallows   | section 6 |
-| Copy, open or download fails          | section 7 |
-| Turn one component off                | section 8 |
-| Fetch what has moved on               | section 9 |
+| Step in the diagram                   | Detail |
+| ------------------------------------- | ------ |
+| Twelve components, one YAML file      | [Twelve components](#twelve-components-installed-for-a-user-account-and-not-for-a-project) |
+| See what this machine has             | [Run `status` first](#run-status-first-always) |
+| Copy the config, walk the choices     | [Copy the config](#copy-the-config-then-walk-the-user-through-the-choices) |
+| Install binaries, write the keys      | [`apply`](#apply-installs-the-binaries-and-writes-the-keys) |
+| How does the user reach this machine? | [How the user attaches](#how-the-user-attaches-and-why---remote-keybindings-server-is-not-optional) |
+| Attach with the server keymap         | [How the user attaches](#how-the-user-attaches-and-why---remote-keybindings-server-is-not-optional) |
+| Free the keys the emulator swallows   | [Free the keys](#free-the-keys-the-users-terminal-emulator-swallows) |
+| Copy, open or download fails          | [Copy, open and download](#copy-open-and-download-on-a-machine-with-no-display) |
+| Turn one component off                | [Turning one component off](#turning-one-component-off-or-all-of-them) |
+| Fetch what has moved on               | [Keeping it current](#keeping-it-current) |
 
-## 1. Twelve components, installed for a user account and not for a project
+## Twelve components, installed for a user account and not for a project
 
 *Twelve config components install thirteen tools. herdr holds the terminals and pi is a coding agent. The rest read diffs, pull requests, files and databases, and commit the result.*
 
@@ -80,20 +80,20 @@ The two files this skill works with:
 - **Script**: `assets/terminal-workspace/setup.sh` in this plugin
 
 Yazi's `i` opens Markdown in Frogmouth (`pipx install frogmouth`); existing `i` bindings take precedence, and `e` keeps editing in `$EDITOR`.
-The keys, on one page: [docs/terminal-workspace-keys.md](../../docs/terminal-workspace-keys.md).
+The keys, on one page: [docs/terminal-workspace/keys.md](../../docs/terminal-workspace/keys.md).
 
 Background and why each piece is there:
 [docs/terminal-workspace.md](../../docs/terminal-workspace.md).
 
-## 2. Run `status` first, always
+## Run `status` first, always
 
 *`status` reports what this machine already has, before anything changes it.*
 
 The script takes six commands, and this skill uses all of them.
 
-Section 2 runs `status` to report, and section 4 runs `apply` to install.
-Section 8 runs `disable <component>` and `uninstall` to undo. Section 9 runs `outdated`
-and `upgrade` to fetch what has moved on.
+This file runs `status` to report and `apply` to install.
+[Turning one component off](#turning-one-component-off-or-all-of-them) runs `disable <component>` and `uninstall` to undo.
+[Keeping it current](#keeping-it-current) runs `outdated` and `upgrade` to fetch what has moved on.
 
 Run the script from the plugin directory. Resolve the path rather than
 guessing it:
@@ -115,10 +115,10 @@ the herdr config still holds the managed block, meaning the region between the
 `# >>> acstack terminal-workspace >>>` and
 `# <<< acstack terminal-workspace <<<` comment lines that `apply` writes.
 
-Its last lines say where a copy and an open will land on this machine. Section
-7 reads them.
+Its last lines say where a copy and an open will land on this machine.
+[Copy, open and download](#copy-open-and-download-on-a-machine-with-no-display) reads them.
 
-## 3. Copy the config, then walk the user through the choices
+## Copy the config, then walk the user through the choices
 
 *The config exposes far more keys than this. Fourteen of them are worth raising with the user, and the two that need no new vocabulary come first.*
 
@@ -130,7 +130,7 @@ mkdir -p ~/.acstack && cp "$(dirname "$SETUP")/config.example.yaml" ~/.acstack/t
 
 Then read [`config-choices.md`](config-choices.md) and ask about the settings it lists, in its order.
 
-## 4. `apply` installs the binaries and writes the keys
+## `apply` installs the binaries and writes the keys
 
 *One command, safe to repeat. Run it again after every config edit.*
 
@@ -148,7 +148,7 @@ Running it again after a config edit updates every managed region in place.
 The master switch comes first. With `enabled: false` at the top of the config,
 `apply` exits without installing anything.
 
-### 4.1. What `apply` never overwrites
+### What `apply` never overwrites
 
 *Marked regions only. Whatever the user wrote outside them survives every re-apply.*
 
@@ -163,7 +163,7 @@ The master switch comes first. With `enabled: false` at the top of the config,
 - `apply` merges the gh-dash config rather than overwriting it. It keeps the sections, themes and keybindings the user added
 - Never edit the user's herdr or gh-dash config outside the managed markers
 
-### 4.2. Confirm the config still loads
+### Confirm the config still loads
 
 *Two commands prove the install took. Stop if the second one does not print `config: ok`.*
 
@@ -178,7 +178,7 @@ anything else, report the error and stop rather than reloading.
 Then tell the user where each key list lives. In herdr, press `prefix+?`. In
 gh-dash, press `?`. diffnav lists its keys in its footer.
 
-## 5. How the user attaches, and why `--remote-keybindings server` is not optional
+## How the user attaches, and why `--remote-keybindings server` is not optional
 
 *The keymap lives on this machine. Only that flag makes herdr read it.*
 
@@ -220,27 +220,27 @@ profile.
 
 Do not write any of this for them. The profile and the SSH config live on the
 machine they type at, which this skill cannot reach. Hand them the lines, the
-same way section 6 hands them a prompt.
+same way [Free the keys](#free-the-keys-the-users-terminal-emulator-swallows) hands them a prompt.
 
-## 6. Free the keys the user's terminal emulator swallows
+## Free the keys the user's terminal emulator swallows
 
 *`apply` binds keys on this machine. The emulator the user types in may claim the same ones first.*
 
 Read [`emulator-keys.md`](emulator-keys.md) after `apply`, and whenever the user reports a key doing nothing.
 
-## 7. Copy, open and download, on a machine with no display
+## Copy, open and download, on a machine with no display
 
 *Three gh-dash keys break there, and a file has no way off the machine at all. `apply` writes a route for each. The last lines of `status` say where a copy and an open will land.*
 
-Read [`headless-clipboard.md`](headless-clipboard.md) when the user asks how to copy, open or download from this machine, or `o`, `y` or `Y` fails. It covers sections 7, 7.1 and 7.2. When neovim's `:%y+` fails, read section 3.5 of `docs/terminal-workspace.md` instead.
+Read [`headless-clipboard.md`](headless-clipboard.md) when the user asks how to copy, open or download from this machine, or `o`, `y` or `Y` fails. When neovim's `:%y+` fails, read [LazyVim](../../docs/terminal-workspace/install.md#lazyvim-a-dot-for-unsaved-changes-and-copy-over-ssh) in `docs/terminal-workspace/install.md` instead.
 
-## 8. Turning one component off, or all of them
+## Turning one component off, or all of them
 
 *`disable` undoes one component. `uninstall` undoes the managed config. harlequin is the one binary either of them removes.*
 
 Read [`turn-off-and-update.md`](turn-off-and-update.md) when the user asks to turn a component off or uninstall.
 
-## 9. Keeping it current
+## Keeping it current
 
 *`outdated` reports what has moved on. `upgrade` fetches it.*
 
