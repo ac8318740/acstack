@@ -32,8 +32,8 @@
 set -u
 
 command -v python3 >/dev/null 2>&1 || exit 0
-source "$(dirname "${BASH_SOURCE[0]}")/project-data.sh"
-project_folder=$(acstack_project_folder "${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/cli/bin/acstack.js") || exit 0
+# Fails outside Git or when the CLI names a fix; its message reaches the user on stderr.
+project_folder=$("${CLAUDE_PLUGIN_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}/cli/bin/acstack.js" project-data path) || exit 0
 cd "$project_folder" 2>/dev/null || exit 0
 
 # Capture the hook payload from stdin before running python. The heredoc below
