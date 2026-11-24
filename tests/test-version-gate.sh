@@ -45,7 +45,7 @@ make_base_repo() {
     git init -q -b main
     git config user.email "test@example.com"
     git config user.name "Test"
-    mkdir -p .claude-plugin .acstack/decisions docs skills/foo .github/workflows .claude tests
+    mkdir -p .claude-plugin .acstack/decisions skills/foo .github/workflows .claude tests
     printf '{\n  "version": "%s"\n}\n' "$ver" > .claude-plugin/plugin.json
     echo "readme"    > README.md
     echo "contrib"   > CONTRIBUTING.md
@@ -53,7 +53,6 @@ make_base_repo() {
     echo "license"   > LICENSE
     echo "notices"   > THIRD_PARTY_NOTICES
     echo "adr"       > .acstack/decisions/0001-x.md
-    echo "migrate"   > docs/migrate-0.8.md
     echo "skill v1"  > skills/foo/SKILL.md
     echo "cli code"  > cli.js
     echo "ci"        > .github/workflows/ci.yml

@@ -27,7 +27,6 @@ INERT_PATHS=(
   "CONTRIBUTING.md"
   "LICENSE"
   "THIRD_PARTY_NOTICES"
-  "docs/migrate-0.8.md"
   "tests/**"
   ".github/**"
   ".claude/**"

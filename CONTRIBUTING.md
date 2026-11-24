@@ -21,20 +21,7 @@ flowchart TD
     L --> T["main fast-forwards;<br/>build, test, tag, and stage npm release"]
 ```
 
-| What you want | Where |
-| --- | --- |
-| Where a file goes | section 1 |
-| Editing `assets/` and its helper scripts | section 2 |
-| Regenerating `cli/dist` | section 3 |
-| Regenerating `agents/codex` | section 4 |
-| Regenerating `pi/agents`, and the pi package | section 4.1 |
-| Running the tests | section 5 |
-| Bumping, opening the pull request, promoting, and the tag | section 6 |
-| Writing standards | section 7 |
-
-## 1. Plugin layout
-
-*Seven directories and one file, each with one job.*
+## Plugin layout
 
 ```
 .claude-plugin/plugin.json   – shared Claude and Codex manifest (version, name, description)
@@ -42,19 +29,18 @@ agents/                      – subagent definitions
 hooks/                       – SessionStart, Stop and UserPromptSubmit hooks
 skills/                      – slash-command skills
 output-styles/               – output styles (ac-writing-style)
-cli/                         – Node.js CLI (TypeScript source + built dist/)
+cli/                         – Node.js CLI (TypeScript source; dist/ is built, not committed)
 pi/                          – the pi port: extension.ts and the generated agents/
 package.json                 – npm package, CLI bin, and pi extension manifest
 assets/                      – files a skill installs on a user's machine, and the model never reads them
-docs/                        – long-form docs a skill links to instead of inlining
-TROUBLESHOOTING.md           – downstream install diagnostics for Claude Code
+docs/                        – long-form docs, including install troubleshooting
 ```
 
 Codex uses the existing `.claude-plugin/plugin.json` manifest. Do not add a portable root `plugin.json`: Codex 0.163.0 gives it precedence but skips its hooks. The native package check verifies hook discovery through the shared manifest.
 
 By default, Codex 0.163.0 caps each hook's injected output at 2,500 tokens. The orchestrator's SessionStart handler sets `additionalContextLimit: 0` to deliver the full trusted policy without spilling it to disk. This supported per-handler setting leaves user configuration and other hook limits unchanged.
 
-## 2. Assets and helper scripts
+## Assets and helper scripts
 
 *`assets/` holds what a skill installs rather than reads. One duplicate key there costs the user their whole config file.*
 
@@ -72,7 +58,7 @@ Two rules govern it.
         - Hand-written config around them survives
     - Never write outside the markers, and never assume the file is absent
 
-### 2.1. Merging into a user's TOML config
+### Merging into a user's TOML config
 
 *TOML forbids a duplicate key. The managed block therefore either claims a key or concedes it.*
 
@@ -131,7 +117,7 @@ The fallback path, for a machine without Python 3.11:
 - `setup.sh` leaves whatever it concedes to the user and names it in a `say` line
     - A config that parses with a setting missing beats one yazi throws out
 
-### 2.2. Testing a setup.sh change
+### Testing a setup.sh change
 
 *Test against a fake home, never your own.*
 
@@ -155,14 +141,14 @@ Run the guard suite too, which is offline and needs no herdr:
 bash tests/test-terminal-workspace.sh
 ```
 
-- It checks setup.sh against `docs/terminal-workspace.md` in both directions
+- It checks setup.sh against `docs/terminal-workspace.md` and `docs/terminal-workspace/*.md` in both directions
 - Every `acstack-*` and every bound command the docs mention must be something setup.sh installs
 - The docs must also cover every default keybinding
 - It merges the generated keymap onto a hand-written config and asserts the result is valid TOML
 - CI runs it on every push and pull request
 - Rename a helper or change a default key and this suite fails until the docs follow
 
-## 3. CLI build discipline
+## CLI build discipline
 
 *The CLI ships pre-built and bundled. `cli/dist/index.js` has to work with no `node_modules/` beside it.*
 
@@ -200,7 +186,7 @@ bash tests/test-npm-package.sh
 
 The check packs, installs offline in a temporary home with lifecycle scripts disabled, and exercises the CLI plus packaged startup hooks. It verifies versions and required host assets too. Set `ACSTACK_TEST_CODEX=1` to verify native Codex installation and hook discovery; npm transport is stubbed to use the same local tarball.
 
-### 3.1. The recommended pre-commit hook
+### The recommended pre-commit hook
 
 *The optional pre-commit hook regenerates committed agent definitions. CI enforces freshness.*
 
@@ -235,19 +221,18 @@ This repository's `project.yaml`, in its project folder (`acstack project-data p
 - Its `commands.build` runs the esbuild build and the Codex generator together
 - Anything that verifies a build therefore leaves the tree matching what CI expects
 
-### 3.2. What `npm run build` does to the version
+### What `npm run build` does to the version
 
 *`npm run build` syncs `cli/package.json` for tidiness. `acstack --version` never depends on that sync.*
 
 - `npm run build` syncs `cli/package.json`'s version from `.claude-plugin/plugin.json`, then runs esbuild
-- Commit the synced `cli/package.json` alongside the three release manifests
+- Commit the synced `cli/package.json` alongside the two release manifests
 - `acstack --version` reads `.claude-plugin/plugin.json` directly at runtime, in `cli/src/lib/version.ts`
     - The reported version is right whether or not anything rebuilt
     - It has to work that way, because the rebuild only fires when `cli/src/` changes
     - Bumping the plugin alone would otherwise leave a baked-in copy behind
-    - That is exactly how the CLI came to report `0.1.0` while the plugin was at 0.14.2
 
-## 4. Codex agent definitions
+## Codex agent definitions
 
 *`agents/*.md` is the source, the generator writes the TOML, and Codex discards a file holding one unrecognised key.*
 
@@ -298,7 +283,7 @@ Keep the markdown harness-neutral.
 - Prefer "search the codebase"
 - Fixing it in the markdown keeps the generator free of a translation layer
 
-### 4.1. pi agent definitions and the pi package
+### pi agent definitions and the pi package
 
 *`scripts/gen-pi-agents.mjs` writes `pi/agents/*.md` from the same markdown. The root `package.json` tells pi what to load.*
 
@@ -329,7 +314,7 @@ node scripts/gen-pi-agents.mjs
 - `tests/test-pi-extension.sh` drives it with a stub pi API
     - The suite needs Node 22.18 or later, and skips on older Node
 
-## 5. Testing
+## Testing
 
 *Two layers, two commands.*
 
@@ -341,7 +326,7 @@ node scripts/gen-pi-agents.mjs
     - Run `bash tests/test-terminal-workspace.sh` for terminal workspace and docs checks; allow at least five minutes
     - Run `bash tests/test-terminal-workspace-pi.sh` for the pi component alone
 
-## 6. Releasing
+## Releasing
 
 *CI enforces the version bump, because the plugin cache only re-pulls when the version changes.*
 
@@ -352,7 +337,7 @@ node scripts/gen-pi-agents.mjs
 - A merge to `main` that leaves the version alone is invisible to every installed copy
 - That is what the gate exists to prevent
 
-### 6.1. Inert paths
+### Inert paths
 
 *Everything is a shipped path except this list.*
 
@@ -361,15 +346,12 @@ These files never reach an installed copy, so changing them needs no bump:
 ```
 README.md
 CONTRIBUTING.md
-CONTEXT.md
 LICENSE
 THIRD_PARTY_NOTICES
-docs/adr/**
-docs/migrate-0.8.md
 tests/**
 .github/**
 .claude/**
-acstack/**
+.acstack/**
 ```
 
 - The `INERT_PATHS` array at the top of `scripts/version-gate.sh` holds a second copy of this list
@@ -377,13 +359,13 @@ acstack/**
 - The gate treats a new top-level path as shipped
     - It works from a deny-list
 
-### 6.2. Picking the level
+### Picking the level
 
 *The gate checks that the version went up. You pick the level.*
 
 - Use semver: patch for a fix, minor for a feature, major for a breaking change
 
-### 6.3. The no-bump label
+### The no-bump label
 
 *The `no-bump` label is the exception. It is never a way past a red check.*
 
@@ -394,13 +376,13 @@ acstack/**
 - A version that goes *down* fails even with the label
     - An installed copy never downgrades
 
-### 6.4. Before you open the pull request
+### Before you open the pull request
 
 1. Bump `.claude-plugin/plugin.json` and root `package.json` together.
 2. Run `bash tests/test-npm-package.sh`, then commit the synced `cli/package.json` and any changed generated agents.
 3. Commit via `/acstack:commit` in this repository. Marketplace changes are separate commits.
 
-### 6.5. Promoting `dev` to `main`
+### Promoting `dev` to `main`
 
 *A promotion is a fast-forward that a label triggers. Nobody presses Merge.*
 
@@ -427,7 +409,7 @@ Three things follow as rules:
 
 The workflow refuses a promotion on three grounds: CI is not green, the move is not a fast-forward, or a non-admin added the label. Each refusal names its own fix.
 
-### 6.6. After the promotion
+### After the promotion
 
 *Nothing to tag by hand.*
 
@@ -435,27 +417,17 @@ The workflow refuses a promotion on three grounds: CI is not green, the move is 
 - `promote.yml` dispatches it, because a push made with `GITHUB_TOKEN` starts no workflow runs
 - It skips silently when that tag already exists, so a re-run costs nothing
 
-### 6.7. Publishing the npm package
+### Publishing the npm package
 
 `acstack` is the shared npm package for Claude Code, Codex, and pi. The CLI and skills ship together at one version; no separate global CLI install is required.
 
-The existing `tag-release` workflow installs build dependencies, checks types and lint, packs the artifact, then runs CLI and packaged-install tests. It stages that exact tarball with provenance using npm's staged publishing flow. Approve the staged release on npmjs.com to publish it. Re-running skips an already published version.
+The `tag-release` workflow installs build dependencies, checks types and lint, packs the artifact, then runs CLI and packaged-install tests. It stages that exact tarball with provenance using npm's staged publishing flow. Approve the staged release on npmjs.com to publish it. Re-running skips an already published version.
 
 The `ac-agentic-coding` repository owns the Claude and Codex marketplace catalogs. Both resolve `acstack@latest`; neither builds source on the user's machine. pi installs the same npm artifact directly. Node 20 or newer is required; pi has its own host requirements.
 
-For the initial migration, stage npm from the reviewed release branch before promoting it to `main`:
+### Who owns `acstack` on PATH
 
-```sh
-gh workflow run tag-release.yml --ref <release-branch>
-```
-
-Branch dispatches build and stage the tarball without creating a Git tag. Approve the staged npm release, verify a registry-backed install on each host, and deploy the marketplace catalog changes. Only then promote the source revision that removes `cli/dist/` from Git. The main workflow creates the tag and skips npm staging when that version is already published.
-
-Do not promote bundle removal while the live marketplace still uses Git. Local Git checkouts need `npm --prefix cli ci` and `npm --prefix cli run build` before running the CLI.
-
-### 6.8. Who owns `acstack` on PATH
-
-*The SessionStart hook defers to a `acstack` already on PATH. Agents are outside this entirely.*
+*The SessionStart hook defers to an `acstack` already on PATH. Agents are outside this entirely.*
 
 - The hook leaves an existing `acstack` on PATH alone if it is not the hook's own symlink
 - It says where the winner came from
@@ -464,7 +436,7 @@ Do not promote bundle removal while the live marketplace still uses Git. Local G
 - Skills and agents call `~/.claude/acstack/bin/acstack` by absolute path
     - That is always the plugin's own CLI, whatever PATH says
 
-## 7. Writing standards
+## Writing standards
 
 Use the fewest clear words that preserve all necessary information.
 

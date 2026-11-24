@@ -67,7 +67,7 @@ above derives the plugin root from a symlink.
 
 If that symlink is missing, the SessionStart hook did not run. Tell the user to
 restart their agent session. If a restart does not fix it, point them at
-`TROUBLESHOOTING.md` in the plugin root.
+`docs/troubleshooting.md` in the plugin root.
 
 The script is read-only. It prints one JSON object to standard output and exits
 0 even when it finds nothing at all. Missing tooling is a finding, not an error,

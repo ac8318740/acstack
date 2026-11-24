@@ -24,7 +24,7 @@
 set -u
 
 plugin_root="${CLAUDE_PLUGIN_ROOT:-}"
-troubleshoot="${plugin_root}/TROUBLESHOOTING.md"
+troubleshoot="${plugin_root}/docs/troubleshooting.md"
 cli_wrapper="${plugin_root}/cli/bin/acstack.js"
 cli_dist="${plugin_root}/cli/dist/index.js"
 

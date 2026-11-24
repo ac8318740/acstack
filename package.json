@@ -40,8 +40,7 @@
     "pi/",
     "profiles/",
     "skills/",
-    "THIRD_PARTY_NOTICES",
-    "TROUBLESHOOTING.md"
+    "THIRD_PARTY_NOTICES"
   ],
   "pi": {
     "extensions": [
