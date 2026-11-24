@@ -3,9 +3,9 @@
 *Every key in `project.yaml`, the values it takes, its default, and what changes when you change it.*
 
 Optional `<project folder>/project.yaml` holds saved ACStack project settings.
-The project folder is the repository's ACStack data folder, the path `~/.claude/acstack/bin/acstack project-data path` prints (section 1 explains where it lives).
+The project folder is the repository's ACStack data folder, the path `~/.claude/acstack/bin/acstack project-data path` prints ([Where project data lives](#where-project-data-lives)).
 
-General implementation, investigation, and review work without setup. Without this file, agents use repository instructions, manifests, existing tests, and CI to discover commands and directories. They do not invent commands or create configuration automatically. Run `/acstack:setup` when you want saved settings or storage-backed features such as maps.
+ACStack works without this file. Without it, agents use repository instructions, manifests, existing tests, and CI to discover commands and directories. They do not invent commands or create configuration automatically. Run `/acstack:setup` when you want saved settings or storage-backed features such as maps.
 
 Existing configuration keeps its gates. Unreadable or invalid configuration, legacy data, and project-data conflicts require the reported repair; they are not absent-config fallbacks. Orphan warnings alone do not block general work.
 
@@ -36,40 +36,18 @@ flowchart TD
 
 | Step in the diagram | Detail |
 | --- | --- |
-| The file, and what writes it | section 1 |
-| `profile` | section 2 |
-| `workflow.*` switches | section 3 |
-| `workflow.maps` | section 4 |
-| `workflow.handoff` | sections 5 and 6 |
-| `commands`, `venv` | section 7 |
-| `frontend.*` | sections 8 and 9 |
-| `host.*`, and what is not a key here | section 10 |
-| Every default | section 11 |
+| Where the project folder lives | [Where project data lives](#where-project-data-lives) |
+| The file, and what writes it | [Where the file lives, and what writes it](#where-the-file-lives-and-what-writes-it) |
+| `profile` | [profile](#profile) |
+| `workflow.*` switches | [workflow: the switches](#workflow-the-switches) |
+| `workflow.maps` | [workflow.maps](#workflowmaps) |
+| `workflow.handoff` | [launching and acknowledging](#workflowhandoff-launching-and-acknowledging), [the context-pressure ladder](#workflowhandoff-the-context-pressure-ladder) |
+| `commands`, `venv` | [commands and venv](#commands-and-venv) |
+| `frontend.*` | [frontend](#frontend), [frontend.browser and the CDP port](#frontendbrowser-and-the-cdp-port) |
+| `host.*`, and what is not a key here | [What is not a project.yaml key](#what-is-not-a-projectyaml-key) |
+| Every default | [Every default in one block](#every-default-in-one-block) |
 
-## 1. Where the file lives, and what writes it
-
-*The setup skill writes the whole file. To change one key, run `acstack config set`.*
-
-- `<project folder>/project.yaml` sits at the top of the project folder
-- `/acstack:setup` writes it
-    - On a fresh project the skill detects the project type, then writes every key from a profile under `profiles/`
-    - On a project that already has the file, the skill leads with the health check and offers a menu of changes
-- `acstack config set <key> <value>` changes one key without an interview
-- A key the file omits takes the default the tables below give it
-    - The `commands` and `frontend` keys have no such default
-    - The setup skill copies them from a profile
-        - An omitted one names nothing at all
-
-These commands report configuration without changing settings.
-
-| Command | What it prints |
-| --- | --- |
-| `acstack config show` | the profile, the commands, and what the project says about its browser |
-| `acstack config check` | an audit of the project and the machine, exiting 2 when a required host axis has no value |
-| `acstack config list` | every key the file states |
-| `acstack design-gate` | whether a design review runs here, as `on` and exit 0 or one `off: <reason>` line per reason and exit 1 (section 3) |
-
-### Where project data lives
+## Where project data lives
 
 *Project data has two homes. Decisions and the glossary live in the repository; everything else lives in one project folder outside it, shared by every worktree.*
 
@@ -116,11 +94,6 @@ Every part keeps its name inside its home.
 | Continuation anchor | `<project folder>/HANDOFF.md` |
 | Agent handoffs | `<project folder>/handoffs/` |
 
-- ACStack retires `workflow.alignment_packs` auto-generation, approval, and tracking settings; existing fields have no effect
-    - This includes `approval_gate` and `commit_generated_packs`
-    - Setup and config writes no longer offer them; ACStack never silently rewrites or deletes existing files
-- Design approval covers a map's element nodes, saved comments, and the open nodes targeting those elements, without a new workflow flag
-- `workflow.design_review` still controls only the frontend design pass
 - Installed tools under `~/.claude/acstack/bin/` and host-owned `.claude/` settings keep their existing locations
 - Helper programs and user code under `frontend.helpers_dir` stay where they are
     - Verification metadata always uses `<project folder>/verification/VERIFICATION-KNOWLEDGE.md`
@@ -129,13 +102,13 @@ Every part keeps its name inside its home.
 
 *ACStack's own settings and caches share the same root, `~/.acstack/` or `$ACSTACK_HOME`.*
 
-| File | Path | Was |
-| --- | --- | --- |
-| Global config (`host.*` keys) | `~/.acstack/config.json` | `~/.config/acstack/config.json` |
-| Opener token | `~/.acstack/opener.token` | `~/.config/acstack/opener.token` |
-| Terminal-workspace files | `~/.acstack/terminal-workspace.yaml` and its siblings | `~/.config/acstack/` |
-| Cached assets | `~/.acstack/cache/` | `~/.local/share/acstack/` |
-| ac-teams state | `~/.acstack/ac-teams/` | unchanged |
+| File | Path |
+| --- | --- |
+| Global config (`host.*` keys and personal preferences) | `~/.acstack/config.json` |
+| Opener token | `~/.acstack/opener.token` |
+| Terminal-workspace files | `~/.acstack/terminal-workspace.yaml` and its siblings |
+| Cached assets | `~/.acstack/cache/` |
+| ac-teams state | `~/.acstack/ac-teams/` |
 
 ACStack no longer reads the `XDG_CONFIG_HOME` or `XDG_DATA_HOME` variables.
 
@@ -192,26 +165,42 @@ What migration does:
 - It preflights every move and aborts on a collision, such as a part that already exists in the project folder or a record that already exists in the worktree, without overwriting anything
 - Never migrate a repository silently, or work around legacy data by creating a partial project folder
 
-### Design docs
+## Where the file lives, and what writes it
 
-- ACStack removes legacy `map --map` and `align-viewer` without aliases
-- Use `design-doc <map>` to review a map's design doc; its elements are `element` nodes on that map
-- Use `node walk` and `node frontier` for map planning
-- Review evidence in `design-reviews/<map>/` belongs to its map; archiving the map removes it
+*The setup skill writes the whole file. To change one key, run `acstack config set`.*
 
-### 1.1. Which file a write lands in
+- `<project folder>/project.yaml` sits at the top of the project folder
+- `/acstack:setup` writes it
+    - On a fresh project the skill detects the project type, then writes every key from a profile under `profiles/`
+    - On a project that already has the file, the skill leads with the health check and offers a menu of changes
+- `acstack config set <key> <value>` changes one key without an interview
+- A key the file omits takes the default the tables below give it
+    - The `commands` and `frontend` keys have no such default
+    - The setup skill copies them from a profile
+        - An omitted one names nothing at all
+
+These commands report configuration without changing settings.
+
+| Command | What it prints |
+| --- | --- |
+| `acstack config show` | the profile, the commands, and what the project says about its browser |
+| `acstack config check` | an audit of the project and the machine, exiting 2 when a required host axis has no value |
+| `acstack config list` | every key the file states |
+| `acstack design-gate` | whether a design review runs here, as `on` and exit 0 or one `off: <reason>` line per reason and exit 1 ([workflow: the switches](#workflow-the-switches)) |
+
+### Which file a write lands in
 
 *The key decides, and the key alone.*
 
 - A `host.*` key describes the machine
     - It goes to the global config at `~/.acstack/config.json`
-- A personal preference key (section 5.1) goes to the same global config
+- A [personal preference](#personal-preferences-live-in-the-user-level-config) key goes to the same global config
 - Every other key in this document describes the project
     - It goes to `<project folder>/project.yaml`
-- Section 10 covers the `host.*` keys
+- [What is not a project.yaml key](#what-is-not-a-projectyaml-key) covers the `host.*` keys
 - `acstack config get <key>` and `acstack config unset <key>` read the same key table and route the same way
 
-### 1.2. What a command refuses
+### What a command refuses
 
 *Validation happens before either file opens, so a refusal writes nothing.*
 
@@ -227,7 +216,7 @@ What migration does:
 - `get` and `unset` both refuse a key neither schema knows
 - Both refuse a project key outside an ACStack project
 
-### 1.3. What `get` prints, and what it exits
+### What `get` prints, and what it exits
 
 *One exit code means "no value here", whichever file holds the key.*
 
@@ -239,7 +228,7 @@ What migration does:
 - The message names no default where a table describes the default instead
     - There is none to name
 
-### 1.4. What `unset` leaves behind
+### What `unset` leaves behind
 
 *`acstack config unset` takes the key out. It prunes nothing else.*
 
@@ -251,7 +240,7 @@ What migration does:
 - The command prunes nothing
     - Pruning would take any comment on that block with it
 
-### 1.5. How a write preserves the rest of the file
+### How a write preserves the rest of the file
 
 *Two write paths exist. The result of the first decides which one runs.*
 
@@ -285,7 +274,7 @@ So the result decides which path a write takes, and never the shape of the key.
     - The file stays byte for byte as it was
 - Losing the alignment of a comment beats losing the key that follows a block scalar
 
-### 1.6. Four file shapes that get a decision rather than a crash
+### Four file shapes that get a decision rather than a crash
 
 *A file ACStack itself produced always reads back.*
 
@@ -310,7 +299,7 @@ Three refusals protect a file neither command can handle.
 - Both refuse a document that is a scalar or a list, because no key hangs under either
 - Both name the file and the reason
 
-### 1.7. What `acstack config list` reports
+### What `acstack config list` reports
 
 *The listing answers what the file states, and `get` answers what the schema knows.*
 
@@ -330,7 +319,7 @@ Three refusals protect a file neither command can handle.
     - Each row reads `{"key": "<dotted path>", "value": ..., "known": true|false}`
     - The rows are a list, so two rows can share one dotted path
 
-## 2. profile
+## profile
 
 *One word naming the defaults the file started from.*
 
@@ -341,7 +330,7 @@ Three refusals protect a file neither command can handle.
 - The profile decides nothing after setup has run
 - The commands it proposed live in the file as their own keys, and those keys are what every later reader uses
 
-## 3. workflow: the switches
+## workflow: the switches
 
 *Three booleans sit in the block. Each one changes how much discipline ACStack applies. A byte count tunes the large-read guard, and one more key decides how the agent asks you a question.*
 
@@ -349,7 +338,7 @@ Three refusals protect a file neither command can handle.
 | --- | --- | --- | --- |
 | `workflow.frontend_verification` | `true`, `false` | `false` | the frontend-verifier runs only when this is `true`, the file configures a `frontend` block, the change touched frontend files, and the agent is in full mode (the user is away or asked it to finish alone); by default the agent hands the page back to the user |
 | `workflow.design_review` | `true`, `false` | `false` | a design review runs on a UI change only when this is `true`; it needs the impeccable plugin installed and switched on, which `acstack config check` reports on |
-| `workflow.read_guard` | `true`, `false` | `true` | `false` turns off the large-read guard; section 3.2 describes it |
+| `workflow.read_guard` | `true`, `false` | `true` | `false` turns off [the large-read guard](#the-large-read-guard) |
 | `workflow.read_guard_bytes` | a whole number, 1 or more | `32768` | the smallest file, in bytes, the large-read guard stops |
 
 How a boolean reads:
@@ -362,9 +351,7 @@ How a boolean reads:
 - `workflow.frontend_verification` reads as off unless the file states one of the three true spellings outright
     - The frontend-verifier is the only reader
     - `orchestrator/AGENTS.md` and the `browser-verify` skill both run it only on an explicit `true`, and only in full mode
-    - The defaults block in section 11 shows `true` for this key
-    - That is what `/acstack:setup` writes for a project with a frontend
-    - That is what setup writes, and not what an absent key means
+    - `/acstack:setup` writes `true` for a project with a frontend
 - `workflow.design_review` reads as off unless the file states one of the three true spellings outright
     - `acstack design-gate` is the one command that answers whether the gate is on
         - On needs both halves: the key true, and the impeccable plugin installed
@@ -373,17 +360,17 @@ How a boolean reads:
         - An impeccable older than major 4, or one whose version it cannot read, warns on stderr and stays on
         - `--json` prints the same answer as `{"on": ..., "reasons": [...], "impeccable": ...}`
 
-### 3.1. How the agent asks you a question
+### How the agent asks you a question
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
 | `workflow.grilling.questions` | `tool`, `inline` | `tool` | `tool` asks through the host's question tool, one call per round; `inline` asks in prose |
 
-- This is a personal preference: section 5.1 says where it lives
+- This is a [personal preference](#personal-preferences-live-in-the-user-level-config)
 - `tool` falls back to inline prose for any round it cannot hold
 - Two things exceed it: a round of more than four questions, and any question with no discrete options
 
-### 3.2. The large-read guard
+### The large-read guard
 
 *The guard stops a main agent's first whole read of a large file once, and points it to a cheaper way to read.*
 
@@ -403,7 +390,7 @@ How a boolean reads:
 - Any error inside the guard lets the read through
 - Claude Code and Codex record passed reads in `${TMPDIR:-/tmp}/acstack-read-guard-<uid>/<session_id>.json`, a folder only its owner can open; pi keeps them in memory
 
-## 4. workflow.maps
+## workflow.maps
 
 *Two keys record where a map's nodes live, and what happens to those nodes at the end.*
 
@@ -427,7 +414,7 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
 - Maps never live in Git: files-tracker maps sit in the project folder, and GitHub-tracker maps are issues
 - Archiving a map deletes `<project folder>/design-reviews/<name>/` on either tracker, whatever `workflow.maps.persist` says
 
-## 5. workflow.handoff: launching and acknowledging
+## workflow.handoff: launching and acknowledging
 
 *Three keys govern the handoff skill, which moves work from one session to another.*
 
@@ -441,7 +428,7 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
 - Frontmatter model-invocation flags are static
     - No project could turn one off for itself
 
-### 5.1. Personal preferences live in the user-level config
+### Personal preferences live in the user-level config
 
 *The `workflow.handoff.*` keys and `workflow.grilling.questions` follow the person, not the repository.*
 
@@ -452,7 +439,7 @@ A **map** is a graph of question nodes and work nodes. A **tracker** is the back
 - `acstack config unset` removes the user-level value; it leaves `project.yaml` alone
 - `hooks/context-pressure.sh` and the pi extension merge the two the same way, key by key
 
-## 6. workflow.handoff: the context-pressure ladder
+## workflow.handoff: the context-pressure ladder
 
 *Five keys place the rungs at which `hooks/context-pressure.sh` asks the session to choose continuity or freshness.*
 
@@ -466,7 +453,7 @@ How the hook decides to speak:
 - It records the new rung
 - So a long session gets one nudge per rung, not one per stop
 
-### 6.1 The default thresholds, and the gap above them
+### The default thresholds
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
@@ -496,7 +483,7 @@ What the nudge asks the agent to choose:
     - It asks the user only when it genuinely cannot tell
     - It hands over without asking when the user already agreed to a handoff earlier in the session
 
-### 6.2 An explicit ladder
+### An explicit ladder
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
@@ -516,7 +503,7 @@ All three of the other keys still act under an explicit ladder.
 - It still moves that wording threshold
 - The hook raises `nudge_severe` to meet a higher `nudge_warn` before it builds the ladder
 
-### 6.3 What a percentage is a percentage of
+### What a percentage is a percentage of
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
@@ -538,7 +525,7 @@ Three rules decide the window, in order.
 - A million-token model says so in its own id
     - `claude-sonnet-4-5[1m]` resolves to 1,000,000 rather than 200,000
 
-### 6.4 Why only the session's own stop
+### Why only the session's own stop
 
 *The hook nudges the session that could act on it. It nudges nobody else.*
 
@@ -552,7 +539,7 @@ Three rules decide the window, in order.
     - The hook skips every transcript record marked `isSidechain`
     - A subagent's tokens are not this session's context
 
-### 6.5 The ladder is per session, and a compaction resets it
+### The ladder is per session, and a compaction resets it
 
 *Two files per session hold the state, and a compaction deletes both.*
 
@@ -580,7 +567,7 @@ Two limits are worth knowing.
 - The hook opens `<project folder>/project.yaml`, finding the folder with `acstack project-data path`
     - A session running outside a Git repository therefore gets the defaults
 
-### 6.6 Memory on pi: restart the process on the same session
+### Memory on pi: restart the process on the same session
 
 | Key | Values | Default | What changes |
 | --- | --- | --- | --- |
@@ -604,7 +591,7 @@ The tool restarts only when nothing in flight would be lost.
 - Pi then exits, and a small detached script starts `pi --session` in the same pane, with the original launch options (`-e`, `--no-extensions`, and so on) but not the original messages, under the same herdr agent name
 - Background jobs and timers that other extensions started are not tracked, and a restart loses them
 
-## 7. commands and venv
+## commands and venv
 
 *What every agent runs.*
 
@@ -626,7 +613,7 @@ The tool restarts only when nothing in flight would be lost.
     - A `null`, a number or a nested block does not name a command anyone could run
         - The listing leaves it out
 
-## 8. frontend
+## frontend
 
 *The block's presence is itself a setting: with no `frontend` block, this project drives no browser.*
 
@@ -645,7 +632,7 @@ The tool restarts only when nothing in flight would be lost.
 - An explicit `frontend: null` reads the same as no block at all
 - The CLI counts a frontend only when the key holds something other than `null`
 
-## 9. frontend.browser and the CDP port
+## frontend.browser and the CDP port
 
 *Three keys state what this project would like. The machine states what it can actually do.*
 
@@ -679,9 +666,9 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
     - A typo would read as a fallback the project never asked for
         - The command refuses it rather than storing it
 
-## 10. What is not a project.yaml key
+## What is not a project.yaml key
 
-*Two sets of settings look like they belong here, and some old keys used to. None of them is a key now.*
+*These settings look like they belong here, but none of them is a `project.yaml` key.*
 
 - The `outputStyle` setting is not a `project.yaml` key
     - Claude Code owns it
@@ -696,21 +683,20 @@ Only the literal `none` gives `frontend.browser.fallback` any effect.
     - They live in the global config at `~/.acstack/config.json`
     - `acstack config set` is what writes them
     - [dev-setups.md](dev-setups.md) documents all nine axes
-- `workflow.spec_sync`, `workflow.tdd.*`, `directories.*`, and `test_markers.exclude` are no longer keys
-    - Nothing read them
+- `workflow.spec_sync`, `workflow.tdd.*`, `workflow.alignment_packs.*`, `directories.*`, and `test_markers.exclude` are no longer keys
+    - Nothing reads them
     - A file that still states one passes `acstack config check`; `acstack config list` marks it `(unknown key)`, and you can delete the line
 
-## 11. Every default in one block
+## Every default in one block
 
-*What ACStack does with a `project.yaml` that states none of these keys. The `grilling` and `handoff` values are the defaults of personal preferences (section 5.1).*
+*What ACStack does with a `project.yaml` that states none of these keys. The `grilling` and `handoff` values are the defaults of [personal preferences](#personal-preferences-live-in-the-user-level-config).*
 
 ```yaml
 workflow:
   grilling:
     questions: tool
   # /acstack:setup writes true for a project with a frontend.
-  # An absent key reads as false. Section 3 says why.
-  frontend_verification: true
+  frontend_verification: false
   design_review: false
   read_guard: true
   read_guard_bytes: 32768
@@ -730,4 +716,4 @@ workflow:
 
 - The `commands`, `venv`, and `frontend` blocks have no defaults of their own
 - `/acstack:setup` copies them from the profile it detects
-- Section 7 gives the values each profile proposes
+- `profiles/<profile>.yaml` in the plugin root holds the values each profile proposes

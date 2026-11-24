@@ -171,5 +171,5 @@ npx impeccable detect --json <file> [<file>...]
     - The checker reruns affected tests, static checks, and the detector without editing files
 - Without a delegated checker, the parent reruns those checks on the polished code
 - Resolve failures before browser verification
-- Then measure the final code and hand back (step 3 of `SKILL.md`); in full mode, also run steps 4 to 6, through `frontend-verifier` when the project enables configured browser verification
+- Then measure the final code and hand back (step 3 of `SKILL.md`); in full mode, also run steps 4 and 5, through `frontend-verifier` when the project enables configured browser verification
 - Report actual checks and results, including detector warnings and advisory findings

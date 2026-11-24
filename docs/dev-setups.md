@@ -21,17 +21,17 @@ Four terms first.
 
 ```mermaid
 flowchart TD
-    HOST["Describe this machine once<br/>(/acstack:host - section 4)"] --> AXES["Every axis, and what reads it<br/>(host.* in ~/.acstack/config.json - section 1)"]
-    AXES --> ORCH["Orchestrator axes<br/>(host.orchestrators.* - section 2)"]
-    AXES --> BROW["Browser axes<br/>(host.browser.* - section 3)"]
+    HOST["Describe this machine once<br/>(/acstack:host)"] --> AXES["Every axis, and what reads it<br/>(host.* in ~/.acstack/config.json)"]
+    AXES --> ORCH["Orchestrator axes<br/>(host.orchestrators.*)"]
+    AXES --> BROW["Browser axes<br/>(host.browser.*)"]
     AXES --> OPT["Optional axes<br/>(preview, terminal workspace, element picker, Orca topology)"]
     ORCH -->|"pick the worktree tool"| WT["new-worktree, teardown-worktree"]
     BROW -->|"pick the browser"| FV["frontend-verifier"]
-    PROJ["What this project prefers<br/>(frontend.browser.* in .acstack/project.yaml)"] --> FV
+    PROJ["What this project prefers<br/>(frontend.browser.* in project.yaml)"] --> FV
     OPT -.->|"nothing reads them yet"| CHK["acstack config check lists them"]
 ```
 
-## 1. Every axis, and what reads it
+## Every axis, and what reads it
 
 *Nine `host.*` axes describe the machine. Three `frontend.browser.*` keys state what one project would like.*
 
@@ -46,9 +46,9 @@ flowchart TD
 | `host.terminal_workspace` | `true`, `false` | no | global config | `/acstack:setup` offers the workspace once, and never asks again after this is set |
 | `host.element_picker` | `stagewise`, `orca-design-mode`, `none` | no | global config | nothing; check 5 lists it |
 | `host.orca.topology` | `local`, `remote` | no | global config | nothing; check 5 marks it inert unless `host.orchestrators.orca` is `true` |
-| `frontend.browser.mode` | `remote`, `headless`, `local` | no | `.acstack/project.yaml` | the preference, weighed against the three host axes |
-| `frontend.browser.cdp_port` | a port number | no | `.acstack/project.yaml` | `frontend-verifier`; defaults to `19988` for `remote` and `9555` otherwise |
-| `frontend.browser.fallback` | `none`, or any word | no | `.acstack/project.yaml` | only `none` acts: it forbids a stand-in mode |
+| `frontend.browser.mode` | `remote`, `headless`, `local` | no | `<project folder>/project.yaml` | the preference, weighed against the three host axes |
+| `frontend.browser.cdp_port` | a port number | no | `<project folder>/project.yaml` | `frontend-verifier`; defaults to `19988` for `remote` and `9555` otherwise |
+| `frontend.browser.fallback` | `none`, or any word | no | `<project folder>/project.yaml` | only `none` acts: it forbids a stand-in mode |
 
 Where the file lives, and how the CLI reads a value:
 
@@ -60,7 +60,7 @@ Where the file lives, and how the CLI reads a value:
     - `stagewise` works, and `Stagewise` does not
 - The CLI matches a boolean loosely: `true`, `yes`, and `on` all mean true, and `false`, `no`, and `off` all mean false
 
-## 2. Orchestrator axes
+## Orchestrator axes
 
 *Each orchestrator is its own yes-or-no. Declared means installed. The environment says which one hosts this session.*
 
@@ -111,7 +111,7 @@ Neither tool sees the other's sessions.
 - orca's desktop application holds that switch, named "show in worktree list"
 - No command sets it
 
-## 3. Browser axes
+## Browser axes
 
 *The three modes are not alternatives. A machine can offer any combination. Each one needs something different.*
 
@@ -134,18 +134,18 @@ How the two sides meet:
 - `~/.claude/acstack/bin/acstack config browser-mode` applies those rules and prints the answer with its reason
 - The frontend verifier runs that command instead of choosing for itself
 
-## 4. Describe this machine once
+## Describe this machine once
 
-*Eight steps. Each install plans before it touches anything.*
+*Each install plans before it touches anything.*
 
-1. Run `/acstack:host`. It detects what is here, then asks about every axis.
-2. Detection never decides a required axis. It only pre-fills the recommended answer.
-3. On Linux the skill offers two installs. Each one plans first and waits for approval.
-4. `install-orca.sh --plan` lists the steps, and `--apply` runs them. It installs the AppImage, the `orca-ide` and `orca` symlinks, and a systemd user unit.
-5. The apply prints the pairing URL only when it started or restarted the server. The journal must already hold the readiness line. Otherwise it prints the `journalctl` command to run by hand.
-6. `install-herdr-block.sh --plan` lists the steps, and `--apply` writes the block. The block goes into `~/.config/herdr/config.toml`. It names the directory herdr creates worktrees under.
-7. Run `~/.claude/acstack/bin/acstack config check`. It prints five numbered checks.
-8. Read its exit code. It exits 2 on an unset required axis, 1 on any other failure, and 0 when everything passes.
+1. Run `/acstack:host`. It detects what is here, then asks about every axis
+    - Detection never decides a required axis. It only pre-fills the recommended answer
+2. On Linux, approve or skip the two installs the skill offers. Each one plans first and waits for approval
+    - `install-orca.sh --plan` lists the steps, and `--apply` runs them. It installs the AppImage, the `orca-ide` and `orca` symlinks, and a systemd user unit
+    - The Orca apply prints the pairing URL when it started or restarted the server and the journal holds the readiness line. Otherwise it prints the `journalctl` command to run by hand
+    - `install-herdr-block.sh --plan` lists the steps, and `--apply` writes the block into `~/.config/herdr/config.toml`. The block names the directory herdr creates worktrees under
+3. Run `~/.claude/acstack/bin/acstack config check`. It prints seven numbered checks
+    - It exits 2 on an unset required axis, 1 on any other failure, and 0 when everything passes
 
 This skill asks eight of the nine axes. `/acstack:setup` asks the ninth, at
 the end of its own run, and writes `host.terminal_workspace` from the answer.
@@ -154,7 +154,7 @@ the end of its own run, and writes `host.terminal_workspace` from the answer.
 - Either answer ends the offer for good
 - After a `true` answer, `/acstack:setup` re-checks this machine on every later run and offers `upgrade` when a tool or a component has moved on
 - The key records the answer, never the install: `true` means the user said yes, not that the workspace is on the machine
-- `/acstack:terminal-workspace` is the only thing that installs it, and only you can start it
+- `/acstack:terminal-workspace` is the only thing that installs it, and only the user can start it
 
 Four things stay yours.
 
