@@ -39,7 +39,7 @@ import {
 import { findInstalledPlugin } from '../lib/claude-plugins.js';
 import { IMPECCABLE_PLUGIN, impeccableVersionNote } from '../lib/impeccable.js';
 import { cdpPortAnswers, firstBinaryOnPath, runCommand } from '../lib/host-probe.js';
-import { FRONTEND_VERIFICATION_KEY } from '../lib/project-config.js';
+import { FRONTEND_VERIFICATION_KEY } from '../lib/project-keys.js';
 import type { LoadedProject } from './config.js';
 
 /**

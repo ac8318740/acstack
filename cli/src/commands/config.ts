@@ -28,18 +28,15 @@ import {
   type ProjectSettings,
   type ResolvedBrowserMode,
 } from '../lib/host-status.js';
+import { getProjectKey, listProjectKeys, setProjectKey, unsetProjectKey } from '../lib/project-config.js';
 import {
-  getProjectKey,
   isUserPreferenceKey,
-  listProjectKeys,
   parseProjectValue,
   PROJECT_KEY_LIST,
   projectKeyDefault,
   projectKeyDefaultFlag,
   projectKeySpec,
-  setProjectKey,
-  unsetProjectKey,
-} from '../lib/project-config.js';
+} from '../lib/project-keys.js';
 import { checkoutRoot, findProjectRoot, ProjectDataError } from '../lib/project.js';
 import { readYaml } from '../lib/utils.js';
 import {
