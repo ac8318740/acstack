@@ -28,18 +28,15 @@ import {
   type ProjectSettings,
   type ResolvedBrowserMode,
 } from '../lib/host-status.js';
+import { getProjectKey, listProjectKeys, setProjectKey, unsetProjectKey } from '../lib/project-config.js';
 import {
-  getProjectKey,
   isUserPreferenceKey,
-  listProjectKeys,
   parseProjectValue,
   PROJECT_KEY_LIST,
   projectKeyDefault,
   projectKeyDefaultFlag,
   projectKeySpec,
-  setProjectKey,
-  unsetProjectKey,
-} from '../lib/project-config.js';
+} from '../lib/project-keys.js';
 import { checkoutRoot, findProjectRoot, ProjectDataError } from '../lib/project.js';
 import { readYaml } from '../lib/utils.js';
 import {
@@ -332,6 +329,17 @@ function printConfigValue(value: unknown): void {
   console.log(typeof value === 'string' ? value : JSON.stringify(value));
 }
 
+/**
+ * Report that `key` has no stated value and exit 2, naming the documented
+ * default where the reference gives one.
+ */
+function exitUnsetProjectKey(key: string): never {
+  const fallback = projectKeyDefault(key);
+  const note = fallback === undefined ? '' : ` - the documented default is ${fallback}`;
+  console.error(chalk.yellow(`${key} is unset${note}`));
+  process.exit(2);
+}
+
 /** Print one `host.*` axis, exiting 2 when the config states no value for it. */
 function getHostKey(key: string): void {
   const result = getKey(readGlobalConfig(GLOBAL_CONFIG_FILE), key);
@@ -366,12 +374,7 @@ function unsetGlobalKey(key: string): void {
  */
 function getProjectFileKey(key: string): void {
   const result = getProjectKey(projectFileFor(key, 'get'), key);
-  if (result.status === 'unset') {
-    const fallback = projectKeyDefault(key);
-    const note = fallback === undefined ? '' : ` - the documented default is ${fallback}`;
-    console.error(chalk.yellow(`${key} is unset${note}`));
-    process.exit(2);
-  }
+  if (result.status === 'unset') exitUnsetProjectKey(key);
   printConfigValue(result.value);
 }
 
@@ -403,12 +406,7 @@ function setPreferenceKey(key: string, value: string): void {
 function getPreferenceKey(key: string): void {
   const project = projectOverride(key);
   const result = project.status === 'set' ? project : getKey(readGlobalConfig(GLOBAL_CONFIG_FILE), key);
-  if (result.status === 'unset') {
-    const fallback = projectKeyDefault(key);
-    const note = fallback === undefined ? '' : ` - the documented default is ${fallback}`;
-    console.error(chalk.yellow(`${key} is unset${note}`));
-    process.exit(2);
-  }
+  if (result.status === 'unset') exitUnsetProjectKey(key);
   printConfigValue(result.value);
 }
 

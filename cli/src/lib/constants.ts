@@ -95,7 +95,6 @@ export const VOCABULARY_PATH = join('skills', 'writing', 'vocabulary.md');
  */
 export const ACSTACK_HOME = process.env.ACSTACK_HOME || join(homedir(), '.acstack');
 export const GLOBAL_CONFIG_FILE = join(ACSTACK_HOME, 'config.json');
-export const GLOBAL_CACHE_DIR = join(ACSTACK_HOME, 'cache');
 /** One entry per repository, named by its project key. */
 export const PROJECTS_DIR = join(ACSTACK_HOME, 'projects');
 /** Records a global-mode project folder's shared git folder, so a moved repo can be relinked. */

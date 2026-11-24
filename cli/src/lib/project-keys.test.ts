@@ -8,7 +8,7 @@ import {
   projectKeyDefault,
   projectKeySpec,
   type ProjectKeySpec,
-} from './project-config.js';
+} from './project-keys.js';
 import { BROWSER_MODE_PRIORITY, FALLBACK_FORBIDDEN } from './host-status.js';
 import { ConfigValidationError, parseValue } from './global-config.js';
 
@@ -27,7 +27,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '../../../');
 const srcRoot = resolve(__dirname, '..');
 
-const projectConfigSource = readFileSync(join(srcRoot, 'lib', 'project-config.ts'), 'utf-8');
+const projectKeysSource = readFileSync(join(srcRoot, 'lib', 'project-keys.ts'), 'utf-8');
 const configCommandSource = readFileSync(join(srcRoot, 'commands', 'config.ts'), 'utf-8');
 
 /** The `values` of an enum spec, refusing a key the schema calls something else. */
@@ -47,10 +47,10 @@ function enumValues(key: string): readonly string[] {
  * schema restating the value.
  */
 function schemaEntrySource(key: string): string {
-  const start = projectConfigSource.indexOf(`'${key}':`);
-  expect(start, `project-config.ts states no schema entry for ${key}`).toBeGreaterThan(-1);
+  const start = projectKeysSource.indexOf(`'${key}':`);
+  expect(start, `project-keys.ts states no schema entry for ${key}`).toBeGreaterThan(-1);
 
-  const rest = projectConfigSource.slice(start + key.length);
+  const rest = projectKeysSource.slice(start + key.length);
   const nextKey = rest.search(/\n\s*'?[a-z][a-z_.]*'?:/);
   const entry = nextKey === -1 ? rest : rest.slice(0, nextKey);
   return entry.replace(/\/\/.*$/gm, '');
@@ -83,7 +83,7 @@ describe('the project schema takes the browser mode names from host-status', () 
     for (const mode of BROWSER_MODE_PRIORITY) {
       expect(
         entry,
-        `project-config.ts spells '${mode}' in the frontend.browser.mode entry; host-status.ts owns that name`
+        `project-keys.ts spells '${mode}' in the frontend.browser.mode entry; host-status.ts owns that name`
       ).not.toContain(`'${mode}'`);
     }
   });
@@ -93,7 +93,7 @@ describe('the project schema takes the browser mode names from host-status', () 
     for (const value of [FALLBACK_FORBIDDEN, ...BROWSER_MODE_PRIORITY]) {
       expect(
         entry,
-        `project-config.ts spells '${value}' in the frontend.browser.fallback entry; host-status.ts owns that name`
+        `project-keys.ts spells '${value}' in the frontend.browser.fallback entry; host-status.ts owns that name`
       ).not.toContain(`'${value}'`);
     }
   });
@@ -300,17 +300,17 @@ describe('the context-pressure defaults agree across TypeScript, the hook and th
 
       expect(
         hookDefault(python),
-        `${HOOK_PATH} sets ${python} to ${hookDefault(python)}, and cli/src/lib/project-config.ts sets ${key} to ${schema}`
+        `${HOOK_PATH} sets ${python} to ${hookDefault(python)}, and cli/src/lib/project-keys.ts sets ${key} to ${schema}`
       ).toBe(schema);
 
       expect(
         referenceTableDefault(key),
-        `the ${REFERENCE_PATH} table gives ${key} as ${referenceTableDefault(key)}, and cli/src/lib/project-config.ts sets it to ${schema}`
+        `the ${REFERENCE_PATH} table gives ${key} as ${referenceTableDefault(key)}, and cli/src/lib/project-keys.ts sets it to ${schema}`
       ).toBe(schema);
 
       expect(
         referenceExampleDefault(yaml),
-        `the ${REFERENCE_PATH} example writes ${yaml}: ${referenceExampleDefault(yaml)}, and cli/src/lib/project-config.ts sets ${key} to ${schema}`
+        `the ${REFERENCE_PATH} example writes ${yaml}: ${referenceExampleDefault(yaml)}, and cli/src/lib/project-keys.ts sets ${key} to ${schema}`
       ).toBe(schema);
     });
   }

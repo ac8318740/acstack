@@ -538,7 +538,6 @@ export function Drawer({
     .filter(annotation => commentScope === 'all' || context?.matches(annotation.target));
   const options = commentScopeOptions(annotations);
   const currentLabel = commentScope !== 'all' && context ? scopeLabel(context.target) : 'All targets';
-  const mockNode = selected?.startsWith('item:') ? selected.slice(5) : selected?.startsWith('group:') ? pack.graph.groups.find(group => group.id === selected.slice(6))?.ownerNodeId ?? null : null;
   // Mocks filter like Comments and Questions: the selected element, or every mock with nothing selected.
   const mockNodes = pack.graph.nodes.filter(node => node.mocks?.length).map(node => node.id);
   const [mockScope, setMockScope] = useState(() => mockScopeForSelection(selected, diagram));

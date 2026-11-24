@@ -190,8 +190,8 @@ if [ -n "$plugin_root" ]; then
   esac
 fi
 
-source "${plugin_root}/hooks/project-data.sh"
-if ! project_folder=$(acstack_project_folder "$cli_wrapper"); then
+# Fails outside Git or when the CLI names a fix; its message reaches the user on stderr.
+if ! project_folder=$("$cli_wrapper" project-data path); then
   exit 0
 fi
 

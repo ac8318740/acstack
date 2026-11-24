@@ -5,8 +5,6 @@
 // A main agent's first whole-file read of a large file is blocked with a
 // redirect message; an identical repeat passes. Every error allows the read,
 // because the guard saves context and must never trap an agent.
-//
-// Design: .acstack/designs/large-read-guard/overview.md
 
 import * as fs from 'node:fs';
 import * as os from 'node:os';
